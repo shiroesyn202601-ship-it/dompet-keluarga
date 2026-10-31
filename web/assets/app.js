@@ -1771,7 +1771,41 @@ function cekBio(id) {
 
 let pinDiketik = '';
 let waktuDisembunyikan = 0;
+let timerJeda = 0;
 const KUNCI_SETELAH_MS = 60 * 1000;
+// PIN 4 angka hanya 10.000 kemungkinan: tiap 5× salah jeda 30 detik, 10× salah wajib masuk ulang dengan Google.
+const SALAH_PER_JEDA = 5;
+const JEDA_PIN_MS = 30 * 1000;
+const SALAH_MAKS = 10;
+
+/** { n: jumlah salah berturut-turut, sampai: waktu jeda berakhir }. Disimpan supaya tidak bisa direset dengan muat ulang. */
+const pinSalah = () => { try { return JSON.parse(bacaHp('dk_pin_salah')) || { n: 0, sampai: 0 }; } catch (e) { return { n: 0, sampai: 0 }; } };
+const sisaJedaPin = () => Math.max(0, pinSalah().sampai - Date.now());
+
+/** Mencatat satu PIN salah; true kalau sudah terlalu sering sehingga kunci direset. */
+function catatPinSalah() {
+  const s = pinSalah();
+  s.n++;
+  if (s.n >= SALAH_MAKS) {
+    resetKunci();
+    toast(`PIN salah ${SALAH_MAKS} kali. Demi keamanan, silakan masuk lagi dengan akun Google.`, true);
+    return true;
+  }
+  if (s.n % SALAH_PER_JEDA === 0) s.sampai = Date.now() + JEDA_PIN_MS;
+  tulisHp('dk_pin_salah', JSON.stringify(s));
+  return false;
+}
+
+/** Lupa PIN / terlalu sering salah: kunci dimatikan, sesi Google & data di HP dihapus, lalu masuk ulang. */
+function resetKunci() {
+  tulisHp('dk_kunci', null);
+  tulisHp('dk_pin_salah', null);
+  tulisLokal('data', null);
+  GOOGLE.keluar();
+  S.data = null;
+  bukaKunci();
+  tampilMasuk();
+}
 
 function kunciLayar() {
   if (!kunciTersimpan()) return;
@@ -1781,15 +1815,19 @@ function kunciLayar() {
 }
 function bukaKunci() {
   pinDiketik = '';
+  clearTimeout(timerJeda);
   $('#kunci').hidden = true;
   $('#kunci').innerHTML = '';
 }
 function renderKunci(salah) {
   const k = kunciTersimpan();
+  const jeda = sisaJedaPin();
+  clearTimeout(timerJeda);
+  if (jeda) timerJeda = setTimeout(() => { if (!$('#kunci').hidden) renderKunci(); }, Math.min(jeda, 1000));
   $('#kunci').innerHTML = `
     <div class="kunci-isi">
       <div class="logo" aria-hidden="true">🔒</div>
-      <b>Masukkan PIN</b>
+      <b>${jeda ? `Coba lagi dalam ${Math.ceil(jeda / 1000)} detik` : 'Masukkan PIN'}</b>
       <div class="titik-pin ${salah ? 'salah' : ''}">${Array.from({ length: k.panjang || 4 }, (_, i) =>
         `<i class="${i < pinDiketik.length ? 'isi' : ''}"></i>`).join('')}</div>
       <div class="papan-pin">
@@ -1827,7 +1865,8 @@ async function bukaFormKunci() {
     ${bio ? `<label class="baris" style="cursor:pointer"><input type="checkbox" id="k-bio" checked>
       <span class="isi"><b>Juga pakai sidik jari / wajah</b><small>Lebih cepat dari mengetik PIN</small></span></label>` : ''}
     <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-kunci">Aktifkan</button></div>
-    <p class="info-kecil">Lupa PIN? Cukup keluar lalu masuk lagi dengan akun Google. Data tidak hilang.</p>`);
+    <p class="info-kecil">Lupa PIN? Cukup keluar lalu masuk lagi dengan akun Google. Data tidak hilang.</p>
+    <p class="info-kecil">Kunci ini menjaga dari orang yang meminjam HP. Kalau HP hilang, segera ganti sandi Google Anda dan keluarkan HP itu dari akun Google.</p>`);
 }
 
 // ---------- Input cepat ----------
@@ -2592,19 +2631,23 @@ const AKSI = {
   },
   'pin': async el => {
     const k = kunciTersimpan();
-    if (!k || pinDiketik.length >= k.panjang) return;
+    if (!k || pinDiketik.length >= k.panjang || sisaJedaPin()) return;
     pinDiketik += el.dataset.n;
     renderKunci();
     if (pinDiketik.length < k.panjang) return;
-    if ((await hashPin(pinDiketik, k.garam)) === k.hash) return bukaKunci();
+    if ((await hashPin(pinDiketik, k.garam)) === k.hash) {
+      tulisHp('dk_pin_salah', null);
+      return bukaKunci();
+    }
     pinDiketik = '';
     getar();
-    renderKunci(true);
+    if (!catatPinSalah()) renderKunci(true);
   },
   'pin-hapus': () => { pinDiketik = pinDiketik.slice(0, -1); renderKunci(); },
   'buka-bio': async () => {
     try {
       await cekBio(kunciTersimpan().bio);
+      tulisHp('dk_pin_salah', null);
       bukaKunci();
     } catch (e) {
       toast('Sidik jari/wajah gagal. Pakai PIN.', true);
@@ -2612,12 +2655,7 @@ const AKSI = {
   },
   'lupa-pin': () => {
     if (!confirm('Untuk membuka kunci tanpa PIN, Anda perlu keluar lalu masuk lagi dengan akun Google. Data tetap aman di Google Drive. Lanjutkan?')) return;
-    tulisHp('dk_kunci', null);
-    tulisLokal('data', null);
-    GOOGLE.keluar();
-    S.data = null;
-    bukaKunci();
-    tampilMasuk();
+    resetKunci();
   },
   'rincian-aman': () => bukaRincianAman(),
   'atur-periode': () => bukaFormPeriode(),
