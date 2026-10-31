@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f4f5f8">
+    <title>Kebijakan Privasi · Dompet Keluarga</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="ikon/favicon-32.png">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap">
+    <link rel="stylesheet" href="assets/styles.css">
+    <style>
+      .privasi { padding: 20px 16px 48px; }
+      .privasi h1 { font-size: 26px; margin: 8px 0 4px; }
+      .privasi h2 { font-size: 17px; margin: 28px 0 8px; }
+      .privasi p, .privasi li { color: var(--text); }
+      .privasi ul { padding-left: 20px; }
+      .privasi li { margin-bottom: 6px; }
+      .privasi .kecil { color: var(--muted); font-size: 13px; }
+      .privasi a { color: var(--primary); }
+    </style>
+  </head>
+  <body>
+    <main class="privasi">
+      <a href="./">‹ Kembali ke aplikasi</a>
+      <h1>Kebijakan Privasi</h1>
+      <p class="kecil">Dompet Keluarga · berlaku sejak 1 November 2026</p>
+
+      <p><b>Singkatnya:</b> Dompet Keluarga tidak punya server dan tidak menyimpan data Anda.
+        Semua catatan keuangan tersimpan di Google Spreadsheet di Google Drive Anda sendiri,
+        dan hanya Anda serta orang yang Anda undang yang bisa membukanya.</p>
+
+      <h2>Data yang dipakai</h2>
+      <ul>
+        <li><b>Alamat email Google</b> — untuk menampilkan siapa yang sedang masuk dan mencatat siapa yang membuat transaksi.</li>
+        <li><b>Spreadsheet "Dompet Keluarga"</b> — dibuat oleh aplikasi di Drive Anda, atau Anda pilih sendiri lewat pemilih file Google. Aplikasi tidak bisa melihat file lain di Drive Anda.</li>
+        <li><b>Folder data aplikasi</b> (tersembunyi di Drive Anda) — hanya menyimpan alamat spreadsheet yang Anda pakai, supaya tetap ketemu saat ganti HP.</li>
+        <li><b>Foto struk</b> (kalau Anda memakai fitur baca struk) — dikirim sementara ke Google Drive untuk dibaca teksnya (OCR), lalu langsung dihapus. Kalau Anda mengisi kunci API Gemini, foto juga dikirim ke Google Gemini untuk dibaca.</li>
+        <li><b>Bot Telegram</b> (opsional) — kalau Anda menghubungkannya, pesan dan foto yang Anda kirim ke bot diproses lewat Telegram dan Google Apps Script milik pemilik spreadsheet.</li>
+      </ul>
+
+      <h2>Izin Google yang diminta</h2>
+      <ul>
+        <li><code>drive.file</code> — membuat, membaca, dan membagikan hanya file yang dibuat atau dipilih lewat aplikasi ini.</li>
+        <li><code>drive.appdata</code> — menyimpan pengaturan kecil di folder tersembunyi khusus aplikasi ini.</li>
+        <li><code>email</code> — mengetahui alamat email akun yang masuk.</li>
+      </ul>
+
+      <h2>Penyimpanan & pembagian</h2>
+      <ul>
+        <li>Semua permintaan dikirim langsung dari browser Anda ke Google. Tidak ada server perantara milik pembuat aplikasi.</li>
+        <li>Tanda masuk (token) disimpan di browser Anda dan habis sekitar 1 jam. Menekan "Keluar" mencabutnya.</li>
+        <li>Data tidak dijual, tidak dipakai untuk iklan, dan tidak dibagikan ke pihak lain. Spreadsheet hanya dibagikan ke email yang Anda undang sendiri.</li>
+        <li>Untuk menghapus semua data, hapus spreadsheet "Dompet Keluarga" dari Google Drive Anda. Akses aplikasi bisa dicabut di <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</li>
+      </ul>
+
+      <h2>Penggunaan data Google</h2>
+      <p>Penggunaan dan pemindahan informasi yang diterima dari Google API oleh Dompet Keluarga mematuhi
+        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>,
+        termasuk ketentuan Limited Use.</p>
+      <p class="kecil" lang="en">Dompet Keluarga's use and transfer of information received from Google APIs to any other app will adhere to the
+        Google API Services User Data Policy, including the Limited Use requirements. The app has no server: all data stays in the
+        user's own Google Drive and is never sold, used for advertising, or shared with third parties.</p>
+
+      <h2>Kontak</h2>
+      <p>Pertanyaan atau laporan masalah: buka
+        <a href="https://github.com/shiroesyn202601-ship-it/dompet-keluarga/issues" target="_blank" rel="noopener">halaman Issues di GitHub</a>.</p>
+    </main>
+  </body>
+</html>

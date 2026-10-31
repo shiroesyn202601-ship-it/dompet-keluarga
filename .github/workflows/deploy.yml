@@ -24,6 +24,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
+      # Penanda versi: aplikasi yang sudah terpasang di HP membandingkan ini untuk memuat ulang otomatis.
+      - run: echo "${GITHUB_SHA::7}" > web/versi.txt
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

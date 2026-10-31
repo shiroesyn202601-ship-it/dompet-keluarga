@@ -4,4 +4,6 @@
  */
 const KONFIG = {
   clientId: '669221737081-jerp2njdv8dqibrvndei3sefolm4b1d5.apps.googleusercontent.com',
+  // Kunci API untuk Google Picker (juga bukan rahasia; batasi ke Picker API + alamat situs ini di Google Cloud).
+  pickerApiKey: '',
 };

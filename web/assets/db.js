@@ -120,9 +120,12 @@ const SERVER = (() => {
       r.sheets.forEach(s => { peta[s.properties.title] = s.properties.sheetId; });
       return peta;
     } catch (e) {
+      // Dengan scope drive.file, spreadsheet yang dibagikan orang lain baru bisa dibuka setelah dipilih lewat Google Picker.
       if (e.status === 403 || e.status === 404) {
-        const err = new Error('Akun ' + GOOGLE.email() + ' belum punya akses ke spreadsheet Dompet Keluarga. Minta pemilik mengundang akun ini dari menu Lainnya → Undang anggota keluarga.');
+        const err = new Error('Aplikasi belum diizinkan membuka spreadsheet Dompet Keluarga dengan akun ' + GOOGLE.email() +
+          '. Ketuk "Pilih spreadsheet", lalu pilih file Dompet Keluarga. Kalau file-nya tidak muncul, berarti akun ini belum diundang: minta pemilik mengundang dari ⚙️ → Undang anggota keluarga.');
         err.tanpaAkses = true;
+        err.idDb = id;
         throw err;
       }
       throw e;
@@ -276,7 +279,7 @@ const SERVER = (() => {
       });
     } catch (e) {
       if (e.status === 403 || e.status === 404) {
-        throw new Error('Spreadsheet ini dibuat di luar aplikasi, jadi harus dibagikan manual: buka spreadsheet → Bagikan → isi email → Editor. Lalu kirim link undangan dari menu ini.');
+        throw new Error('Spreadsheet ini tidak bisa dibagikan dari aplikasi (mungkin dibuat di luar aplikasi, atau Anda bukan pemiliknya). Bagikan manual: buka spreadsheet → Bagikan → isi email → Editor. Lalu kirim link undangan dari menu ini.');
       }
       throw e;
     }

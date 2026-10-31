@@ -1,11 +1,14 @@
 /**
  * Login Google (Google Identity Services) dan pemanggil REST API Google langsung dari browser.
  * Token akses berlaku ±1 jam dan disimpan di localStorage supaya tidak perlu login ulang setiap buka.
+ *
+ * Hanya memakai scope non-sensitif, supaya aplikasi bisa dipakai siapa saja tanpa layar
+ * "Google hasn't verified this app". Akibatnya aplikasi hanya bisa membuka spreadsheet yang
+ * dibuatnya sendiri, atau yang dipilih pengguna lewat Google Picker (pilihSpreadsheet).
  */
 const GOOGLE = (() => {
   const IZIN = [
-    'https://www.googleapis.com/auth/spreadsheets', // baca/tulis spreadsheet keluarga
-    'https://www.googleapis.com/auth/drive.file',   // berbagi spreadsheet & OCR (hanya file buatan aplikasi ini)
+    'https://www.googleapis.com/auth/drive.file',   // spreadsheet keluarga, berbagi & OCR (hanya file buatan/pilihan aplikasi ini)
     'https://www.googleapis.com/auth/drive.appdata', // menyimpan alamat spreadsheet milik akun ini
   ];
   const SCOPE = ['openid', 'email'].concat(IZIN).join(' ');
@@ -36,17 +39,22 @@ const GOOGLE = (() => {
     });
   }
 
-  /** Harus dipanggil dari ketukan tombol, karena membuka jendela login Google. */
-  async function masuk() {
+  /**
+   * Harus dipanggil dari ketukan tombol, karena membuka jendela login Google.
+   * Akun yang pernah masuk langsung dipakai lagi (jendela hanya berkedip); pilihAkun: true untuk ganti akun.
+   */
+  async function masuk(pilihAkun) {
     if (!KONFIG.clientId || /^ISI_/.test(KONFIG.clientId)) throw new Error('Client ID Google belum diisi di web/assets/config.js.');
     await tungguGis();
     const resp = await new Promise((ok, gagal) => {
       google.accounts.oauth2.initTokenClient({
         client_id: KONFIG.clientId,
         scope: SCOPE,
+        // Hanya izin di atas; izin lama (mis. scope spreadsheets versi sebelumnya) tidak ikut terbawa.
+        include_granted_scopes: false,
         callback: r => (r.error ? gagal(new Error(r.error_description || r.error)) : ok(r)),
         error_callback: e => gagal(new Error(e.type === 'popup_closed' ? 'Login dibatalkan.' : 'Login gagal: ' + (e.message || e.type))),
-      }).requestAccessToken({ prompt: '', hint: sesi && sesi.email });
+      }).requestAccessToken(pilihAkun ? { prompt: 'select_account' } : { prompt: '', hint: sesi && sesi.email });
     });
     if (!google.accounts.oauth2.hasGrantedAllScopes(resp, ...IZIN)) {
       throw new Error('Izin belum lengkap. Masuk lagi dan centang semua akses yang diminta.');
@@ -119,5 +127,51 @@ const GOOGLE = (() => {
     };
   }
 
-  return { masuk, keluar, sudahMasuk, email: () => sesi && sesi.email, api, multipart, PerluMasuk };
+  // ---------- Google Picker ----------
+
+  let pickerSiap = null;
+  function muatPicker() {
+    if (!pickerSiap) {
+      pickerSiap = new Promise((ok, gagal) => {
+        const s = document.createElement('script');
+        s.src = 'https://apis.google.com/js/api.js';
+        s.onload = () => gapi.load('picker', { callback: ok, onerror: gagal });
+        s.onerror = gagal;
+        document.head.appendChild(s);
+      }).catch(() => {
+        pickerSiap = null;
+        throw new Error('Pemilih file Google tidak bisa dimuat. Periksa koneksi internet.');
+      });
+    }
+    return pickerSiap;
+  }
+
+  /**
+   * Pengguna memilih spreadsheet lewat Google Picker; sejak itu aplikasi boleh membukanya (scope drive.file).
+   * idFile: tampilkan hanya file itu (link undangan / izin ulang). Hasil: ID file, atau null kalau dibatalkan.
+   */
+  async function pilihSpreadsheet(idFile) {
+    if (!sudahMasuk()) throw new PerluMasuk('Sesi login sudah habis. Silakan masuk lagi.');
+    await muatPicker();
+    const P = google.picker;
+    const view = new P.DocsView(P.ViewId.SPREADSHEETS).setMode(P.DocsViewMode.LIST);
+    if (idFile) view.setFileIds(idFile);
+    return new Promise(ok => {
+      const b = new P.PickerBuilder()
+        .setOAuthToken(sesi.token)
+        .setAppId(KONFIG.clientId.split('-')[0]) // nomor project Google Cloud
+        .setLocale('id')
+        .setTitle(idFile ? 'Ketuk spreadsheet Dompet Keluarga, lalu Pilih' : 'Pilih spreadsheet Dompet Keluarga')
+        .addView(view)
+        .setCallback(d => {
+          const aksi = d[P.Response.ACTION];
+          if (aksi === P.Action.PICKED) ok(d[P.Response.DOCUMENTS][0][P.Document.ID]);
+          else if (aksi === P.Action.CANCEL) ok(null);
+        });
+      if (KONFIG.pickerApiKey) b.setDeveloperKey(KONFIG.pickerApiKey);
+      b.build().setVisible(true);
+    });
+  }
+
+  return { masuk, keluar, sudahMasuk, email: () => sesi && sesi.email, api, multipart, pilihSpreadsheet, PerluMasuk };
 })();

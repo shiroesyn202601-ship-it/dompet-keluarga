@@ -17,8 +17,9 @@ Datanya disimpan di Google Spreadsheet milik Anda sendiri, dan bisa dipakai berd
 | Path | Isinya |
 |------|--------|
 | `web/index.html` | Kerangka halaman |
-| `web/assets/config.js` | **Client ID Google** (wajib diisi sekali) |
-| `web/assets/google.js` | Login Google & pemanggil API |
+| `web/privasi.html` | Kebijakan privasi (syarat Google untuk status Production) |
+| `web/assets/config.js` | **Client ID Google** dan **API key Google Picker** (wajib diisi sekali) |
+| `web/assets/google.js` | Login Google, pemanggil API, Google Picker |
 | `web/assets/db.js` | Baca/tulis spreadsheet (transaksi, kategori, dompet, pengaturan) |
 | `web/assets/struk.js` | Baca foto struk berlapis: AI foto, OCR + AI, OCR |
 | `web/assets/app.js` | Tampilan & interaksi |
@@ -33,38 +34,49 @@ Datanya disimpan di Google Spreadsheet milik Anda sendiri, dan bisa dipakai berd
 3. Buka tab **Actions** dan pastikan workflow **Deploy ke GitHub Pages** berhasil (centang hijau). Kalau gagal karena Pages belum aktif, klik **Re-run jobs**.
 
 ### 2. Setup Google Cloud (untuk login Google)
+Aplikasi hanya memakai izin **non-sensitif** (`drive.file`, `drive.appdata`, `email`), jadi setelah dipublikasikan bisa dipakai siapa saja tanpa daftar Test users.
+
 1. Buka https://console.cloud.google.com, lalu buat project baru, misalnya **Dompet Keluarga**.
-2. Buka **APIs & Services → Library**, lalu aktifkan **Google Sheets API** dan **Google Drive API**.
+2. Buka **APIs & Services → Library**, lalu aktifkan **Google Sheets API**, **Google Drive API**, dan **Google Picker API**.
 3. Buka **Google Auth Platform** (atau **OAuth consent screen**):
-   - **Branding:** nama aplikasi *Dompet Keluarga*, dan email Anda sebagai support email.
-   - **Audience:** pilih **External**. Biarkan status **Testing**, lalu di **Test users** tambahkan email Google Anda **dan email istri**. Hanya akun di daftar ini yang bisa login.
-   - **Data access:** tambahkan scope `.../auth/spreadsheets`, `.../auth/drive.file`, dan `.../auth/drive.appdata`.
+   - **Branding:** nama aplikasi *Dompet Keluarga*, email Anda sebagai support email,
+     **Application home page** `https://shiroesyn202601-ship-it.github.io/dompet-keluarga/`,
+     **Privacy policy** `https://shiroesyn202601-ship-it.github.io/dompet-keluarga/privasi.html`,
+     dan **Authorized domain** `shiroesyn202601-ship-it.github.io`.
+   - **Audience:** pilih **External**.
+   - **Data access:** tambahkan scope `.../auth/drive.file` dan `.../auth/drive.appdata` saja. **Hapus** `.../auth/spreadsheets` kalau masih ada (versi lama memakainya).
 4. Buka **Clients** (atau **Credentials → Create credentials → OAuth client ID**):
    - **Application type:** Web application.
    - **Authorized JavaScript origins:** `https://shiroesyn202601-ship-it.github.io`
    - Klik **Create**, lalu salin **Client ID** (berakhiran `.apps.googleusercontent.com`).
-5. Tempel Client ID itu di [web/assets/config.js](web/assets/config.js), lalu commit dan push. Aplikasi otomatis ter-deploy ulang.
+5. Buka **Credentials → Create credentials → API key** untuk Google Picker:
+   - **Application restrictions:** *Websites*, isi `https://shiroesyn202601-ship-it.github.io/*`.
+   - **API restrictions:** *Restrict key*, lalu centang **Google Picker API** saja.
+6. Tempel Client ID dan API key itu di [web/assets/config.js](web/assets/config.js) (`clientId` dan `pickerApiKey`), lalu commit dan push. Aplikasi otomatis ter-deploy ulang.
+7. Kembali ke **Audience**, lalu klik **Publish app** supaya status berubah dari *Testing* menjadi **In production**.
+   Coba masuk dengan akun Google yang belum pernah dipakai. Kalau masih muncul layar peringatan, buka **Verification Center** dan ajukan verifikasi branding.
 
 ### 3. Buka aplikasi
 1. Buka https://shiroesyn202601-ship-it.github.io/dompet-keluarga/, lalu ketuk **Masuk dengan Google**.
-2. Kalau muncul *"Google hasn't verified this app"*, klik **Continue**. Ini wajar karena aplikasinya Anda buat sendiri.
-3. Pastikan **semua akses dicentang**, lalu klik **Continue**.
-4. Pilih **Buat spreadsheet baru** (boleh sekalian isi email istri), atau **Hubungkan** spreadsheet yang sudah ada.
+2. Pastikan **semua akses dicentang**, lalu klik **Continue**.
+3. Pilih **Buat spreadsheet baru** (boleh sekalian isi email anggota keluarga), atau **Pilih dari Google Drive** kalau sudah punya spreadsheet.
 
-### 4. Undang istri
-1. Buka **Lainnya → Undang anggota keluarga**, isi email Google istri, lalu ketuk **Undang**. Google akan mengirim email berisi link undangan.
+Token login Google berlaku sekitar 1 jam. Setelah itu muncul kartu **Sesi login berakhir**. Cukup ketuk **Lanjutkan sebagai …**, isian form tidak hilang.
+
+### 4. Undang anggota keluarga
+1. Buka **⚙️ → Undang anggota keluarga**, isi email Google-nya, lalu ketuk **Undang**. Google akan mengirim email berisi link undangan.
 2. Bisa juga salin **link undangan** di menu yang sama, lalu kirim lewat WhatsApp.
-3. Istri membuka link itu dan masuk dengan akunnya. Aplikasi otomatis terhubung ke spreadsheet yang sama.
+3. Yang diundang membuka link itu, masuk dengan akunnya, lalu ketuk **Pilih spreadsheet**, pilih file **Dompet Keluarga**, dan konfirmasi.
+   Langkah memilih ini hanya sekali, karena aplikasi baru boleh membuka spreadsheet milik orang lain setelah dipilih sendiri oleh penggunanya.
 
-Email istri harus sudah ada di daftar **Test users** (langkah 2.3), kalau tidak dia tidak bisa login.
-
-### Pindahan dari versi Apps Script
-Spreadsheet lama tetap bisa dipakai. Saat pertama login, pilih **Sudah punya spreadsheet?**, tempel link spreadsheet lama, lalu ketuk **Hubungkan**.
-Kunci API Gemini perlu ditambahkan ulang. Spreadsheet lama juga harus dibagikan manual ke istri lewat tombol **Bagikan** di Google Sheets, karena aplikasi hanya boleh mengatur file yang dibuatnya sendiri.
+### Pindahan dari versi lama
+- **Sudah memakai aplikasi sebelum pembaruan izin:** saat pertama buka, aplikasi bisa meminta **Pilih spreadsheet**. Ketuk, lalu pilih file Dompet Keluarga yang sama. Ini terjadi sekali saja untuk spreadsheet yang tidak dibuat oleh akun itu lewat aplikasi web ini (mis. dari versi Apps Script, atau milik pasangan).
+- **Dari versi Apps Script:** saat pertama login, pilih **Sudah punya spreadsheet? → Pilih dari Google Drive**, lalu pilih spreadsheet lama.
+  Kunci API Gemini perlu ditambahkan ulang. Spreadsheet lama juga harus dibagikan manual ke anggota keluarga lewat tombol **Bagikan** di Google Sheets, karena aplikasi hanya boleh membagikan file yang dibuatnya sendiri.
 
 ## Baca foto struk
 1. Buat kunci API Gemini gratis di https://aistudio.google.com/apikey.
-2. Di aplikasi, buka **Lainnya → Baca struk dengan AI**, tempel kuncinya, lalu ketuk **Tambah**. Boleh lebih dari satu kunci. Kunci dipakai bergiliran, dan kalau satu kena batas kuota, aplikasi otomatis mencoba kunci berikutnya.
+2. Di aplikasi, buka **⚙️ → Baca struk dengan AI**, tempel kuncinya, lalu ketuk **Tambah**. Boleh lebih dari satu kunci. Kunci dipakai bergiliran, dan kalau satu kena batas kuota, aplikasi otomatis mencoba kunci berikutnya.
 3. Saat mencatat pengeluaran, ketuk **📷 Isi otomatis dari foto struk**.
 
 Struk dibaca berlapis, lalu hasilnya dicocokkan:

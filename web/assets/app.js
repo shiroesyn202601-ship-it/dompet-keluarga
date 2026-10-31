@@ -20,7 +20,7 @@ async function api(fungsi, ...args) {
   try {
     return await SERVER[fungsi](...args);
   } catch (e) {
-    if (e instanceof GOOGLE.PerluMasuk) tampilMasuk();
+    if (e instanceof GOOGLE.PerluMasuk) perluMasukLagi();
     throw e;
   }
 }
@@ -149,15 +149,48 @@ async function muat() {
 function tampilMasuk() {
   tutupSheet();
   loading(false);
+  $('#sesi').hidden = true;
   $('#nav').hidden = true;
+  const email = GOOGLE.email();
   $('#view').innerHTML = `
     <div class="sambut">
       <div class="logo">👛</div>
       <h1>Dompet Keluarga</h1>
       <p>Catat keuangan keluarga bersama. Semua data tersimpan di Google Spreadsheet milik Anda sendiri.</p>
       ${S.gabung ? '<p><b>Anda diundang bergabung.</b> Masuk dengan akun Google yang diundang untuk melanjutkan.</p>' : ''}
-      <button type="button" class="btn btn-utama" data-aksi="masuk">Masuk dengan Google</button>
+      ${email ? `
+        <button type="button" class="btn btn-utama" data-aksi="masuk">Lanjutkan sebagai ${esc(email)}</button>
+        <button type="button" class="tombol-teks" data-aksi="masuk" data-akun-lain="1">Pakai akun Google lain</button>`
+      : '<button type="button" class="btn btn-utama" data-aksi="masuk">Masuk dengan Google</button>'}
+      <a class="tombol-teks" href="privasi.html">Kebijakan privasi</a>
     </div>`;
+}
+
+/** Setelah masuk (atau ganti akun): buang semua tampilan & data lama, lalu muat ulang. */
+async function muatDariAwal() {
+  $('#sesi').hidden = true;
+  tutupSheet();
+  S.data = null;
+  $('#nav').hidden = true;
+  $('#view').innerHTML = '<div class="memuat-awal"><div class="spinner"></div><p>Memuat…</p></div>';
+  await muat();
+}
+
+/**
+ * Token Google habis (±1 jam). Kalau aplikasi sedang dipakai, tampilan dan isian form dibiarkan;
+ * cukup satu ketukan untuk menyambung lagi.
+ */
+function perluMasukLagi() {
+  if (!S.data || S.data.perluSetup) return tampilMasuk();
+  loading(false);
+  $('#sesi').innerHTML = `
+    <div class="sesi-kartu">
+      <b id="sesi-judul">Sesi login berakhir</b>
+      <p>Demi keamanan, Google meminta konfirmasi sekitar tiap 1 jam. Isian Anda tidak hilang.</p>
+      <button type="button" class="btn btn-utama" data-aksi="lanjut-sesi">Lanjutkan sebagai ${esc(GOOGLE.email() || S.data.user)}</button>
+      <button type="button" class="tombol-teks" data-aksi="masuk" data-akun-lain="1">Pakai akun lain</button>
+    </div>`;
+  $('#sesi').hidden = false;
 }
 
 function viewGagal(e) {
@@ -165,10 +198,33 @@ function viewGagal(e) {
     <div class="sambut">
       <div class="logo">⚠️</div>
       <p>${esc(pesanError(e))}</p>
-      <button type="button" class="btn btn-utama" data-aksi="coba-lagi">Coba lagi</button>
-      ${e.tanpaAkses ? '<button type="button" class="btn btn-hapus" data-aksi="lupakan-db">Pakai spreadsheet lain</button>' : ''}
+      ${e.tanpaAkses
+        ? `<button type="button" class="btn btn-utama" data-aksi="pilih-db" data-id="${esc(e.idDb || '')}">Pilih spreadsheet</button>
+           <button type="button" class="btn btn-hapus" data-aksi="coba-lagi">Coba lagi</button>
+           <button type="button" class="btn btn-hapus" data-aksi="lupakan-db">Pakai spreadsheet lain</button>`
+        : '<button type="button" class="btn btn-utama" data-aksi="coba-lagi">Coba lagi</button>'}
       <button type="button" class="btn btn-hapus" data-aksi="keluar">Keluar (${esc(GOOGLE.email() || '')})</button>
     </div>`;
+}
+
+/**
+ * Memilih spreadsheet lewat Google Picker, lalu memakainya. Dengan scope drive.file, ini satu-satunya cara
+ * membuka spreadsheet yang tidak dibuat aplikasi di akun ini (undangan keluarga, versi Apps Script).
+ * idFile: langsung arahkan ke file itu.
+ */
+async function pilihDanHubungkan(idFile) {
+  const id = await GOOGLE.pilihSpreadsheet(idFile);
+  if (!id) return;
+  loading(true);
+  try {
+    await api('hubungkanDatabase', id);
+    S.gabung = '';
+    S.data = null;
+    await muat();
+    toast('Spreadsheet terhubung ✔');
+  } finally {
+    loading(false);
+  }
 }
 
 function render() {
@@ -633,7 +689,7 @@ function viewSetup() {
       <div class="grup-form">
         <label class="label" for="s-pasangan">Email Google pasangan (opsional)</label>
         <input class="field" id="s-pasangan" type="email" inputmode="email" placeholder="nama@gmail.com">
-        <p class="info-kecil" style="text-align:left">Supaya bisa mencatat berdua. Bisa juga diisi nanti dari menu Lainnya.</p>
+        <p class="info-kecil" style="text-align:left">Supaya bisa mencatat berdua. Bisa juga diisi nanti dari ⚙️ → Undang anggota keluarga.</p>
       </div>
       <div class="aksi-form">
         <button type="button" class="btn btn-utama" data-aksi="buat-db">Buat spreadsheet baru</button>
@@ -641,12 +697,9 @@ function viewSetup() {
     </section>
     <section class="kartu">
       <h3>🔗 Sudah punya spreadsheet?</h3>
-      <p style="margin-top:0">Kalau diundang pasangan, atau sebelumnya memakai versi Apps Script, tempel link spreadsheet-nya di sini.</p>
-      <div class="grup-form">
-        <input class="field" id="s-link" inputmode="url" placeholder="https://docs.google.com/spreadsheets/d/…">
-      </div>
+      <p style="margin-top:0">Kalau diundang pasangan, atau sebelumnya memakai versi Apps Script, pilih spreadsheet-nya dari Google Drive.</p>
       <div class="aksi-form">
-        <button type="button" class="btn btn-hapus" style="flex:1" data-aksi="hubungkan-db">Hubungkan</button>
+        <button type="button" class="btn btn-hapus" style="flex:1" data-aksi="pilih-db">Pilih dari Google Drive</button>
       </div>
     </section>
     <button type="button" class="tombol-tambah" data-aksi="keluar">Keluar dari ${esc(S.data.user)}</button>`;
@@ -697,13 +750,31 @@ function viewLainnya() {
         <span class="isi"><b>Buka spreadsheet</b><small>Lihat semua data di Google Sheets</small></span>
         <span class="panah">›</span>
       </a>
+      <a class="baris" href="privasi.html" style="color:inherit;text-decoration:none">
+        <span class="ikon-bulat">🔒</span>
+        <span class="isi"><b>Kebijakan privasi</b><small>Data apa yang dipakai aplikasi ini</small></span>
+        <span class="panah">›</span>
+      </a>
     </section>
+    ${kartuPasang()}`;
+}
+
+function kartuPasang() {
+  if (MODE_APLIKASI) {
+    return `<p class="catatan-versi">✅ Terpasang sebagai aplikasi · update otomatis${versiAwal ? ` · versi ${esc(versiAwal)}` : ''}</p>`;
+  }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return `
     <section class="kartu panduan">
-      <h3>📲 Pasang di layar utama HP</h3>
-      <b>Android (Chrome):</b>
-      <ol><li>Ketuk menu ⋮ di kanan atas.</li><li>Pilih <b>Tambahkan ke layar utama</b>.</li><li>Ketuk <b>Tambahkan</b>.</li></ol>
-      <b>iPhone (Safari):</b>
-      <ol><li>Ketuk tombol Bagikan (kotak dengan panah ke atas).</li><li>Pilih <b>Tambah ke Layar Utama</b>.</li></ol>
+      <h3>📲 Pasang sebagai aplikasi</h3>
+      <p>Cukup sekali pasang. Setiap ada pembaruan, aplikasi ikut ter-update sendiri tanpa perlu pasang ulang.</p>
+      ${ajakanPasang ? '<button type="button" class="btn btn-utama" data-aksi="pasang-aplikasi">Pasang aplikasi</button>'
+      : ios ? `
+        <b>iPhone / iPad (wajib pakai Safari):</b>
+        <ol><li>Ketuk tombol Bagikan (kotak dengan panah ke atas).</li><li>Gulir lalu pilih <b>Tambah ke Layar Utama</b>.</li><li>Ketuk <b>Tambah</b>.</li></ol>`
+      : `
+        <b>Android (Chrome):</b>
+        <ol><li>Ketuk menu ⋮ di kanan atas.</li><li>Pilih <b>Instal aplikasi</b> atau <b>Tambahkan ke layar utama</b>.</li><li>Ketuk <b>Instal</b>.</li></ol>`}
     </section>`;
 }
 
@@ -731,7 +802,7 @@ async function kirim(tombol, fungsi, args, pesan) {
     toast(pesan);
     return true;
   } catch (e) {
-    toast(pesanError(e), true);
+    if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true); // kartu "Sesi login berakhir" sudah tampil
     return false;
   } finally {
     tombol.disabled = false;
@@ -1347,20 +1418,14 @@ const AKSI = {
       loading(false);
     }
   },
-  'hubungkan-db': async el => {
-    const link = $('#s-link').value.trim();
-    if (!link) return toast('Tempel link spreadsheet-nya dulu.', true);
+  'pilih-db': async el => {
     el.disabled = true;
-    loading(true);
     try {
-      await api('hubungkanDatabase', link);
-      await muat();
-      toast('Spreadsheet terhubung ✔');
+      await pilihDanHubungkan(el.dataset.id);
     } catch (e) {
-      toast(pesanError(e), true);
+      if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
     } finally {
       el.disabled = false;
-      loading(false);
     }
   },
   'lupakan-db': async () => {
@@ -1380,10 +1445,30 @@ const AKSI = {
   'masuk': async el => {
     el.disabled = true;
     try {
-      await GOOGLE.masuk();
-      $('#view').innerHTML = '<div class="memuat-awal"><div class="spinner"></div><p>Memuat…</p></div>';
-      await muat();
+      await GOOGLE.masuk(!!el.dataset.akunLain);
+      await muatDariAwal();
     } catch (e) {
+      toast(pesanError(e), true);
+    } finally {
+      el.disabled = false;
+    }
+  },
+  'lanjut-sesi': async el => {
+    el.disabled = true;
+    try {
+      const email = await GOOGLE.masuk();
+      if (email !== S.data.user) return await muatDariAwal(); // ternyata akun lain
+      $('#sesi').hidden = true;
+      if ($('#sheet').hidden) {
+        loading(true);
+        await muat();
+        loading(false);
+        toast('Tersambung lagi ✔');
+      } else {
+        toast('Tersambung lagi ✔ Silakan ulangi, isian Anda masih ada.');
+      }
+    } catch (e) {
+      loading(false);
       toast(pesanError(e), true);
     } finally {
       el.disabled = false;
@@ -1427,6 +1512,14 @@ const AKSI = {
     toast('Link disalin ✔');
   },
 
+  'pasang-aplikasi': async () => {
+    if (!ajakanPasang) return;
+    ajakanPasang.prompt();
+    await ajakanPasang.userChoice.catch(() => null);
+    ajakanPasang = null;
+    if (S.tab === 'lainnya') render();
+  },
+
   'pilih-ikon': el => {
     F.ikon = el.dataset.ikon;
     document.querySelectorAll('.grid-ikon button').forEach(b => b.classList.toggle('aktif', b === el));
@@ -1460,5 +1553,53 @@ document.addEventListener('input', e => {
     $('#hasil-riwayat').innerHTML = tmp.querySelector('#hasil-riwayat').innerHTML;
   }
 });
+
+// ---------- Aplikasi terpasang (PWA) & pembaruan otomatis ----------
+// Isi aplikasi selalu diambil dari GitHub Pages (lihat sw.js), jadi cukup pasang sekali.
+// Aplikasi yang lama terbuka di latar belakang dicek lewat versi.txt (dibuat saat deploy),
+// lalu dimuat ulang sendiri saat pengguna sedang tidak mengisi apa pun.
+
+const MODE_APLIKASI = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let ajakanPasang = null;
+let versiAwal = null;
+let pembaruanDitunda = false;
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  ajakanPasang = e;
+  if (S.data && S.tab === 'lainnya') render();
+});
+window.addEventListener('appinstalled', () => {
+  ajakanPasang = null;
+  toast('Aplikasi terpasang ✔ Buka dari layar utama HP');
+});
+
+async function versiServer() {
+  try {
+    const r = await fetch('versi.txt', { cache: 'no-store' });
+    return r.ok ? (await r.text()).trim() : null;
+  } catch (e) {
+    return null;
+  }
+}
+const sedangSibuk = () => !$('#sheet').hidden || ANTRIAN.length > 0 || !$('#loading').hidden || ($('#sesi') && !$('#sesi').hidden);
+
+async function cekPembaruan() {
+  const v = await versiServer();
+  if (!v) return;
+  if (!versiAwal) { versiAwal = v; return; }
+  if (v === versiAwal) return;
+  if (!sedangSibuk()) return location.reload();
+  if (!pembaruanDitunda) toast('Versi baru tersedia, dipasang setelah Anda selesai');
+  pembaruanDitunda = true;
+}
+
+cekPembaruan();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') cekPembaruan(); });
+setInterval(() => { if (document.visibilityState === 'visible') cekPembaruan(); }, 5 * 60 * 1000);
+// Pembaruan yang tertunda langsung dipasang begitu form ditutup & antrian struk kosong.
+setInterval(() => { if (pembaruanDitunda && !sedangSibuk()) location.reload(); }, 3000);
 
 mulai();

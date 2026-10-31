@@ -309,6 +309,16 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .loading { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(8, 10, 18, .18); }
 .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--primary); animation: putar .8s linear infinite; }
 @keyframes putar { to { transform: rotate(360deg); } }
+/* Sesi login habis: kartu di atas tampilan, form di belakangnya tetap utuh. */
+.sesi { position: fixed; inset: 0; z-index: 35; display: grid; place-items: center; padding: 16px; background: rgba(8, 10, 18, .45); }
+.sesi-kartu {
+  width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 10px; text-align: center;
+  background: var(--card); border-radius: var(--radius); padding: 22px 18px 14px; box-shadow: var(--shadow-up); animation: muncul .25s cubic-bezier(.2, .8, .2, 1);
+}
+.sesi-kartu b { font-size: 17px; font-weight: 800; }
+.sesi-kartu p { margin: 0 0 6px; font-size: 14px; color: var(--muted); }
+.sesi-kartu .btn { flex: none; }
+.tombol-teks { padding: 10px; font-size: 14px; font-weight: 700; color: var(--primary); text-decoration: none; }
 /* ---------- Antrian struk (dibaca di latar belakang) ---------- */
 .antrian {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 15;
@@ -353,3 +363,7 @@ body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-ar
 .sambut h1 { margin: 0; font-size: 28px; font-weight: 800; }
 .sambut p { margin: 0; color: var(--muted); max-width: 340px; }
 .sambut .btn { flex: 0 0 auto; width: 100%; max-width: 330px; margin-top: 10px; }
+
+/* ---------- Aplikasi terpasang ---------- */
+.catatan-versi { text-align: center; color: var(--muted); font-size: 12.5px; margin: 18px 0 8px; }
+.panduan .btn { width: 100%; margin-top: 4px; }
