@@ -351,6 +351,11 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .spinner.kecil { width: 22px; height: 22px; border-width: 2.5px; flex: none; margin: 0 6px; }
 body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-area-inset-bottom)); }
 .struk-proses { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 0 0 16px; border-radius: 16px; background: var(--primary-soft); }
+/* Input cepat */
+.ketik-cepat { margin: 0 0 10px; }
+.ketik-cepat .field { background: var(--primary-soft); }
+.chip small { color: var(--muted); font-weight: 600; margin-left: 2px; }
+.chip.aktif small { color: inherit; opacity: .8; }
 /* Sisa aman per hari & periode gajian */
 .kartu-saldo .aman { margin-top: 12px; position: relative; z-index: 1; font-size: 13px; font-weight: 600; }
 .baris-rincian { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }

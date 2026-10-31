@@ -20,6 +20,7 @@ Sekitar tiap 1 jam Google meminta konfirmasi ulang. Cukup ketuk **Lanjutkan seba
 
 ## Fitur
 - **Catat** pemasukan, pengeluaran, dan transfer antardompet lewat tombol **＋**.
+- **Catat lebih cepat:** di form catat, ketik saja `bakso 25rb gopay` lalu Enter, dan semua isian terisi sendiri. Transaksi yang sering diulang (kopi, parkir, bensin) muncul sebagai tombol **⚡** sekali ketuk.
 - **Foto struk:** ketuk **Foto struk**, nominal, tanggal, dan kategori terisi otomatis. Tetap periksa totalnya sebelum menyimpan.
   Untuk hasil yang lebih akurat, isi kunci Gemini gratis di **⚙️ → Baca struk lebih akurat** (opsional).
 - **Tanpa sinyal?** Aplikasi tetap terbuka dengan data terakhir, dan transaksi baru disimpan di HP lalu dikirim otomatis begitu ada sinyal (📤 di atas layar menunjukkan berapa yang menunggu).

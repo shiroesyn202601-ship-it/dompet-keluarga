@@ -1131,6 +1131,8 @@ function renderFormTrx() {
       <div class="info-rutin">🔁 <span>Setelah disimpan, jatuh tempo berikutnya <b>${esc(tanggalPendek(F.berikutRutin))}</b>.
         <button type="button" data-aksi="lewati-rutin">Lewati kali ini</button></span></div>` : ''}
 
+    ${!rutin && !F.id && !F.dariRutin && !F.strukJob && !F.struk && F.tipe !== TIPE.TRANSFER ? bagianCepat() : ''}
+
     ${rutin ? `
       <div class="grup-form">
         <label class="label" for="f-nama">Nama tagihan</label>
@@ -1189,7 +1191,8 @@ function renderFormTrx() {
 
     <div class="grup-form">
       <label class="label" for="f-catatan">Catatan (opsional)</label>
-      <input class="field" id="f-catatan" maxlength="500" placeholder="mis. Belanja bulanan di Indomaret" value="${esc(F.catatan)}">
+      <input class="field" id="f-catatan" maxlength="500" list="f-saran" autocomplete="off" placeholder="mis. Belanja bulanan di Indomaret" value="${esc(F.catatan)}">
+      <datalist id="f-saran">${kebiasaan().saran.filter(s => s.tipe === F.tipe).map(s => `<option value="${esc(s.catatan)}">`).join('')}</datalist>
     </div>
 
     <div class="aksi-form">
@@ -1209,6 +1212,100 @@ function bacaFieldTrx() {
   F.tanggal = $('#f-tanggal').value;
   F.catatan = $('#f-catatan').value;
   if ($('#f-nama')) F.nama = $('#f-nama').value;
+}
+
+// ---------- Input cepat ----------
+
+const kebiasaan = () => S.data.cepat || { favorit: [], saran: [] }; // data offline versi lama belum punya
+
+/** Kata kunci → kata yang biasanya ada di nama kategori (sama dengan bot/Kode.gs). */
+const KATA_KATEGORI = [
+  [/makan|minum|bakso|nasi|mie|kopi|jajan|resto|warung|sarapan|cemilan|snack|gofood|grabfood|shopeefood/, ['makan']],
+  [/bensin|parkir|ojek|ojol|grab|gojek|tol|bus|kereta|krl|angkot|taksi|servis/, ['transport']],
+  [/listrik|pln|pdam|internet|wifi|pulsa|kuota|token|bpjs|tagihan|cicilan/, ['tagihan']],
+  [/belanja|sayur|indomaret|alfamart|pasar|supermarket|sabun|beras|minyak|galon/, ['belanja', 'rumah']],
+  [/obat|dokter|apotek|klinik|rumah sakit|vitamin/, ['kesehatan']],
+  [/sekolah|spp|buku|kursus|les|kuliah/, ['pendidikan']],
+  [/popok|pampers|susu anak|mainan/, ['anak']],
+  [/film|nonton|netflix|spotify|game|liburan|wisata/, ['hiburan']],
+  [/baju|celana|sepatu|kaos|jaket/, ['pakaian']],
+  [/sedekah|zakat|infaq|infak|kondangan|sumbangan|donasi/, ['sosial']],
+  [/gaji|upah|honor/, ['gaji']],
+  [/bonus|thr/, ['bonus']],
+];
+const NOMINAL_SLANG = { gopek: 500, seceng: 1000, goceng: 5000, ceban: 10000, gocap: 50000, cepek: 100000 };
+
+/**
+ * "bakso 25rb gopay" → { tipe, jumlah, kategori, dompet, catatan }. Hanya aturan sederhana,
+ * jadi cepat dan tetap jalan tanpa sinyal. Field yang tidak dikenali dikosongkan.
+ */
+function bacaKetikCepat(teks) {
+  let sisa = ' ' + teks.toLowerCase() + ' ';
+  let jumlah = 0;
+  // Angka pertama yang bersatuan (rb/jt) atau ≥ 100; "nasi 2 bungkus 30rb" → 30.000, bukan 2.
+  const re = /(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta)?(?=\s|$)/g;
+  let m = null;
+  for (let x; (x = re.exec(sisa));) {
+    let n = Number(x[1].replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.'));
+    if (/^(rb|ribu|k)$/.test(x[2] || '')) n *= 1000;
+    if (/^(jt|juta)$/.test(x[2] || '')) n *= 1e6;
+    if (x[2] || n >= 100) { m = x; jumlah = n; break; }
+  }
+  if (m) {
+    sisa = sisa.replace(m[0], ' ');
+  } else {
+    const slang = Object.keys(NOMINAL_SLANG).find(s => sisa.includes(' ' + s + ' '));
+    if (slang) { jumlah = NOMINAL_SLANG[slang]; sisa = sisa.replace(' ' + slang + ' ', ' '); }
+  }
+  // Dompet: nama terpanjang dulu, supaya "BCA Syariah" tidak terbaca "BCA".
+  const dompet = dompetBiasa().slice().sort((a, b) => b.nama.length - a.nama.length)
+    .find(w => sisa.includes(' ' + w.nama.toLowerCase() + ' '));
+  if (dompet) sisa = sisa.replace(' ' + dompet.nama.toLowerCase() + ' ', ' ');
+  sisa = sisa.replace(/\b(pakai|pake|pk|via|dari|ke|lewat|bayar)\b/g, ' ').replace(/\s+/g, ' ').trim();
+  const tipe = /\b(gaji|terima|dapat|bonus|thr|masuk|transferan)\b/.test(sisa) ? TIPE.MASUK : TIPE.KELUAR;
+  const catatan = sisa ? sisa.charAt(0).toUpperCase() + sisa.slice(1) : '';
+  return { tipe, jumlah: Math.round(jumlah), kategori: tebakKategori(tipe, catatan), dompet: dompet ? dompet.nama : '', catatan };
+}
+
+/** Kategori dari riwayat catatan yang sama, lalu dari nama kategori, lalu dari kata kunci. */
+function tebakKategori(tipe, catatan) {
+  const c = String(catatan || '').trim().toLowerCase();
+  if (!c) return '';
+  const daftar = S.data.kategori.filter(k => k.tipe === tipe);
+  const ada = n => daftar.some(k => k.nama === n);
+  const dulu = kebiasaan().saran.find(s => s.tipe === tipe && s.catatan.toLowerCase() === c && ada(s.kategori));
+  if (dulu) return dulu.kategori;
+  const kata = c.split(/\s+/).filter(w => w.length > 3);
+  const namaCocok = daftar.find(k => k.nama !== 'Lainnya' && kata.some(w => k.nama.toLowerCase().includes(w)));
+  if (namaCocok) return namaCocok.nama;
+  for (const [pola, petunjuk] of KATA_KATEGORI) {
+    if (!pola.test(c)) continue;
+    const k = daftar.find(k => petunjuk.some(p => k.nama.toLowerCase().includes(p)));
+    if (k) return k.nama;
+  }
+  return '';
+}
+
+/** Tombol "⚡ Sering dicatat" + kolom ketik cepat; hanya untuk transaksi baru biasa. */
+function bagianCepat() {
+  const fav = kebiasaan().favorit;
+  return `
+    <div class="ketik-cepat">
+      <input class="field" id="f-cepat" enterkeyhint="done" autocomplete="off" placeholder="⚡ Ketik cepat, mis. bakso 25rb gopay">
+    </div>
+    ${fav.length ? `<div class="chips chips-geser" aria-label="Sering dicatat">${fav.map((f, i) =>
+      `<button type="button" class="chip" data-aksi="f-favorit" data-i="${i}">${esc(ikonKategori(f.kategori, f.tipe))} ${esc(f.catatan || f.kategori)} <small>${rpPendek(f.jumlah)}</small></button>`).join('')}</div>` : ''}`;
+}
+
+/** Mengisi form dari hasil ketik cepat / favorit; field yang tidak dikenali tidak menimpa isian yang ada. */
+function isiFormCepat(h) {
+  bacaFieldTrx();
+  if (h.tipe && h.tipe !== F.tipe) { F.tipe = h.tipe; F.kategori = ''; }
+  if (h.jumlah) F.jumlah = h.jumlah;
+  if (h.kategori) F.kategori = h.kategori;
+  if (h.dompet && dompetBiasa().some(w => w.nama === h.dompet)) F.dompet = h.dompet;
+  if (h.catatan) F.catatan = h.catatan;
+  renderFormTrx();
 }
 
 // ---------- Sisa aman per hari & periode gajian ----------
@@ -1824,6 +1921,10 @@ const AKSI = {
     kirim(el, 'simpanMulaiPeriode', [F.mulai], 'Periode gajian tersimpan ✔');
   },
   'f-ulang': el => { bacaFieldTrx(); F.ulang = el.dataset.ulang; renderFormTrx(); },
+  'f-favorit': el => {
+    const f = kebiasaan().favorit[Number(el.dataset.i)];
+    if (f) isiFormCepat(f);
+  },
   'kelola-rutin': () => bukaDaftarRutin(),
   'tambah-rutin': () => bukaFormRutin(null),
   'edit-rutin': el => bukaFormRutin(daftarRutin().find(r => r.id === el.dataset.id)),
@@ -2148,6 +2249,25 @@ document.addEventListener('input', e => {
     const tmp = document.createElement('div');
     tmp.innerHTML = viewRiwayat();
     $('#hasil-riwayat').innerHTML = tmp.querySelector('#hasil-riwayat').innerHTML;
+  }
+});
+
+// Input cepat: "change" = Enter/selesai mengetik, atau memilih saran dari daftar.
+document.addEventListener('change', e => {
+  if (!F) return;
+  if (e.target.id === 'f-cepat' && e.target.value.trim()) {
+    const h = bacaKetikCepat(e.target.value.trim());
+    isiFormCepat(h);
+    if (!h.jumlah) toast('Nominalnya belum terbaca. Contoh: bakso 25rb', true);
+  }
+  // Catatan yang pernah dipakai → kategori terisi sendiri (tanpa render ulang, supaya ketukan berikutnya tidak hilang).
+  if (e.target.id === 'f-catatan' && !F.kategori && F.tipe !== TIPE.TRANSFER) {
+    const k = tebakKategori(F.tipe, e.target.value);
+    const tombol = k && document.querySelector(`.pilihan[data-aksi="f-kategori"][data-nama="${CSS.escape(k)}"]`);
+    if (tombol) {
+      F.kategori = k;
+      tombol.classList.add('aktif');
+    }
   }
 });
 

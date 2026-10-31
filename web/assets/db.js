@@ -402,11 +402,55 @@ const SERVER = (() => {
       kategori: d.kategori,
       dompet: d.dompet.map(w => Object.assign({}, w, { saldo: saldo[w.nama] || 0 })),
       rutin: olahRutin_(rut),
+      cepat: kebiasaan_(d.transaksi),
       bulanan,
       transaksi: d.transaksi
         .filter(t => periodeDari_(t.tanggal, mulai) === bulan)
         .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.dibuat.localeCompare(a.dibuat)),
     };
+  }
+
+  // ---------- Input cepat: kebiasaan mencatat ----------
+
+  /**
+   * Dari transaksi 120 hari terakhir:
+   *   favorit: transaksi yang sering diulang (≥2×), dengan nominal & dompet yang paling sering → tombol satu ketuk.
+   *   saran: catatan yang pernah dipakai beserta kategori terakhirnya → saran saat mengetik catatan.
+   */
+  function kebiasaan_(semua) {
+    const batas = new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10);
+    const terbaru = semua.filter(t => t.tipe !== TIPE.TRANSFER && t.tanggal >= batas)
+      .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.dibuat.localeCompare(a.dibuat));
+    const terbanyak = daftar => {
+      const n = {};
+      daftar.forEach(x => { n[x] = (n[x] || 0) + 1; });
+      return Object.keys(n).sort((a, b) => n[b] - n[a])[0];
+    };
+
+    const grup = {};
+    terbaru.forEach(t => {
+      const k = [t.tipe, t.kategori, t.catatan.trim().toLowerCase()].join('|');
+      (grup[k] = grup[k] || []).push(t);
+    });
+    const favorit = Object.keys(grup).filter(k => grup[k].length >= 2)
+      .sort((a, b) => grup[b].length - grup[a].length).slice(0, 6)
+      .map(k => {
+        const g = grup[k];
+        return {
+          tipe: g[0].tipe, kategori: g[0].kategori, catatan: g[0].catatan.trim(),
+          jumlah: Number(terbanyak(g.map(t => t.jumlah))), dompet: terbanyak(g.map(t => t.dompet)), kali: g.length,
+        };
+      });
+
+    const saran = [];
+    const sudah = {};
+    terbaru.forEach(t => {
+      const c = t.catatan.trim();
+      if (!c || c.length > 60 || sudah[c.toLowerCase()] || saran.length >= 80) return;
+      sudah[c.toLowerCase()] = 1;
+      saran.push({ catatan: c, tipe: t.tipe, kategori: t.kategori });
+    });
+    return { favorit, saran };
   }
 
   // ---------- Periode gajian ----------
