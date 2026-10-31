@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="theme-color" content="#0f766e">
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <main id="view">
+      <div class="memuat-awal"><div class="spinner"></div><p>Memuat data…</p></div>
+    </main>
+
+    <nav class="bottomnav" id="nav">
+      <button data-aksi="tab" data-tab="beranda"><span>🏠</span>Beranda</button>
+      <button data-aksi="tab" data-tab="riwayat"><span>📋</span>Riwayat</button>
+      <button class="fab" data-aksi="tambah-trx" aria-label="Catat transaksi">＋</button>
+      <button data-aksi="tab" data-tab="dompet"><span>👛</span>Dompet</button>
+      <button data-aksi="tab" data-tab="lainnya"><span>⚙️</span>Lainnya</button>
+    </nav>
+
+    <div id="sheet" class="sheet" hidden>
+      <div class="sheet-bg" data-aksi="tutup-sheet"></div>
+      <div class="sheet-panel" role="dialog" aria-modal="true">
+        <div class="sheet-head">
+          <h2 id="sheet-judul"></h2>
+          <button class="tombol-ikon" data-aksi="tutup-sheet" aria-label="Tutup">✕</button>
+        </div>
+        <div id="sheet-isi"></div>
+      </div>
+    </div>
+
+    <input type="file" id="input-struk" accept="image/*" hidden>
+    <div id="loading" class="loading" hidden><div class="spinner"></div></div>
+    <div id="toast" class="toast" hidden></div>
+
+    <?!= include('App'); ?>
+  </body>
+</html>
