@@ -11,8 +11,11 @@ const TIPE = { MASUK: 'Pemasukan', KELUAR: 'Pengeluaran', TRANSFER: 'Transfer' }
  * Utang juga dompet khusus, satu per orang: saldo positif = orang itu berutang ke kita (piutang),
  * negatif = kita berutang ke dia. Pinjam-meminjam & pelunasan dicatat sebagai Transfer, jadi tidak
  * dihitung sebagai pemasukan/pengeluaran. Kolom Tenggat dipakai sebagai jatuh tempo.
+ * Aset (emas, reksadana, properti…) juga dompet khusus: nilainya diperbarui manual ("Nilai sekarang"),
+ * dan pembelian dari rekening bisa dicatat sebagai Transfer ke aset itu. Dipakai untuk kekayaan bersih.
  */
-const JENIS = { DOMPET: 'Dompet', TABUNGAN: 'Tabungan', UTANG: 'Utang' };
+const JENIS = { DOMPET: 'Dompet', TABUNGAN: 'Tabungan', UTANG: 'Utang', ASET: 'Aset' };
+const JENIS_KHUSUS = [JENIS.TABUNGAN, JENIS.UTANG, JENIS.ASET];
 
 const SERVER = (() => {
   const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
@@ -697,14 +700,14 @@ const SERVER = (() => {
   /** input: { namaLama?, nama, ikon, saldoAwal, jenis?, target?, tenggat? } — target 0 = tabungan tanpa batas. */
   async function simpanDompet(input) {
     const nama = teks_(input.nama);
-    const jenis = [JENIS.TABUNGAN, JENIS.UTANG].includes(input.jenis) ? input.jenis : JENIS.DOMPET;
+    const jenis = JENIS_KHUSUS.includes(input.jenis) ? input.jenis : JENIS.DOMPET;
     if (!nama) throw new Error('Nama ' + (jenis === JENIS.UTANG ? 'orang' : jenis.toLowerCase()) + ' wajib diisi.');
-    const ikon = teks_(input.ikon) || { [JENIS.TABUNGAN]: '🐷', [JENIS.UTANG]: '🤝' }[jenis] || '👛';
+    const ikon = teks_(input.ikon) || { [JENIS.TABUNGAN]: '🐷', [JENIS.UTANG]: '🤝', [JENIS.ASET]: '💎' }[jenis] || '👛';
     const saldoAwal = Math.round(Number(input.saldoAwal) || 0);
     const namaLama = teks_(input.namaLama);
     let target = '';
     let tenggat = '';
-    if (jenis !== JENIS.DOMPET) {
+    if (jenis === JENIS.TABUNGAN || jenis === JENIS.UTANG) {
       if (jenis === JENIS.TABUNGAN) target = Math.max(0, Math.round(Number(input.target) || 0)) || '';
       const m = teks_(input.tenggat).match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (teks_(input.tenggat) && !m) throw new Error('Tanggal target tidak valid.');
@@ -963,7 +966,7 @@ const SERVER = (() => {
         nama: String(r[0]),
         ikon: String(r[1]),
         saldoAwal: Number(r[2]) || 0,
-        jenis: [JENIS.TABUNGAN, JENIS.UTANG].includes(String(r[3])) ? String(r[3]) : JENIS.DOMPET,
+        jenis: JENIS_KHUSUS.includes(String(r[3])) ? String(r[3]) : JENIS.DOMPET,
         target: Number(r[4]) || 0,
         tenggat: r[5] === '' ? '' : dariSerial_(r[5]).slice(0, 10),
       })),

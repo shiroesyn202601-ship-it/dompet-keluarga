@@ -73,6 +73,8 @@ const svg = nama => `<svg class="ik" viewBox="0 0 24 24" aria-hidden="true">${IK
 const dompetBiasa = () => S.data.dompet.filter(w => w.jenis === JENIS.DOMPET);
 const daftarUtang = () => S.data.dompet.filter(w => w.jenis === JENIS.UTANG);
 const adalahUtang = nama => S.data.dompet.some(w => w.nama === nama && w.jenis === JENIS.UTANG);
+const daftarAset = () => S.data.dompet.filter(w => w.jenis === JENIS.ASET);
+const adalahAset = nama => S.data.dompet.some(w => w.nama === nama && w.jenis === JENIS.ASET);
 const daftarTabungan = () => S.data.dompet.filter(w => w.jenis === JENIS.TABUNGAN);
 const adalahTabungan = nama => S.data.dompet.some(w => w.nama === nama && w.jenis === JENIS.TABUNGAN);
 function angka(s) {
@@ -381,6 +383,8 @@ function itemTrx(t) {
     judul = 'Transfer'; ikon = '🔁'; kelas = 'transfer'; tanda = '';
     if (adalahTabungan(t.dompetTujuan)) { judul = 'Setor tabungan'; ikon = ikonDompet(t.dompetTujuan); }
     else if (adalahTabungan(t.dompet)) { judul = 'Tarik tabungan'; ikon = ikonDompet(t.dompet); }
+    else if (adalahAset(t.dompetTujuan)) { judul = 'Beli / tambah ' + t.dompetTujuan; ikon = ikonDompet(t.dompetTujuan); }
+    else if (adalahAset(t.dompet)) { judul = 'Jual / ambil ' + t.dompet; ikon = ikonDompet(t.dompet); }
     else if (adalahUtang(t.dompetTujuan)) { judul = 'Uang ke ' + t.dompetTujuan; ikon = '🤝'; }
     else if (adalahUtang(t.dompet)) { judul = 'Uang dari ' + t.dompet; ikon = '🤝'; }
     sub = [`${t.dompet} → ${t.dompetTujuan}`, t.catatan].filter(Boolean).join(' · ');
@@ -720,7 +724,47 @@ function viewDompet() {
       : `<section class="kartu">${kosong('🐷', 'Belum ada tabungan. Buat tabungan dengan target (mis. dana darurat, liburan) atau tanpa batas.')}</section>`}
     <button class="tombol-tambah" data-aksi="tambah-tabungan">＋ Tambah tabungan</button>
 
-    ${bagianUtang()}`;
+    ${bagianUtang()}
+
+    ${bagianAset()}`;
+}
+
+// ---------- Aset & kekayaan bersih ----------
+
+/** Kekayaan bersih = dompet + tabungan + aset + piutang − utang. */
+function hitungKekayaan() {
+  const jumlah = daftar => daftar.reduce((a, w) => a + w.saldo, 0);
+  const utang = daftarUtang();
+  const r = {
+    dompet: jumlah(dompetBiasa()),
+    tabungan: jumlah(daftarTabungan()),
+    aset: jumlah(daftarAset()),
+    piutang: utang.filter(w => w.saldo > 0).reduce((a, w) => a + w.saldo, 0),
+    utang: utang.filter(w => w.saldo < 0).reduce((a, w) => a - w.saldo, 0),
+  };
+  r.bersih = r.dompet + r.tabungan + r.aset + r.piutang - r.utang;
+  return r;
+}
+
+function bagianAset() {
+  const k = hitungKekayaan();
+  const baris = (label, nilai, minus) => nilai ? `<div class="baris-rincian"><span>${label}</span><span>${minus ? '−' : ''}${rp(nilai)}</span></div>` : '';
+  return `
+    <h2 class="judul-bagian">Aset & Kekayaan Bersih</h2>
+    <section class="kartu">
+      <small class="label" style="margin:0">Kekayaan bersih</small>
+      <div class="kekayaan ${k.bersih < 0 ? 'minus' : ''}">${rp(k.bersih)}</div>
+      ${baris('👛 Dompet', k.dompet)}${baris('🐷 Tabungan', k.tabungan)}${baris('💎 Aset', k.aset)}
+      ${baris('🤝 Piutang (orang berutang ke Anda)', k.piutang)}${baris('🤝 Utang Anda', k.utang, true)}
+      <p class="info-kecil" style="text-align:left">Semua yang dimiliki dikurangi utang. Nilai aset diperbarui manual.</p>
+    </section>
+    ${daftarAset().length ? `<section class="kartu" style="padding:4px 16px">${daftarAset().map(w => `
+      <button class="baris" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">
+        <span class="ikon-bulat">${esc(w.ikon)}</span>
+        <span class="isi"><b>${esc(w.nama)}</b><small>Ketuk untuk memperbarui nilai</small></span>
+        <b class="nominal">${rp(w.saldo)}</b>
+      </button>`).join('')}</section>` : ''}
+    <button class="tombol-tambah" data-aksi="tambah-aset">＋ Tambah aset (emas, reksadana, properti…)</button>`;
 }
 
 // ---------- Utang & piutang ----------
@@ -1335,7 +1379,7 @@ function renderFormTrx() {
   // Tabungan hanya muncul untuk Transfer (setor/tarik); pemasukan & pengeluaran memakai dompet biasa.
   const pilihDompet = (aksi, terpilih, termasukTabungan) => `<div class="grid-pilih">${S.data.dompet
     // Orang (utang-piutang) hanya muncul kalau sedang terpilih, mis. saat mencatat pelunasan.
-    .filter(w => w.jenis === JENIS.DOMPET || (termasukTabungan && w.jenis === JENIS.TABUNGAN) || w.nama === terpilih).map(w =>
+    .filter(w => w.jenis === JENIS.DOMPET || (termasukTabungan && (w.jenis === JENIS.TABUNGAN || w.jenis === JENIS.ASET)) || w.nama === terpilih).map(w =>
     `<button type="button" class="pilihan ${w.nama === terpilih ? 'aktif' : ''}" data-aksi="${aksi}" data-nama="${esc(w.nama)}">
       <span>${esc(w.ikon)}</span>${esc(w.nama)}</button>`).join('')}</div>`;
 
@@ -2055,22 +2099,25 @@ function bukaFormDompet(w, jenis) {
       <p class="info-kecil">Hanya bisa dihapus kalau belum ada transaksinya.</p>`);
   }
   const tab = jenis === JENIS.TABUNGAN;
-  const sebutan = tab ? 'tabungan' : 'dompet';
+  const aset = jenis === JENIS.ASET;
+  const sebutan = tab ? 'tabungan' : aset ? 'aset' : 'dompet';
   const saldoTampil = formatAngka(w ? Math.max(0, w.saldo) : 0);
   F = {
-    namaLama: w ? w.nama : '', ikon: w ? w.ikon : (tab ? '🐷' : '👛'), jenis,
+    namaLama: w ? w.nama : '', ikon: w ? w.ikon : (tab ? '🐷' : aset ? '💎' : '👛'), jenis,
     saldoAwal: w ? w.saldoAwal : 0, mutasi: w ? w.saldo - w.saldoAwal : 0, saldoTampil,
   };
-  const ket = !w
-    ? (tab ? 'Jumlah yang sudah terkumpul sebelum dicatat di aplikasi ini.' : 'Saldo saat Anda mulai mencatat di aplikasi ini.')
-    : `Tidak sama dengan ${tab ? 'jumlah sebenarnya' : 'saldo di rekening/dompet asli'}? Ganti dengan angka sebenarnya, saldo akan disesuaikan tanpa mengubah riwayat transaksi.`;
-  bukaSheet((w ? 'Ubah ' : 'Tambah ') + (tab ? 'Tabungan' : 'Dompet'), `
+  const ket = aset
+    ? 'Perkiraan nilai jual saat ini. Perbarui sesekali (mis. ikuti harga emas atau nilai reksadana); riwayat transaksi tidak berubah.'
+    : !w
+      ? (tab ? 'Jumlah yang sudah terkumpul sebelum dicatat di aplikasi ini.' : 'Saldo saat Anda mulai mencatat di aplikasi ini.')
+      : `Tidak sama dengan ${tab ? 'jumlah sebenarnya' : 'saldo di rekening/dompet asli'}? Ganti dengan angka sebenarnya, saldo akan disesuaikan tanpa mengubah riwayat transaksi.`;
+  bukaSheet((w ? 'Ubah ' : 'Tambah ') + (tab ? 'Tabungan' : aset ? 'Aset' : 'Dompet'), `
     <div class="grup-form">
       <label class="label" for="d-nama">Nama ${sebutan}</label>
-      <input class="field" id="d-nama" maxlength="40" placeholder="${tab ? 'mis. Dana Darurat, Liburan, Umroh' : 'mis. BCA, GoPay, Celengan'}" value="${esc(w ? w.nama : '')}">
+      <input class="field" id="d-nama" maxlength="40" placeholder="${tab ? 'mis. Dana Darurat, Liburan, Umroh' : aset ? 'mis. Emas 10 gram, Reksadana, Motor' : 'mis. BCA, GoPay, Celengan'}" value="${esc(w ? w.nama : '')}">
     </div>
     <div class="grup-form">
-      <label class="label" for="d-saldo">${tab ? 'Terkumpul sekarang' : 'Saldo sekarang'}</label>
+      <label class="label" for="d-saldo">${tab ? 'Terkumpul sekarang' : aset ? 'Nilai sekarang' : 'Saldo sekarang'}</label>
       <input class="field" id="d-saldo" inputmode="numeric" placeholder="0" value="${saldoTampil}">
       <p class="info-kecil" style="text-align:left">${ket}</p>
     </div>
@@ -2418,6 +2465,7 @@ const AKSI = {
 
   'tambah-dompet': () => bukaFormDompet(null, JENIS.DOMPET),
   'tambah-tabungan': () => bukaFormDompet(null, JENIS.TABUNGAN),
+  'tambah-aset': () => bukaFormDompet(null, JENIS.ASET),
   'edit-dompet': el => bukaFormDompet(S.data.dompet.find(w => w.nama === el.dataset.nama)),
   'buka-tabungan': el => bukaTabungan(S.data.dompet.find(w => w.nama === el.dataset.nama)),
   'simpan-dompet': el => {
