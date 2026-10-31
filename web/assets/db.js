@@ -6,8 +6,13 @@
  * jadi tetap ketemu walaupun pindah HP. Kunci API Gemini disimpan di sheet "Pengaturan".
  */
 const TIPE = { MASUK: 'Pemasukan', KELUAR: 'Pengeluaran', TRANSFER: 'Transfer' };
-/** Tabungan adalah dompet khusus: diisi/ditarik lewat transaksi Transfer, punya target opsional. */
-const JENIS = { DOMPET: 'Dompet', TABUNGAN: 'Tabungan' };
+/**
+ * Tabungan adalah dompet khusus: diisi/ditarik lewat transaksi Transfer, punya target opsional.
+ * Utang juga dompet khusus, satu per orang: saldo positif = orang itu berutang ke kita (piutang),
+ * negatif = kita berutang ke dia. Pinjam-meminjam & pelunasan dicatat sebagai Transfer, jadi tidak
+ * dihitung sebagai pemasukan/pengeluaran. Kolom Tenggat dipakai sebagai jatuh tempo.
+ */
+const JENIS = { DOMPET: 'Dompet', TABUNGAN: 'Tabungan', UTANG: 'Utang' };
 
 const SERVER = (() => {
   const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
@@ -595,15 +600,15 @@ const SERVER = (() => {
   /** input: { namaLama?, nama, ikon, saldoAwal, jenis?, target?, tenggat? } — target 0 = tabungan tanpa batas. */
   async function simpanDompet(input) {
     const nama = teks_(input.nama);
-    const jenis = input.jenis === JENIS.TABUNGAN ? JENIS.TABUNGAN : JENIS.DOMPET;
-    if (!nama) throw new Error('Nama ' + jenis.toLowerCase() + ' wajib diisi.');
-    const ikon = teks_(input.ikon) || (jenis === JENIS.TABUNGAN ? '🐷' : '👛');
+    const jenis = [JENIS.TABUNGAN, JENIS.UTANG].includes(input.jenis) ? input.jenis : JENIS.DOMPET;
+    if (!nama) throw new Error('Nama ' + (jenis === JENIS.UTANG ? 'orang' : jenis.toLowerCase()) + ' wajib diisi.');
+    const ikon = teks_(input.ikon) || { [JENIS.TABUNGAN]: '🐷', [JENIS.UTANG]: '🤝' }[jenis] || '👛';
     const saldoAwal = Math.round(Number(input.saldoAwal) || 0);
     const namaLama = teks_(input.namaLama);
     let target = '';
     let tenggat = '';
-    if (jenis === JENIS.TABUNGAN) {
-      target = Math.max(0, Math.round(Number(input.target) || 0)) || '';
+    if (jenis !== JENIS.DOMPET) {
+      if (jenis === JENIS.TABUNGAN) target = Math.max(0, Math.round(Number(input.target) || 0)) || '';
       const m = teks_(input.tenggat).match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (teks_(input.tenggat) && !m) throw new Error('Tanggal target tidak valid.');
       if (m) tenggat = keSerial_(Number(m[1]), Number(m[2]), Number(m[3]));
@@ -644,6 +649,38 @@ const SERVER = (() => {
     if (rutin) throw new Error('Dompet ini dipakai di ' + rutin + ' tagihan rutin. Ubah atau hapus dulu tagihan rutinnya.');
     await hapusBaris_(id, TABEL.dompet, cariBaris_(dom, r => String(r[0]) === nama));
     return true;
+  }
+
+  // ---------- Utang & piutang ----------
+
+  /**
+   * Mencatat pinjaman. arah 'piutang' = kita meminjamkan (uang keluar dari `dompet` ke orang itu),
+   * 'utang' = kita meminjam (uang masuk dari orang itu ke `dompet`). Orang baru otomatis dibuatkan barisnya.
+   * input: { nama, arah, jumlah, dompet, tanggal, tenggat?, catatan? }
+   */
+  async function catatUtang(input) {
+    const nama = teks_(input.nama).slice(0, 40);
+    if (!nama) throw new Error('Isi nama orangnya.');
+    if (!['piutang', 'utang'].includes(input.arah)) throw new Error('Pilih: meminjamkan atau meminjam.');
+    const id = await db_();
+    const [dom] = await bacaTabel_(id, ['dompet']);
+    const ada = dom.find(r => String(r[0]).toLowerCase() === nama.toLowerCase());
+    if (ada && String(ada[3]) !== JENIS.UTANG) {
+      throw new Error('Nama "' + ada[0] + '" sudah dipakai dompet/tabungan. Pakai nama lain, mis. "' + nama + ' (teman)".');
+    }
+    const orang = ada ? String(ada[0]) : nama;
+    const keOrang = input.arah === 'piutang';
+    const trx = {
+      tipe: TIPE.TRANSFER, jumlah: input.jumlah, tanggal: input.tanggal, catatan: input.catatan,
+      dompet: keOrang ? input.dompet : orang, dompetTujuan: keOrang ? orang : input.dompet,
+    };
+    validasiTransaksi_(trx); // periksa dulu sebelum membuat baris orang baru
+    if (!ada) {
+      await simpanDompet({ nama: orang, jenis: JENIS.UTANG, saldoAwal: 0, tenggat: input.tenggat });
+    } else if (teks_(input.tenggat)) {
+      await simpanDompet({ namaLama: orang, nama: orang, jenis: JENIS.UTANG, ikon: String(ada[1]), saldoAwal: Number(ada[2]) || 0, tenggat: input.tenggat });
+    }
+    return simpanTransaksi(trx);
   }
 
   // ---------- Kunci API Gemini (sheet Pengaturan) ----------
@@ -829,7 +866,7 @@ const SERVER = (() => {
         nama: String(r[0]),
         ikon: String(r[1]),
         saldoAwal: Number(r[2]) || 0,
-        jenis: String(r[3]) === JENIS.TABUNGAN ? JENIS.TABUNGAN : JENIS.DOMPET,
+        jenis: [JENIS.TABUNGAN, JENIS.UTANG].includes(String(r[3])) ? String(r[3]) : JENIS.DOMPET,
         target: Number(r[4]) || 0,
         tenggat: r[5] === '' ? '' : dariSerial_(r[5]).slice(0, 10),
       })),
@@ -906,7 +943,7 @@ const SERVER = (() => {
   return {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe,
     simpanTransaksi, hapusTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
-    simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_,
+    simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_, catatUtang,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
   };

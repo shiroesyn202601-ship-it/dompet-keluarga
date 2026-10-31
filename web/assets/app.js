@@ -67,7 +67,9 @@ const IKON = {
 };
 const svg = nama => `<svg class="ik" viewBox="0 0 24 24" aria-hidden="true">${IKON[nama]}</svg>`;
 
-const dompetBiasa = () => S.data.dompet.filter(w => w.jenis !== JENIS.TABUNGAN);
+const dompetBiasa = () => S.data.dompet.filter(w => w.jenis === JENIS.DOMPET);
+const daftarUtang = () => S.data.dompet.filter(w => w.jenis === JENIS.UTANG);
+const adalahUtang = nama => S.data.dompet.some(w => w.nama === nama && w.jenis === JENIS.UTANG);
 const daftarTabungan = () => S.data.dompet.filter(w => w.jenis === JENIS.TABUNGAN);
 const adalahTabungan = nama => S.data.dompet.some(w => w.nama === nama && w.jenis === JENIS.TABUNGAN);
 function angka(s) {
@@ -348,6 +350,8 @@ function itemTrx(t) {
     judul = 'Transfer'; ikon = '🔁'; kelas = 'transfer'; tanda = '';
     if (adalahTabungan(t.dompetTujuan)) { judul = 'Setor tabungan'; ikon = ikonDompet(t.dompetTujuan); }
     else if (adalahTabungan(t.dompet)) { judul = 'Tarik tabungan'; ikon = ikonDompet(t.dompet); }
+    else if (adalahUtang(t.dompetTujuan)) { judul = 'Uang ke ' + t.dompetTujuan; ikon = '🤝'; }
+    else if (adalahUtang(t.dompet)) { judul = 'Uang dari ' + t.dompet; ikon = '🤝'; }
     sub = [`${t.dompet} → ${t.dompetTujuan}`, t.catatan].filter(Boolean).join(' · ');
   }
   return `<button class="trx" data-aksi="edit-trx" data-id="${esc(t.id)}">
@@ -568,7 +572,122 @@ function viewDompet() {
     ${tabungan.length
       ? `<section class="kartu" style="padding:4px 16px">${tabungan.map(itemTabungan).join('')}</section>`
       : `<section class="kartu">${kosong('🐷', 'Belum ada tabungan. Buat tabungan dengan target (mis. dana darurat, liburan) atau tanpa batas.')}</section>`}
-    <button class="tombol-tambah" data-aksi="tambah-tabungan">＋ Tambah tabungan</button>`;
+    <button class="tombol-tambah" data-aksi="tambah-tabungan">＋ Tambah tabungan</button>
+
+    ${bagianUtang()}`;
+}
+
+// ---------- Utang & piutang ----------
+
+/** Teks status satu orang. saldo > 0: dia berutang ke kita; < 0: kita berutang ke dia. */
+function statusUtang(w) {
+  if (!w.saldo) return '✅ Lunas';
+  const teks = w.saldo > 0 ? `Berutang ke Anda ${rp(w.saldo)}` : `Anda berutang ${rp(-w.saldo)}`;
+  return teks + (w.tenggat ? ' · ' + labelJatuhTempo(w.tenggat).replace(/ · .*$/, '') : '');
+}
+
+function itemUtang(w) {
+  return `
+    <button class="baris" data-aksi="buka-utang" data-nama="${esc(w.nama)}">
+      <span class="ikon-bulat">${esc(w.ikon)}</span>
+      <span class="isi"><b>${esc(w.nama)}</b><small class="${w.saldo && w.tenggat && selisihHari(w.tenggat) < 0 ? 'terlambat' : ''}">${esc(statusUtang(w))}</small></span>
+      <b class="nominal ${w.saldo < 0 ? 'minus' : ''}">${w.saldo ? rp(Math.abs(w.saldo)) : ''}</b>
+    </button>`;
+}
+
+function bagianUtang() {
+  const semua = daftarUtang();
+  const aktif = semua.filter(w => w.saldo);
+  const lunas = semua.filter(w => !w.saldo);
+  const piutang = aktif.filter(w => w.saldo > 0).reduce((a, w) => a + w.saldo, 0);
+  const utang = aktif.filter(w => w.saldo < 0).reduce((a, w) => a - w.saldo, 0);
+  return `
+    <h2 class="judul-bagian">Utang & Piutang</h2>
+    ${aktif.length ? `
+      <div class="kpi">
+        <div class="tile"><small>Orang berutang ke Anda</small><b>${rp(piutang)}</b></div>
+        <div class="tile"><small>Anda berutang</small><b>${rp(utang)}</b></div>
+      </div>
+      <section class="kartu" style="padding:4px 16px">${aktif.map(itemUtang).join('')}</section>`
+    : `<section class="kartu">${kosong('🤝', 'Tidak ada utang-piutang. Catat saat meminjamkan atau meminjam uang, supaya tidak lupa.')}</section>`}
+    ${lunas.length ? `
+      <details class="tabel-data"><summary>Sudah lunas (${lunas.length})</summary>
+        <section class="kartu" style="padding:4px 16px">${lunas.map(itemUtang).join('')}</section></details>` : ''}
+    <button class="tombol-tambah" data-aksi="tambah-utang">＋ Catat utang / piutang</button>`;
+}
+
+/** Form pinjaman baru (atau tambahan pinjaman ke orang yang sama). */
+function bukaFormUtang(nama, arah) {
+  const pertama = dompetBiasa()[0];
+  F = { utang: true, arah: arah || 'piutang', nama: nama || '', dompet: pertama ? pertama.nama : '', jumlah: 0, tanggal: hariIni(), tenggat: '', catatan: '' };
+  bukaSheet(nama ? 'Pinjaman · ' + nama : 'Catat Utang / Piutang', '<div id="form-utang"></div>');
+  renderFormUtang();
+}
+
+function renderFormUtang() {
+  const keOrang = F.arah === 'piutang';
+  $('#form-utang').innerHTML = `
+    <div class="segmen">
+      <button type="button" class="${keOrang ? 'aktif' : ''}" data-aksi="u-arah" data-arah="piutang">Saya meminjamkan</button>
+      <button type="button" class="${keOrang ? '' : 'aktif'}" data-aksi="u-arah" data-arah="utang">Saya meminjam</button>
+    </div>
+    <div class="grup-form">
+      <label class="label" for="u-nama">${keOrang ? 'Dipinjamkan ke' : 'Pinjam dari'}</label>
+      <input class="field" id="u-nama" maxlength="40" list="u-daftar" placeholder="Nama orang, mis. Budi" value="${esc(F.nama)}">
+      <datalist id="u-daftar">${daftarUtang().map(w => `<option value="${esc(w.nama)}">`).join('')}</datalist>
+    </div>
+    <label class="input-jumlah">
+      <span>Rp</span>
+      <input id="u-jumlah" class="input-rp" inputmode="numeric" autocomplete="off" placeholder="0" value="${formatAngka(F.jumlah)}">
+    </label>
+    <div class="grup-form">
+      <span class="label">${keOrang ? 'Uangnya keluar dari' : 'Uangnya masuk ke'}</span>
+      <div class="grid-pilih">${dompetBiasa().map(w =>
+        `<button type="button" class="pilihan ${w.nama === F.dompet ? 'aktif' : ''}" data-aksi="u-dompet" data-nama="${esc(w.nama)}"><span>${esc(w.ikon)}</span>${esc(w.nama)}</button>`).join('')}</div>
+    </div>
+    <div class="grup-form">
+      <label class="label" for="u-tanggal">Tanggal</label>
+      <input class="field" id="u-tanggal" type="date" value="${esc(F.tanggal)}">
+    </div>
+    <div class="grup-form">
+      <label class="label" for="u-tenggat">Jatuh tempo (opsional)</label>
+      <input class="field" id="u-tenggat" type="date" value="${esc(F.tenggat)}">
+      <p class="info-kecil" style="text-align:left">Diingatkan di Beranda menjelang tanggal ini.</p>
+    </div>
+    <div class="grup-form">
+      <label class="label" for="u-catatan">Catatan (opsional)</label>
+      <input class="field" id="u-catatan" maxlength="500" placeholder="mis. untuk bayar kos" value="${esc(F.catatan)}">
+    </div>
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-utang">Simpan</button></div>
+    <p class="info-kecil">Pinjam-meminjam tidak dihitung sebagai pemasukan atau pengeluaran.</p>`;
+}
+
+function bacaFormUtang() {
+  F.nama = $('#u-nama').value.trim();
+  F.jumlah = angka($('#u-jumlah').value);
+  F.tanggal = $('#u-tanggal').value;
+  F.tenggat = $('#u-tenggat').value;
+  F.catatan = $('#u-catatan').value;
+}
+
+/** Ringkasan satu orang: pelunasan, tambah pinjaman, ingatkan lewat WhatsApp. */
+function bukaUtang(w) {
+  const dia = w.saldo > 0;
+  const pesanWa = `Halo ${w.nama}, mau mengingatkan pinjaman ${rp(w.saldo)}${w.tenggat ? ' (jatuh tempo ' + tanggalPendek(w.tenggat) + ')' : ''}. Terima kasih 🙏`;
+  bukaSheet(w.nama, `
+    <div class="ringkas-tabungan">
+      <span class="ikon-bulat">${esc(w.ikon)}</span>
+      <div><small>${w.saldo ? (dia ? 'Berutang ke Anda' : 'Anda berutang') : 'Status'}</small><b>${w.saldo ? rp(Math.abs(w.saldo)) : '✅ Lunas'}</b></div>
+    </div>
+    ${w.tenggat && w.saldo ? `<p class="info-kecil" style="text-align:left;margin:8px 0 0">Jatuh tempo: ${esc(labelJatuhTempo(w.tenggat))}</p>` : ''}
+    ${w.saldo ? `
+      <div class="aksi-form">
+        <button type="button" class="btn btn-utama" data-aksi="lunasi-utang" data-nama="${esc(w.nama)}">${dia ? 'Terima pembayaran' : 'Bayar utang'}</button>
+      </div>` : ''}
+    ${dia ? `<a class="tombol-tambah" style="display:block;text-align:center;text-decoration:none;margin-top:12px" href="https://wa.me/?text=${encodeURIComponent(pesanWa)}" target="_blank" rel="noopener">💬 Ingatkan lewat WhatsApp</a>` : ''}
+    <button type="button" class="tombol-tambah" style="margin-top:12px" data-aksi="tambah-utang" data-nama="${esc(w.nama)}" data-arah="${w.saldo < 0 ? 'utang' : 'piutang'}">＋ Tambah pinjaman</button>
+    <button type="button" class="tombol-tambah" style="margin-top:12px" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">✏️ Ubah nama / jatuh tempo</button>
+    <p class="info-kecil">Riwayatnya bisa dicari di tab Riwayat dengan mengetik "${esc(w.nama)}".</p>`);
 }
 
 function tanggalPendek(s) {
@@ -980,7 +1099,8 @@ function renderFormTrx() {
   const kategori = S.data.kategori.filter(k => k.tipe === F.tipe);
   // Tabungan hanya muncul untuk Transfer (setor/tarik); pemasukan & pengeluaran memakai dompet biasa.
   const pilihDompet = (aksi, terpilih, termasukTabungan) => `<div class="grid-pilih">${S.data.dompet
-    .filter(w => termasukTabungan || w.jenis !== JENIS.TABUNGAN || w.nama === terpilih).map(w =>
+    // Orang (utang-piutang) hanya muncul kalau sedang terpilih, mis. saat mencatat pelunasan.
+    .filter(w => w.jenis === JENIS.DOMPET || (termasukTabungan && w.jenis === JENIS.TABUNGAN) || w.nama === terpilih).map(w =>
     `<button type="button" class="pilihan ${w.nama === terpilih ? 'aktif' : ''}" data-aksi="${aksi}" data-nama="${esc(w.nama)}">
       <span>${esc(w.ikon)}</span>${esc(w.nama)}</button>`).join('')}</div>`;
 
@@ -1100,15 +1220,21 @@ function labelJatuhTempo(tgl) {
 function kartuTagihan() {
   const dibayarOffline = tertunda().map(t => t.dariRutin).filter(Boolean); // sudah dibayar, menunggu sinyal
   const daftar = daftarRutin().filter(r => selisihHari(r.berikutnya) <= 7 && !dibayarOffline.includes(r.id));
-  if (!daftar.length) return '';
+  // Utang-piutang yang belum lunas dan jatuh temponya dekat ikut diingatkan di sini.
+  const pinjaman = daftarUtang().filter(w => w.saldo && w.tenggat && selisihHari(w.tenggat) <= 7);
+  if (!daftar.length && !pinjaman.length) return '';
+  const baris = (aksi, attr, ikon, judul, tgl, nominal) => `
+      <button class="baris" data-aksi="${aksi}" ${attr}>
+        <span class="ikon-bulat">${esc(ikon)}</span>
+        <span class="isi"><b>${esc(judul)}</b><small class="${selisihHari(tgl) < 0 ? 'terlambat' : ''}">${esc(labelJatuhTempo(tgl))}</small></span>
+        <b class="nominal">${rp(nominal)}</b>
+      </button>`;
   return `
     <h2 class="judul-bagian">Tagihan mendatang <button data-aksi="kelola-rutin">Kelola</button></h2>
-    <section class="kartu" style="padding:4px 16px">${daftar.map(r => `
-      <button class="baris" data-aksi="bayar-rutin" data-id="${esc(r.id)}">
-        <span class="ikon-bulat">${esc(ikonRutin(r))}</span>
-        <span class="isi"><b>${esc(r.nama)}</b><small class="${selisihHari(r.berikutnya) < 0 ? 'terlambat' : ''}">${esc(labelJatuhTempo(r.berikutnya))}</small></span>
-        <b class="nominal">${rp(r.jumlah)}</b>
-      </button>`).join('')}
+    <section class="kartu" style="padding:4px 16px">
+      ${daftar.map(r => baris('bayar-rutin', `data-id="${esc(r.id)}"`, ikonRutin(r), r.nama, r.berikutnya, r.jumlah)).join('')}
+      ${pinjaman.map(w => baris('buka-utang', `data-nama="${esc(w.nama)}"`, w.ikon,
+        w.saldo > 0 ? w.nama + ' membayar utang' : 'Bayar utang ke ' + w.nama, w.tenggat, Math.abs(w.saldo))).join('')}
     </section>`;
 }
 
@@ -1377,6 +1503,24 @@ function bukaFormGemini() {
 /** Form dompet biasa maupun tabungan (jenis diambil dari w, atau dari parameter untuk yang baru). */
 function bukaFormDompet(w, jenis) {
   jenis = w ? w.jenis : jenis || JENIS.DOMPET;
+  if (jenis === JENIS.UTANG) {
+    // Orang utang-piutang: jumlahnya hanya berubah lewat transaksi, jadi yang bisa diubah cuma nama & jatuh tempo.
+    F = { namaLama: w.nama, ikon: w.ikon, jenis, saldoAwal: w.saldoAwal, mutasi: 0, saldoTampil: '' };
+    return bukaSheet('Ubah ' + w.nama, `
+      <div class="grup-form">
+        <label class="label" for="d-nama">Nama orang</label>
+        <input class="field" id="d-nama" maxlength="40" value="${esc(w.nama)}">
+      </div>
+      <div class="grup-form">
+        <label class="label" for="d-tenggat">Jatuh tempo (opsional)</label>
+        <input class="field" id="d-tenggat" type="date" value="${esc(w.tenggat)}">
+      </div>
+      <div class="aksi-form">
+        <button type="button" class="btn btn-hapus" data-aksi="hapus-dompet">Hapus</button>
+        <button type="button" class="btn btn-utama" data-aksi="simpan-dompet">Simpan</button>
+      </div>
+      <p class="info-kecil">Hanya bisa dihapus kalau belum ada transaksinya.</p>`);
+  }
   const tab = jenis === JENIS.TABUNGAN;
   const sebutan = tab ? 'tabungan' : 'dompet';
   const saldoTampil = formatAngka(w ? Math.max(0, w.saldo) : 0);
@@ -1644,14 +1788,38 @@ const AKSI = {
     if (!nama) return toast('Isi nama ' + (tab ? 'tabungan' : 'dompet') + ' dulu.', true);
     // Yang diisi adalah saldo sekarang; saldo awal dihitung mundur dari mutasi transaksi,
     // jadi riwayat transaksi tidak berubah. Field yang tidak disentuh → saldo awal tetap.
-    const isian = $('#d-saldo').value;
+    const isian = $('#d-saldo') ? $('#d-saldo').value : F.saldoTampil; // form orang utang tidak punya isian saldo
     const saldoAwal = isian === F.saldoTampil ? F.saldoAwal : angka(isian) - F.mutasi;
     kirim(el, 'simpanDompet', [{
       namaLama: F.namaLama, nama, ikon: F.ikon, jenis: F.jenis,
       saldoAwal,
       target: tab ? angka($('#d-target').value) : 0,
-      tenggat: tab ? $('#d-tenggat').value : '',
-    }], (tab ? 'Tabungan' : 'Dompet') + ' tersimpan ✔');
+      tenggat: $('#d-tenggat') ? $('#d-tenggat').value : '',
+    }], 'Tersimpan ✔');
+  },
+  'tambah-utang': el => bukaFormUtang(el.dataset.nama, el.dataset.arah),
+  'buka-utang': el => bukaUtang(S.data.dompet.find(w => w.nama === el.dataset.nama)),
+  'u-arah': el => { bacaFormUtang(); F.arah = el.dataset.arah; renderFormUtang(); },
+  'u-dompet': el => { bacaFormUtang(); F.dompet = el.dataset.nama; renderFormUtang(); },
+  'simpan-utang': el => {
+    bacaFormUtang();
+    if (!F.nama) return toast('Isi nama orangnya dulu.', true);
+    if (!F.jumlah) return toast('Isi jumlahnya dulu.', true);
+    if (!F.dompet) return toast('Pilih dompetnya dulu.', true);
+    kirim(el, 'catatUtang', [{ nama: F.nama, arah: F.arah, jumlah: F.jumlah, dompet: F.dompet, tanggal: F.tanggal, tenggat: F.tenggat, catatan: F.catatan }],
+      F.arah === 'piutang' ? 'Pinjaman ke ' + F.nama + ' tercatat ✔' : 'Utang ke ' + F.nama + ' tercatat ✔');
+  },
+  'lunasi-utang': el => {
+    const w = S.data.dompet.find(x => x.nama === el.dataset.nama);
+    const pertama = dompetBiasa()[0];
+    if (!w || !pertama) return;
+    // Pelunasan = transfer balik: dia membayar → dari orang ke dompet kita; kita membayar → dari dompet ke orang.
+    const dia = w.saldo > 0;
+    bukaFormTrx(null, {
+      tipe: TIPE.TRANSFER, jumlah: Math.abs(w.saldo),
+      dompet: dia ? w.nama : pertama.nama, dompetTujuan: dia ? pertama.nama : w.nama,
+      catatan: dia ? 'Pelunasan dari ' + w.nama : 'Bayar utang ke ' + w.nama,
+    }, dia ? 'Terima dari ' + w.nama : 'Bayar ke ' + w.nama);
   },
   'hapus-dompet': el => {
     if (confirm('Hapus "' + F.namaLama + '"?')) kirim(el, 'hapusDompet', [F.namaLama], 'Dihapus');

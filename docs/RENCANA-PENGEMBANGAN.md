@@ -47,7 +47,7 @@ Masalah saat ini:
 ## Langkah 4 — Fitur prioritas 1 (paling sering dipakai)
 
 - [x] **Tagihan & transaksi rutin** (listrik, internet, cicilan, SPP, BPJS, gaji): sheet **Rutin** (dibuat otomatis); dibuat dari pilihan **🔁 Ulangi** di form transaksi atau ⚙️ → Tagihan & transaksi rutin; kartu **Tagihan mendatang** di Beranda (≤7 hari / terlambat), ketuk → form terisi, simpan → jatuh tempo maju; **Lewati kali ini**. Tidak dicatat otomatis (belum tentu sudah dibayar). Ganti nama kategori/dompet ikut ke rutin. Diuji dengan API tiruan.
-- [ ] **Utang-piutang**: tiru pola Tabungan (dompet jenis khusus + transaksi transfer) + tombol "Ingatkan via WhatsApp" (`wa.me`).
+- [x] **Utang-piutang**: dompet jenis **Utang**, satu per orang (saldo + = dia berutang, − = kita berutang); dicatat sebagai Transfer jadi tidak masuk pemasukan/pengeluaran. Tab Dompet → bagian **Utang & Piutang** (ringkasan, daftar, "Sudah lunas"), form **Saya meminjamkan / Saya meminjam**, **Terima pembayaran / Bayar utang**, **Ingatkan lewat WhatsApp**, jatuh tempo ikut kartu Tagihan mendatang. Bot ikut disesuaikan (perlu deploy versi baru). Diuji dengan API tiruan.
 - [ ] **Periode gajian**: pengaturan tanggal mulai periode (mis. 25 → periode 25–24), dipakai di anggaran & ringkasan.
 - [ ] **"Sisa aman per hari"** = sisa anggaran ÷ hari tersisa sampai gajian, di Beranda.
 - [ ] **Input cepat**: favorit/template satu ketuk, ketik bebas (`bakso 25rb gopay`), saran otomatis catatan & kategori dari riwayat.

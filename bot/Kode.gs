@@ -15,7 +15,8 @@
 
 const TZ = 'Asia/Jakarta';
 const TIPE = { MASUK: 'Pemasukan', KELUAR: 'Pengeluaran', TRANSFER: 'Transfer' };
-const JENIS = { DOMPET: 'Dompet', TABUNGAN: 'Tabungan' };
+/** Utang: satu "dompet" per orang; saldo positif = dia berutang ke kita, negatif = kita berutang (lihat web/assets/db.js). */
+const JENIS = { DOMPET: 'Dompet', TABUNGAN: 'Tabungan', UTANG: 'Utang' };
 const MODEL_GEMINI = 'gemini-3.8-flash';
 /** Untuk memahami pesan chat: model ringan supaya bot cepat membalas. */
 const MODEL_CEPAT = 'gemini-flash-lite-latest';
@@ -369,6 +370,9 @@ function konteksKeuangan_(d) {
       + '. Total ' + rp_(d.dompet.filter(w => w.jenis === JENIS.DOMPET).reduce((x, w) => x + s[w.nama], 0)) + '.',
     'Tabungan: ' + (d.dompet.filter(w => w.jenis === JENIS.TABUNGAN).map(w => w.nama + ' ' + rp_(s[w.nama])
       + (w.target ? ' dari target ' + rp_(w.target) + (w.tenggat ? ' (tenggat ' + w.tenggat + ')' : '') : ' (tanpa target)')).join('; ') || 'belum ada') + '.',
+    'Utang-piutang: ' + (d.dompet.filter(w => w.jenis === JENIS.UTANG && s[w.nama]).map(w => w.nama
+      + (s[w.nama] > 0 ? ' berutang ke kita ' + rp_(s[w.nama]) : ': kita berutang ' + rp_(-s[w.nama]))
+      + (w.tenggat ? ' (jatuh tempo ' + w.tenggat + ')' : '')).join('; ') || 'tidak ada') + '.',
     '',
     'BULAN INI (' + namaBulan_(ini) + '): pemasukan ' + rp_(a.masuk) + ', pengeluaran ' + rp_(a.keluar) + ', selisih ' + rp_(a.masuk - a.keluar) + '.',
     'Pengeluaran per kategori bulan ini:',
@@ -416,7 +420,7 @@ function petunjukPerintah_(d, terakhir, pengguna, pesan) {
     'Hari ini ' + hari + ', ' + hariIni + '. Pengguna: ' + pengguna.nama + '.',
     'Kategori pengeluaran: ' + nama(TIPE.KELUAR),
     'Kategori pemasukan: ' + nama(TIPE.MASUK),
-    'Dompet: ' + d.dompet.filter(w => w.jenis !== JENIS.TABUNGAN).map(w => w.nama).join(', '),
+    'Dompet: ' + d.dompet.filter(w => w.jenis === JENIS.DOMPET).map(w => w.nama).join(', '),
     'Tabungan: ' + (d.dompet.filter(w => w.jenis === JENIS.TABUNGAN).map(w => w.nama).join(', ') || '(belum ada)'),
     'Transaksi terakhir (ref | tanggal | tipe | jumlah | kategori | dompet → tujuan | catatan):',
     terakhir.map((t, i) => 'T' + (i + 1) + ' | ' + t.tanggal + ' | ' + t.tipe + ' | ' + t.jumlah + ' | ' + t.kategori + ' | ' + t.dompet
@@ -622,7 +626,7 @@ function muatData_(ss) {
   }));
   const dompet = baris_(ss, 'Dompet', 6).filter(r => r[0] !== '').map(r => ({
     nama: String(r[0]), ikon: String(r[1]), saldoAwal: Number(r[2]) || 0,
-    jenis: String(r[3]) === JENIS.TABUNGAN ? JENIS.TABUNGAN : JENIS.DOMPET, target: Number(r[4]) || 0,
+    jenis: [JENIS.TABUNGAN, JENIS.UTANG].indexOf(String(r[3])) >= 0 ? String(r[3]) : JENIS.DOMPET, target: Number(r[4]) || 0,
     tenggat: r[5] === '' ? '' : tgl_(r[5]),
   }));
   return { transaksi, kategori, dompet, pengaturan: pengaturan_(ss) };
@@ -662,7 +666,7 @@ function siapkanTransaksi_(d, x, pengguna) {
   if (!(jumlah > 0)) throw new Error('Nominalnya belum jelas. Contoh: "makan bakso 25rb".');
 
   const cariDompet = n => d.dompet.find(w => w.nama.toLowerCase() === String(n || '').toLowerCase());
-  const biasa = d.dompet.filter(w => w.jenis !== JENIS.TABUNGAN);
+  const biasa = d.dompet.filter(w => w.jenis === JENIS.DOMPET);
   // Dompet default: yang terakhir dipakai pengguna ini untuk tipe yang sama, atau dompet pertama.
   const terakhir = d.transaksi.filter(t => t.oleh === pengguna.email && t.tipe === tipe && cariDompet(t.dompet))
     .sort((a, b) => b.dibuat.localeCompare(a.dibuat))[0];
@@ -803,8 +807,11 @@ function teksSaldo_(d) {
   const dompet = baris(JENIS.DOMPET);
   const tabungan = baris(JENIS.TABUNGAN);
   const total = d.dompet.filter(w => w.jenis === JENIS.DOMPET).reduce((a, w) => a + s[w.nama], 0);
+  const utang = d.dompet.filter(w => w.jenis === JENIS.UTANG && s[w.nama]).map(w => '🤝 ' + html_(w.nama) + ': '
+    + (s[w.nama] > 0 ? 'berutang ke Anda <b>' + rp_(s[w.nama]) + '</b>' : 'Anda berutang <b>' + rp_(-s[w.nama]) + '</b>'));
   return ['💰 <b>Saldo dompet: ' + rp_(total) + '</b>', dompet.join('\n')]
-    .concat(tabungan.length ? ['', '🐷 <b>Tabungan</b>', tabungan.join('\n')] : []).join('\n');
+    .concat(tabungan.length ? ['', '🐷 <b>Tabungan</b>', tabungan.join('\n')] : [])
+    .concat(utang.length ? ['', '🤝 <b>Utang & piutang</b>', utang.join('\n')] : []).join('\n');
 }
 
 function teksRingkasan_(d, bulan) {
