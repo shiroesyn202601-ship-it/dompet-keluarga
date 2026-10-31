@@ -682,6 +682,11 @@ function viewLainnya() {
         <span class="isi"><b>Undang anggota keluarga</b><small>Beri akses ke akun Google lain</small></span>
         <span class="panah">›</span>
       </button>
+      <button class="baris" data-aksi="telegram">
+        <span class="ikon-bulat">💬</span>
+        <span class="isi"><b>Bot Telegram</b><small>${d.telegram.bot ? `@${esc(d.telegram.bot)} · ${d.telegram.pengguna.length} akun terhubung` : 'Catat lewat chat & foto struk'}</small></span>
+        <span class="panah">›</span>
+      </button>
       <button class="baris" data-aksi="gemini">
         <span class="ikon-bulat">🤖</span>
         <span class="isi"><b>Baca struk dengan AI</b><small>${d.kunciGemini.length ? `Aktif · ${d.kunciGemini.length} kunci API` : 'Belum diatur, perlu kunci API Gemini'}</small></span>
@@ -880,6 +885,59 @@ function infoStruk(h) {
   return `<div style="margin:-8px 0 16px">${pilihan}<p class="info-kecil" style="text-align:left;margin-top:0">${status}</p></div>`;
 }
 
+/** kode: kode penautan yang baru dibuat, ditampilkan beserta tombol pembuka Telegram. */
+function bukaFormTelegram(kode) {
+  const t = S.data.telegram;
+  const salin = (id, nilai) => `<div class="salin"><input class="field" id="${id}" readonly value="${esc(nilai)}">
+    <button type="button" class="btn btn-hapus" data-aksi="salin" data-target="${id}">Salin</button></div>`;
+  if (!t.bot) {
+    return bukaSheet('Bot Telegram', `
+      <p style="margin-top:0">Catat transaksi cukup dengan chat (<i>"makan bakso 25rb"</i>) atau kirim foto struk ke bot Telegram keluarga.</p>
+      <span class="label">Belum dipasang. Pemilik memasangnya sekali (±10 menit):</span>
+      <ol class="panduan" style="padding-left:20px;margin:0 0 16px">
+        <li>Di Telegram, buka <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> → <b>/newbot</b>, lalu salin tokennya.</li>
+        <li>Buat proyek di <a href="https://script.new" target="_blank" rel="noopener">script.new</a>, tempel isi folder <b>bot/</b> dari repo.</li>
+        <li>Di <b>Project Settings → Script Properties</b>, isi <code>TELEGRAM_TOKEN</code> dan <code>SPREADSHEET_ID</code> (salin di bawah).</li>
+        <li><b>Deploy → Web app</b>, lalu jalankan fungsi <b>pasangWebhook</b>.</li>
+      </ol>
+      <div class="grup-form"><span class="label">SPREADSHEET_ID</span>${salin('salin-id', S.data.spreadsheetId)}</div>
+      <p class="info-kecil" style="text-align:left">Panduan lengkap ada di README repo, bagian <b>Bot Telegram</b>. Setelah dipasang, buka lagi menu ini untuk menautkan akun.</p>`);
+  }
+  bukaSheet('Bot Telegram', `
+    <a class="baris" href="https://t.me/${esc(t.bot)}" target="_blank" rel="noopener">
+      <span class="ikon-bulat">🤖</span>
+      <span class="isi"><b>@${esc(t.bot)}</b><small>Buka di Telegram</small></span>
+      <span class="panah">›</span>
+    </a>
+    ${kode ? `
+      <div class="kartu" style="margin:14px 0;text-align:center;background:var(--primary-soft);border:0">
+        <small class="label" style="margin:0">Kode penautan · berlaku 15 menit</small>
+        <div style="font-size:30px;font-weight:800;letter-spacing:.2em;margin:6px 0 12px">${esc(kode)}</div>
+        <a class="btn btn-utama" style="display:block;text-decoration:none" href="https://t.me/${esc(t.bot)}?start=${esc(kode)}" target="_blank" rel="noopener">Buka Telegram & hubungkan</a>
+        <p class="info-kecil" style="margin-bottom:0">Atau kirim <b>/hubungkan ${esc(kode)}</b> ke bot.</p>
+      </div>` : ''}
+    <span class="label" style="margin-top:14px">Akun terhubung (${t.pengguna.length})</span>
+    ${t.pengguna.map(p => `
+      <div class="baris">
+        <span class="ikon-bulat">👤</span>
+        <span class="isi"><b>${esc(p.nama)}</b><small>${esc(p.email)}${p.username ? ' · @' + esc(p.username) : ''}</small></span>
+        <button type="button" class="tombol-ikon" data-aksi="putus-telegram" data-id="${esc(p.id)}" aria-label="Putuskan ${esc(p.nama)}">✕</button>
+      </div>`).join('') || '<p class="info-kecil" style="text-align:left;margin-top:0">Belum ada.</p>'}
+    ${kode ? '' : '<div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="kode-telegram">Hubungkan akun Telegram saya</button></div>'}
+    <details class="tabel-data">
+      <summary>Contoh pesan ke bot</summary>
+      <ul class="panduan" style="padding-left:20px">
+        <li><i>makan bakso 25rb</i></li>
+        <li><i>bensin 30rb pakai gopay, parkir 5rb</i></li>
+        <li><i>gaji masuk 8jt ke rekening bank</i></li>
+        <li><i>setor dana darurat 500rb</i></li>
+        <li><i>yang terakhir ubah jadi 30rb</i></li>
+        <li><i>pengeluaran bulan ini berapa?</i></li>
+        <li>kirim foto struk 📸</li>
+      </ul>
+    </details>`);
+}
+
 function bukaFormGemini() {
   const daftar = S.data.kunciGemini;
   bukaSheet('Baca Struk dengan AI', `
@@ -1041,6 +1099,34 @@ const AKSI = {
   },
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
+  'telegram': () => bukaFormTelegram(),
+  'kode-telegram': async el => {
+    el.disabled = true;
+    loading(true);
+    try {
+      const r = await api('buatKodeTelegram');
+      bukaFormTelegram(r.kode);
+    } catch (e) {
+      toast(pesanError(e), true);
+    } finally {
+      el.disabled = false;
+      loading(false);
+    }
+  },
+  'putus-telegram': async el => {
+    if (!confirm('Putuskan akun Telegram ini dari Dompet Keluarga?')) return;
+    if (await kirim(el, 'putuskanTelegram', [el.dataset.id], 'Akun Telegram diputuskan')) bukaFormTelegram();
+  },
+  'salin': async el => {
+    const input = $('#' + el.dataset.target);
+    try {
+      await navigator.clipboard.writeText(input.value);
+    } catch (e) {
+      input.select();
+      document.execCommand('copy');
+    }
+    toast('Disalin ✔');
+  },
   'simpan-gemini': async el => {
     const kunci = $('#g-kunci').value.trim();
     if (!kunci) return toast('Tempel kunci API-nya dulu.', true);

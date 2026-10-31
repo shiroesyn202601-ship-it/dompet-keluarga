@@ -321,6 +321,8 @@ const SERVER = (() => {
       urlSpreadsheet: urlDb_(id),
       linkUndangan: linkUndangan_(id),
       kunciGemini: kunciGemini_(set).map(samarkanKunci_),
+      spreadsheetId: id,
+      telegram: infoTelegram_(set),
       bulan,
       kategori: d.kategori,
       dompet: d.dompet.map(w => Object.assign({}, w, { saldo: saldo[w.nama] || 0 })),
@@ -515,6 +517,45 @@ const SERVER = (() => {
     return k.slice(0, 6) + '…' + k.slice(-4);
   }
 
+  // ---------- Bot Telegram (sheet Pengaturan, dibaca juga oleh bot di folder bot/) ----------
+
+  function bacaJson_(teks, cadangan) {
+    try { return JSON.parse(teks || '') || cadangan; } catch (e) { return cadangan; }
+  }
+
+  function infoTelegram_(rows) {
+    const p = pengaturan_(rows);
+    const pengguna = bacaJson_(p.TELEGRAM_PENGGUNA, {});
+    return {
+      bot: p.TELEGRAM_BOT || '',
+      pengguna: Object.keys(pengguna).map(id => Object.assign({ id }, pengguna[id])),
+    };
+  }
+
+  /** Kode 6 karakter, berlaku 15 menit, untuk menautkan akun Telegram ke akun Google yang sedang login. */
+  async function buatKodeTelegram() {
+    const id = await db_();
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    const p = pengaturan_(set);
+    const daftar = bacaJson_(p.TELEGRAM_KODE, {});
+    Object.keys(daftar).forEach(k => { if (daftar[k].sampai < Date.now()) delete daftar[k]; });
+    const huruf = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const acak = crypto.getRandomValues(new Uint8Array(6));
+    const kode = Array.from(acak, b => huruf[b % huruf.length]).join('');
+    daftar[kode] = { email: GOOGLE.email(), sampai: Date.now() + 15 * 60 * 1000 };
+    await simpanPengaturan_(id, set, 'TELEGRAM_KODE', JSON.stringify(daftar));
+    return { kode, bot: p.TELEGRAM_BOT || '' };
+  }
+
+  async function putuskanTelegram(idTelegram) {
+    const id = await db_();
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    const pengguna = bacaJson_(pengaturan_(set).TELEGRAM_PENGGUNA, {});
+    delete pengguna[idTelegram];
+    await simpanPengaturan_(id, set, 'TELEGRAM_PENGGUNA', JSON.stringify(pengguna));
+    return true;
+  }
+
   // ---------- Baca struk ----------
 
   async function bacaStruk(base64, mime) {
@@ -675,7 +716,7 @@ const SERVER = (() => {
   return {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe,
     simpanTransaksi, hapusTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
-    tambahKunciGemini, hapusKunciGemini, bacaStruk,
+    tambahKunciGemini, hapusKunciGemini, bacaStruk, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
   };
 })();

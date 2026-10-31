@@ -23,6 +23,7 @@ Datanya disimpan di Google Spreadsheet milik Anda sendiri, dan bisa dipakai berd
 | `web/assets/struk.js` | Baca foto struk berlapis: AI foto, OCR + AI, OCR |
 | `web/assets/app.js` | Tampilan & interaksi |
 | `web/assets/styles.css` | Tampilan (CSS) |
+| `bot/Kode.gs`, `bot/appsscript.json` | Bot Telegram (Google Apps Script), lihat bagian **Bot Telegram** |
 
 ## Setup (sekali saja, oleh pemilik)
 
@@ -94,6 +95,42 @@ Tab **Laporan** (per tahun) berisi:
 
 Menu pengaturan (**Lainnya**) sekarang dibuka dari ikon ⚙️ di pojok kanan atas Beranda.
 
+## Bot Telegram
+Catat keuangan cukup dengan chat ke bot Telegram keluarga. Bot memakai spreadsheet yang sama dengan aplikasi, jadi semua data langsung muncul di aplikasi juga.
+
+- **Bahasa bebas (AI Gemini):** *makan bakso 25rb*, *bensin 30rb pakai gopay, parkir 5rb*, *gaji masuk 8jt ke rekening bank*, *setor dana darurat 500rb*, *kemarin beli popok 120rb*.
+- **Ubah/hapus:** *yang terakhir ubah jadi 30rb*, *hapus transaksi bakso tadi*. Hapus selalu minta konfirmasi, dan setiap transaksi baru punya tombol **↩️ Batalkan**.
+- **Foto struk:** kirim foto (boleh dengan keterangan, mis. *pakai tunai*). Struk dibaca berlapis seperti di aplikasi. Kalau hasilnya berbeda-beda, bot menampilkan tombol pilihan nominal.
+- **Lihat:** `/saldo`, `/ringkasan`, `/anggaran`, `/terakhir`, atau tanya bebas (*pengeluaran bulan lalu berapa?*).
+- Setelah mencatat pengeluaran, bot memberi tahu sisa anggaran kategorinya (⚠️ di 80% atau lebih, ⛔ kalau lewat).
+- Tanpa kunci Gemini, bot tetap bisa mencatat format sederhana (*bakso 25rb*) ke kategori Lainnya.
+
+Bot berjalan di **Google Apps Script** (gratis), karena GitHub Pages tidak bisa menerima pesan dari Telegram. Kodenya ada di folder [bot/](bot/).
+
+### Memasang bot (sekali saja, oleh pemilik)
+1. **Buat bot:** di Telegram, buka [@BotFather](https://t.me/BotFather) → `/newbot`, beri nama (mis. *Dompet Keluarga Kita*) dan username (harus berakhiran `bot`). Salin **token** yang diberikan.
+2. **Buat proyek Apps Script:** buka https://script.new, lalu beri nama **Dompet Keluarga Bot**.
+   - ⚙️ **Project Settings** → centang **Show "appsscript.json" manifest file in editor**.
+   - Tempel isi [bot/appsscript.json](bot/appsscript.json) ke `appsscript.json`, dan isi [bot/Kode.gs](bot/Kode.gs) ke `Kode.gs`. Simpan.
+3. **Isi Script Properties:** ⚙️ **Project Settings → Script Properties → Add script property**:
+   - `TELEGRAM_TOKEN` = token dari BotFather
+   - `SPREADSHEET_ID` = ID spreadsheet keluarga (salin dari aplikasi: **⚙️ → Bot Telegram**)
+4. **Deploy:** **Deploy → New deployment → ⚙️ Web app**:
+   - **Execute as:** `Me`
+   - **Who has access:** `Anyone`
+
+   Klik **Deploy** dan beri izin (**Advanced → Go to … → Allow**).
+5. **Pasang webhook:** di editor, pilih fungsi **pasangWebhook** lalu klik **▶ Run**. Di Execution log akan muncul `✅ Bot @namabot terpasang`.
+6. **Tautkan akun:** di aplikasi, buka **⚙️ → Bot Telegram → Hubungkan akun Telegram saya**, lalu ketuk **Buka Telegram & hubungkan**. Istri melakukan hal yang sama dari akunnya sendiri.
+
+Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang menemukan bot hanya mendapat pesan "belum terhubung".
+
+### Kalau bot tidak membalas
+- Jalankan fungsi **cekWebhook** dan lihat `last_error_message` di Execution log.
+- Buka **⏱ Executions** di Apps Script untuk melihat error tiap pesan.
+- Kalau webhook terus bermasalah, jalankan **modePolling**. Bot lalu mengecek pesan setiap 1 menit, jadi balasannya sedikit lebih lambat. Jalankan **pasangWebhook** untuk kembali ke mode webhook.
+- Setiap kali `Kode.gs` diubah: **Deploy → Manage deployments → ✏️ → New version → Deploy**. URL tidak berubah, jadi webhook tidak perlu dipasang ulang.
+
 ## Mengembangkan
 - Ubah file di `web/`, lalu commit dan push ke `main`. Deploy berjalan otomatis dalam 1–2 menit (pantau di tab **Actions**).
 - Untuk mencoba di komputer sendiri, jalankan server statis, misalnya `npx serve web`, lalu tambahkan `http://localhost:3000` ke **Authorized JavaScript origins** di Google Cloud.
@@ -103,7 +140,7 @@ Menu pengaturan (**Lainnya**) sekarang dibuka dari ikon ⚙️ di pojok kanan at
 - **Transaksi:** ID, Tanggal, Tipe (Pemasukan/Pengeluaran/Transfer), Jumlah, Kategori, Dompet, Dompet Tujuan, Catatan, Dibuat Oleh, Dibuat Pada, Diubah Pada
 - **Kategori:** Nama, Tipe, Ikon, Anggaran (batas per bulan, khusus pengeluaran)
 - **Dompet:** Nama, Ikon, Saldo Awal, Jenis (Dompet/Tabungan), Target, Tenggat
-- **Pengaturan:** Kunci, Nilai (kunci API Gemini, model)
+- **Pengaturan:** Kunci, Nilai (kunci API Gemini, model, username bot, akun Telegram yang tertaut)
 
 Saldo dompet dihitung otomatis: saldo awal + pemasukan − pengeluaran ± transfer.
 Jangan mengubah nama sheet atau urutan kolom secara manual, karena aplikasi membacanya berdasarkan posisi kolom.
@@ -114,4 +151,5 @@ Jangan mengubah nama sheet atau urutan kolom secara manual, karena aplikasi memb
 - [x] Pindah ke GitHub Pages dengan deploy otomatis
 - [x] Tahap 3: tabungan (dengan target dan tanpa batas) dan anggaran per kategori
 - [x] Tahap 4: laporan dan grafik
-- [ ] Tahap 5: bot Telegram dengan AI (bahasa bebas, CRUD, kirim foto struk)
+- [x] Redesign tampilan (gaya fintech bersih)
+- [x] Tahap 5: bot Telegram dengan AI (bahasa bebas, CRUD, kirim foto struk)
