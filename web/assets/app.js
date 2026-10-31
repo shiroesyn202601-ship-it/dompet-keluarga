@@ -12,6 +12,7 @@ const S = {
   tahun: new Date().getFullYear(), // tahun yang dilihat di Laporan
   lapKategori: 'bulan',            // Laporan → pengeluaran per kategori: 'bulan' | 'tahun'
   setup: { pilih: ['Tunai'], saldo: {}, lain: [], email: '' }, // isian layar setup pertama kali
+  offline: false, // true = tanpa sinyal, menampilkan data terakhir yang tersimpan di HP
 };
 /** Pilihan cepat di layar setup: [nama, ikon]. */
 const DOMPET_UMUM = [['Tunai', '💵'], ['BCA', '🏦'], ['BRI', '🏦'], ['Mandiri', '🏦'], ['BNI', '🏦'], ['BSI', '🏦'],
@@ -124,6 +125,7 @@ async function mulai() {
     history.replaceState(null, '', location.pathname + location.search);
   }
   if (GOOGLE.sudahMasuk()) muat();
+  else if (!navigator.onLine && pakaiDataTerakhir()) { /* tanpa sinyal: tetap bisa mencatat, login menyusul saat online */ }
   else tampilMasuk();
 }
 
@@ -136,11 +138,17 @@ async function muat() {
       toast('Berhasil bergabung ke Dompet Keluarga ✔');
     }
     S.data = await api('getData', S.bulan);
+    S.offline = false;
     $('#nav').hidden = !!S.data.perluSetup;
     if (S.data.perluSetup) $('#view').innerHTML = viewSetup();
-    else render();
+    else {
+      tulisLokal('data', S.data);
+      render();
+      kirimTertunda();
+    }
   } catch (e) {
     if (e instanceof GOOGLE.PerluMasuk) return;
+    if (e.jaringan && pakaiDataTerakhir()) return;
     if (!S.data || S.data.perluSetup) {
       $('#nav').hidden = true;
       $('#view').innerHTML = viewGagal(e);
@@ -148,6 +156,92 @@ async function muat() {
       toast(pesanError(e), true);
     }
   }
+}
+
+// ---------- Offline: data terakhir & transaksi tertunda ----------
+
+/** Penyimpanan HP per akun: 'data' (data terakhir dari spreadsheet) dan 'tertunda' (dicatat tanpa sinyal). */
+const kunciHp = jenis => 'dk_' + jenis + '_' + (GOOGLE.email() || '');
+function bacaLokal(jenis, cadangan) {
+  try { return JSON.parse(localStorage.getItem(kunciHp(jenis))) || cadangan; } catch (e) { return cadangan; }
+}
+function tulisLokal(jenis, isi) {
+  try {
+    if (isi == null) localStorage.removeItem(kunciHp(jenis));
+    else localStorage.setItem(kunciHp(jenis), JSON.stringify(isi));
+  } catch (e) { /* penyimpanan penuh / mode privat */ }
+}
+const tertunda = () => bacaLokal('tertunda', []);
+
+/** Tanpa sinyal: pakai data terakhir yang tersimpan di HP. false kalau belum pernah ada. */
+function pakaiDataTerakhir() {
+  if (!S.data || S.data.perluSetup) {
+    const d = bacaLokal('data', null);
+    if (!d) return false;
+    S.data = d;
+  }
+  S.bulan = S.data.bulan;
+  S.offline = true;
+  $('#nav').hidden = false;
+  render();
+  return true;
+}
+
+/** Transaksi baru yang belum bisa dikirim disimpan di HP, lengkap dengan ID-nya supaya tidak dobel saat dikirim ulang. */
+function simpanTertunda(t) {
+  tulisLokal('tertunda', tertunda().concat([{
+    idBaru: t.idBaru || crypto.randomUUID(), tipe: t.tipe, jumlah: t.jumlah, kategori: t.kategori,
+    dompet: t.dompet, dompetTujuan: t.dompetTujuan, tanggal: t.tanggal, catatan: t.catatan,
+  }]));
+  tutupSheet();
+  render();
+  toast('📴 Tersimpan di HP. Dikirim otomatis begitu ada sinyal.');
+  return true;
+}
+
+let mengirimTertunda = false;
+/**
+ * Mengirim transaksi tertunda satu per satu. Gangguan sinyal/sesi → berhenti, dicoba lagi nanti.
+ * Ditolak (mis. dompetnya sudah dihapus) → ditandai gagal dan ditampilkan untuk dicatat ulang.
+ */
+async function kirimTertunda() {
+  if (mengirimTertunda || !GOOGLE.sudahMasuk()) return;
+  mengirimTertunda = true;
+  let terkirim = 0, berubah = false;
+  try {
+    for (;;) {
+      const t = tertunda().find(x => !x.gagal);
+      if (!t) break;
+      try {
+        await SERVER.simpanTransaksi(t);
+        terkirim++;
+        tulisLokal('tertunda', tertunda().filter(x => x.idBaru !== t.idBaru));
+      } catch (e) {
+        if (e.jaringan || e instanceof GOOGLE.PerluMasuk) break;
+        tulisLokal('tertunda', tertunda().map(x => (x.idBaru === t.idBaru ? Object.assign({}, x, { gagal: pesanError(e) }) : x)));
+        berubah = true;
+      }
+    }
+  } finally {
+    mengirimTertunda = false;
+  }
+  if (terkirim) {
+    toast(terkirim + ' transaksi tertunda terkirim ✔');
+    await muat();
+  } else if (berubah && S.data && $('#sheet').hidden) {
+    render();
+  }
+}
+
+/** Baris status di atas halaman: offline, transaksi menunggu, atau yang gagal dikirim. */
+function bannerStatus() {
+  const daftar = tertunda();
+  const gagal = daftar.filter(t => t.gagal);
+  const menunggu = daftar.length - gagal.length;
+  return (S.offline ? '<div class="status-bar">📴 Offline · menampilkan data terakhir. Transaksi baru tetap bisa dicatat.</div>' : '') +
+    (menunggu ? `<div class="status-bar">📤 ${menunggu} transaksi menunggu dikirim${S.offline ? '' : ' <button type="button" data-aksi="kirim-tertunda">Kirim sekarang</button>'}</div>` : '') +
+    gagal.map(t => `<div class="status-bar gagal">⚠️ ${rp(t.jumlah)} ${esc(t.kategori || 'Transfer')} tidak bisa dikirim: ${esc(t.gagal)}
+      <button type="button" data-aksi="ulang-tertunda" data-id="${esc(t.idBaru)}">Catat ulang</button></div>`).join('');
 }
 
 function tampilMasuk() {
@@ -233,7 +327,7 @@ async function pilihDanHubungkan(idFile) {
 
 function render() {
   const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, laporan: viewLaporan, lainnya: viewLainnya }[S.tab];
-  $('#view').innerHTML = view();
+  $('#view').innerHTML = bannerStatus() + view();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
 }
 
@@ -835,7 +929,8 @@ function tutupSheet() {
   F = null;
 }
 
-async function kirim(tombol, fungsi, args, pesan) {
+/** tanganiGagal(e): opsional; kembalikan true kalau error sudah ditangani (mis. disimpan sebagai tertunda). */
+async function kirim(tombol, fungsi, args, pesan, tanganiGagal) {
   tombol.disabled = true;
   loading(true);
   try {
@@ -845,6 +940,7 @@ async function kirim(tombol, fungsi, args, pesan) {
     toast(pesan);
     return true;
   } catch (e) {
+    if (tanganiGagal && tanganiGagal(e)) return false;
     if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true); // kartu "Sesi login berakhir" sudah tampil
     return false;
   } finally {
@@ -1375,8 +1471,30 @@ const AKSI = {
     if (F.tipe !== TIPE.TRANSFER && !F.kategori) return toast('Pilih kategorinya dulu.', true);
     if (F.tipe === TIPE.TRANSFER && (!F.dompetTujuan || F.dompetTujuan === F.dompet)) return toast('Pilih dompet tujuan yang berbeda.', true);
     const pesan = F.id ? 'Transaksi diperbarui ✔' : 'Transaksi tersimpan ✔';
-    const dariJob = F.dariJob;
-    kirim(el, 'simpanTransaksi', [F], pesan).then(ok => { if (ok && dariJob) hapusJob(dariJob); });
+    const t = F;
+    const dariJob = t.dariJob;
+    // ID transaksi baru dibuat di HP, supaya kiriman ulang (setelah sinyal putus) tidak membuat data dobel.
+    if (!t.id && !t.idBaru) t.idBaru = crypto.randomUUID();
+    const tunda = () => { simpanTertunda(t); if (dariJob) hapusJob(dariJob); return true; };
+    if (!t.id && (S.offline || !navigator.onLine)) return tunda();
+    kirim(el, 'simpanTransaksi', [t], pesan, e => !t.id && e.jaringan && tunda())
+      .then(ok => { if (ok && dariJob) hapusJob(dariJob); });
+  },
+  'kirim-tertunda': async () => {
+    if (!GOOGLE.sudahMasuk()) return perluMasukLagi();
+    loading(true);
+    await kirimTertunda();
+    loading(false);
+    if (tertunda().some(t => !t.gagal)) toast('Belum bisa dikirim. Periksa koneksi internet.', true);
+  },
+  'ulang-tertunda': el => {
+    const t = tertunda().find(x => x.idBaru === el.dataset.id);
+    tulisLokal('tertunda', tertunda().filter(x => x.idBaru !== el.dataset.id));
+    render();
+    if (t) {
+      bukaFormTrx(null, { tipe: t.tipe, jumlah: t.jumlah, kategori: t.kategori, dompet: t.dompet,
+        dompetTujuan: t.dompetTujuan, tanggal: t.tanggal, catatan: t.catatan }, 'Catat Ulang');
+    }
   },
   'hapus-trx': el => {
     if (confirm('Hapus transaksi ini?')) kirim(el, 'hapusTransaksi', [F.id], 'Transaksi dihapus');
@@ -1553,7 +1671,11 @@ const AKSI = {
     }
   },
   'keluar': () => {
-    if (!confirm('Keluar dari ' + GOOGLE.email() + '?')) return;
+    const n = tertunda().length;
+    if (!confirm(n ? `${n} transaksi belum terkirim dan akan hilang. Tetap keluar dari ${GOOGLE.email()}?` : 'Keluar dari ' + GOOGLE.email() + '?')) return;
+    // Data yang tersimpan di HP ikut dihapus, karena HP bisa dipakai orang lain.
+    tulisLokal('data', null);
+    tulisLokal('tertunda', null);
     GOOGLE.keluar();
     S.data = null;
     tampilMasuk();
@@ -1673,6 +1795,18 @@ async function cekPembaruan() {
   if (!pembaruanDitunda) toast('Versi baru tersedia, dipasang setelah Anda selesai');
   pembaruanDitunda = true;
 }
+
+// Sinyal kembali → keluar dari mode offline & kirim transaksi tertunda (kalau sesi habis, minta lanjutkan dulu).
+window.addEventListener('online', () => {
+  if (!S.data || S.data.perluSetup) return;
+  if (!GOOGLE.sudahMasuk()) return perluMasukLagi();
+  muat();
+});
+window.addEventListener('offline', () => {
+  if (!S.data || S.data.perluSetup) return;
+  S.offline = true;
+  if ($('#sheet').hidden) render();
+});
 
 cekPembaruan();
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') cekPembaruan(); });

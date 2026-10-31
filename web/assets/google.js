@@ -29,6 +29,15 @@ const GOOGLE = (() => {
   }
 
   function tungguGis() {
+    // Kalau aplikasi dibuka saat offline, script login di index.html gagal dimuat; muat ulang sekarang.
+    // (readyState 'complete' = script asli sudah selesai dicoba, jadi tidak dimuat dobel.)
+    if (document.readyState === 'complete' && !(window.google && google.accounts) && !document.querySelector('script[data-gis-ulang]')) {
+      const s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.dataset.gisUlang = '1';
+      s.onerror = () => s.remove();
+      document.head.appendChild(s);
+    }
     return new Promise((ok, gagal) => {
       const mulai = Date.now();
       (function cek() {
@@ -94,7 +103,9 @@ const GOOGLE = (() => {
     try {
       res = await fetch(url, { method: opsi.method || 'GET', headers, body });
     } catch (e) {
-      throw new Error('Tidak bisa terhubung ke Google. Periksa koneksi internet.');
+      const err = new Error('Tidak bisa terhubung ke Google. Periksa koneksi internet.');
+      err.jaringan = true; // dipakai app.js untuk mode offline & antrean transaksi
+      throw err;
     }
     if (res.status === 401) {
       sesi.kadaluarsa = 0;

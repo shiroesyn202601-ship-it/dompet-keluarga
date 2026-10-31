@@ -54,6 +54,8 @@ const SERVER = (() => {
 
   let dbId = null;      // ID spreadsheet yang sedang dipakai
   let idSheet = null;   // { "Transaksi": sheetId, ... } untuk hapus baris
+  let terlindungi = new Set(); // nama sheet yang sudah diberi proteksi peringatan
+  const PROTEKSI = 'Dompet Keluarga: dikelola aplikasi';
 
   // ---------- Lokasi spreadsheet milik akun ini ----------
 
@@ -115,9 +117,13 @@ const SERVER = (() => {
 
   async function bacaIdSheet_(id) {
     try {
-      const r = await GOOGLE.api(SHEETS + '/' + id + '?fields=sheets.properties(sheetId,title)');
+      const r = await GOOGLE.api(SHEETS + '/' + id + '?fields=sheets(properties(sheetId,title),protectedRanges(description))');
       const peta = {};
-      r.sheets.forEach(s => { peta[s.properties.title] = s.properties.sheetId; });
+      terlindungi = new Set();
+      r.sheets.forEach(s => {
+        peta[s.properties.title] = s.properties.sheetId;
+        if ((s.protectedRanges || []).some(p => p.description === PROTEKSI)) terlindungi.add(s.properties.title);
+      });
       return peta;
     } catch (e) {
       // Dengan scope drive.file, spreadsheet yang dibagikan orang lain baru bisa dibuka setelah dipilih lewat Google Picker.
@@ -147,6 +153,8 @@ const SERVER = (() => {
       await tulis_(id, "'" + t.nama + "'!A1", [t.kolom]);
     }
 
+    await lindungiSheet_(id);
+
     const q = [TABEL.kategori, TABEL.dompet].map(x => 'ranges=' + encodeURIComponent("'" + x.nama + "'!A1:Z1")).join('&');
     const [kat, dom] = (await GOOGLE.api(SHEETS + '/' + id + '/values:batchGet?' + q)).valueRanges.map(v => (v.values || [[]])[0]);
     const data = [];
@@ -162,6 +170,23 @@ const SERVER = (() => {
     if (!data.length) return;
     await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', { method: 'POST', json: { valueInputOption: 'RAW', data } });
     await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', { method: 'POST', json: { requests: format } });
+  }
+
+  /**
+   * Proteksi "hanya peringatan": orang yang mengedit langsung di Google Sheets mendapat peringatan dulu
+   * (aplikasi membaca kolom berdasarkan posisi). Aplikasi, bot, dan API tidak terhalang.
+   */
+  async function lindungiSheet_(id) {
+    const requests = Object.values(TABEL).filter(t => t.nama in idSheet && !terlindungi.has(t.nama)).map(t => ({
+      addProtectedRange: { protectedRange: { range: { sheetId: idSheet[t.nama] }, description: PROTEKSI, warningOnly: true } },
+    }));
+    if (!requests.length) return;
+    try {
+      await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', { method: 'POST', json: { requests } });
+      Object.values(TABEL).forEach(t => terlindungi.add(t.nama));
+    } catch (e) {
+      console.warn('Proteksi sheet dilewati:', e); // tidak wajib; jangan menghalangi pemakaian
+    }
   }
 
   function formatKolom_(sheetId, kolomAwal, kolomAkhir, type, pattern) {
@@ -346,20 +371,34 @@ const SERVER = (() => {
     };
   }
 
+  /**
+   * input.idBaru (opsional): ID yang sudah dibuat di HP untuk transaksi antrean offline.
+   * Kalau ID itu sudah ada di sheet (kiriman sebelumnya sampai tapi jawabannya hilang), tidak ditambah lagi.
+   */
   async function simpanTransaksi(input) {
     const t = validasiTransaksi_(input);
     const id = await db_();
-    const [rows] = await bacaTabel_(id, ['transaksi']);
     const sekarang = serialSekarang_();
+    const tbl = TABEL.transaksi;
     if (t.id) {
-      const i = cariBaris_(rows, r => String(r[0]) === t.id);
-      const lama = rows[i];
-      await tulis_(id, rangeBaris_(TABEL.transaksi, i), [[
-        t.id, t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, lama[8], lama[9], sekarang,
-      ]]);
+      // Baris dicari lewat ID sesaat sebelum menulis, dan hanya kolom yang berubah yang ditulis
+      // (Dibuat Oleh/Pada tidak disentuh), supaya perubahan orang lain di saat bersamaan tidak tertimpa.
+      const i = cariBaris_(await daftarId_(id), x => x === t.id);
+      const baris = i + 2;
+      await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', {
+        method: 'POST',
+        json: {
+          valueInputOption: 'RAW',
+          data: [
+            { range: "'" + tbl.nama + "'!B" + baris + ':H' + baris, values: [[t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan]] },
+            { range: "'" + tbl.nama + "'!K" + baris, values: [[sekarang]] },
+          ],
+        },
+      });
     } else {
-      t.id = crypto.randomUUID();
-      await tambahBaris_(id, TABEL.transaksi, [[
+      t.id = teks_(input.idBaru) || crypto.randomUUID();
+      if (input.idBaru && (await daftarId_(id)).includes(t.id)) return t.id;
+      await tambahBaris_(id, tbl, [[
         t.id, t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, GOOGLE.email(), sekarang, sekarang,
       ]]);
     }
@@ -368,9 +407,14 @@ const SERVER = (() => {
 
   async function hapusTransaksi(idTrx) {
     const id = await db_();
-    const [rows] = await bacaTabel_(id, ['transaksi']);
-    await hapusBaris_(id, TABEL.transaksi, cariBaris_(rows, r => String(r[0]) === String(idTrx)));
+    await hapusBaris_(id, TABEL.transaksi, cariBaris_(await daftarId_(id), x => x === String(idTrx)));
     return true;
+  }
+
+  /** Kolom ID transaksi saja (cepat dibaca), urut sesuai baris data. */
+  async function daftarId_(id) {
+    const r = await GOOGLE.api(SHEETS + '/' + id + '/values/' + encodeURIComponent("'" + TABEL.transaksi.nama + "'!A2:A") + '?majorDimension=COLUMNS');
+    return ((r.values || [])[0] || []).map(String);
   }
 
   /** input: { namaLama?, tipeLama?, nama, tipe, ikon, anggaran? } — anggaran bulanan, hanya untuk pengeluaran. */
@@ -623,12 +667,19 @@ const SERVER = (() => {
     });
   }
 
+  /**
+   * Mengganti nama kategori/dompet di transaksi. Hanya baris yang berubah yang ditulis, dan posisinya
+   * dicari ulang lewat ID sesaat sebelum menulis, jadi transaksi yang baru ditambah/dihapus orang lain aman.
+   */
   async function gantiDiTransaksi_(id, rows, ubahBaris) {
-    let ada = false;
-    rows.forEach(r => { if (ubahBaris(r)) ada = true; });
-    if (!ada) return;
+    const berubah = rows.filter(r => ubahBaris(r));
+    if (!berubah.length) return;
     const t = TABEL.transaksi;
-    await tulis_(id, "'" + t.nama + "'!A2:" + hurufKolom_(t.kolom.length) + (rows.length + 1), rows);
+    const posisi = {};
+    (await daftarId_(id)).forEach((x, i) => { posisi[x] = i; });
+    const data = berubah.filter(r => String(r[0]) in posisi)
+      .map(r => ({ range: rangeBaris_(t, posisi[String(r[0])]), values: [r] }));
+    if (data.length) await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', { method: 'POST', json: { valueInputOption: 'RAW', data } });
   }
 
   function olahData_(trx, kat, dom) {

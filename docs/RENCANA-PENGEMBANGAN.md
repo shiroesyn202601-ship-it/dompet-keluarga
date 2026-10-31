@@ -37,11 +37,11 @@ Masalah saat ini:
 
 ## Langkah 3 — Teknis kecil, dampak besar
 
-- [ ] Jadikan **PWA** sungguhan (manifest + ikon + service worker); hapus kartu panduan "Pasang di layar utama".
-- [ ] **Antrean offline**: transaksi tanpa sinyal disimpan dulu, dikirim saat online.
-- [ ] Hapus `maximum-scale=1` di `web/index.html` (zoom diblokir).
-- [ ] Ubah/hapus transaksi: cari ulang baris berdasarkan ID tepat sebelum menulis/menghapus (sekarang berdasarkan nomor baris → risiko salah hapus saat dua orang mengedit bersamaan).
-- [ ] Beri proteksi "warning" di sheet supaya kolom tidak digeser manual.
+- [x] Jadikan **PWA** sungguhan (manifest + ikon + service worker jaringan-dulu, update otomatis); kartu panduan diganti tombol **Pasang aplikasi**. *(dikerjakan pemilik)*
+- [x] **Mode offline & transaksi tertunda**: data terakhir disimpan di HP; tanpa sinyal aplikasi tetap terbuka dan transaksi baru disimpan sebagai "tertunda", lalu dikirim otomatis saat online (ID dibuat di HP → kiriman ulang tidak dobel). Yang ditolak server ditampilkan dengan tombol **Catat ulang**. Keluar akun menghapus data di HP.
+- [x] Hapus `maximum-scale=1` (zoom kembali bisa); isian dibuat 16px di iPhone supaya tidak zoom otomatis saat diketuk.
+- [x] Ubah/hapus transaksi mencari baris lewat kolom ID sesaat sebelum menulis; edit hanya menulis kolom yang berubah; ganti nama kategori/dompet hanya menulis baris yang berubah (bukan seluruh tabel). Diuji dengan API tiruan.
+- [x] Proteksi "hanya peringatan" di semua sheet (dipasang otomatis sekali); aplikasi, bot, & API tidak terhalang.
 - [x] Perbaiki pesan error yang masih menyebut "menu Lainnya" (`web/assets/db.js`, fungsi `bacaIdSheet_`) → sekarang ikon ⚙️. *(ikut Langkah 1)*
 
 ## Langkah 4 — Fitur prioritas 1 (paling sering dipakai)

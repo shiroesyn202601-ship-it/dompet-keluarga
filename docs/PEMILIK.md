@@ -124,6 +124,15 @@ Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang 
 
 Saldo dompet dihitung otomatis: saldo awal + pemasukan − pengeluaran ± transfer.
 Jangan mengubah nama sheet atau urutan kolom secara manual, karena aplikasi membacanya berdasarkan posisi kolom.
+Karena itu setiap sheet diberi proteksi **hanya peringatan** (deskripsi `Dompet Keluarga: dikelola aplikasi`), dipasang otomatis saat aplikasi pertama membuka spreadsheet. Proteksi ini tidak menghalangi aplikasi, bot, maupun API; kalau ingin mencabutnya: Data → Protect sheets and ranges.
+
+Transaksi diubah/dihapus berdasarkan kolom **ID** (dicari sesaat sebelum menulis), bukan nomor baris yang dibaca sebelumnya.
+
+## Mode offline
+- Data terakhir disimpan di `localStorage` (`dk_data_<email>`). Tanpa sinyal, aplikasi menampilkan data itu dengan baris status 📴.
+- Transaksi baru tanpa sinyal disimpan di `dk_tertunda_<email>` beserta ID buatan HP (`idBaru`), lalu dikirim otomatis saat online (`SERVER.simpanTransaksi` melewati ID yang sudah ada, jadi kiriman ulang tidak dobel).
+- Transaksi tertunda yang ditolak (mis. dompetnya sudah dihapus) ditandai gagal dan bisa **Catat ulang**. Ubah/hapus transaksi tetap butuh sinyal.
+- **Keluar** menghapus kedua kunci di atas.
 
 ## Riwayat tahap
 - [x] Tahap 1: catat transaksi, kategori, dompet, riwayat, ringkasan bulanan, dipakai berdua
@@ -135,3 +144,4 @@ Jangan mengubah nama sheet atau urutan kolom secara manual, karena aplikasi memb
 - [x] Tahap 5: bot Telegram dengan AI (bahasa bebas, CRUD, kirim foto struk)
 - [x] Langkah 1 (rencana pengembangan): izin Google non-sensitif, Google Picker, sesi habis tanpa kehilangan isian, kebijakan privasi
 - [x] Langkah 2: wizard setup (dompet + saldo), sesuaikan saldo, menu fitur lanjutan, bahasa netral
+- [x] Langkah 3: mode offline & transaksi tertunda, zoom tidak diblokir, tulis/hapus transaksi berdasarkan ID, proteksi peringatan di sheet

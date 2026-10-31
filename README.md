@@ -22,6 +22,7 @@ Sekitar tiap 1 jam Google meminta konfirmasi ulang. Cukup ketuk **Lanjutkan seba
 - **Catat** pemasukan, pengeluaran, dan transfer antardompet lewat tombol **＋**.
 - **Foto struk:** ketuk **Foto struk**, nominal, tanggal, dan kategori terisi otomatis. Tetap periksa totalnya sebelum menyimpan.
   Untuk hasil yang lebih akurat, isi kunci Gemini gratis di **⚙️ → Baca struk lebih akurat** (opsional).
+- **Tanpa sinyal?** Aplikasi tetap terbuka dengan data terakhir, dan transaksi baru disimpan di HP lalu dikirim otomatis begitu ada sinyal (📤 di atas layar menunjukkan berapa yang menunggu).
 - **Saldo tidak cocok?** Buka tab **Dompet**, ketuk dompetnya, lalu ganti angka **Saldo sekarang** dengan saldo sebenarnya. Riwayat transaksi tidak berubah.
 - **Tabungan:** tab **Dompet → ＋ Tambah tabungan**. Boleh dengan target (mis. Dana Darurat Rp10 juta) atau tanpa batas. Ketuk tabungannya untuk **Setor** atau **Tarik**. Aplikasi menghitung berapa yang perlu disetor per bulan supaya target tercapai.
 - **Anggaran:** ketuk **Atur** di kartu Anggaran (Beranda), lalu isi batas belanja per kategori. Muncul **⚠️ Hampir habis** di 80% dan **⛔ Lewat** saat melebihi batas.
