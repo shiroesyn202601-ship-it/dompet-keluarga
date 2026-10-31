@@ -51,6 +51,17 @@ function rpPendek(n) {
 function formatAngka(n) {
   return n ? new Intl.NumberFormat('id-ID').format(n) : '';
 }
+/** Ikon garis (gaya lucide), digambar dengan currentColor. */
+const IKON = {
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  kamera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  transfer: '<path d="M7 7h13l-4-4"/><path d="M17 17H4l4 4"/>',
+  laporan: '<path d="M3 3v18h18"/><path d="M7 15v3M12 10v8M17 6v12"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  kembali: '<path d="m15 18-6-6 6-6"/>',
+};
+const svg = nama => `<svg class="ik" viewBox="0 0 24 24" aria-hidden="true">${IKON[nama]}</svg>`;
+
 const dompetBiasa = () => S.data.dompet.filter(w => w.jenis !== JENIS.TABUNGAN);
 const daftarTabungan = () => S.data.dompet.filter(w => w.jenis === JENIS.TABUNGAN);
 const adalahTabungan = nama => S.data.dompet.some(w => w.nama === nama && w.jenis === JENIS.TABUNGAN);
@@ -227,24 +238,63 @@ function meterAnggaran(ikon, nama, terpakai, batas) {
     </div>`;
 }
 
-function kartuAnggaran(perKategori) {
-  const daftar = S.data.kategori.filter(k => k.tipe === TIPE.KELUAR && k.anggaran > 0);
-  if (!daftar.length) {
-    return `<section class="kartu">
-      <h3>Anggaran bulanan <button data-aksi="atur-anggaran">Atur</button></h3>
-      <p class="info-kecil" style="text-align:left;margin:0">Belum ada anggaran. Ketuk <b>Atur</b> untuk memberi batas belanja per kategori setiap bulan.</p>
-    </section>`;
-  }
-  const pakai = k => perKategori[k.nama] || 0;
+/** Pengeluaran bulan terpilih per kategori: { nama: jumlah }. */
+function pengeluaranPerKategori() {
+  const per = {};
+  S.data.transaksi.filter(t => t.tipe === TIPE.KELUAR).forEach(t => { per[t.kategori] = (per[t.kategori] || 0) + t.jumlah; });
+  return per;
+}
+
+const kategoriBeranggaran = () => S.data.kategori.filter(k => k.tipe === TIPE.KELUAR && k.anggaran > 0);
+
+/** Rincian semua meter anggaran (dibuka dari tile Anggaran di Beranda). */
+function bukaRincianAnggaran() {
+  const per = pengeluaranPerKategori();
+  const pakai = k => per[k.nama] || 0;
+  const daftar = kategoriBeranggaran().sort((a, b) => pakai(b) / b.anggaran - pakai(a) / a.anggaran);
   const totalBatas = daftar.reduce((a, k) => a + k.anggaran, 0);
   const totalPakai = daftar.reduce((a, k) => a + pakai(k), 0);
-  const urut = daftar.slice().sort((a, b) => pakai(b) / b.anggaran - pakai(a) / a.anggaran);
-  return `<section class="kartu">
-    <h3>Anggaran bulan ini <button data-aksi="atur-anggaran">Atur</button></h3>
+  bukaSheet('Anggaran ' + namaBulan(S.bulan), `
     ${meterAnggaran('📊', 'Total', totalPakai, totalBatas)}
     <div class="pemisah"></div>
-    ${urut.map(k => meterAnggaran(k.ikon, k.nama, pakai(k), k.anggaran)).join('')}
-  </section>`;
+    ${daftar.map(k => meterAnggaran(k.ikon, k.nama, pakai(k), k.anggaran)).join('')}
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="atur-anggaran">Atur anggaran</button></div>`);
+}
+
+function tileAnggaran(per) {
+  const daftar = kategoriBeranggaran();
+  if (!daftar.length) {
+    return `<button data-aksi="atur-anggaran"><small>Anggaran</small><b>Atur</b><span class="ket">Batasi belanja per kategori</span></button>`;
+  }
+  const batas = daftar.reduce((a, k) => a + k.anggaran, 0);
+  const pakai = daftar.reduce((a, k) => a + (per[k.nama] || 0), 0);
+  const s = statusAnggaran(pakai, batas);
+  const persen = Math.round(pakai / batas * 100);
+  const lewat = daftar.filter(k => (per[k.nama] || 0) > k.anggaran).length;
+  return `<button data-aksi="rincian-anggaran">
+    <small>Anggaran <span>›</span></small>
+    <b>${persen}% <span style="font-size:13px;font-weight:600;color:var(--muted)">terpakai</span></b>
+    <span class="meter ${s.kelas}" role="meter" aria-label="Total anggaran" aria-valuemin="0" aria-valuemax="${batas}" aria-valuenow="${pakai}"><i style="width:${Math.min(100, persen)}%"></i></span>
+    <span class="ket">${lewat ? `⛔ ${lewat} kategori lewat batas` : esc(s.teks)}</span>
+  </button>`;
+}
+
+function tileTabungan() {
+  const daftar = daftarTabungan();
+  if (!daftar.length) {
+    return `<button data-aksi="tambah-tabungan"><small>Tabungan</small><b>Mulai</b><span class="ket">Buat tabungan pertama</span></button>`;
+  }
+  const total = daftar.reduce((a, w) => a + w.saldo, 0);
+  const bertarget = daftar.filter(w => w.target);
+  const target = bertarget.reduce((a, w) => a + w.target, 0);
+  const terkumpul = bertarget.reduce((a, w) => a + Math.min(w.saldo, w.target), 0);
+  const persen = target ? Math.floor(terkumpul / target * 100) : null;
+  return `<button data-aksi="tab" data-tab="dompet">
+    <small>Tabungan <span>›</span></small>
+    <b>Rp${rpPendek(total)}</b>
+    ${persen !== null ? `<span class="meter" role="meter" aria-label="Progres target tabungan" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${persen}"><i style="width:${persen}%"></i></span>` : ''}
+    <span class="ket">${daftar.length} tabungan${persen !== null ? ` · ${persen}% dari target` : ''}</span>
+  </button>`;
 }
 
 // ---------- Halaman: Beranda ----------
@@ -255,21 +305,19 @@ function viewBeranda() {
   const masuk = total(trx, TIPE.MASUK);
   const keluar = total(trx, TIPE.KELUAR);
   const saldo = dompetBiasa().reduce((a, w) => a + w.saldo, 0);
-  const tabungan = daftarTabungan();
-  const totalTabungan = tabungan.reduce((a, w) => a + w.saldo, 0);
-
-  const perKategori = {};
-  trx.filter(t => t.tipe === TIPE.KELUAR).forEach(t => {
-    perKategori[t.kategori] = (perKategori[t.kategori] || 0) + t.jumlah;
-  });
-  const urut = Object.entries(perKategori).sort((a, b) => b[1] - a[1]);
+  const per = pengeluaranPerKategori();
+  const urut = Object.keys(per).map(n => ({ ikon: ikonKategori(n, TIPE.KELUAR), nama: n, nilai: per[n] })).sort((a, b) => b.nilai - a.nilai);
+  const nama = namaPendek(d.user);
 
   return `
     <div class="kepala">
-      <div class="sapa"><small>Halo,</small><h1>${esc(namaPendek(d.user))} 👋</h1></div>
+      <div class="sapa">
+        <span class="avatar" aria-hidden="true">${esc(nama.charAt(0))}</span>
+        <div style="min-width:0"><small>Halo,</small><h1>${esc(nama)}</h1></div>
+      </div>
       <div class="kepala-kanan">
         ${pemilihBulan()}
-        <button class="tombol-ikon" data-aksi="tab" data-tab="lainnya" aria-label="Pengaturan">⚙️</button>
+        <button class="tombol-ikon" data-aksi="tab" data-tab="lainnya" aria-label="Pengaturan">${svg('gear')}</button>
       </div>
     </div>
 
@@ -277,23 +325,28 @@ function viewBeranda() {
       <small>Total saldo dompet</small>
       <div class="besar">${rp(saldo)}</div>
       <div class="ringkas">
-        <div><small>Pemasukan</small><b>${rp(masuk)}</b></div>
-        <div><small>Pengeluaran</small><b>${rp(keluar)}</b></div>
+        <div><span class="panah-bulat masuk" aria-hidden="true">↓</span><span><small>Pemasukan</small><b>${rp(masuk)}</b></span></div>
+        <div><span class="panah-bulat keluar" aria-hidden="true">↑</span><span><small>Pengeluaran</small><b>${rp(keluar)}</b></span></div>
       </div>
-      <div class="selisih">Selisih bulan ini: <b>${rp(masuk - keluar)}</b></div>
-      ${tabungan.length ? `<button class="selisih tautan-putih" data-aksi="tab" data-tab="dompet">🐷 Tabungan: <b>${rp(totalTabungan)}</b> ›</button>` : ''}
+      <div class="selisih">Selisih ${esc(namaBulan(S.bulan))}: <b>${rp(masuk - keluar)}</b></div>
     </section>
 
-    ${kartuAnggaran(perKategori)}
+    <div class="aksi-cepat">
+      <button data-aksi="tambah-trx"><span class="kotak">${svg('plus')}</span>Catat</button>
+      <button data-aksi="cepat-struk"><span class="kotak">${svg('kamera')}</span>Foto struk</button>
+      <button data-aksi="cepat-transfer"><span class="kotak">${svg('transfer')}</span>Transfer</button>
+      <button data-aksi="tab" data-tab="laporan"><span class="kotak">${svg('laporan')}</span>Laporan</button>
+    </div>
 
+    <div class="bento">${tileAnggaran(per)}${tileTabungan()}</div>
+
+    <h2 class="judul-bagian">Pengeluaran per kategori ${urut.length > 5 ? '<button data-aksi="tab" data-tab="laporan">Semua</button>' : ''}</h2>
     <section class="kartu">
-      <h3>Pengeluaran per kategori</h3>
-      ${urut.length ? barBerperingkat(urut.map(([nama, n]) => ({ ikon: ikonKategori(nama, TIPE.KELUAR), nama, nilai: n })))
-        : kosong('🧾', 'Belum ada pengeluaran bulan ini.')}
+      ${urut.length ? barBerperingkat(urut.slice(0, 5)) : kosong('🧾', 'Belum ada pengeluaran bulan ini.')}
     </section>
 
-    <section class="kartu">
-      <h3>Transaksi terakhir ${trx.length ? '<button data-aksi="tab" data-tab="riwayat">Lihat semua</button>' : ''}</h3>
+    <h2 class="judul-bagian">Transaksi terakhir ${trx.length ? '<button data-aksi="tab" data-tab="riwayat">Lihat semua</button>' : ''}</h2>
+    <section class="kartu" style="padding:4px 18px">
       ${trx.length ? trx.slice(0, 5).map(itemTrx).join('') : kosong('✍️', 'Belum ada transaksi. Ketuk tombol ＋ untuk mencatat.')}
     </section>`;
 }
@@ -348,7 +401,7 @@ function viewDompet() {
         <button class="baris" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">
           <span class="ikon-bulat">${esc(w.ikon)}</span>
           <span class="isi"><b>${esc(w.nama)}</b><small>Saldo awal ${rp(w.saldoAwal)}</small></span>
-          <b class="nominal ${w.saldo < 0 ? 'keluar' : ''}">${rp(w.saldo)}</b>
+          <b class="nominal ${w.saldo < 0 ? 'minus' : ''}">${rp(w.saldo)}</b>
         </button>`).join('') || kosong('👛', 'Belum ada dompet.')}
     </section>
     <button class="tombol-tambah" data-aksi="tambah-dompet">＋ Tambah dompet</button>
@@ -605,7 +658,7 @@ function viewLainnya() {
   const d = S.data;
   return `
     <div class="kepala kepala-kembali">
-      <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="Kembali">‹</button>
+      <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="Kembali">${svg('kembali')}</button>
       <h1>Lainnya</h1>
     </div>
     <section class="kartu" style="padding:4px 16px">
@@ -1042,6 +1095,13 @@ const AKSI = {
   },
 
   'atur-anggaran': () => bukaFormAnggaran(),
+  'rincian-anggaran': () => bukaRincianAnggaran(),
+  'cepat-struk': () => {
+    // Langsung buka pemilih foto; masih dalam ketukan pengguna supaya tidak diblokir browser.
+    bukaFormTrx(null);
+    $('#input-struk').click();
+  },
+  'cepat-transfer': () => bukaFormTrx(null, { tipe: TIPE.TRANSFER }, 'Transfer'),
   'simpan-anggaran': el => {
     const peta = {};
     document.querySelectorAll('.input-anggaran').forEach(i => { peta[i.dataset.nama] = angka(i.value); });
