@@ -393,6 +393,12 @@ body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b
 .spinner.kecil { width: 22px; height: 22px; border-width: 2.5px; flex: none; margin: 0 6px; }
 body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-area-inset-bottom)); }
 .struk-proses { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 0 0 16px; border-radius: 16px; background: var(--primary-soft); }
+/* Beberapa buku keuangan */
+.chip-buku { display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 12px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tombol-buku { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; text-align: left; }
+.tombol-buku b, .tombol-buku small { display: block; }
+.tombol-buku small { font-size: 12px; color: var(--muted); }
+.tombol-buku:disabled { cursor: default; opacity: 1; }
 /* Lampiran foto struk */
 .lampiran { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: -4px 0 14px; border-radius: 16px; background: var(--card-2); }
 .lampiran img { width: 48px; height: 48px; border-radius: 12px; object-fit: cover; flex: none; }

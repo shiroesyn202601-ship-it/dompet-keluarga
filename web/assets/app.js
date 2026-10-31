@@ -190,7 +190,14 @@ function tulisLokal(jenis, isi) {
     else localStorage.setItem(kunciHp(jenis), JSON.stringify(isi));
   } catch (e) { /* penyimpanan penuh / mode privat */ }
 }
-const tertunda = () => bacaLokal('tertunda', []);
+// Transaksi tertunda dicatat beserta bukunya (spreadsheet), supaya hanya dikirim ke buku yang benar.
+const bukuIni = x => !x.buku || !S.data || x.buku === S.data.spreadsheetId;
+/** Transaksi tertunda milik buku yang sedang dibuka. */
+const tertunda = () => bacaLokal('tertunda', []).filter(bukuIni);
+/** Mengganti daftar tertunda buku ini; milik buku lain tidak tersentuh. */
+function tulisTertunda(daftar) {
+  tulisLokal('tertunda', bacaLokal('tertunda', []).filter(x => !bukuIni(x)).concat(daftar));
+}
 
 /** Tanpa sinyal: pakai data terakhir yang tersimpan di HP. false kalau belum pernah ada. */
 function pakaiDataTerakhir() {
@@ -208,10 +215,10 @@ function pakaiDataTerakhir() {
 
 /** Transaksi baru yang belum bisa dikirim disimpan di HP, lengkap dengan ID-nya supaya tidak dobel saat dikirim ulang. */
 function simpanTertunda(t) {
-  tulisLokal('tertunda', tertunda().concat([{
+  tulisTertunda(tertunda().concat([{
     idBaru: t.idBaru || crypto.randomUUID(), tipe: t.tipe, jumlah: t.jumlah, kategori: t.kategori,
     dompet: t.dompet, dompetTujuan: t.dompetTujuan, tanggal: t.tanggal, catatan: t.catatan,
-    dariRutin: t.dariRutin || '', ulang: t.ulang || '',
+    dariRutin: t.dariRutin || '', ulang: t.ulang || '', buku: S.data.spreadsheetId,
   }]));
   tutupSheet();
   render();
@@ -235,10 +242,10 @@ async function kirimTertunda() {
       try {
         await SERVER.simpanTransaksi(t);
         terkirim++;
-        tulisLokal('tertunda', tertunda().filter(x => x.idBaru !== t.idBaru));
+        tulisTertunda(tertunda().filter(x => x.idBaru !== t.idBaru));
       } catch (e) {
         if (e.jaringan || e instanceof GOOGLE.PerluMasuk) break;
-        tulisLokal('tertunda', tertunda().map(x => (x.idBaru === t.idBaru ? Object.assign({}, x, { gagal: pesanError(e) }) : x)));
+        tulisTertunda(tertunda().map(x => (x.idBaru === t.idBaru ? Object.assign({}, x, { gagal: pesanError(e) }) : x)));
         berubah = true;
       }
     }
@@ -521,7 +528,8 @@ function viewBeranda() {
     <div class="kepala">
       <div class="sapa">
         <span class="avatar" aria-hidden="true">${esc(nama.charAt(0))}</span>
-        <div style="min-width:0"><small>Halo,</small><h1>${esc(nama)}</h1></div>
+        <div style="min-width:0"><small>Halo,</small><h1>${esc(nama)}</h1>
+          ${(d.buku || []).length > 1 ? `<button type="button" class="chip-buku" data-aksi="buku">📒 ${esc(d.namaBuku)} ▾</button>` : ''}</div>
       </div>
       <div class="kepala-kanan">
         ${pemilihBulan()}
@@ -910,6 +918,53 @@ function bacaFormUtang() {
   F.tanggal = $('#u-tanggal').value;
   F.tenggat = $('#u-tenggat').value;
   F.catatan = $('#u-catatan').value;
+}
+
+// ---------- Beberapa buku keuangan ----------
+
+const TEMPLAT_BUKU = ['Pribadi', 'Usaha', 'Orang Tua', 'Arisan', 'Kos / Kontrakan'];
+
+function bukaDaftarBuku() {
+  const daftar = S.data.buku || [];
+  bukaSheet('Buku Keuangan', `
+    <p class="info-kecil" style="text-align:left;margin:0 0 8px">Tiap buku punya dompet, kategori, dan catatan sendiri (spreadsheet terpisah),
+      dan bisa dibagikan ke orang yang berbeda. Mis. Keluarga dengan pasangan, Usaha dengan rekan.</p>
+    ${daftar.map(b => `
+      <div class="baris">
+        <button type="button" class="isi tombol-buku" data-aksi="pindah-buku" data-id="${esc(b.id)}" ${b.aktif ? 'disabled' : ''}>
+          <span class="ikon-bulat">📒</span>
+          <span><b>${esc(b.nama)}</b><small>${b.aktif ? '✅ Sedang dibuka' : 'Ketuk untuk membuka'}</small></span>
+        </button>
+        ${b.aktif ? '' : `<button type="button" class="tombol-ikon" data-aksi="lupakan-buku" data-id="${esc(b.id)}" aria-label="Hapus ${esc(b.nama)} dari daftar">✕</button>`}
+      </div>`).join('')}
+    <div class="grup-form" style="margin-top:16px">
+      <label class="label" for="b-nama">Buku baru</label>
+      ${chipTemplat(TEMPLAT_BUKU.map(n => ['📒', n]), 'templat-buku')}
+      <div class="salin">
+        <input class="field" id="b-nama" maxlength="40" placeholder="Nama buku, mis. Usaha">
+        <button type="button" class="btn btn-utama" style="flex:none" data-aksi="buat-buku">Buat</button>
+      </div>
+    </div>
+    <button type="button" class="tombol-teks" data-aksi="pilih-db">Diundang ke buku orang lain? Pilih dari Google Drive</button>
+    <p class="info-kecil" style="text-align:left">✕ hanya menghapus dari daftar di sini; spreadsheet-nya tetap ada di Google Drive.</p>`);
+}
+
+/** Setelah pindah/buat buku: semua yang terkait buku lama dibuang, lalu muat ulang. */
+async function gantiBuku(fungsi, args, pesan) {
+  loading(true);
+  try {
+    await api(fungsi, ...args);
+    S.bulan = '';
+    S.cariData = null;
+    S.filter = Object.assign({}, FILTER_KOSONG);
+    S.tab = 'beranda';
+    await muatDariAwal();
+    toast(pesan);
+  } catch (e) {
+    if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
+  } finally {
+    loading(false);
+  }
 }
 
 // ---------- Patungan ----------
@@ -1373,6 +1428,11 @@ function viewLainnya() {
       <button class="baris" data-aksi="kelola-rutin">
         <span class="ikon-bulat">🔁</span>
         <span class="isi"><b>Tagihan & transaksi rutin</b><small>${daftarRutin().length ? `${daftarRutin().length} rutin · berikutnya ${esc(daftarRutin()[0].nama)}, ${esc(tanggalPendek(daftarRutin()[0].berikutnya))}` : 'Listrik, internet, cicilan, SPP, gaji…'}</small></span>
+        <span class="panah">›</span>
+      </button>
+      <button class="baris" data-aksi="buku">
+        <span class="ikon-bulat">📒</span>
+        <span class="isi"><b>Buku keuangan</b><small>${esc(d.namaBuku || 'Keluarga')}${(d.buku || []).length > 1 ? ` · ${d.buku.length} buku` : ' · pisahkan pribadi, keluarga, usaha'}</small></span>
         <span class="panah">›</span>
       </button>
       <button class="baris" data-aksi="atur-periode">
@@ -2614,7 +2674,7 @@ const AKSI = {
   },
   'ulang-tertunda': el => {
     const t = tertunda().find(x => x.idBaru === el.dataset.id);
-    tulisLokal('tertunda', tertunda().filter(x => x.idBaru !== el.dataset.id));
+    tulisTertunda(tertunda().filter(x => x.idBaru !== el.dataset.id));
     render();
     if (t) {
       bukaFormTrx(null, { tipe: t.tipe, jumlah: t.jumlah, kategori: t.kategori, dompet: t.dompet,
@@ -2669,6 +2729,23 @@ const AKSI = {
     bacaFieldTrx();
     if (F.lampiranData) { F.lampiranData = ''; F.lampiranThumb = ''; } else if (F.lampiran) { F.lampiran = ''; F.hapusLampiran = true; }
     renderFormTrx();
+  },
+  'buku': () => bukaDaftarBuku(),
+  'pindah-buku': el => {
+    const b = (S.data.buku || []).find(x => x.id === el.dataset.id);
+    gantiBuku('hubungkanDatabase', [el.dataset.id], 'Buku ' + (b ? b.nama : '') + ' dibuka ✔');
+  },
+  'templat-buku': el => { $('#b-nama').value = TEMPLAT_BUKU[Number(el.dataset.i)]; },
+  'buat-buku': () => {
+    const nama = $('#b-nama').value.trim();
+    if (!nama) return toast('Isi nama bukunya dulu.', true);
+    if ((S.data.buku || []).some(b => b.nama.toLowerCase() === nama.toLowerCase())) return toast('Buku "' + nama + '" sudah ada.', true);
+    gantiBuku('buatBuku', [nama], 'Buku ' + nama + ' dibuat ✔ Atur dompetnya di tab Dompet.');
+  },
+  'lupakan-buku': async el => {
+    const b = (S.data.buku || []).find(x => x.id === el.dataset.id);
+    if (!confirm('Hapus "' + (b ? b.nama : 'buku ini') + '" dari daftar? Spreadsheet-nya tetap ada di Google Drive.')) return;
+    if (await kirim(el, 'lupakanBuku', [el.dataset.id], 'Dihapus dari daftar')) bukaDaftarBuku();
   },
   'buka-zakat': () => bukaZakat(),
   'hitung-zakat': () => { tulisHp('dk_harga_emas', String(angka($('#z-emas').value) || '') || null); bukaZakat(); },
@@ -2901,7 +2978,7 @@ const AKSI = {
     }
   },
   'keluar': () => {
-    const n = tertunda().length;
+    const n = bacaLokal('tertunda', []).length; // semua buku, karena semuanya ikut terhapus
     if (!confirm(n ? `${n} transaksi belum terkirim dan akan hilang. Tetap keluar dari ${GOOGLE.email()}?` : 'Keluar dari ' + GOOGLE.email() + '?')) return;
     // Data yang tersimpan di HP ikut dihapus, karena HP bisa dipakai orang lain.
     tulisLokal('data', null);

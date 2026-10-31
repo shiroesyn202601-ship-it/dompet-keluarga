@@ -68,7 +68,8 @@ const SERVER = (() => {
 
   const POLA_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-  let dbId = null;      // ID spreadsheet yang sedang dipakai
+  let dbId = null;      // ID spreadsheet yang sedang dipakai (= buku aktif)
+  let judulDb = '';     // judul spreadsheet itu, mis. "Dompet Keluarga - Usaha"
   let idSheet = null;   // { "Transaksi": sheetId, ... } untuk hapus baris
   let terlindungi = new Set(); // nama sheet yang sudah diberi proteksi peringatan
   const PROTEKSI = 'Dompet Keluarga: dikelola aplikasi';
@@ -77,7 +78,19 @@ const SERVER = (() => {
 
   const kunciLokal = () => 'dk_db_' + GOOGLE.email();
 
+  /** Ganti akun (keluar lalu masuk akun lain tanpa muat ulang) → lupakan semua yang tersimpan di memori. */
+  let akun = null;
+  function pastikanAkun_() {
+    if (akun === GOOGLE.email()) return;
+    akun = GOOGLE.email();
+    dbId = null;
+    idSheet = null;
+    config = null;
+    idFolderStruk = null;
+  }
+
   async function cariIdDb_() {
+    pastikanAkun_();
     if (dbId) return dbId;
     let id = null;
     try { id = localStorage.getItem(kunciLokal()); } catch (e) { /* abaikan */ }
@@ -103,12 +116,22 @@ const SERVER = (() => {
     return r.files.length ? r.files[0].id : null;
   }
 
+  /**
+   * config.json di appDataFolder: { spreadsheetId (buku aktif), buku: [{ id, nama }], folderStruk }.
+   * Disalin di memori (`config`); selalu mengembalikan salinan supaya aman diubah pemanggil.
+   */
+  let config = null;
   async function bacaConfig_() {
-    const id = await fileConfig_();
-    return id ? GOOGLE.api(DRIVE + '/files/' + id + '?alt=media') : null;
+    pastikanAkun_();
+    if (!config) {
+      const id = await fileConfig_();
+      config = (id && (await GOOGLE.api(DRIVE + '/files/' + id + '?alt=media'))) || {};
+    }
+    return JSON.parse(JSON.stringify(config));
   }
 
   async function tulisConfig_(isi) {
+    config = JSON.parse(JSON.stringify(isi));
     const id = await fileConfig_();
     if (id) return GOOGLE.api(UPLOAD + '/files/' + id + '?uploadType=media', { method: 'PATCH', json: isi });
     const blob = new Blob([JSON.stringify(isi)], { type: 'application/json' });
@@ -128,12 +151,15 @@ const SERVER = (() => {
     await pastikanStruktur_(id);
     dbId = id;
     simpanLokal_(id);
-    await tulisConfig_(Object.assign((await bacaConfig_()) || {}, { spreadsheetId: id })); // folder struk dll. tetap
+    // Jadikan buku aktif & masukkan ke daftar buku (buku sebelumnya tetap ada di daftar). Folder struk dll. tetap.
+    const c = await bacaConfig_();
+    await tulisConfig_(Object.assign(c, { spreadsheetId: id, buku: daftarBukuDengan_(c, id) }));
   }
 
   async function bacaIdSheet_(id) {
     try {
-      const r = await GOOGLE.api(SHEETS + '/' + id + '?fields=sheets(properties(sheetId,title),protectedRanges(description))');
+      const r = await GOOGLE.api(SHEETS + '/' + id + '?fields=properties.title,sheets(properties(sheetId,title),protectedRanges(description))');
+      judulDb = (r.properties && r.properties.title) || 'Dompet Keluarga';
       const peta = {};
       terlindungi = new Set();
       r.sheets.forEach(s => {
@@ -257,7 +283,7 @@ const SERVER = (() => {
    * Membuat spreadsheet database baru di Drive akun yang sedang login.
    * dompet: [{ nama, ikon, saldoAwal }] pilihan pengguna saat setup; kosong → dompet bawaan.
    */
-  async function buatDatabase(emailAnggota, dompet) {
+  async function buatDatabase(emailAnggota, dompet, namaBuku) {
     const anggota = teks_(emailAnggota);
     if (anggota && !POLA_EMAIL.test(anggota)) throw new Error('Format email anggota keluarga tidak valid.');
     const barisDompet = [];
@@ -272,7 +298,7 @@ const SERVER = (() => {
     const ss = await GOOGLE.api(SHEETS, {
       method: 'POST',
       json: {
-        properties: { title: 'Dompet Keluarga', timeZone: 'Asia/Jakarta' },
+        properties: { title: 'Dompet Keluarga' + (teks_(namaBuku) ? ' - ' + teks_(namaBuku).slice(0, 40) : ''), timeZone: 'Asia/Jakarta' },
         sheets: urutan.map((t, i) => ({ properties: { sheetId: i, title: t.nama, gridProperties: { frozenRowCount: 1 } } })),
       },
     });
@@ -403,6 +429,8 @@ const SERVER = (() => {
       urlSpreadsheet: urlDb_(id),
       linkUndangan: linkUndangan_(id),
       kunciGemini: kunciGemini_(set).map(samarkanKunci_),
+      namaBuku: namaBuku_(judulDb),
+      buku: await daftarBuku_(id),
       spreadsheetId: id,
       telegram: infoTelegram_(set),
       bulan,
@@ -619,6 +647,57 @@ const SERVER = (() => {
       }
     }
     return t.id;
+  }
+
+  // ---------- Beberapa buku keuangan ----------
+  // Satu buku = satu spreadsheet. Daftarnya di config appData, jadi ikut ke HP lain.
+
+  /** "Dompet Keluarga - Usaha" → "Usaha"; "Dompet Keluarga" → "Keluarga". */
+  function namaBuku_(judul) {
+    const j = teks_(judul) || 'Dompet Keluarga';
+    if (/^Dompet Keluarga$/i.test(j)) return 'Keluarga';
+    return j.replace(/^Dompet Keluarga\s*[-–:]\s*/i, '') || j;
+  }
+
+  /** Daftar buku di config + buku `id` (dengan judul terbaru), tanpa dobel; buku aktif lama tetap ada. */
+  function daftarBukuDengan_(c, id) {
+    const buku = (c.buku || []).filter(b => b.id !== id);
+    if (c.spreadsheetId && c.spreadsheetId !== id && !buku.some(b => b.id === c.spreadsheetId)) {
+      buku.push({ id: c.spreadsheetId, nama: 'Keluarga' });
+    }
+    const lama = (c.buku || []).findIndex(b => b.id === id);
+    const ini = { id, nama: namaBuku_(judulDb) };
+    if (lama >= 0) buku.splice(Math.min(lama, buku.length), 0, ini); // urutan tetap
+    else buku.push(ini);
+    return buku;
+  }
+
+  /** Untuk getData: daftar buku dengan tanda aktif; config diperbarui kalau buku ini belum tercatat atau judulnya berubah. */
+  async function daftarBuku_(id) {
+    const c = await bacaConfig_();
+    const ada = (c.buku || []).find(b => b.id === id);
+    if (!ada || ada.nama !== namaBuku_(judulDb)) {
+      c.buku = daftarBukuDengan_(c, id);
+      try { await tulisConfig_(c); } catch (e) { console.warn('Daftar buku tidak tersimpan:', e); }
+    }
+    return (c.buku || []).map(b => ({ id: b.id, nama: b.nama, aktif: b.id === id }));
+  }
+
+  /** Buku baru (spreadsheet baru) dengan satu dompet Tunai, langsung jadi buku aktif. */
+  async function buatBuku(nama) {
+    nama = teks_(nama);
+    if (!nama) throw new Error('Isi nama bukunya, mis. Usaha atau Pribadi.');
+    await buatDatabase('', [{ nama: 'Tunai', ikon: '💵', saldoAwal: 0 }], nama);
+    return true;
+  }
+
+  /** Menghapus buku dari daftar di akun ini (spreadsheet-nya sendiri tidak dihapus). */
+  async function lupakanBuku(id) {
+    if (id === dbId) throw new Error('Buku yang sedang dibuka tidak bisa dilupakan. Pindah ke buku lain dulu.');
+    const c = await bacaConfig_();
+    c.buku = (c.buku || []).filter(b => b.id !== id);
+    await tulisConfig_(c);
+    return true;
   }
 
   // ---------- Lampiran foto struk (Google Drive) ----------
@@ -1125,7 +1204,7 @@ const SERVER = (() => {
   }
 
   return {
-    getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe,
+    getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, buatBuku, lupakanBuku,
     simpanTransaksi, hapusTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
