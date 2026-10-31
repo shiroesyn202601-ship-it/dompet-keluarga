@@ -11,7 +11,11 @@ const S = {
   gabung: '', // ID spreadsheet dari link undangan (#gabung=...)
   tahun: new Date().getFullYear(), // tahun yang dilihat di Laporan
   lapKategori: 'bulan',            // Laporan → pengeluaran per kategori: 'bulan' | 'tahun'
+  setup: { pilih: ['Tunai'], saldo: {}, lain: [], email: '' }, // isian layar setup pertama kali
 };
+/** Pilihan cepat di layar setup: [nama, ikon]. */
+const DOMPET_UMUM = [['Tunai', '💵'], ['BCA', '🏦'], ['BRI', '🏦'], ['Mandiri', '🏦'], ['BNI', '🏦'], ['BSI', '🏦'],
+  ['Jago', '🏦'], ['SeaBank', '🏦'], ['GoPay', '📱'], ['OVO', '📱'], ['DANA', '📱'], ['ShopeePay', '📱']];
 let F = null; // state form yang sedang terbuka
 
 // ---------- Util ----------
@@ -456,10 +460,11 @@ function viewDompet() {
       ${dompet.map(w => `
         <button class="baris" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">
           <span class="ikon-bulat">${esc(w.ikon)}</span>
-          <span class="isi"><b>${esc(w.nama)}</b><small>Saldo awal ${rp(w.saldoAwal)}</small></span>
+          <span class="isi"><b>${esc(w.nama)}</b></span>
           <b class="nominal ${w.saldo < 0 ? 'minus' : ''}">${rp(w.saldo)}</b>
         </button>`).join('') || kosong('👛', 'Belum ada dompet.')}
     </section>
+    ${dompet.length ? '<p class="info-kecil" style="margin-top:8px">Saldo tidak cocok dengan aslinya? Ketuk dompetnya, lalu ganti angka saldo sekarang.</p>' : ''}
     <button class="tombol-tambah" data-aksi="tambah-dompet">＋ Tambah dompet</button>
 
     <h2 class="judul-bagian">Tabungan</h2>
@@ -677,32 +682,66 @@ function kartuAnggota(pilih) {
 
 // ---------- Halaman: Setup pertama kali ----------
 
+const semuaDompetSetup = () => DOMPET_UMUM.concat(S.setup.lain.map(n => [n, '💳']));
+
+/** Wizard satu layar: pilih dompet → isi saldo sekarang → (opsional) undang anggota keluarga. */
 function viewSetup() {
+  const st = S.setup;
+  const semua = semuaDompetSetup();
+  const dipilih = semua.filter(([n]) => st.pilih.includes(n));
   return `
     <div class="kepala"><div><small>Selamat datang,</small><h1>${esc(namaPendek(S.data.user))} 👋</h1></div></div>
+    <p class="setup-intro">Tiga langkah singkat, lalu langsung bisa mencatat.</p>
+
     <section class="kartu">
-      <h3>📒 Siapkan Dompet Keluarga</h3>
-      <p>Aplikasi akan membuat spreadsheet <b>Dompet Keluarga</b> di Google Drive akun
-        <b>${esc(S.data.user)}</b> untuk menyimpan semua catatan keuangan.</p>
+      <h3>1. Dompet apa saja yang dipakai?</h3>
+      <p class="info-kecil" style="text-align:left;margin:0 0 10px">Ketuk semua yang dipakai keluarga. Bisa ditambah atau diubah nanti.</p>
+      <div class="chips">${semua.map(([n, i]) =>
+        `<button type="button" class="chip ${st.pilih.includes(n) ? 'aktif' : ''}" data-aksi="setup-dompet" data-nama="${esc(n)}" aria-pressed="${st.pilih.includes(n)}">${esc(i)} ${esc(n)}</button>`).join('')}</div>
+      <div class="salin" style="margin-top:10px">
+        <input class="field" id="s-lain" maxlength="40" placeholder="Lainnya, mis. Bank Jatim">
+        <button type="button" class="btn btn-hapus" data-aksi="setup-lain">Tambah</button>
+      </div>
     </section>
+
     <section class="kartu">
+      <h3>2. Berapa saldonya sekarang?</h3>
+      <p class="info-kecil" style="text-align:left;margin:0 0 4px">Supaya saldo di aplikasi sama dengan aslinya. Boleh dikira-kira dulu, bisa disesuaikan kapan saja.</p>
+      ${dipilih.map(([n, i]) => `
+        <label class="baris baris-input">
+          <span class="ikon-bulat">${esc(i)}</span>
+          <span class="isi"><b>${esc(n)}</b></span>
+          <input class="field input-rp input-saldo-setup" data-nama="${esc(n)}" inputmode="numeric" placeholder="0" value="${formatAngka(st.saldo[n])}">
+        </label>`).join('') || '<p class="info-kecil" style="text-align:left">Pilih minimal satu dompet di langkah 1.</p>'}
+    </section>
+
+    <section class="kartu">
+      <h3>3. Catat bersama keluarga? <small style="font-weight:600;color:var(--muted)">(opsional)</small></h3>
       <div class="grup-form">
-        <label class="label" for="s-pasangan">Email Google pasangan (opsional)</label>
-        <input class="field" id="s-pasangan" type="email" inputmode="email" placeholder="nama@gmail.com">
-        <p class="info-kecil" style="text-align:left">Supaya bisa mencatat berdua. Bisa juga diisi nanti dari ⚙️ → Undang anggota keluarga.</p>
+        <label class="label" for="s-anggota">Email Google anggota keluarga</label>
+        <input class="field" id="s-anggota" type="email" inputmode="email" placeholder="nama@gmail.com" value="${esc(st.email)}">
+        <p class="info-kecil" style="text-align:left">Bisa juga nanti dari ⚙️ → Undang anggota keluarga.</p>
       </div>
       <div class="aksi-form">
-        <button type="button" class="btn btn-utama" data-aksi="buat-db">Buat spreadsheet baru</button>
+        <button type="button" class="btn btn-utama" data-aksi="buat-db">Mulai pakai</button>
       </div>
+      <p class="info-kecil">Catatan disimpan di spreadsheet <b>Dompet Keluarga</b> yang dibuat di Google Drive ${esc(S.data.user)}.</p>
     </section>
-    <section class="kartu">
-      <h3>🔗 Sudah punya spreadsheet?</h3>
-      <p style="margin-top:0">Kalau diundang pasangan, atau sebelumnya memakai versi Apps Script, pilih spreadsheet-nya dari Google Drive.</p>
-      <div class="aksi-form">
-        <button type="button" class="btn btn-hapus" style="flex:1" data-aksi="pilih-db">Pilih dari Google Drive</button>
-      </div>
-    </section>
+
+    <p class="info-kecil">Diundang keluarga, atau sudah punya spreadsheet Dompet Keluarga?</p>
+    <div style="text-align:center"><button type="button" class="tombol-teks" data-aksi="pilih-db">Pilih dari Google Drive</button></div>
     <button type="button" class="tombol-tambah" data-aksi="keluar">Keluar dari ${esc(S.data.user)}</button>`;
+}
+
+/** Simpan isian layar setup ke S.setup sebelum dirender ulang. */
+function bacaSetup() {
+  document.querySelectorAll('.input-saldo-setup').forEach(i => { S.setup.saldo[i.dataset.nama] = angka(i.value); });
+  if ($('#s-anggota')) S.setup.email = $('#s-anggota').value.trim();
+}
+
+function renderSetup() {
+  bacaSetup();
+  $('#view').innerHTML = viewSetup();
 }
 
 // ---------- Halaman: Lainnya ----------
@@ -735,14 +774,18 @@ function viewLainnya() {
         <span class="isi"><b>Undang anggota keluarga</b><small>Beri akses ke akun Google lain</small></span>
         <span class="panah">›</span>
       </button>
+    </section>
+
+    <h2 class="judul-bagian">Fitur lanjutan</h2>
+    <section class="kartu" style="padding:4px 16px">
+      <button class="baris" data-aksi="gemini">
+        <span class="ikon-bulat">🤖</span>
+        <span class="isi"><b>Baca struk lebih akurat</b><small>${d.kunciGemini.length ? 'Aktif · memakai AI Gemini' : 'Opsional · pakai kunci Gemini gratis dari Google'}</small></span>
+        <span class="panah">›</span>
+      </button>
       <button class="baris" data-aksi="telegram">
         <span class="ikon-bulat">💬</span>
         <span class="isi"><b>Bot Telegram</b><small>${d.telegram.bot ? `@${esc(d.telegram.bot)} · ${d.telegram.pengguna.length} akun terhubung` : 'Catat lewat chat & foto struk'}</small></span>
-        <span class="panah">›</span>
-      </button>
-      <button class="baris" data-aksi="gemini">
-        <span class="ikon-bulat">🤖</span>
-        <span class="isi"><b>Baca struk dengan AI</b><small>${d.kunciGemini.length ? `Aktif · ${d.kunciGemini.length} kunci API` : 'Belum diatur, perlu kunci API Gemini'}</small></span>
         <span class="panah">›</span>
       </button>
       <a class="baris" href="${esc(d.urlSpreadsheet)}" target="_blank" style="color:inherit;text-decoration:none">
@@ -1033,16 +1076,13 @@ function renderAntrian() {
   }).join('');
 }
 
-/** Ringkasan hasil baca struk per lapis; kalau totalnya beda-beda, tampilkan pilihan. */
+/** Ringkasan hasil baca struk tanpa istilah teknis; kalau totalnya beda-beda, tampilkan pilihan. */
 function infoStruk(h) {
   const pilihan = h.pilihanJumlah.length > 1 ? `
-    <p class="label" style="margin:0 0 6px">⚠️ Hasil pembacaan berbeda. Ketuk total yang benar:</p>
+    <p class="label" style="margin:0 0 6px">Ketuk total yang sesuai struk:</p>
     <div class="chips" style="margin-bottom:6px">${h.pilihanJumlah.map(p =>
-      `<button type="button" class="chip ${p.jumlah === F.jumlah ? 'aktif' : ''}" data-aksi="f-pilih-jumlah" data-jumlah="${p.jumlah}">
-        ${rp(p.jumlah)} <small>(${esc(p.sumber.join(', '))})</small></button>`).join('')}</div>` : '';
-  const status = h.yakin
-    ? `✅ Total cocok di ${h.pilihanJumlah[0].sumber.length} cara baca: ${esc(h.pilihanJumlah[0].sumber.join(', '))}`
-    : `Dibaca dengan: ${esc(h.lapis.join(', '))}. Periksa lagi totalnya.`;
+      `<button type="button" class="chip ${p.jumlah === F.jumlah ? 'aktif' : ''}" data-aksi="f-pilih-jumlah" data-jumlah="${p.jumlah}">${rp(p.jumlah)}</button>`).join('')}</div>` : '';
+  const status = h.yakin ? '✅ Yakin, totalnya terbaca sama beberapa kali.' : '⚠️ Cek lagi totalnya dengan struk.';
   return `<div style="margin:-8px 0 16px">${pilihan}<p class="info-kecil" style="text-align:left;margin-top:0">${status}</p></div>`;
 }
 
@@ -1062,7 +1102,7 @@ function bukaFormTelegram(kode) {
         <li><b>Deploy → Web app</b>, lalu jalankan fungsi <b>pasangWebhook</b>.</li>
       </ol>
       <div class="grup-form"><span class="label">SPREADSHEET_ID</span>${salin('salin-id', S.data.spreadsheetId)}</div>
-      <p class="info-kecil" style="text-align:left">Panduan lengkap ada di README repo, bagian <b>Bot Telegram</b>. Setelah dipasang, buka lagi menu ini untuk menautkan akun.</p>`);
+      <p class="info-kecil" style="text-align:left">Panduan lengkap ada di <b>docs/PEMILIK.md</b> di repo, bagian <b>Bot Telegram</b>. Setelah dipasang, buka lagi menu ini untuk menautkan akun.</p>`);
   }
   bukaSheet('Bot Telegram', `
     <a class="baris" href="https://t.me/${esc(t.bot)}" target="_blank" rel="noopener">
@@ -1099,31 +1139,37 @@ function bukaFormTelegram(kode) {
     </details>`);
 }
 
+/** Cukup satu kunci. Kunci cadangan (dipakai bergiliran saat kuota habis) disembunyikan di bagian lipat. */
 function bukaFormGemini() {
   const daftar = S.data.kunciGemini;
-  bukaSheet('Baca Struk dengan AI', `
-    <p style="margin-bottom:12px">Untuk membaca foto struk, aplikasi memakai Gemini dari Google. Perlu kunci API (gratis).
-      Boleh lebih dari satu: kunci dipakai bergiliran, dan kalau satu kena batas kuota otomatis pindah ke kunci lain.</p>
-    <span class="label">Kunci tersimpan: ${daftar.length}</span>
-    ${daftar.length ? `
-      <div style="margin-bottom:16px">${daftar.map((k, i) => `
-        <div class="baris">
-          <span class="ikon-bulat">🔑</span>
-          <span class="isi"><b>Kunci ${i + 1}</b><small>${esc(k)}</small></span>
-          <button type="button" class="tombol-ikon" data-aksi="hapus-gemini" data-kunci="${esc(k)}" aria-label="Hapus kunci ${i + 1}">🗑️</button>
-        </div>`).join('')}</div>` : `<p class="info-kecil" style="text-align:left;margin:0 0 16px">Belum ada kunci. Tambahkan di bawah.</p>`}
-    <ol class="panduan" style="padding-left:20px;margin-bottom:16px">
-      <li>Buka <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>.</li>
-      <li>Klik <b>Create API key</b>, lalu salin kuncinya.</li>
-      <li>Tempel di bawah, lalu ketuk Tambah.</li>
-    </ol>
-    <p class="info-kecil" style="text-align:left">Kunci disimpan di sheet <b>Pengaturan</b> pada spreadsheet keluarga, jadi bisa dipakai semua anggota.
-      Tanpa kunci, struk tetap dibaca dengan OCR saja.</p>
+  const isian = (label, tombol) => `
     <div class="grup-form">
-      <label class="label" for="g-kunci">Kunci API Gemini baru</label>
+      <label class="label" for="g-kunci">${label}</label>
       <input class="field" id="g-kunci" type="password" autocomplete="off" placeholder="AIza…">
     </div>
-    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-gemini">Tambah</button></div>`);
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-gemini">${tombol}</button></div>`;
+  bukaSheet('Baca Struk Lebih Akurat', `
+    <p style="margin-top:0">Foto struk <b>tetap bisa dibaca tanpa pengaturan apa pun</b>. Dengan kunci Gemini (AI dari Google, gratis),
+      hasilnya jauh lebih akurat, termasuk kategori dan catatan.</p>
+    ${daftar.length ? `
+      <div style="margin-bottom:12px">${daftar.map((k, i) => `
+        <div class="baris">
+          <span class="ikon-bulat">🔑</span>
+          <span class="isi"><b>${i ? 'Kunci cadangan ' + i : '✅ Kunci aktif'}</b><small>${esc(k)}</small></span>
+          <button type="button" class="tombol-ikon" data-aksi="hapus-gemini" data-kunci="${esc(k)}" aria-label="Hapus kunci ${i + 1}">🗑️</button>
+        </div>`).join('')}</div>
+      <details class="tabel-data">
+        <summary>Tambah kunci cadangan</summary>
+        <p class="info-kecil" style="text-align:left">Kalau kuota harian satu kunci habis, aplikasi otomatis memakai kunci berikutnya.</p>
+        ${isian('Kunci cadangan', 'Tambah')}
+      </details>` : `
+      <ol class="panduan" style="padding-left:20px;margin-bottom:16px">
+        <li>Buka <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> dan masuk dengan akun Google.</li>
+        <li>Klik <b>Create API key</b>, lalu salin kuncinya.</li>
+        <li>Tempel di bawah, lalu ketuk Simpan.</li>
+      </ol>
+      ${isian('Kunci Gemini', 'Simpan')}`}
+    <p class="info-kecil" style="text-align:left">Kunci disimpan di spreadsheet keluarga, jadi otomatis dipakai semua anggota.</p>`);
 }
 
 // ---------- Form dompet ----------
@@ -1133,16 +1179,23 @@ function bukaFormDompet(w, jenis) {
   jenis = w ? w.jenis : jenis || JENIS.DOMPET;
   const tab = jenis === JENIS.TABUNGAN;
   const sebutan = tab ? 'tabungan' : 'dompet';
-  F = { namaLama: w ? w.nama : '', ikon: w ? w.ikon : (tab ? '🐷' : '👛'), jenis };
+  const saldoTampil = formatAngka(w ? Math.max(0, w.saldo) : 0);
+  F = {
+    namaLama: w ? w.nama : '', ikon: w ? w.ikon : (tab ? '🐷' : '👛'), jenis,
+    saldoAwal: w ? w.saldoAwal : 0, mutasi: w ? w.saldo - w.saldoAwal : 0, saldoTampil,
+  };
+  const ket = !w
+    ? (tab ? 'Jumlah yang sudah terkumpul sebelum dicatat di aplikasi ini.' : 'Saldo saat Anda mulai mencatat di aplikasi ini.')
+    : `Tidak sama dengan ${tab ? 'jumlah sebenarnya' : 'saldo di rekening/dompet asli'}? Ganti dengan angka sebenarnya, saldo akan disesuaikan tanpa mengubah riwayat transaksi.`;
   bukaSheet((w ? 'Ubah ' : 'Tambah ') + (tab ? 'Tabungan' : 'Dompet'), `
     <div class="grup-form">
       <label class="label" for="d-nama">Nama ${sebutan}</label>
       <input class="field" id="d-nama" maxlength="40" placeholder="${tab ? 'mis. Dana Darurat, Liburan, Umroh' : 'mis. BCA, GoPay, Celengan'}" value="${esc(w ? w.nama : '')}">
     </div>
     <div class="grup-form">
-      <label class="label" for="d-saldo">${tab ? 'Sudah terkumpul' : 'Saldo awal'}</label>
-      <input class="field" id="d-saldo" inputmode="numeric" placeholder="0" value="${formatAngka(w && w.saldoAwal)}">
-      <p class="info-kecil" style="text-align:left">${tab ? 'Jumlah yang sudah ada sebelum dicatat di aplikasi ini.' : 'Isi dengan saldo saat Anda mulai memakai aplikasi ini.'}</p>
+      <label class="label" for="d-saldo">${tab ? 'Terkumpul sekarang' : 'Saldo sekarang'}</label>
+      <input class="field" id="d-saldo" inputmode="numeric" placeholder="0" value="${saldoTampil}">
+      <p class="info-kecil" style="text-align:left">${ket}</p>
     </div>
     ${tab ? `
       <div class="grup-form">
@@ -1307,7 +1360,7 @@ const AKSI = {
   'simpan-gemini': async el => {
     const kunci = $('#g-kunci').value.trim();
     if (!kunci) return toast('Tempel kunci API-nya dulu.', true);
-    if (await kirim(el, 'tambahKunciGemini', [kunci], 'Kunci API ditambahkan ✔')) bukaFormGemini();
+    if (await kirim(el, 'tambahKunciGemini', [kunci], 'Kunci Gemini tersimpan ✔')) bukaFormGemini();
   },
   'hapus-gemini': async el => {
     if (!confirm('Hapus kunci API ' + el.dataset.kunci + '?')) return;
@@ -1337,9 +1390,13 @@ const AKSI = {
     const tab = F.jenis === JENIS.TABUNGAN;
     const nama = $('#d-nama').value.trim();
     if (!nama) return toast('Isi nama ' + (tab ? 'tabungan' : 'dompet') + ' dulu.', true);
+    // Yang diisi adalah saldo sekarang; saldo awal dihitung mundur dari mutasi transaksi,
+    // jadi riwayat transaksi tidak berubah. Field yang tidak disentuh → saldo awal tetap.
+    const isian = $('#d-saldo').value;
+    const saldoAwal = isian === F.saldoTampil ? F.saldoAwal : angka(isian) - F.mutasi;
     kirim(el, 'simpanDompet', [{
       namaLama: F.namaLama, nama, ikon: F.ikon, jenis: F.jenis,
-      saldoAwal: angka($('#d-saldo').value),
+      saldoAwal,
       target: tab ? angka($('#d-target').value) : 0,
       tenggat: tab ? $('#d-tenggat').value : '',
     }], (tab ? 'Tabungan' : 'Dompet') + ' tersimpan ✔');
@@ -1404,13 +1461,34 @@ const AKSI = {
     if (ok) bukaDaftarKategori(tipe);
   },
 
+  'setup-dompet': el => {
+    const p = S.setup.pilih;
+    const i = p.indexOf(el.dataset.nama);
+    if (i >= 0) p.splice(i, 1);
+    else p.push(el.dataset.nama);
+    renderSetup();
+  },
+  'setup-lain': () => {
+    const nama = $('#s-lain').value.trim();
+    if (!nama) return toast('Ketik nama dompetnya dulu.', true);
+    const ada = semuaDompetSetup().find(([n]) => n.toLowerCase() === nama.toLowerCase());
+    if (!ada) S.setup.lain.push(nama);
+    const n = ada ? ada[0] : nama;
+    if (!S.setup.pilih.includes(n)) S.setup.pilih.push(n);
+    renderSetup();
+  },
   'buat-db': async el => {
+    bacaSetup();
+    const st = S.setup;
+    if (!st.pilih.length) return toast('Pilih minimal satu dompet.', true);
+    const dompet = semuaDompetSetup().filter(([n]) => st.pilih.includes(n))
+      .map(([nama, ikon]) => ({ nama, ikon, saldoAwal: st.saldo[nama] || 0 }));
     el.disabled = true;
     loading(true);
     try {
-      await api('buatDatabase', $('#s-pasangan').value.trim());
+      await api('buatDatabase', st.email, dompet);
       await muat();
-      toast('Siap dipakai ✔');
+      toast('Siap dipakai ✔ Ketuk ＋ untuk mencatat transaksi pertama.');
     } catch (e) {
       toast(pesanError(e), true);
     } finally {

@@ -319,6 +319,7 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .sesi-kartu p { margin: 0 0 6px; font-size: 14px; color: var(--muted); }
 .sesi-kartu .btn { flex: none; }
 .tombol-teks { padding: 10px; font-size: 14px; font-weight: 700; color: var(--primary); text-decoration: none; }
+.setup-intro { margin: -6px 0 14px; color: var(--muted); font-size: 14px; }
 /* ---------- Antrian struk (dibaca di latar belakang) ---------- */
 .antrian {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 15;

@@ -27,13 +27,13 @@ Masalah saat ini:
 
 ## Langkah 2 — Onboarding & penyederhanaan
 
-- [ ] **Wizard saldo awal**: pilih dompet yang dipakai (BCA, BRI, GoPay, OVO, Dana, Tunai…) → isi saldo saat ini.
-- [ ] Tombol **"Sesuaikan saldo"** per dompet: ketik saldo nyata → aplikasi buat transaksi penyesuaian.
-- [ ] Pindahkan kartu "Sudah punya spreadsheet? / versi Apps Script" dari layar setup ke ⚙️ → Lanjutan.
-- [ ] Kunci Gemini: cukup satu kunci, taruh di "Fitur lanjutan" (struk tetap terbaca lewat OCR tanpa kunci).
-- [ ] Hasil baca struk: ganti label teknis ("AI foto, OCR + AI") dengan "✅ Yakin" / "⚠️ Cek lagi totalnya".
-- [ ] Ganti kata "istri/pasangan" dengan "anggota keluarga" (aplikasi & README).
-- [ ] Pisahkan README: panduan pengguna singkat vs dokumen developer/pemilik.
+- [x] **Wizard saldo awal**: satu layar setup — pilih dompet (Tunai, BCA, BRI, Mandiri, BNI, BSI, Jago, SeaBank, GoPay, OVO, DANA, ShopeePay, + nama lain) → isi saldo sekarang → (opsional) email anggota keluarga → **Mulai pakai**.
+- [x] **Sesuaikan saldo** per dompet/tabungan: form ubah dompet kini berisi "Saldo sekarang"; mengganti angkanya menghitung ulang saldo awal (tidak membuat transaksi, jadi laporan & anggaran tidak tercemar).
+- [x] Kartu "Sudah punya spreadsheet?" diperkecil jadi tautan **Pilih dari Google Drive** di bawah layar setup (menu ⚙️ belum ada sebelum setup).
+- [x] Kunci Gemini: alur cukup satu kunci; kunci cadangan disembunyikan di bagian lipat. Menu ⚙️ punya bagian **Fitur lanjutan** (baca struk akurat, bot Telegram, buka spreadsheet).
+- [x] Hasil baca struk: label teknis diganti "✅ Yakin…" / "⚠️ Cek lagi totalnya…", pilihan nominal tanpa nama lapis.
+- [x] Ganti kata "istri/pasangan" dengan "anggota keluarga" (aplikasi & README).
+- [x] Pisahkan README: [README.md](../README.md) = panduan pengguna, [PEMILIK.md](PEMILIK.md) = setup pemilik & developer.
 
 ## Langkah 3 — Teknis kecil, dampak besar
 

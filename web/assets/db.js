@@ -189,10 +189,20 @@ const SERVER = (() => {
 
   // ---------- Setup ----------
 
-  /** Membuat spreadsheet database baru di Drive akun yang sedang login. */
-  async function buatDatabase(emailPasangan) {
-    const pasangan = teks_(emailPasangan);
-    if (pasangan && !POLA_EMAIL.test(pasangan)) throw new Error('Format email pasangan tidak valid.');
+  /**
+   * Membuat spreadsheet database baru di Drive akun yang sedang login.
+   * dompet: [{ nama, ikon, saldoAwal }] pilihan pengguna saat setup; kosong → dompet bawaan.
+   */
+  async function buatDatabase(emailAnggota, dompet) {
+    const anggota = teks_(emailAnggota);
+    if (anggota && !POLA_EMAIL.test(anggota)) throw new Error('Format email anggota keluarga tidak valid.');
+    const barisDompet = [];
+    (dompet || []).forEach(w => {
+      const nama = teks_(w.nama).slice(0, 40);
+      if (!nama) return;
+      if (barisDompet.some(r => r[0].toLowerCase() === nama.toLowerCase())) throw new Error('Dompet "' + nama + '" dobel.');
+      barisDompet.push([nama, teks_(w.ikon) || '👛', Math.round(Number(w.saldoAwal) || 0), JENIS.DOMPET]);
+    });
 
     const urutan = [TABEL.transaksi, TABEL.kategori, TABEL.dompet, TABEL.pengaturan];
     const ss = await GOOGLE.api(SHEETS, {
@@ -211,7 +221,7 @@ const SERVER = (() => {
         data: [
           { range: "'" + TABEL.transaksi.nama + "'!A1", values: [TABEL.transaksi.kolom] },
           { range: "'" + TABEL.kategori.nama + "'!A1", values: [TABEL.kategori.kolom].concat(KATEGORI_AWAL) },
-          { range: "'" + TABEL.dompet.nama + "'!A1", values: [TABEL.dompet.kolom].concat(DOMPET_AWAL) },
+          { range: "'" + TABEL.dompet.nama + "'!A1", values: [TABEL.dompet.kolom].concat(barisDompet.length ? barisDompet : DOMPET_AWAL) },
           { range: "'" + TABEL.pengaturan.nama + "'!A1", values: [TABEL.pengaturan.kolom] },
         ],
       },
@@ -240,11 +250,11 @@ const SERVER = (() => {
     });
 
     await pakaiDb_(id);
-    if (pasangan) await bagikan_(id, pasangan);
+    if (anggota) await bagikan_(id, anggota);
     return urlDb_(id);
   }
 
-  /** Memakai spreadsheet yang sudah ada (diundang pasangan, atau dari versi Apps Script). Menerima link atau ID. */
+  /** Memakai spreadsheet yang sudah ada (diundang anggota keluarga, atau dari versi Apps Script). Menerima link atau ID. */
   async function hubungkanDatabase(linkAtauId) {
     const s = teks_(linkAtauId);
     const m = s.match(/\/d\/([\w-]{20,})/) || s.match(/^([\w-]{20,})$/);
