@@ -215,7 +215,7 @@ function simpanTertunda(t) {
   }]));
   tutupSheet();
   render();
-  toast('📴 Tersimpan di HP. Dikirim otomatis begitu ada sinyal.');
+  toast('📴 Tersimpan di HP. Dikirim otomatis begitu ada sinyal.' + (t.lampiranData ? ' Foto struk tidak ikut disimpan.' : ''));
   return true;
 }
 
@@ -377,7 +377,7 @@ function pemilihBulan() {
 
 function itemTrx(t) {
   let judul = t.kategori, ikon = ikonKategori(t.kategori, t.tipe), kelas = 'keluar', tanda = '−';
-  let sub = [t.catatan, t.dompet].filter(Boolean).join(' · ');
+  let sub = [t.lampiran ? '📎' : '', t.catatan, t.dompet].filter(Boolean).join(' · ');
   if (t.tipe === TIPE.MASUK) { kelas = 'masuk'; tanda = '+'; }
   if (t.tipe === TIPE.TRANSFER) {
     judul = 'Transfer'; ikon = '🔁'; kelas = 'transfer'; tanda = '';
@@ -1593,6 +1593,8 @@ function renderFormTrx() {
       <datalist id="f-saran">${kebiasaan().saran.filter(s => s.tipe === F.tipe).map(s => `<option value="${esc(s.catatan)}">`).join('')}</datalist>
     </div>
 
+    ${rutin ? '' : bagianLampiran()}
+
     ${!F.id && !rutin && !F.dariRutin && F.tipe === TIPE.KELUAR
       ? '<button type="button" class="tombol-teks" style="display:block;margin:-4px 0 8px;padding-left:0" data-aksi="buka-patungan">👥 Dibayar bareng teman? Bagi tagihan (patungan)</button>' : ''}
 
@@ -1604,6 +1606,25 @@ function renderFormTrx() {
            <button type="button" class="btn btn-utama" data-aksi="simpan-trx">Simpan</button>`}
     </div>
     ${F.oleh ? `<p class="info-kecil">Dicatat oleh ${esc(namaPendek(F.oleh))}</p>` : ''}`;
+}
+
+/**
+ * Lampiran foto struk di form transaksi: foto baru (F.lampiranData, diunggah saat Simpan),
+ * lampiran yang sudah ada (F.lampiran = ID file Drive), atau tombol untuk melampirkan.
+ */
+function bagianLampiran() {
+  if (F.lampiranData) {
+    return `<div class="lampiran">${F.lampiranThumb ? `<img src="${F.lampiranThumb}" alt="Foto struk">` : '<span class="ikon-bulat">🧾</span>'}
+      <span class="isi"><b>📎 Foto struk</b><small>Disimpan ke Google Drive saat transaksi disimpan</small></span>
+      <button type="button" class="tombol-ikon" data-aksi="lampiran-hapus" aria-label="Buang foto">✕</button></div>`;
+  }
+  if (F.lampiran) {
+    return `<div class="lampiran"><span class="ikon-bulat">🧾</span>
+      <span class="isi"><b><a href="https://drive.google.com/file/d/${esc(F.lampiran)}/view" target="_blank" rel="noopener">📎 Lihat foto struk</a></b>
+        <small>Tersimpan di Google Drive</small></span>
+      <button type="button" class="tombol-ikon" data-aksi="lampiran-hapus" aria-label="Lepas lampiran">✕</button></div>`;
+  }
+  return '<button type="button" class="tombol-teks" style="display:block;margin:-4px 0 8px;padding-left:0" data-aksi="lampiran-pilih">📎 Lampirkan foto struk / bukti transfer</button>';
 }
 
 /** Simpan isian field teks ke F sebelum form dirender ulang. */
@@ -2043,6 +2064,7 @@ async function jalankanStruk(job) {
   try {
     const g = await kecilkanGambar(job.file);
     job.thumb = g.thumb;
+    job.base64 = g.base64; // ikut disimpan sebagai lampiran transaksi
     renderAntrian();
     job.hasil = await api('bacaStruk', g.base64, 'image/jpeg');
     if (!ANTRIAN.includes(job)) return; // sudah dibuang pengguna
@@ -2080,6 +2102,7 @@ function terapkanStruk(job) {
   if (h.kategori) F.kategori = h.kategori;
   if (h.catatan) F.catatan = h.catatan;
   F.struk = h;
+  if (job.base64) { F.lampiranData = job.base64; F.lampiranThumb = job.thumb; }
   F.strukJob = null;
   F.dariJob = job.id; // dihapus dari antrian setelah transaksinya disimpan
   renderFormTrx();
@@ -2621,6 +2644,31 @@ const AKSI = {
       target: tab ? angka($('#d-target').value) : 0,
       tenggat: $('#d-tenggat') ? $('#d-tenggat').value : '',
     }], 'Tersimpan ✔');
+  },
+  'lampiran-pilih': () => {
+    bacaFieldTrx();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async () => {
+      const file = input.files[0];
+      if (!file || !F || !$('#form-trx')) return;
+      try {
+        const g = await kecilkanGambar(file, 1600);
+        bacaFieldTrx();
+        F.lampiranData = g.base64;
+        F.lampiranThumb = g.thumb;
+        renderFormTrx();
+      } catch (e) {
+        toast(pesanError(e), true);
+      }
+    };
+    input.click();
+  },
+  'lampiran-hapus': () => {
+    bacaFieldTrx();
+    if (F.lampiranData) { F.lampiranData = ''; F.lampiranThumb = ''; } else if (F.lampiran) { F.lampiran = ''; F.hapusLampiran = true; }
+    renderFormTrx();
   },
   'buka-zakat': () => bukaZakat(),
   'hitung-zakat': () => { tulisHp('dk_harga_emas', String(angka($('#z-emas').value) || '') || null); bukaZakat(); },

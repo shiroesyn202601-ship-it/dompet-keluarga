@@ -393,6 +393,12 @@ body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b
 .spinner.kecil { width: 22px; height: 22px; border-width: 2.5px; flex: none; margin: 0 6px; }
 body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-area-inset-bottom)); }
 .struk-proses { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 0 0 16px; border-radius: 16px; background: var(--primary-soft); }
+/* Lampiran foto struk */
+.lampiran { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: -4px 0 14px; border-radius: 16px; background: var(--card-2); }
+.lampiran img { width: 48px; height: 48px; border-radius: 12px; object-fit: cover; flex: none; }
+.lampiran .isi { flex: 1; min-width: 0; }
+.lampiran b { display: block; font-size: 14px; }
+.lampiran small { display: block; font-size: 12px; color: var(--muted); }
 /* Kekayaan bersih */
 .kekayaan { font-size: 28px; font-weight: 800; letter-spacing: -.02em; margin: 2px 0 8px; font-variant-numeric: tabular-nums; }
 .kekayaan.minus { color: var(--keluar); }

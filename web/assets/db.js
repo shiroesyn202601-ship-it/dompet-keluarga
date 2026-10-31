@@ -25,7 +25,8 @@ const SERVER = (() => {
   const TABEL = {
     transaksi: {
       nama: 'Transaksi',
-      kolom: ['ID', 'Tanggal', 'Tipe', 'Jumlah', 'Kategori', 'Dompet', 'Dompet Tujuan', 'Catatan', 'Dibuat Oleh', 'Dibuat Pada', 'Diubah Pada'],
+      // Lampiran = ID file foto struk di Google Drive (folder "Dompet Keluarga - Struk" milik pencatat).
+      kolom: ['ID', 'Tanggal', 'Tipe', 'Jumlah', 'Kategori', 'Dompet', 'Dompet Tujuan', 'Catatan', 'Dibuat Oleh', 'Dibuat Pada', 'Diubah Pada', 'Lampiran'],
     },
     // Bawa Sisa = 'Ya': anggaran "amplop", sisa/kelebihan periode lalu ikut dihitung (lihat batasAnggaran di app.js).
     kategori: { nama: 'Kategori', kolom: ['Nama', 'Tipe', 'Ikon', 'Anggaran', 'Bawa Sisa'] },
@@ -127,7 +128,7 @@ const SERVER = (() => {
     await pastikanStruktur_(id);
     dbId = id;
     simpanLokal_(id);
-    await tulisConfig_({ spreadsheetId: id });
+    await tulisConfig_(Object.assign((await bacaConfig_()) || {}, { spreadsheetId: id })); // folder struk dll. tetap
   }
 
   async function bacaIdSheet_(id) {
@@ -171,10 +172,13 @@ const SERVER = (() => {
 
     await lindungiSheet_(id);
 
-    const q = [TABEL.kategori, TABEL.dompet].map(x => 'ranges=' + encodeURIComponent("'" + x.nama + "'!A1:Z1")).join('&');
-    const [kat, dom] = (await GOOGLE.api(SHEETS + '/' + id + '/values:batchGet?' + q)).valueRanges.map(v => (v.values || [[]])[0]);
+    const q = [TABEL.kategori, TABEL.dompet, TABEL.transaksi].map(x => 'ranges=' + encodeURIComponent("'" + x.nama + "'!A1:Z1")).join('&');
+    const [kat, dom, trx] = (await GOOGLE.api(SHEETS + '/' + id + '/values:batchGet?' + q)).valueRanges.map(v => (v.values || [[]])[0]);
     const data = [];
     const format = [];
+    if (trx.length < TABEL.transaksi.kolom.length) {
+      data.push({ range: "'" + TABEL.transaksi.nama + "'!A1", values: [TABEL.transaksi.kolom] }); // kolom Lampiran
+    }
     if (kat.length < TABEL.kategori.kolom.length) {
       data.push({ range: "'" + TABEL.kategori.nama + "'!A1", values: [TABEL.kategori.kolom] });
       format.push(formatKolom_(idSheet[TABEL.kategori.nama], 3, 4, 'NUMBER', '#,##0'));
@@ -185,7 +189,7 @@ const SERVER = (() => {
     }
     if (!data.length) return;
     await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', { method: 'POST', json: { valueInputOption: 'RAW', data } });
-    await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', { method: 'POST', json: { requests: format } });
+    if (format.length) await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', { method: 'POST', json: { requests: format } });
   }
 
   /**
@@ -328,7 +332,7 @@ const SERVER = (() => {
     dbId = null;
     idSheet = null;
     simpanLokal_(null);
-    await tulisConfig_({});
+    await tulisConfig_(Object.assign((await bacaConfig_()) || {}, { spreadsheetId: '' }));
     return true;
   }
 
@@ -592,23 +596,21 @@ const SERVER = (() => {
     if (t.id) {
       // Baris dicari lewat ID sesaat sebelum menulis, dan hanya kolom yang berubah yang ditulis
       // (Dibuat Oleh/Pada tidak disentuh), supaya perubahan orang lain di saat bersamaan tidak tertimpa.
-      const i = cariBaris_(await daftarId_(id), x => x === t.id);
-      const baris = i + 2;
-      await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', {
-        method: 'POST',
-        json: {
-          valueInputOption: 'RAW',
-          data: [
-            { range: "'" + tbl.nama + "'!B" + baris + ':H' + baris, values: [[t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan]] },
-            { range: "'" + tbl.nama + "'!K" + baris, values: [[sekarang]] },
-          ],
-        },
-      });
+      // Foto diunggah dulu, supaya baris tidak bergeser selama menunggu unggahan.
+      const lampiran = input.lampiranData ? await unggahStruk_(input.lampiranData, input.tanggal) : null;
+      const baris = cariBaris_(await daftarId_(id), x => x === t.id) + 2;
+      const data = [
+        { range: "'" + tbl.nama + "'!B" + baris + ':H' + baris, values: [[t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan]] },
+        { range: "'" + tbl.nama + "'!K" + baris, values: [[sekarang]] },
+      ];
+      if (lampiran || input.hapusLampiran) data.push({ range: "'" + tbl.nama + "'!L" + baris, values: [[lampiran || '']] });
+      await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', { method: 'POST', json: { valueInputOption: 'RAW', data } });
     } else {
       t.id = teks_(input.idBaru) || crypto.randomUUID();
       if (input.idBaru && (await daftarId_(id)).includes(t.id)) return t.id;
+      const lampiran = input.lampiranData ? await unggahStruk_(input.lampiranData, input.tanggal) : '';
       await tambahBaris_(id, tbl, [[
-        t.id, t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, GOOGLE.email(), sekarang, sekarang,
+        t.id, t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, GOOGLE.email(), sekarang, sekarang, lampiran,
       ]]);
       if (input.dariRutin) await majukanRutin(input.dariRutin);
       if (ULANG.includes(input.ulang)) {
@@ -617,6 +619,51 @@ const SERVER = (() => {
       }
     }
     return t.id;
+  }
+
+  // ---------- Lampiran foto struk (Google Drive) ----------
+
+  let idFolderStruk = null;
+
+  /** Folder "Dompet Keluarga - Struk" milik akun ini; dibuat sekali, ID-nya disimpan di config appData. */
+  async function folderStruk_() {
+    if (idFolderStruk) return idFolderStruk;
+    const c = (await bacaConfig_()) || {};
+    if (c.folderStruk) {
+      try {
+        const f = await GOOGLE.api(DRIVE + '/files/' + c.folderStruk + '?fields=id,trashed');
+        if (!f.trashed) return (idFolderStruk = f.id);
+      } catch (e) { /* terhapus → buat baru */ }
+    }
+    const f = await GOOGLE.api(DRIVE + '/files?fields=id', {
+      method: 'POST', json: { name: 'Dompet Keluarga - Struk', mimeType: 'application/vnd.google-apps.folder' },
+    });
+    await tulisConfig_(Object.assign(c, { folderStruk: f.id }));
+    return (idFolderStruk = f.id);
+  }
+
+  /**
+   * Mengunggah foto (base64 JPEG) ke folder struk, lalu membagikannya (hanya lihat, tanpa email) ke semua akun
+   * yang punya akses ke spreadsheet keluarga, supaya anggota lain bisa membukanya. Hasil: ID file Drive.
+   */
+  async function unggahStruk_(base64, tanggal) {
+    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: 'image/jpeg' });
+    const meta = { name: 'Struk ' + teks_(tanggal) + '.jpg', mimeType: 'image/jpeg', parents: [await folderStruk_()] };
+    const f = await GOOGLE.api(UPLOAD + '/files?uploadType=multipart&fields=id', Object.assign({ method: 'POST' }, GOOGLE.multipart(meta, blob)));
+    try {
+      const izin = await GOOGLE.api(DRIVE + '/files/' + dbId + '/permissions?fields=permissions(type,emailAddress)');
+      const saya = String(GOOGLE.email()).toLowerCase();
+      for (const p of izin.permissions || []) {
+        if (p.type !== 'user' || !p.emailAddress || p.emailAddress.toLowerCase() === saya) continue;
+        await GOOGLE.api(DRIVE + '/files/' + f.id + '/permissions?sendNotificationEmail=false', {
+          method: 'POST', json: { type: 'user', role: 'reader', emailAddress: p.emailAddress },
+        });
+      }
+    } catch (e) {
+      console.warn('Foto struk tidak bisa dibagikan ke anggota lain:', e); // fotonya tetap tersimpan untuk pengunggah
+    }
+    return f.id;
   }
 
   async function hapusTransaksi(idTrx) {
@@ -994,6 +1041,7 @@ const SERVER = (() => {
         catatan: String(r[7]),
         oleh: String(r[8]),
         dibuat: dariSerial_(r[9]),
+        lampiran: String(r[11] || ''),
       })),
       kategori: kat.filter(r => r[0] !== '').map(r => ({
         nama: String(r[0]), tipe: String(r[1]), ikon: String(r[2]), anggaran: Number(r[3]) || 0, bawaSisa: String(r[4]) === 'Ya',
