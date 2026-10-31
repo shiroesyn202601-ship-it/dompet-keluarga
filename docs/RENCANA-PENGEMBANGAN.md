@@ -21,9 +21,9 @@ Masalah saat ini:
 - [x] Ganti alur "gabung lewat link undangan" & "hubungkan spreadsheet" dengan **Google Picker** (bisa diarahkan ke ID file tertentu). *(kode selesai)*
 - [x] Sesi habis → jangan lempar ke layar login; tampilkan "Lanjutkan sebagai X" (minta token baru tanpa layar persetujuan), isian form tetap tersimpan. *(kode selesai)*
 - [x] Buat halaman **kebijakan privasi** ("data 100% di Google Drive Anda, tidak ada server") → `web/privasi.html`.
-- [ ] **(Pemilik, di Google Cloud Console)** Ikuti README bagian *Setup Google Cloud*: aktifkan Google Picker API, buat API key Picker → isi `pickerApiKey` di `web/assets/config.js`, hapus scope `spreadsheets` di Data access, isi homepage + privacy policy + authorized domain di Branding.
-- [ ] **(Pemilik)** Klik **Publish app** (Testing → In production), lalu tes dengan akun Google baru. Kalau layar peringatan masih muncul, ajukan verifikasi branding di Verification Center (cek apakah `github.io` diterima atau perlu domain sendiri ±Rp150rb/tahun).
-- [ ] **(Pemilik)** Uji di HP: masuk, "Pilih spreadsheet" untuk akun pemilik & pasangan, undang akun baru lewat link, tunggu sesi habis (±1 jam) saat form terbuka.
+- [x] **(Pemilik, di Google Cloud Console)** Ikuti README bagian *Setup Google Cloud*: aktifkan Google Picker API, buat API key Picker → isi `pickerApiKey` di `web/assets/config.js`, hapus scope `spreadsheets` di Data access, isi homepage + privacy policy + authorized domain di Branding.
+- [x] **(Pemilik)** Klik **Publish app** (Testing → In production), lalu tes dengan akun Google baru. Kalau layar peringatan masih muncul, ajukan verifikasi branding di Verification Center (cek apakah `github.io` diterima atau perlu domain sendiri ±Rp150rb/tahun).
+- [x] **(Pemilik)** Uji di HP: masuk, "Pilih spreadsheet" untuk akun pemilik & pasangan, undang akun baru lewat link, tunggu sesi habis (±1 jam) saat form terbuka. *(dikonfirmasi pemilik 1 Nov 2026)*
 
 ## Langkah 2 — Onboarding & penyederhanaan
 
