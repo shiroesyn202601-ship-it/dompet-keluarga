@@ -1,94 +1,97 @@
 # Dompet Keluarga
 
-Aplikasi pencatat keuangan keluarga berbasis Google Apps Script. Datanya disimpan di Google Spreadsheet milik Anda di Google Drive, dan bisa dipakai berdua dengan akun Google masing-masing.
+Aplikasi pencatat keuangan keluarga yang berjalan sepenuhnya di browser dan di-hosting di GitHub Pages.
+Datanya disimpan di Google Spreadsheet milik Anda sendiri, dan bisa dipakai berdua dengan akun Google masing-masing.
 
-## Isi folder `src/`
+**Alamat aplikasi:** https://shiroesyn202601-ship-it.github.io/dompet-keluarga/
 
-| File | Nama di editor Apps Script | Isinya |
-|------|----------------------------|--------|
-| `Code.gs` | `Code.gs` | Backend: baca/tulis spreadsheet |
-| `Index.html` | `Index` | Kerangka halaman |
-| `Styles.html` | `Styles` | Tampilan (CSS) |
-| `App.html` | `App` | Logika halaman (JavaScript) |
-| `appsscript.json` | `appsscript.json` | Pengaturan zona waktu dan web app |
+## Cara kerja
 
-## Cara memasang (sekali saja, oleh pemilik)
+- Tidak ada server. Saat dibuka, aplikasi meminta login Google, lalu langsung memanggil Google Sheets API dan Drive API dari browser.
+- Saat pertama kali login, aplikasi menawarkan **membuat spreadsheet "Dompet Keluarga"** di Drive akun itu, atau **menghubungkan spreadsheet yang sudah ada**.
+- Alamat spreadsheet tiap akun disimpan di folder tersembunyi khusus aplikasi di Google Drive (`appDataFolder`), jadi tetap ketemu walaupun ganti HP.
+- Setiap `git push` ke branch `main` otomatis men-deploy folder `web/` ke GitHub Pages (lihat [.github/workflows/deploy.yml](.github/workflows/deploy.yml)).
 
-Spreadsheet tidak perlu dibuat sendiri. Aplikasi akan membuatnya otomatis saat pertama kali dibuka.
+## Isi repo
 
-### 1. Buat proyek Apps Script
-1. Buka https://script.new (login dengan akun Google Anda).
-2. Beri nama proyek di kiri atas, misalnya **Dompet Keluarga**.
+| Path | Isinya |
+|------|--------|
+| `web/index.html` | Kerangka halaman |
+| `web/assets/config.js` | **Client ID Google** (wajib diisi sekali) |
+| `web/assets/google.js` | Login Google & pemanggil API |
+| `web/assets/db.js` | Baca/tulis spreadsheet (transaksi, kategori, dompet, pengaturan) |
+| `web/assets/struk.js` | Baca foto struk berlapis: AI foto, OCR + AI, OCR |
+| `web/assets/app.js` | Tampilan & interaksi |
+| `web/assets/styles.css` | Tampilan (CSS) |
 
-### 2. Tempel kode
-1. Klik ikon ⚙️ **Project Settings** di menu kiri, lalu centang **Show "appsscript.json" manifest file in editor**.
-2. Kembali ke ikon **< > Editor**.
-3. Buka `appsscript.json`, hapus semua isinya, lalu tempel isi file `src/appsscript.json`.
-4. Buka `Code.gs`, hapus semua isinya, lalu tempel isi file `src/Code.gs`.
-5. Klik **＋** di samping "Files", pilih **HTML**, beri nama `Index` (tanpa `.html`), lalu tempel isi `src/Index.html`.
-6. Ulangi langkah 5 untuk `Styles` dan `App`.
-7. Klik 💾 **Save** (atau Ctrl+S).
+## Setup (sekali saja, oleh pemilik)
 
-### 3. Publikasikan sebagai web app
-1. Klik **Deploy → New deployment**.
-2. Klik ⚙️ di samping "Select type", pilih **Web app**.
-3. Isi:
-   - **Execute as:** `User accessing the web app`
-   - **Who has access:** `Anyone with Google account`
-4. Klik **Deploy**, lalu salin **Web app URL** (berakhiran `/exec`). Ini alamat aplikasinya.
+### 1. Aktifkan GitHub Pages
+1. Buka repo di GitHub, lalu **Settings → Pages**.
+2. Di **Build and deployment → Source**, pilih **GitHub Actions**.
+3. Buka tab **Actions** dan pastikan workflow **Deploy ke GitHub Pages** berhasil (centang hijau). Kalau gagal karena Pages belum aktif, klik **Re-run jobs**.
 
-### 4. Buka aplikasi pertama kali (oleh pemilik)
-1. Buka Web app URL dari langkah 3. Google akan meminta Anda memilih akun dan memberi izin.
-2. Muncul layar "Google hasn't verified this app". Ini wajar karena aplikasinya Anda buat sendiri. Klik **Advanced → Go to Dompet Keluarga (unsafe) → Allow**.
-3. Aplikasi menampilkan layar **Selamat datang**. Isi email Google istri (opsional), lalu ketuk **Mulai**.
-4. Spreadsheet **Dompet Keluarga** otomatis dibuat di Google Drive Anda, berisi sheet **Transaksi**, **Kategori**, dan **Dompet**.
+### 2. Setup Google Cloud (untuk login Google)
+1. Buka https://console.cloud.google.com, lalu buat project baru, misalnya **Dompet Keluarga**.
+2. Buka **APIs & Services → Library**, lalu aktifkan **Google Sheets API** dan **Google Drive API**.
+3. Buka **Google Auth Platform** (atau **OAuth consent screen**):
+   - **Branding:** nama aplikasi *Dompet Keluarga*, dan email Anda sebagai support email.
+   - **Audience:** pilih **External**. Biarkan status **Testing**, lalu di **Test users** tambahkan email Google Anda **dan email istri**. Hanya akun di daftar ini yang bisa login.
+   - **Data access:** tambahkan scope `.../auth/spreadsheets`, `.../auth/drive.file`, dan `.../auth/drive.appdata`.
+4. Buka **Clients** (atau **Credentials → Create credentials → OAuth client ID**):
+   - **Application type:** Web application.
+   - **Authorized JavaScript origins:** `https://shiroesyn202601-ship-it.github.io`
+   - Klik **Create**, lalu salin **Client ID** (berakhiran `.apps.googleusercontent.com`).
+5. Tempel Client ID itu di [web/assets/config.js](web/assets/config.js), lalu commit dan push. Aplikasi otomatis ter-deploy ulang.
 
-> Penting: lakukan langkah 4 sendiri segera setelah deploy. Akun pertama yang membuka aplikasi akan menjadi pemilik spreadsheet.
+### 3. Buka aplikasi
+1. Buka https://shiroesyn202601-ship-it.github.io/dompet-keluarga/, lalu ketuk **Masuk dengan Google**.
+2. Kalau muncul *"Google hasn't verified this app"*, klik **Continue**. Ini wajar karena aplikasinya Anda buat sendiri.
+3. Pastikan **semua akses dicentang**, lalu klik **Continue**.
+4. Pilih **Buat spreadsheet baru** (boleh sekalian isi email istri), atau **Hubungkan** spreadsheet yang sudah ada.
 
-### 5. Bagikan ke istri
-1. Kalau email istri belum diisi di langkah 4.3, buka menu **Lainnya → Undang anggota keluarga**, isi emailnya, lalu ketuk **Undang**.
-2. Kirim URL web app ke istri, misalnya lewat WhatsApp.
-3. Saat pertama kali membuka URL itu, istri juga akan melihat layar izin seperti langkah 4.2. Klik **Advanced → Go to … → Allow**. Ini hanya sekali.
+### 4. Undang istri
+1. Buka **Lainnya → Undang anggota keluarga**, isi email Google istri, lalu ketuk **Undang**. Google akan mengirim email berisi link undangan.
+2. Bisa juga salin **link undangan** di menu yang sama, lalu kirim lewat WhatsApp.
+3. Istri membuka link itu dan masuk dengan akunnya. Aplikasi otomatis terhubung ke spreadsheet yang sama.
 
-> Keamanan: yang bisa membuka data hanya akun yang diberi akses ke spreadsheet. Orang lain yang mendapat URL-nya hanya akan melihat pesan "belum punya akses".
+Email istri harus sudah ada di daftar **Test users** (langkah 2.3), kalau tidak dia tidak bisa login.
 
-### 6. Pasang di layar utama HP
-- **Android (Chrome):** buka URL, ketuk menu ⋮, lalu pilih **Tambahkan ke layar utama**.
-- **iPhone (Safari):** buka URL, ketuk tombol Bagikan, lalu pilih **Tambah ke Layar Utama**.
+### Pindahan dari versi Apps Script
+Spreadsheet lama tetap bisa dipakai. Saat pertama login, pilih **Sudah punya spreadsheet?**, tempel link spreadsheet lama, lalu ketuk **Hubungkan**.
+Kunci API Gemini perlu ditambahkan ulang. Spreadsheet lama juga harus dibagikan manual ke istri lewat tombol **Bagikan** di Google Sheets, karena aplikasi hanya boleh mengatur file yang dibuatnya sendiri.
 
-## Baca foto struk dengan AI (Gemini)
-1. Buat kunci API gratis di https://aistudio.google.com/apikey (**Create API key**).
-2. Di aplikasi, buka **Lainnya → Baca struk dengan AI**, tempel kuncinya, lalu ketuk **Tambah**. Cukup sekali untuk satu keluarga.
-   Boleh menambah **beberapa kunci**, misalnya dari akun Google yang berbeda. Kunci dipakai bergiliran supaya kuota gratisnya terbagi, dan kalau satu kunci kena batas kuota atau tidak valid, aplikasi otomatis mencoba kunci berikutnya.
-3. Saat mencatat pengeluaran, ketuk **📷 Isi otomatis dari foto struk**, lalu ambil foto atau pilih dari galeri. Jumlah, tanggal, kategori, dan catatan akan terisi otomatis. Periksa lagi, lalu ketuk **Simpan**.
+## Baca foto struk
+1. Buat kunci API Gemini gratis di https://aistudio.google.com/apikey.
+2. Di aplikasi, buka **Lainnya → Baca struk dengan AI**, tempel kuncinya, lalu ketuk **Tambah**. Boleh lebih dari satu kunci. Kunci dipakai bergiliran, dan kalau satu kena batas kuota, aplikasi otomatis mencoba kunci berikutnya.
+3. Saat mencatat pengeluaran, ketuk **📷 Isi otomatis dari foto struk**.
 
 Struk dibaca berlapis, lalu hasilnya dicocokkan:
 1. **AI foto**: Gemini membaca gambar langsung.
 2. **OCR + AI**: gambar diubah jadi teks dengan OCR Google Drive, lalu teksnya disimpulkan Gemini.
-3. **OCR**: teks OCR yang sama dibaca dengan aturan biasa (mencari baris TOTAL dan tanggal), tanpa AI.
+3. **OCR**: teks OCR yang sama dibaca dengan aturan biasa (baris TOTAL dan tanggal), tanpa AI.
 
-Kalau minimal dua lapis sepakat soal total, hasilnya dianggap pasti. Kalau berbeda, form menampilkan pilihan nominal untuk diketuk. Tanpa kunci Gemini, hanya lapis OCR yang jalan.
-OCR membuat file Google Docs sementara di Drive, lalu langsung menghapusnya. Aplikasi hanya meminta akses ke file yang dibuatnya sendiri (`drive.file`), bukan seluruh Drive.
+Kalau minimal dua lapis sepakat soal total, hasilnya dianggap pasti. Kalau berbeda, form menampilkan pilihan nominal untuk diketuk.
+Kunci Gemini disimpan di sheet **Pengaturan** pada spreadsheet keluarga. Model default-nya `gemini-3.8-flash`, dan bisa diganti dengan menambah baris `GEMINI_MODEL` di sheet itu.
 
-Model default-nya `gemini-3.8-flash`. Untuk menggantinya, tambahkan `GEMINI_MODEL` di **Project Settings → Script Properties**.
-
-## Kalau kode diperbarui
-1. Tempel ulang file yang berubah di editor Apps Script, lalu Save.
-2. Klik **Deploy → Manage deployments**, klik ✏️ pada deployment yang ada, ubah **Version** menjadi **New version**, lalu klik **Deploy**.
-   URL tetap sama, jadi tidak perlu dibagikan ulang.
+## Mengembangkan
+- Ubah file di `web/`, lalu commit dan push ke `main`. Deploy berjalan otomatis dalam 1–2 menit (pantau di tab **Actions**).
+- Untuk mencoba di komputer sendiri, jalankan server statis, misalnya `npx serve web`, lalu tambahkan `http://localhost:3000` ke **Authorized JavaScript origins** di Google Cloud.
 
 ## Struktur data (spreadsheet)
 
 - **Transaksi:** ID, Tanggal, Tipe (Pemasukan/Pengeluaran/Transfer), Jumlah, Kategori, Dompet, Dompet Tujuan, Catatan, Dibuat Oleh, Dibuat Pada, Diubah Pada
 - **Kategori:** Nama, Tipe, Ikon
 - **Dompet:** Nama, Ikon, Saldo Awal
+- **Pengaturan:** Kunci, Nilai (kunci API Gemini, model)
 
 Saldo dompet dihitung otomatis: saldo awal + pemasukan − pengeluaran ± transfer.
 Jangan mengubah nama sheet atau urutan kolom secara manual, karena aplikasi membacanya berdasarkan posisi kolom.
 
 ## Rencana tahap berikutnya
 - [x] Tahap 1: catat transaksi, kategori, dompet, riwayat, ringkasan bulanan, dipakai berdua
-- [x] Tahap 2: input dari foto struk (kamera/galeri) dibaca oleh Gemini
+- [x] Tahap 2: input dari foto struk (kamera/galeri), dibaca berlapis (AI + OCR)
+- [x] Pindah ke GitHub Pages dengan deploy otomatis
 - [ ] Tahap 3: tabungan (dengan target dan tanpa batas) dan anggaran per kategori
 - [ ] Tahap 4: laporan dan grafik
 - [ ] Tahap 5: bot Telegram dengan AI (bahasa bebas, CRUD, kirim foto struk)

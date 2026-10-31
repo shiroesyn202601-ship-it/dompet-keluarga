@@ -1,17 +1,20 @@
 <!DOCTYPE html>
 <html lang="id">
   <head>
-    <base target="_top">
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#0f766e">
-    <?!= include('Styles'); ?>
+    <title>Dompet Keluarga</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👛</text></svg>">
+    <link rel="stylesheet" href="assets/styles.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
     <main id="view">
-      <div class="memuat-awal"><div class="spinner"></div><p>Memuat data…</p></div>
+      <div class="memuat-awal"><div class="spinner"></div><p>Memuat…</p></div>
     </main>
 
-    <nav class="bottomnav" id="nav">
+    <nav class="bottomnav" id="nav" hidden>
       <button data-aksi="tab" data-tab="beranda"><span>🏠</span>Beranda</button>
       <button data-aksi="tab" data-tab="riwayat"><span>📋</span>Riwayat</button>
       <button class="fab" data-aksi="tambah-trx" aria-label="Catat transaksi">＋</button>
@@ -34,6 +37,10 @@
     <div id="loading" class="loading" hidden><div class="spinner"></div></div>
     <div id="toast" class="toast" hidden></div>
 
-    <?!= include('App'); ?>
+    <script src="assets/config.js"></script>
+    <script src="assets/google.js"></script>
+    <script src="assets/struk.js"></script>
+    <script src="assets/db.js"></script>
+    <script src="assets/app.js"></script>
   </body>
 </html>
