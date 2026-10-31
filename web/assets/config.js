@@ -3,5 +3,5 @@
  * Cara membuatnya ada di README, bagian "Setup Google Cloud".
  */
 const KONFIG = {
-  clientId: 'ISI_CLIENT_ID.apps.googleusercontent.com',
+  clientId: '669221737081-jerp2njdv8dqibrvndei3sefolm4b1d5.apps.googleusercontent.com',
 };
