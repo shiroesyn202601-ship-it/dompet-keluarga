@@ -677,13 +677,47 @@ function siapkanTransaksi_(d, x, pengguna) {
     dompetTujuan = tujuan.nama;
   } else {
     const daftar = d.kategori.filter(k => k.tipe === tipe);
-    const k = daftar.find(k => k.nama.toLowerCase() === String(x.kategori || '').toLowerCase())
-      || daftar.find(k => k.nama === 'Lainnya') || daftar[0];
+    const k = cocokKategori_(daftar, x.kategori, x.catatan) || daftar.find(k => k.nama === 'Lainnya') || daftar[0];
     if (!k) throw new Error('Belum ada kategori ' + tipe.toLowerCase() + '.');
     kategori = k.nama;
   }
   const tanggal = /^\d{4}-\d{2}-\d{2}$/.test(x.tanggal || '') && x.tanggal <= hariIni_() ? x.tanggal : hariIni_();
   return { tipe, jumlah, kategori, dompet: dompet.nama, dompetTujuan, tanggal, catatan: String(x.catatan || '').trim().slice(0, 500) };
+}
+
+/** Kata kunci → kata yang biasanya ada di nama kategori bawaan. */
+const KATA_KATEGORI = [
+  [/makan|minum|bakso|nasi|mie|kopi|jajan|resto|warung|sarapan|cemilan|snack|gofood|grabfood|shopeefood/, ['makan']],
+  [/bensin|parkir|ojek|ojol|grab|gojek|tol|bus|kereta|krl|angkot|taksi|servis motor|servis mobil/, ['transport']],
+  [/listrik|pln|pdam|air|internet|wifi|pulsa|kuota|token|bpjs|tagihan|cicilan/, ['tagihan']],
+  [/belanja|sayur|indomaret|alfamart|pasar|supermarket|sabun|beras|minyak|gas|galon/, ['belanja', 'rumah']],
+  [/obat|dokter|apotek|klinik|rumah sakit|vitamin/, ['kesehatan']],
+  [/sekolah|spp|buku|kursus|les|kuliah/, ['pendidikan']],
+  [/popok|pampers|susu anak|mainan|anak/, ['anak']],
+  [/film|nonton|netflix|spotify|game|liburan|wisata/, ['hiburan']],
+  [/baju|celana|sepatu|kaos|jaket|pakaian/, ['pakaian']],
+  [/sedekah|zakat|infaq|infak|kondangan|sumbangan|donasi/, ['sosial']],
+  [/gaji|upah|honor/, ['gaji']],
+  [/bonus|thr/, ['bonus']],
+];
+
+/** Mencari kategori yang paling cocok dari nama (hasil AI) atau catatannya; null kalau tidak ada. */
+function cocokKategori_(daftar, nama, catatan) {
+  const norm = s => String(s || '').toLowerCase().replace(/&|\bdan\b/g, ' ').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const n = norm(nama);
+  if (n) {
+    const k = daftar.find(k => norm(k.nama) === n)
+      || daftar.find(k => norm(k.nama).indexOf(n) >= 0 || n.indexOf(norm(k.nama)) >= 0)
+      || daftar.find(k => norm(k.nama).split(' ').some(w => w.length > 3 && n.split(' ').indexOf(w) >= 0));
+    if (k && k.nama !== 'Lainnya') return k;
+  }
+  const teks = norm(nama + ' ' + (catatan || ''));
+  for (let i = 0; i < KATA_KATEGORI.length; i++) {
+    if (!KATA_KATEGORI[i][0].test(teks)) continue;
+    const k = daftar.find(k => KATA_KATEGORI[i][1].some(w => norm(k.nama).indexOf(w) >= 0));
+    if (k) return k;
+  }
+  return null;
 }
 
 function tambahTransaksi_(ss, t, email) {
