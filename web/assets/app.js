@@ -860,6 +860,87 @@ function bacaFormUtang() {
   F.catatan = $('#u-catatan').value;
 }
 
+// ---------- Patungan ----------
+
+/** dari: isian form transaksi yang sedang dibuka (total, kategori, dompet, tanggal, catatan). */
+function bukaFormPatungan(dari) {
+  const pertama = dompetBiasa()[0];
+  F = Object.assign({ patungan: true, total: 0, kategori: '', dompet: pertama ? pertama.nama : '', tanggal: hariIni(), catatan: '' }, dari,
+    { patungan: true, ikut: true, peserta: [] });
+  bukaSheet('Patungan', '<div id="form-patungan"></div>');
+  renderFormPatungan();
+}
+
+/** Bagian rata; sisa pembulatan masuk ke bagian kita (atau orang pertama kalau kita tidak ikut). */
+function bagiRata() {
+  const orang = F.peserta.length + (F.ikut ? 1 : 0);
+  if (!orang) return;
+  const per = Math.floor(F.total / orang);
+  F.peserta.forEach(p => { p.jumlah = per; });
+  if (!F.ikut && F.peserta.length) F.peserta[0].jumlah += F.total - per * orang;
+}
+
+const bagianSaya = () => (F.ikut ? F.total - F.peserta.reduce((a, p) => a + p.jumlah, 0) : 0);
+
+function renderFormPatungan() {
+  const kenal = daftarUtang().map(w => w.nama).filter(n => !F.peserta.some(p => p.nama.toLowerCase() === n.toLowerCase()));
+  const saya = bagianSaya();
+  const selisih = F.total - F.peserta.reduce((a, p) => a + p.jumlah, 0) - (F.ikut ? saya : 0);
+  $('#form-patungan').innerHTML = `
+    <p class="info-kecil" style="text-align:left;margin:0 0 12px">Anda membayar dulu. Bagian Anda dicatat sebagai pengeluaran,
+      bagian orang lain jadi <b>piutang</b> (bisa ditagih lewat WhatsApp dari tab Dompet).</p>
+    <label class="input-jumlah"><span>Rp</span>
+      <input id="p-total" class="input-rp" inputmode="numeric" autocomplete="off" placeholder="Total tagihan" value="${formatAngka(F.total)}"></label>
+    <div class="grup-form">
+      <label class="label" for="p-catatan">Untuk apa</label>
+      <input class="field" id="p-catatan" maxlength="200" placeholder="mis. Makan bareng di Solaria" value="${esc(F.catatan)}">
+    </div>
+    <div class="grup-form">
+      <span class="label">Siapa saja yang ikut?</span>
+      ${F.peserta.map((p, i) => `
+        <div class="baris baris-input">
+          <span class="ikon-bulat">👤</span>
+          <span class="isi"><b>${esc(p.nama)}</b><button type="button" class="tombol-teks" style="padding:0;font-size:12px" data-aksi="p-hapus" data-i="${i}">Hapus</button></span>
+          <input class="field input-rp input-bagian" data-i="${i}" inputmode="numeric" aria-label="Bagian ${esc(p.nama)}" value="${formatAngka(p.jumlah)}">
+        </div>`).join('')}
+      <div class="salin" style="margin-top:8px">
+        <input class="field" id="p-nama" maxlength="40" list="p-kenal" placeholder="Nama teman, lalu Tambah">
+        <datalist id="p-kenal">${kenal.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+        <button type="button" class="btn btn-hapus" data-aksi="p-tambah">Tambah</button>
+      </div>
+      <label class="amplop" style="margin-top:10px"><input type="checkbox" id="p-ikut" data-aksi="p-ikut" ${F.ikut ? 'checked' : ''}> Saya juga ikut menanggung</label>
+      ${F.peserta.length ? `<p class="info-kecil" style="text-align:left">
+        ${F.ikut ? `Bagian Anda: <b>${rp(saya)}</b> · ` : ''}<button type="button" class="tombol-teks" style="padding:0;font-size:12px" data-aksi="p-rata">Bagi rata lagi</button>
+        ${saya < 0 || (!F.ikut && selisih) ? `<br>⚠️ Jumlah bagian belum sama dengan total.` : ''}</p>` : ''}
+    </div>
+    ${F.ikut ? `
+      <div class="grup-form">
+        <label class="label" for="p-kategori">Kategori bagian Anda</label>
+        <select class="field" id="p-kategori">${S.data.kategori.filter(k => k.tipe === TIPE.KELUAR).map(k =>
+          `<option value="${esc(k.nama)}" ${k.nama === F.kategori ? 'selected' : ''}>${esc(k.ikon + ' ' + k.nama)}</option>`).join('')}</select>
+      </div>` : ''}
+    <div class="grup-form">
+      <label class="label" for="p-dompet">Dibayar dari</label>
+      <select class="field" id="p-dompet">${dompetBiasa().map(w =>
+        `<option value="${esc(w.nama)}" ${w.nama === F.dompet ? 'selected' : ''}>${esc(w.ikon + ' ' + w.nama)}</option>`).join('')}</select>
+    </div>
+    <div class="grup-form">
+      <label class="label" for="p-tanggal">Tanggal</label>
+      <input class="field" id="p-tanggal" type="date" value="${esc(F.tanggal)}">
+    </div>
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-patungan">Simpan patungan</button></div>`;
+}
+
+function bacaFormPatungan() {
+  const totalBaru = angka($('#p-total').value);
+  F.catatan = $('#p-catatan').value;
+  F.tanggal = $('#p-tanggal').value;
+  F.dompet = $('#p-dompet').value;
+  if ($('#p-kategori')) F.kategori = $('#p-kategori').value;
+  document.querySelectorAll('.input-bagian').forEach(i => { F.peserta[Number(i.dataset.i)].jumlah = angka(i.value); });
+  if (totalBaru !== F.total) { F.total = totalBaru; bagiRata(); } // total berubah → bagi rata ulang
+}
+
 /** Ringkasan satu orang: pelunasan, tambah pinjaman, ingatkan lewat WhatsApp. */
 function bukaUtang(w) {
   const dia = w.saldo > 0;
@@ -1457,6 +1538,9 @@ function renderFormTrx() {
       <input class="field" id="f-catatan" maxlength="500" list="f-saran" autocomplete="off" placeholder="mis. Belanja bulanan di Indomaret" value="${esc(F.catatan)}">
       <datalist id="f-saran">${kebiasaan().saran.filter(s => s.tipe === F.tipe).map(s => `<option value="${esc(s.catatan)}">`).join('')}</datalist>
     </div>
+
+    ${!F.id && !rutin && !F.dariRutin && F.tipe === TIPE.KELUAR
+      ? '<button type="button" class="tombol-teks" style="display:block;margin:-4px 0 8px;padding-left:0" data-aksi="buka-patungan">👥 Dibayar bareng teman? Bagi tagihan (patungan)</button>' : ''}
 
     <div class="aksi-form">
       ${rutin
@@ -2483,6 +2567,34 @@ const AKSI = {
       tenggat: $('#d-tenggat') ? $('#d-tenggat').value : '',
     }], 'Tersimpan ✔');
   },
+  'buka-patungan': () => {
+    bacaFieldTrx();
+    bukaFormPatungan({ total: F.jumlah, kategori: F.kategori, dompet: F.dompet, tanggal: F.tanggal, catatan: F.catatan });
+  },
+  'p-tambah': () => {
+    bacaFormPatungan();
+    const nama = $('#p-nama').value.trim();
+    if (!nama) return toast('Ketik nama temannya dulu.', true);
+    if (F.peserta.some(p => p.nama.toLowerCase() === nama.toLowerCase())) return toast(nama + ' sudah ada.', true);
+    F.peserta.push({ nama, jumlah: 0 });
+    bagiRata();
+    renderFormPatungan();
+    $('#p-nama').focus();
+  },
+  'p-hapus': el => { bacaFormPatungan(); F.peserta.splice(Number(el.dataset.i), 1); bagiRata(); renderFormPatungan(); },
+  'p-rata': () => { bacaFormPatungan(); bagiRata(); renderFormPatungan(); },
+  'p-ikut': () => { bacaFormPatungan(); F.ikut = !F.ikut; bagiRata(); renderFormPatungan(); },
+  'simpan-patungan': el => {
+    bacaFormPatungan();
+    if (!F.total) return toast('Isi total tagihannya dulu.', true);
+    if (!F.peserta.length) return toast('Tambahkan minimal satu teman.', true);
+    const saya = bagianSaya();
+    if (saya < 0 || F.peserta.reduce((a, p) => a + p.jumlah, 0) + saya !== F.total) return toast('Jumlah semua bagian belum sama dengan total.', true);
+    const n = F.peserta.length;
+    kirim(el, 'catatPatungan', [{
+      total: F.total, bagianSaya: saya, kategori: F.kategori, dompet: F.dompet, tanggal: F.tanggal, catatan: F.catatan, peserta: F.peserta,
+    }], `Patungan tercatat ✔ ${n} orang berutang ke Anda`);
+  },
   'tambah-utang': el => bukaFormUtang(el.dataset.nama, el.dataset.arah),
   'buka-utang': el => bukaUtang(S.data.dompet.find(w => w.nama === el.dataset.nama)),
   'u-arah': el => { bacaFormUtang(); F.arah = el.dataset.arah; renderFormUtang(); },
@@ -2747,6 +2859,7 @@ document.addEventListener('input', e => {
 // Input cepat: "change" = Enter/selesai mengetik, atau memilih saran dari daftar.
 document.addEventListener('change', e => {
   if (!F) return;
+  if (F.patungan && e.target.id === 'p-total') { bacaFormPatungan(); renderFormPatungan(); return; }
   if (e.target.id === 'f-cepat' && e.target.value.trim()) {
     const h = bacaKetikCepat(e.target.value.trim());
     isiFormCepat(h);

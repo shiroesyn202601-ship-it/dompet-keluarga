@@ -751,6 +751,42 @@ const SERVER = (() => {
     return true;
   }
 
+  // ---------- Patungan ----------
+
+  /**
+   * Kita membayar dulu untuk bersama. Bagian kita dicatat sebagai pengeluaran; bagian tiap orang dicatat
+   * sebagai piutang (uang keluar dari dompet yang sama ke orang itu), jadi total keluar dompet = total tagihan.
+   * input: { total, bagianSaya, kategori, dompet, tanggal, catatan, peserta: [{ nama, jumlah }] }
+   */
+  async function catatPatungan(input) {
+    const peserta = (input.peserta || []).map(p => ({ nama: teks_(p.nama), jumlah: Math.round(Number(p.jumlah) || 0) }))
+      .filter(p => p.nama && p.jumlah > 0);
+    const bagianSaya = Math.max(0, Math.round(Number(input.bagianSaya) || 0));
+    if (!peserta.length) throw new Error('Tambahkan minimal satu orang yang ikut patungan.');
+    const nama = peserta.map(p => p.nama.toLowerCase());
+    if (new Set(nama).size !== nama.length) throw new Error('Ada nama yang dobel.');
+    if (peserta.reduce((a, p) => a + p.jumlah, 0) + bagianSaya !== Math.round(Number(input.total) || 0)) {
+      throw new Error('Jumlah semua bagian belum sama dengan total.');
+    }
+    // Periksa semuanya dulu, supaya tidak ada yang tercatat setengah jalan.
+    validasiTransaksi_({ tipe: TIPE.TRANSFER, jumlah: 1, dompet: input.dompet, dompetTujuan: '_', tanggal: input.tanggal });
+    if (bagianSaya) validasiTransaksi_({ tipe: TIPE.KELUAR, jumlah: bagianSaya, kategori: input.kategori, dompet: input.dompet, tanggal: input.tanggal });
+    const [dom] = await bacaTabel_(await db_(), ['dompet']);
+    const bentrok = peserta.find(p => dom.some(r => String(r[0]).toLowerCase() === p.nama.toLowerCase() && String(r[3]) !== JENIS.UTANG));
+    if (bentrok) throw new Error('Nama "' + bentrok.nama + '" sudah dipakai dompet/tabungan. Pakai nama lain, mis. "' + bentrok.nama + ' (teman)".');
+
+    const catatan = teks_(input.catatan);
+    if (bagianSaya) {
+      await simpanTransaksi({ tipe: TIPE.KELUAR, jumlah: bagianSaya, kategori: input.kategori, dompet: input.dompet, tanggal: input.tanggal,
+        catatan: catatan ? catatan + ' (bagian saya, patungan)' : 'Bagian saya, patungan' });
+    }
+    for (const p of peserta) {
+      await catatUtang({ nama: p.nama, arah: 'piutang', jumlah: p.jumlah, dompet: input.dompet, tanggal: input.tanggal,
+        catatan: 'Patungan' + (catatan ? ': ' + catatan : '') });
+    }
+    return true;
+  }
+
   // ---------- Utang & piutang ----------
 
   /**
@@ -1043,7 +1079,7 @@ const SERVER = (() => {
   return {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe,
     simpanTransaksi, hapusTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
-    simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_, catatUtang,
+    simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
