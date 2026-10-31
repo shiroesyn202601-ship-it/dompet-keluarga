@@ -17,8 +17,16 @@ const TZ = 'Asia/Jakarta';
 const TIPE = { MASUK: 'Pemasukan', KELUAR: 'Pengeluaran', TRANSFER: 'Transfer' };
 const JENIS = { DOMPET: 'Dompet', TABUNGAN: 'Tabungan' };
 const MODEL_GEMINI = 'gemini-3.8-flash';
+/** Untuk memahami pesan chat: model ringan supaya bot cepat membalas. */
+const MODEL_CEPAT = 'gemini-flash-lite-latest';
 /** Dicoba berurutan kalau model utama sedang sibuk (5xx) atau tidak tersedia. */
 const MODEL_CADANGAN = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
+/**
+ * Telegram berhenti menunggu webhook sekitar 1 menit, lalu menahan pesan berikutnya.
+ * Setelah batas ini, AI tidak dicoba lagi supaya bot tetap sempat membalas.
+ */
+const BATAS_AI_MS = 35000;
+let mulaiProses_ = Date.now();
 const KOLOM_TRANSAKSI = 11;
 const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const NAMA_BULAN_PANJANG = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -147,6 +155,7 @@ function prosesAman_(update) {
   if (!sudah) cache.put(kunci, '1', 21600);
   lock.releaseLock();
   if (sudah) return;
+  mulaiProses_ = Date.now();
 
   const chatId = update.message ? update.message.chat.id : update.callback_query && update.callback_query.message.chat.id;
   try {
@@ -228,7 +237,7 @@ function prosesTeksBebas_(ss, chatId, teks, pengguna) {
   let hasil;
   let tambahan = '';
   if (kunci.length) {
-    const model = d.pengaturan.GEMINI_MODEL || MODEL_GEMINI;
+    const model = d.pengaturan.GEMINI_MODEL_CEPAT || MODEL_CEPAT;
     const jawaban = jalankanGemini_(kunci, model, [{ sumber: 'perintah', parts: [{ text: petunjukPerintah_(d, terakhir, pengguna, teks) }] }], skemaPerintah_())[0];
     if (jawaban instanceof Error) {
       // AI sedang tidak bisa dipakai: pesan sederhana ("bakso 25rb") tetap dicatat tanpa AI.
@@ -319,7 +328,7 @@ function jawabTanya_(d, pengguna, pertanyaan, chatId) {
     '',
     'PERTANYAAN PENGGUNA: """' + pertanyaan + '"""',
   ].join('\n');
-  const model = d.pengaturan.GEMINI_MODEL || MODEL_GEMINI;
+  const model = d.pengaturan.GEMINI_MODEL_TANYA || 'gemini-flash-latest';
   const h = jalankanGemini_(kunci, model, [{ sumber: 'tanya', parts: [{ text: prompt }] }],
     { type: 'OBJECT', properties: { jawaban: { type: 'STRING' } }, required: ['jawaban'] })[0];
   if (h instanceof Error) return '⚠️ ' + html_(h.message) + '. Sementara itu, coba /ringkasan atau /anggaran.';
@@ -924,9 +933,13 @@ function jalankanGemini_(daftar, model, permintaan, skema) {
   const hasil = [];
   let sisa = permintaan.map(function (_, i) { return i; });
   for (let mi = 0; mi < model2.length && sisa.length; mi++) {
-    if (mi > 0) Utilities.sleep(800);
+    if (mi > 0) Utilities.sleep(500);
     const lainModel = [];
     for (let n = 0; n < daftar.length && sisa.length; n++) {
+      if (Date.now() - mulaiProses_ > BATAS_AI_MS) {
+        sisa.concat(lainModel).forEach(function (i) { hasil[i] = new Error('Gemini terlalu lama menjawab'); });
+        return hasil;
+      }
       const kunci = daftar[(mulai + n) % daftar.length];
       let jawaban;
       try {
