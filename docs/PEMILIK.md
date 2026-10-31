@@ -149,3 +149,4 @@ Transaksi diubah/dihapus berdasarkan kolom **ID** (dicari sesaat sebelum menulis
 - [x] Langkah 1 (rencana pengembangan): izin Google non-sensitif, Google Picker, sesi habis tanpa kehilangan isian, kebijakan privasi
 - [x] Langkah 2: wizard setup (dompet + saldo), sesuaikan saldo, menu fitur lanjutan, bahasa netral
 - [x] Langkah 3: mode offline & transaksi tertunda, zoom tidak diblokir, tulis/hapus transaksi berdasarkan ID, proteksi peringatan di sheet
+- [x] Langkah 4: tagihan rutin (sheet Rutin), utang & piutang (dompet jenis Utang), periode gajian & sisa aman per hari, input cepat, riwayat lintas bulan

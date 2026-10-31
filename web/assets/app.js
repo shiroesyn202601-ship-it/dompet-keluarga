@@ -13,6 +13,9 @@ const S = {
   lapKategori: 'bulan',            // Laporan → pengeluaran per kategori: 'bulan' | 'tahun'
   setup: { pilih: ['Tunai'], saldo: {}, lain: [], email: '' }, // isian layar setup pertama kali
   offline: false, // true = tanpa sinyal, menampilkan data terakhir yang tersimpan di HP
+  filter: { rentang: 'periode', dari: '', sampai: '', kategori: '', dompet: '', oleh: '' }, // filter Riwayat (lihat FILTER_KOSONG)
+  cariData: null,     // transaksi lintas bulan untuk Riwayat: { kunci, transaksi, memuat? }
+  batasRiwayat: 200,  // jumlah transaksi yang ditampilkan sebelum "Tampilkan lebih banyak"
 };
 /** Pilihan cepat di layar setup: [nama, ikon]. */
 const DOMPET_UMUM = [['Tunai', '💵'], ['BCA', '🏦'], ['BRI', '🏦'], ['Mandiri', '🏦'], ['BNI', '🏦'], ['BSI', '🏦'],
@@ -154,6 +157,7 @@ async function muat() {
     if (S.data.perluSetup) $('#view').innerHTML = viewSetup();
     else {
       S.bulan = S.data.bulan; // kosong = periode berjalan, ditentukan server dari tanggal gajian
+      S.cariData = null;      // hasil cari lintas bulan dibaca ulang (mungkin baru ada yang diubah)
       tulisLokal('data', S.data);
       render();
       kirimTertunda();
@@ -525,15 +529,65 @@ function viewBeranda() {
 
 // ---------- Halaman: Riwayat ----------
 
+// Filter Riwayat. rentang 'periode' = data periode yang sedang dilihat (sudah dimuat);
+// selain itu transaksi dibaca dari spreadsheet saat dibutuhkan (S.cariData).
+const FILTER_KOSONG = { rentang: 'periode', dari: '', sampai: '', kategori: '', dompet: '', oleh: '' };
+const PILIHAN_RENTANG = [['periode', 'Periode ini'], ['3bulan', '3 bulan terakhir'], ['tahun', 'Tahun ini'], ['semua', 'Semua waktu'], ['kustom', 'Pilih tanggal']];
+
+function tanggalIso(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/** { dari, sampai } untuk filter rentang, atau null kalau cukup data periode yang sudah dimuat. */
+function rentangFilter() {
+  const f = S.filter;
+  if (f.rentang === 'periode') return null;
+  if (f.rentang === '3bulan') { const d = new Date(); d.setMonth(d.getMonth() - 3); return { dari: tanggalIso(d), sampai: hariIni() }; }
+  if (f.rentang === 'tahun') return { dari: hariIni().slice(0, 4) + '-01-01', sampai: hariIni() };
+  if (f.rentang === 'kustom') return { dari: f.dari, sampai: f.sampai };
+  return { dari: '', sampai: '' };
+}
+
+function labelRentang() {
+  const f = S.filter;
+  if (f.rentang === 'kustom') return [f.dari, f.sampai].map(t => (t ? tanggalPendek(t) : '…')).join(' – ');
+  return (PILIHAN_RENTANG.find(p => p[0] === f.rentang) || [])[1];
+}
+
+/** Transaksi untuk Riwayat sesuai rentang; null = sedang dimuat dari spreadsheet. */
+function sumberRiwayat() {
+  const r = rentangFilter();
+  if (!r) return S.data.transaksi;
+  const kunci = r.dari + '|' + r.sampai;
+  if (S.cariData && S.cariData.kunci === kunci) return S.cariData.memuat ? null : S.cariData.transaksi;
+  S.cariData = { kunci, memuat: true, transaksi: [] };
+  api('cariTransaksi', r.dari, r.sampai).then(daftar => {
+    if (!S.cariData || S.cariData.kunci !== kunci) return;
+    S.cariData = { kunci, transaksi: daftar };
+    if (S.tab === 'riwayat') render();
+  }, e => {
+    if (!(e instanceof GOOGLE.PerluMasuk)) toast(e.jaringan ? 'Pencarian lintas bulan butuh sinyal.' : pesanError(e), true);
+    S.filter = Object.assign({}, S.filter, { rentang: 'periode' });
+    S.cariData = null;
+    if (S.tab === 'riwayat') render();
+  });
+  return null;
+}
+
 function viewRiwayat() {
+  const f = S.filter;
+  const sumber = sumberRiwayat();
   const q = S.cari.toLowerCase();
-  const trx = S.data.transaksi.filter(t =>
+  const trx = (sumber || []).filter(t =>
     (S.filterTipe === 'Semua' || t.tipe === S.filterTipe) &&
+    (!f.kategori || t.kategori === f.kategori) &&
+    (!f.dompet || t.dompet === f.dompet || t.dompetTujuan === f.dompet) &&
+    (!f.oleh || t.oleh === f.oleh) &&
     (!q || [t.kategori, t.catatan, t.dompet, t.dompetTujuan, String(t.jumlah)].join(' ').toLowerCase().includes(q))
   );
 
   const grup = {};
-  trx.forEach(t => (grup[t.tanggal] = grup[t.tanggal] || []).push(t));
+  trx.slice(0, S.batasRiwayat).forEach(t => (grup[t.tanggal] = grup[t.tanggal] || []).push(t));
 
   const isi = Object.keys(grup).sort().reverse().map(tgl => {
     const daftar = grup[tgl];
@@ -542,14 +596,63 @@ function viewRiwayat() {
       <section class="kartu" style="padding:4px 16px">${daftar.map(itemTrx).join('')}</section>`;
   }).join('');
 
+  // Ringkasan hasil, mis. "berapa total jajan kopi tahun ini" — muncul kalau sedang mencari/memfilter.
+  const menyaring = q || f.rentang !== 'periode' || f.kategori || f.dompet || f.oleh || S.filterTipe !== 'Semua';
+  const ringkas = menyaring && trx.length ? `<p class="ringkas-cari">${trx.length} transaksi
+    ${total(trx, TIPE.KELUAR) ? ` · Keluar <b>${rp(total(trx, TIPE.KELUAR))}</b>` : ''}
+    ${total(trx, TIPE.MASUK) ? ` · Masuk <b>${rp(total(trx, TIPE.MASUK))}</b>` : ''}</p>` : '';
+  const lagi = trx.length > S.batasRiwayat
+    ? `<button class="tombol-tambah" data-aksi="riwayat-lagi">Tampilkan lebih banyak (${trx.length - S.batasRiwayat} lagi)</button>` : '';
+  const chipFilter = [
+    f.kategori && ['kategori', '🏷️ ' + f.kategori],
+    f.dompet && ['dompet', '👛 ' + f.dompet],
+    f.oleh && ['oleh', '👤 ' + namaPendek(f.oleh)],
+  ].filter(Boolean);
+  const jumlahFilter = chipFilter.length + (f.rentang !== 'periode' ? 1 : 0);
+
   return `
-    <div class="kepala"><h1>Riwayat</h1>${pemilihBulan()}</div>
+    <div class="kepala"><h1>Riwayat</h1>${f.rentang === 'periode' ? pemilihBulan()
+      : `<button class="chip aktif" data-aksi="hapus-filter" data-k="rentang" aria-label="Kembali ke periode ini">📅 ${esc(labelRentang())} ✕</button>`}</div>
     <input class="cari" id="cari" type="search" placeholder="Cari catatan, kategori, nominal…" value="${esc(S.cari)}">
     <div class="chips">
+      <button class="chip ${jumlahFilter ? 'aktif' : ''}" data-aksi="buka-filter">⚙︎ Filter${jumlahFilter ? ' (' + jumlahFilter + ')' : ''}</button>
       ${['Semua', TIPE.KELUAR, TIPE.MASUK, TIPE.TRANSFER].map(t =>
         `<button class="chip ${S.filterTipe === t ? 'aktif' : ''}" data-aksi="filter-tipe" data-tipe="${t}">${t}</button>`).join('')}
     </div>
-    <div id="hasil-riwayat">${isi || kosong('🔍', 'Tidak ada transaksi yang cocok.')}</div>`;
+    ${chipFilter.length ? `<div class="chips">${chipFilter.map(([k, l]) =>
+      `<button class="chip aktif" data-aksi="hapus-filter" data-k="${k}">${esc(l)} ✕</button>`).join('')}</div>` : ''}
+    <div id="hasil-riwayat">${sumber === null
+      ? '<div class="memuat-awal" style="padding-top:12vh"><div class="spinner"></div><p>Memuat transaksi…</p></div>'
+      : ringkas + (isi || kosong('🔍', 'Tidak ada transaksi yang cocok.')) + lagi}</div>`;
+}
+
+function bukaFilter() {
+  const f = S.filter;
+  F = { rentang: f.rentang };
+  const daftar = (S.cariData && S.cariData.transaksi) || S.data.transaksi;
+  const anggota = Array.from(new Set([S.data.user].concat(daftar.map(t => t.oleh)).filter(Boolean)));
+  const pilih = (id, label, kosongLabel, opsi, nilai) => `
+    <div class="grup-form">
+      <label class="label" for="${id}">${label}</label>
+      <select class="field" id="${id}"><option value="">${kosongLabel}</option>${opsi.map(([v, l]) =>
+        `<option value="${esc(v)}" ${v === nilai ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+    </div>`;
+  const namaKategori = Array.from(new Set(S.data.kategori.map(k => k.nama)));
+  bukaSheet('Filter Riwayat', `
+    <span class="label">Rentang waktu</span>
+    <div class="chips" style="flex-wrap:wrap">${PILIHAN_RENTANG.map(([k, l]) =>
+      `<button type="button" class="chip ${f.rentang === k ? 'aktif' : ''}" data-aksi="pilih-rentang" data-k="${k}">${l}</button>`).join('')}</div>
+    <div class="dua-kolom" id="filter-kustom" ${f.rentang === 'kustom' ? '' : 'hidden'}>
+      <div class="grup-form"><label class="label" for="fl-dari">Dari</label><input class="field" id="fl-dari" type="date" value="${esc(f.dari)}"></div>
+      <div class="grup-form"><label class="label" for="fl-sampai">Sampai</label><input class="field" id="fl-sampai" type="date" value="${esc(f.sampai)}"></div>
+    </div>
+    ${pilih('fl-kategori', 'Kategori', 'Semua kategori', namaKategori.map(n => [n, n]), f.kategori)}
+    ${pilih('fl-dompet', 'Dompet', 'Semua dompet', S.data.dompet.map(w => [w.nama, w.ikon + ' ' + w.nama]), f.dompet)}
+    ${anggota.length > 1 ? pilih('fl-oleh', 'Dicatat oleh', 'Semua anggota', anggota.map(e => [e, namaPendek(e)]), f.oleh) : ''}
+    <div class="aksi-form">
+      <button type="button" class="btn btn-hapus" data-aksi="reset-filter">Reset</button>
+      <button type="button" class="btn btn-utama" data-aksi="terapkan-filter">Terapkan</button>
+    </div>`);
 }
 
 // ---------- Halaman: Dompet ----------
@@ -1823,7 +1926,32 @@ const AKSI = {
   'filter-tipe': el => { S.filterTipe = el.dataset.tipe; render(); },
 
   'tambah-trx': () => bukaFormTrx(null),
-  'edit-trx': el => bukaFormTrx(S.data.transaksi.find(t => t.id === el.dataset.id)),
+  'edit-trx': el => bukaFormTrx(S.data.transaksi.concat((S.cariData && S.cariData.transaksi) || []).find(t => t.id === el.dataset.id)),
+  'buka-filter': () => bukaFilter(),
+  'pilih-rentang': el => {
+    F.rentang = el.dataset.k;
+    el.parentNode.querySelectorAll('.chip').forEach(b => b.classList.toggle('aktif', b === el));
+    $('#filter-kustom').hidden = F.rentang !== 'kustom';
+  },
+  'terapkan-filter': () => {
+    const nilai = id => ($(id) ? $(id).value : '');
+    const f = {
+      rentang: F.rentang, dari: nilai('#fl-dari'), sampai: nilai('#fl-sampai'),
+      kategori: nilai('#fl-kategori'), dompet: nilai('#fl-dompet'), oleh: nilai('#fl-oleh'),
+    };
+    if (f.rentang === 'kustom' && !f.dari && !f.sampai) return toast('Isi tanggal dari atau sampai.', true);
+    if (f.dari && f.sampai && f.dari > f.sampai) return toast('Tanggal "dari" harus sebelum "sampai".', true);
+    S.filter = f;
+    S.batasRiwayat = 200;
+    tutupSheet();
+    render();
+  },
+  'reset-filter': () => { S.filter = Object.assign({}, FILTER_KOSONG); S.batasRiwayat = 200; tutupSheet(); render(); },
+  'hapus-filter': el => {
+    S.filter = Object.assign({}, S.filter, el.dataset.k === 'rentang' ? { rentang: 'periode' } : { [el.dataset.k]: '' });
+    render();
+  },
+  'riwayat-lagi': () => { S.batasRiwayat += 200; render(); },
   'tutup-sheet': () => tutupSheet(),
   'f-tipe': el => {
     bacaFieldTrx();

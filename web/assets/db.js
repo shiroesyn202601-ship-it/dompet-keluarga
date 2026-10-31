@@ -410,6 +410,18 @@ const SERVER = (() => {
     };
   }
 
+  /**
+   * Semua transaksi dalam rentang 'yyyy-mm-dd' (inklusif; kosong = tanpa batas), terbaru dulu.
+   * Dipakai Riwayat untuk mencari lintas bulan; dibaca saat dibutuhkan saja supaya getData tetap ringan.
+   */
+  async function cariTransaksi(dari, sampai) {
+    const id = await db_();
+    const [trx] = await bacaTabel_(id, ['transaksi']);
+    return olahData_(trx, [], []).transaksi
+      .filter(t => (!dari || t.tanggal >= dari) && (!sampai || t.tanggal <= sampai))
+      .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.dibuat.localeCompare(a.dibuat));
+  }
+
   // ---------- Input cepat: kebiasaan mencatat ----------
 
   /**
@@ -1027,7 +1039,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe,
     simpanTransaksi, hapusTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_, catatUtang,
-    simpanMulaiPeriode, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_,
+    simpanMulaiPeriode, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
   };

@@ -32,6 +32,7 @@ Sekitar tiap 1 jam Google meminta konfirmasi ulang. Cukup ketuk **Lanjutkan seba
 - **Gajian bukan tanggal 1?** Atur di **⚙️ → Periode gajian** (mis. tanggal 25). Ringkasan, anggaran, dan laporan lalu dihitung dari tanggal 25 sampai 24 bulan berikutnya.
 - **Aman dibelanjakan per hari:** di kartu saldo Beranda tertulis berapa yang aman dipakai per hari sampai gajian berikutnya, sudah dikurangi tagihan rutin yang belum dibayar. Ketuk untuk melihat hitungannya.
 - **Laporan:** pemasukan dan pengeluaran per bulan, pengeluaran per kategori, perbandingan dengan bulan lalu, dan siapa yang belanja.
+- **Cari di semua waktu:** tab **Riwayat → Filter**, pilih rentang (3 bulan, tahun ini, semua waktu, atau tanggal sendiri), kategori, dompet, atau siapa yang mencatat. Ketik kata kunci, mis. "kopi", untuk melihat total jajan kopi tahun ini.
 - **Bot Telegram** (kalau pemilik sudah memasangnya): catat cukup dengan chat, mis. *makan bakso 25rb* atau *bensin 30rb pakai gopay*, atau kirim foto struk. Tautkan akun di **⚙️ → Bot Telegram**.
 
 ## Privasi

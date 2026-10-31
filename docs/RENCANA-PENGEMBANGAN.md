@@ -51,7 +51,7 @@ Masalah saat ini:
 - [x] **Periode gajian**: ⚙️ → Periode gajian (tanggal 1–28, disimpan sebagai `MULAI_PERIODE` di sheet Pengaturan). Beranda, Riwayat, anggaran, dan Laporan memakai periode itu; label jadi "25 Okt – 24 Nov 2026". Bot ikut (perlu deploy versi baru). Diuji dengan API tiruan.
 - [x] **"Sisa aman per hari"** di kartu saldo Beranda (periode berjalan saja): (total anggaran − terpakai di kategori beranggaran − tagihan rutin yang masih jatuh tempo di periode ini) ÷ hari tersisa; tanpa anggaran dasarnya pemasukan periode ini. Ketuk untuk rincian hitungannya.
 - [x] **Input cepat** (form transaksi baru): **⚡ Sering dicatat** — tombol satu ketuk otomatis dari transaksi yang terulang ≥2× dalam 120 hari (nominal & dompet yang paling sering); **ketik cepat** `bakso 25rb gopay` → nominal, kategori, dompet, catatan terisi (aturan sederhana, jalan offline & tanpa AI; paham rb/k/jt, 1,5jt, 25.000, goceng/ceban); **saran catatan** dari riwayat, kategorinya ikut terisi. Diuji.
-- [ ] **Riwayat lintas bulan**: filter rentang tanggal, kategori, dompet, anggota; pencarian semua waktu.
+- [x] **Riwayat lintas bulan**: tombol **Filter** di Riwayat — rentang (periode ini / 3 bulan / tahun ini / semua waktu / pilih tanggal), kategori, dompet, anggota; filter aktif tampil sebagai chip ✕. Di luar periode berjalan, transaksi dibaca dari spreadsheet saat dibutuhkan (`SERVER.cariTransaksi`, butuh sinyal). Hasil diberi ringkasan "N transaksi · Keluar · Masuk"; ditampilkan 200 dulu + "Tampilkan lebih banyak". Diuji.
 
 ## Langkah 5 — Fitur prioritas 2
 
