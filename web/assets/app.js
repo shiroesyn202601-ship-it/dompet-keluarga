@@ -1459,11 +1459,11 @@ function viewLainnya() {
         <span class="isi"><b>Baca struk lebih akurat</b><small>${d.kunciGemini.length ? 'Aktif · memakai AI Gemini' : 'Opsional · pakai kunci Gemini gratis dari Google'}</small></span>
         <span class="panah">›</span>
       </button>
-      <button class="baris" data-aksi="telegram">
+      ${d.telegram.bot ? `<button class="baris" data-aksi="telegram">
         <span class="ikon-bulat">💬</span>
-        <span class="isi"><b>Bot Telegram</b><small>${d.telegram.bot ? `@${esc(d.telegram.bot)} · ${d.telegram.pengguna.length} akun terhubung` : 'Catat lewat chat & foto struk'}</small></span>
+        <span class="isi"><b>Bot Telegram</b><small>@${esc(d.telegram.bot)} · ${d.telegram.pengguna.length} akun terhubung</small></span>
         <span class="panah">›</span>
-      </button>
+      </button>` : ''}
       <a class="baris" href="${esc(d.urlSpreadsheet)}" target="_blank" style="color:inherit;text-decoration:none">
         <span class="ikon-bulat">📊</span>
         <span class="isi"><b>Buka spreadsheet</b><small>Lihat semua data di Google Sheets</small></span>
@@ -2252,21 +2252,6 @@ function infoStruk(h) {
 /** kode: kode penautan yang baru dibuat, ditampilkan beserta tombol pembuka Telegram. */
 function bukaFormTelegram(kode) {
   const t = S.data.telegram;
-  const salin = (id, nilai) => `<div class="salin"><input class="field" id="${id}" readonly value="${esc(nilai)}">
-    <button type="button" class="btn btn-hapus" data-aksi="salin" data-target="${id}">Salin</button></div>`;
-  if (!t.bot) {
-    return bukaSheet('Bot Telegram', `
-      <p style="margin-top:0">Catat transaksi cukup dengan chat (<i>"makan bakso 25rb"</i>) atau kirim foto struk ke bot Telegram keluarga.</p>
-      <span class="label">Belum dipasang. Pemilik memasangnya sekali (±10 menit):</span>
-      <ol class="panduan" style="padding-left:20px;margin:0 0 16px">
-        <li>Di Telegram, buka <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> → <b>/newbot</b>, lalu salin tokennya.</li>
-        <li>Buat proyek di <a href="https://script.new" target="_blank" rel="noopener">script.new</a>, tempel isi folder <b>bot/</b> dari repo.</li>
-        <li>Di <b>Project Settings → Script Properties</b>, isi <code>TELEGRAM_TOKEN</code> dan <code>SPREADSHEET_ID</code> (salin di bawah).</li>
-        <li><b>Deploy → Web app</b>, lalu jalankan fungsi <b>pasangWebhook</b>.</li>
-      </ol>
-      <div class="grup-form"><span class="label">SPREADSHEET_ID</span>${salin('salin-id', S.data.spreadsheetId)}</div>
-      <p class="info-kecil" style="text-align:left">Panduan lengkap ada di <b>docs/PEMILIK.md</b> di repo, bagian <b>Bot Telegram</b>. Setelah dipasang, buka lagi menu ini untuk menautkan akun.</p>`);
-  }
   bukaSheet('Bot Telegram', `
     <a class="baris" href="https://t.me/${esc(t.bot)}" target="_blank" rel="noopener">
       <span class="ikon-bulat">🤖</span>
@@ -2558,16 +2543,6 @@ const AKSI = {
   'putus-telegram': async el => {
     if (!confirm('Putuskan akun Telegram ini dari Dompet Keluarga?')) return;
     if (await kirim(el, 'putuskanTelegram', [el.dataset.id], 'Akun Telegram diputuskan')) bukaFormTelegram();
-  },
-  'salin': async el => {
-    const input = $('#' + el.dataset.target);
-    try {
-      await navigator.clipboard.writeText(input.value);
-    } catch (e) {
-      input.select();
-      document.execCommand('copy');
-    }
-    toast('Disalin ✔');
   },
   'simpan-gemini': async el => {
     const kunci = $('#g-kunci').value.trim();

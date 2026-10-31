@@ -95,14 +95,14 @@ Bot berjalan di **Google Apps Script** (gratis), karena GitHub Pages tidak bisa 
    - Tempel isi [bot/appsscript.json](../bot/appsscript.json) ke `appsscript.json`, dan isi [bot/Kode.gs](../bot/Kode.gs) ke `Kode.gs`. Simpan.
 3. **Isi Script Properties:** ⚙️ **Project Settings → Script Properties → Add script property**:
    - `TELEGRAM_TOKEN` = token dari BotFather
-   - `SPREADSHEET_ID` = ID spreadsheet keluarga (salin dari aplikasi: **⚙️ → Bot Telegram**)
+   - `SPREADSHEET_ID` = ID spreadsheet keluarga (buka **⚙️ → Buka spreadsheet**, lalu salin bagian alamat di antara `/d/` dan `/edit`)
 4. **Deploy:** **Deploy → New deployment → ⚙️ Web app**:
    - **Execute as:** `Me`
    - **Who has access:** `Anyone`
 
    Klik **Deploy** dan beri izin (**Advanced → Go to … → Allow**).
 5. **Pasang webhook:** di editor, pilih fungsi **pasangWebhook** lalu klik **▶ Run**. Di Execution log akan muncul `✅ Bot @namabot terpasang`.
-6. **Tautkan akun:** di aplikasi, buka **⚙️ → Bot Telegram → Hubungkan akun Telegram saya**, lalu ketuk **Buka Telegram & hubungkan**. Anggota keluarga lain melakukan hal yang sama dari akunnya sendiri.
+6. **Tautkan akun:** muat ulang aplikasi (menu **Bot Telegram** baru muncul setelah langkah 5), lalu buka **⚙️ → Bot Telegram → Hubungkan akun Telegram saya**, lalu ketuk **Buka Telegram & hubungkan**. Anggota keluarga lain melakukan hal yang sama dari akunnya sendiri.
 
 Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang menemukan bot hanya mendapat pesan "belum terhubung".
 

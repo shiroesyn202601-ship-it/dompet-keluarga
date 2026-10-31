@@ -41,7 +41,7 @@ Sekitar tiap 1 jam Google meminta konfirmasi ulang. Cukup ketuk **Lanjutkan seba
 - **Zakat:** tab **Dompet → 🕌 Hitung zakat** untuk perkiraan zakat maal dan penghasilan.
 - **Beberapa buku:** pisahkan keuangan Keluarga, Pribadi, dan Usaha di **⚙️ → Buku keuangan**. Tiap buku bisa dibagikan ke orang berbeda.
 - **Privasi di HP:** ketuk **👁** di Beranda untuk menyamarkan angka, atau aktifkan **⚙️ → Kunci aplikasi** (PIN atau sidik jari). Tema gelap/terang bisa dipilih di **⚙️ → Tampilan & keamanan**.
-- **Bot Telegram** (kalau pemilik sudah memasangnya): catat cukup dengan chat, mis. *makan bakso 25rb* atau *bensin 30rb pakai gopay*, atau kirim foto struk. Tautkan akun di **⚙️ → Bot Telegram**.
+- **Bot Telegram** (kalau pemilik sudah memasangnya): catat cukup dengan chat, mis. *makan bakso 25rb* atau *bensin 30rb pakai gopay*, atau kirim foto struk. Tautkan akun di **⚙️ → Bot Telegram** (menu ini hanya muncul kalau bot sudah terpasang).
 
 ## Privasi
 Aplikasi ini tidak punya server. Semua catatan ada di spreadsheet di Google Drive Anda, dan hanya Anda serta orang yang Anda undang yang bisa membukanya.
