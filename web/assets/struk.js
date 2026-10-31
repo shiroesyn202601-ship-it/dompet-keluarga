@@ -7,6 +7,8 @@
  */
 const STRUK = (() => {
   const MODEL = 'gemini-3.8-flash';
+  /** Dicoba berurutan kalau model utama sedang sibuk (5xx) atau tidak tersedia. */
+  const MODEL_CADANGAN = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
   const DRIVE = 'https://www.googleapis.com/drive/v3';
   const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
   const URUTAN = ['AI foto', 'OCR + AI', 'OCR'];
@@ -133,18 +135,32 @@ const STRUK = (() => {
     return g % n;
   }
 
-  /** Coba kunci mulai dari giliran; pindah ke kunci berikutnya kalau kena kuota/ditolak. */
+  /**
+   * Coba kunci mulai dari giliran; pindah ke kunci berikutnya kalau kena kuota/ditolak,
+   * dan ke model cadangan kalau model sedang sibuk/tidak tersedia.
+   */
   async function jalankanGemini(daftar, mulai, model, parts, skema) {
+    const model2 = [model].concat(MODEL_CADANGAN.filter(m => m !== model));
     let terakhir;
-    for (let n = 0; n < daftar.length; n++) {
-      const kunci = daftar[(mulai + n) % daftar.length];
-      try {
-        return await mintaGemini(kunci, model, parts, skema);
-      } catch (e) {
-        if (!e.gantiKunci) throw e;
-        console.warn('Kunci ' + kunci.slice(0, 6) + '… gagal (' + e.message + '), coba kunci lain');
-        terakhir = e;
+    for (let mi = 0; mi < model2.length; mi++) {
+      if (mi > 0) await new Promise(ok => setTimeout(ok, 800));
+      let lainModel = false;
+      for (let n = 0; n < daftar.length; n++) {
+        const kunci = daftar[(mulai + n) % daftar.length];
+        try {
+          return await mintaGemini(kunci, model2[mi], parts, skema);
+        } catch (e) {
+          terakhir = e;
+          if (e.gantiModel) {
+            console.warn(model2[mi] + ' gagal (' + e.message + '), coba model cadangan');
+            lainModel = true;
+            break;
+          }
+          if (!e.gantiKunci) throw e;
+          console.warn('Kunci ' + kunci.slice(0, 6) + '… gagal (' + e.message + '), coba kunci lain');
+        }
       }
+      if (!lainModel) break;
     }
     throw terakhir;
   }
@@ -173,8 +189,11 @@ const STRUK = (() => {
       if (kunciSalah) err = new Error('Kunci API Gemini tidak valid. Periksa lagi di menu Lainnya.');
       else if (res.status === 429) err = new Error('Kuota semua kunci Gemini sedang habis. Coba lagi nanti, atau tambah kunci lain di menu Lainnya.');
       else if (res.status === 403) err = new Error('Kunci API Gemini ditolak (403). Periksa lagi di menu Lainnya.');
+      else if (res.status >= 500) err = new Error('Gemini sedang sibuk (' + res.status + '), coba lagi sebentar lagi');
+      else if (res.status === 404) err = new Error('Model Gemini tidak ditemukan (404)');
       else err = new Error('Gemini error ' + res.status + ': ' + pesan);
       err.gantiKunci = kunciSalah || res.status === 429 || res.status === 403;
+      err.gantiModel = res.status >= 500 || res.status === 404;
       throw err;
     }
     try {

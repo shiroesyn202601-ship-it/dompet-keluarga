@@ -17,6 +17,8 @@ const TZ = 'Asia/Jakarta';
 const TIPE = { MASUK: 'Pemasukan', KELUAR: 'Pengeluaran', TRANSFER: 'Transfer' };
 const JENIS = { DOMPET: 'Dompet', TABUNGAN: 'Tabungan' };
 const MODEL_GEMINI = 'gemini-3.8-flash';
+/** Dicoba berurutan kalau model utama sedang sibuk (5xx) atau tidak tersedia. */
+const MODEL_CADANGAN = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
 const KOLOM_TRANSAKSI = 11;
 const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const NAMA_BULAN_PANJANG = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -218,11 +220,19 @@ function prosesTeksBebas_(ss, chatId, teks, pengguna) {
   const terakhir = d.transaksi.slice().sort((a, b) => b.dibuat.localeCompare(a.dibuat)).slice(0, 8);
 
   let hasil;
+  let tambahan = '';
   if (kunci.length) {
     const model = d.pengaturan.GEMINI_MODEL || MODEL_GEMINI;
     const jawaban = jalankanGemini_(kunci, model, [{ sumber: 'perintah', parts: [{ text: petunjukPerintah_(d, terakhir, pengguna, teks) }] }], skemaPerintah_())[0];
-    if (jawaban instanceof Error) throw jawaban;
-    hasil = jawaban;
+    if (jawaban instanceof Error) {
+      // AI sedang tidak bisa dipakai: pesan sederhana ("bakso 25rb") tetap dicatat tanpa AI.
+      console.warn('AI gagal, pakai tebakan sederhana: ' + jawaban.message);
+      hasil = tebakSederhana_(teks, d);
+      if (hasil.perintah[0].aksi === 'tidak_jelas') throw jawaban;
+      tambahan = '\n\n<i>ℹ️ AI sedang tidak tersedia (' + html_(jawaban.message) + '), jadi dicatat dengan cara sederhana. Periksa kategorinya.</i>';
+    } else {
+      hasil = jawaban;
+    }
   } else {
     hasil = tebakSederhana_(teks, d);
   }
@@ -232,10 +242,10 @@ function prosesTeksBebas_(ss, chatId, teks, pengguna) {
   if (!daftar.length || daftar.every(x => x.aksi === 'tidak_jelas')) {
     return kirim_(chatId, html_(hasil.balasan || 'Maaf, saya belum paham. Contoh: "makan bakso 25rb".') + '\n\nKetik /bantuan untuk contoh lain.');
   }
-  daftar.forEach(x => jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, hasil.balasan));
+  daftar.forEach(x => jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, hasil.balasan, tambahan));
 }
 
-function jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, balasan) {
+function jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, balasan, tambahan) {
   const ref = r => {
     const i = Number(String(r || '').replace(/\D/g, '')) - 1;
     return terakhir[i] || null;
@@ -245,7 +255,7 @@ function jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, balasan) {
       const t = siapkanTransaksi_(d, x, pengguna);
       const id = tambahTransaksi_(ss, t, pengguna.email);
       d.transaksi.push(Object.assign({ id, oleh: pengguna.email, dibuat: sekarangIso_() }, t, { tanggal: t.tanggal }));
-      return kirim_(chatId, '✅ <b>Tercatat</b>\n' + ringkasTransaksi_(d, t) + peringatanAnggaran_(d, t),
+      return kirim_(chatId, '✅ <b>Tercatat</b>\n' + ringkasTransaksi_(d, t) + peringatanAnggaran_(d, t) + (tambahan || ''),
         [[{ text: '↩️ Batalkan', callback_data: 'batal:' + id }]]);
     }
     case 'ubah': {
@@ -746,41 +756,51 @@ function aman_(s) {
 
 /**
  * Menjalankan beberapa permintaan Gemini sekaligus. Mulai dari kunci giliran berikutnya;
- * permintaan yang gagal karena kuota/kunci diulang dengan kunci lain.
+ * permintaan yang gagal karena kuota/kunci diulang dengan kunci lain, dan yang gagal karena
+ * model sedang sibuk/tidak tersedia diulang dengan model cadangan.
  * Mengembalikan array sejajar dengan `permintaan`: objek hasil, atau Error.
  */
 function jalankanGemini_(daftar, model, permintaan, skema) {
   const props = PropertiesService.getScriptProperties();
   const mulai = (Number(props.getProperty('GEMINI_GILIRAN')) || 0) % daftar.length;
   props.setProperty('GEMINI_GILIRAN', String((mulai + 1) % daftar.length));
+  const model2 = [model].concat(MODEL_CADANGAN.filter(function (m) { return m !== model; }));
 
   const hasil = [];
   let sisa = permintaan.map(function (_, i) { return i; });
-  for (let n = 0; n < daftar.length && sisa.length; n++) {
-    const kunci = daftar[(mulai + n) % daftar.length];
-    let jawaban;
-    try {
-      jawaban = UrlFetchApp.fetchAll(sisa.map(function (i) { return mintaGemini_(kunci, model, permintaan[i].parts, skema); }));
-    } catch (e) {
-      console.error('Gemini tidak bisa dihubungi: ' + e);
-      sisa.forEach(function (i) { hasil[i] = new Error('Gemini terlalu lama menjawab atau tidak bisa dihubungi'); });
-      break;
-    }
-    const ulang = [];
-    jawaban.forEach(function (res, j) {
-      const i = sisa[j];
+  for (let mi = 0; mi < model2.length && sisa.length; mi++) {
+    if (mi > 0) Utilities.sleep(800);
+    const lainModel = [];
+    for (let n = 0; n < daftar.length && sisa.length; n++) {
+      const kunci = daftar[(mulai + n) % daftar.length];
+      let jawaban;
       try {
-        hasil[i] = bacaJawabanGemini_(res);
-        console.log(permintaan[i].sumber + ' memakai kunci ' + samarkanKunci_(kunci));
+        jawaban = UrlFetchApp.fetchAll(sisa.map(function (i) { return mintaGemini_(kunci, model2[mi], permintaan[i].parts, skema); }));
       } catch (e) {
-        hasil[i] = e;
-        if (e.gantiKunci) {
-          console.warn(permintaan[i].sumber + ': kunci ' + samarkanKunci_(kunci) + ' gagal (' + e.message + '), coba kunci lain');
-          ulang.push(i);
-        }
+        console.error('Gemini tidak bisa dihubungi: ' + e);
+        sisa.forEach(function (i) { hasil[i] = new Error('Gemini terlalu lama menjawab atau tidak bisa dihubungi'); });
+        return hasil;
       }
-    });
-    sisa = ulang;
+      const ulang = [];
+      jawaban.forEach(function (res, j) {
+        const i = sisa[j];
+        try {
+          hasil[i] = bacaJawabanGemini_(res);
+          console.log(permintaan[i].sumber + ' memakai ' + model2[mi] + ', kunci ' + samarkanKunci_(kunci));
+        } catch (e) {
+          hasil[i] = e;
+          if (e.gantiKunci) {
+            console.warn(permintaan[i].sumber + ': kunci ' + samarkanKunci_(kunci) + ' gagal (' + e.message + '), coba kunci lain');
+            ulang.push(i);
+          } else if (e.gantiModel) {
+            console.warn(permintaan[i].sumber + ': ' + model2[mi] + ' gagal (' + e.message + '), coba model cadangan');
+            lainModel.push(i);
+          }
+        }
+      });
+      sisa = ulang;
+    }
+    sisa = lainModel;
   }
   return hasil;
 }
@@ -932,8 +952,11 @@ function bacaJawabanGemini_(res) {
     if (kode === 400 && /API key/i.test(pesan)) err = new Error('Kunci API Gemini tidak valid. Periksa lagi di menu Lainnya.');
     else if (kode === 429) err = new Error('Kuota semua kunci Gemini sedang habis. Coba lagi nanti, atau tambah kunci lain di menu Lainnya.');
     else if (kode === 403) err = new Error('Kunci API Gemini ditolak (403). Periksa lagi di menu Lainnya.');
+    else if (kode >= 500) err = new Error('Gemini sedang sibuk (' + kode + '), coba lagi sebentar lagi');
+    else if (kode === 404) err = new Error('Model Gemini tidak ditemukan (404)');
     else err = new Error('Gemini error ' + kode + ': ' + pesan);
     err.gantiKunci = kode === 429 || kode === 403 || (kode === 400 && /API key/i.test(pesan));
+    err.gantiModel = kode >= 500 || kode === 404;
     throw err;
   }
   try {
