@@ -507,6 +507,7 @@ function viewBeranda() {
       </div>
       <div class="kepala-kanan">
         ${pemilihBulan()}
+        <button class="tombol-ikon" data-aksi="samar" aria-label="${modeSamar() ? 'Tampilkan nominal' : 'Sembunyikan nominal'}" aria-pressed="${modeSamar()}">${modeSamar() ? '🙈' : '👁'}</button>
         <button class="tombol-ikon" data-aksi="tab" data-tab="lainnya" aria-label="Pengaturan">${svg('gear')}</button>
       </div>
     </div>
@@ -1156,6 +1157,23 @@ function viewLainnya() {
         <span class="panah">›</span>
       </a>
     </section>
+
+    <h2 class="judul-bagian">Tampilan & keamanan</h2>
+    <section class="kartu">
+      <span class="label">Tema</span>
+      <div class="segmen" style="margin-bottom:6px">${[['', 'Otomatis'], ['light', 'Terang'], ['dark', 'Gelap']].map(([t, l]) =>
+        `<button type="button" class="${temaDipilih() === t ? 'aktif' : ''}" data-aksi="tema" data-t="${t}">${l}</button>`).join('')}</div>
+      <button class="baris" data-aksi="samar">
+        <span class="ikon-bulat">👁</span>
+        <span class="isi"><b>Sembunyikan nominal</b><small>${modeSamar() ? 'Aktif · angka disamarkan' : 'Samarkan angka saat HP dilihat orang lain'}</small></span>
+        <span class="panah">${modeSamar() ? 'Matikan' : 'Aktifkan'}</span>
+      </button>
+      <button class="baris" data-aksi="atur-kunci">
+        <span class="ikon-bulat">🔒</span>
+        <span class="isi"><b>Kunci aplikasi</b><small>${kunciTersimpan() ? 'Aktif · PIN' + (kunciTersimpan().bio ? ' + sidik jari/wajah' : '') : 'Minta PIN saat aplikasi dibuka'}</small></span>
+        <span class="panah">›</span>
+      </button>
+    </section>
     ${kartuPasang()}`;
 }
 
@@ -1332,6 +1350,140 @@ function bacaFieldTrx() {
   F.tanggal = $('#f-tanggal').value;
   F.catatan = $('#f-catatan').value;
   if ($('#f-nama')) F.nama = $('#f-nama').value;
+}
+
+// ---------- Tampilan & keamanan (disimpan per perangkat) ----------
+
+function bacaHp(k) {
+  try { return localStorage.getItem(k); } catch (e) { return null; }
+}
+function tulisHp(k, v) {
+  try {
+    if (v == null) localStorage.removeItem(k);
+    else localStorage.setItem(k, v);
+  } catch (e) { /* mode privat */ }
+}
+
+const WARNA_BILAH = { light: '#f4f5f8', dark: '#0b0c10' }; // = --bg tiap tema
+/** '' = otomatis ikut perangkat, 'light', atau 'dark'. Dipasang awal di index.html supaya tidak berkedip. */
+const temaDipilih = () => bacaHp('dk_tema') || '';
+function aturTema(t) {
+  tulisHp('dk_tema', t || null);
+  if (t) document.documentElement.dataset.theme = t;
+  else delete document.documentElement.dataset.theme;
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => {
+    m.content = WARNA_BILAH[t || (/dark/.test(m.media) ? 'dark' : 'light')];
+  });
+}
+
+const modeSamar = () => bacaHp('dk_samar') === '1';
+function aturSamar(ya) {
+  tulisHp('dk_samar', ya ? '1' : null);
+  document.body.classList.toggle('samar', ya);
+}
+
+/*
+ * Kunci aplikasi: PIN (disimpan sebagai hash bergaram) + opsional sidik jari/wajah (WebAuthn, perangkat ini saja).
+ * Hanya mengunci tampilan di HP ini supaya tidak dibuka orang lain; datanya sendiri tetap di Google Drive.
+ */
+const kunciTersimpan = () => { try { return JSON.parse(bacaHp('dk_kunci')); } catch (e) { return null; } };
+async function hashPin(pin, garam) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(garam + ':' + pin));
+  return Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join('');
+}
+const keBase64 = buf => btoa(String.fromCharCode.apply(null, new Uint8Array(buf)));
+const dariBase64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function bioTersedia() {
+  try {
+    return !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());
+  } catch (e) {
+    return false;
+  }
+}
+/** Mendaftarkan sidik jari/wajah perangkat ini; hasilnya ID kredensial (base64). Harus dari ketukan tombol. */
+async function daftarBio() {
+  const cred = await navigator.credentials.create({
+    publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      rp: { name: 'Dompet Keluarga' },
+      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: GOOGLE.email() || 'pengguna', displayName: 'Dompet Keluarga' },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
+      timeout: 60000,
+    },
+  });
+  return keBase64(cred.rawId);
+}
+function cekBio(id) {
+  return navigator.credentials.get({
+    publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      allowCredentials: [{ type: 'public-key', id: dariBase64(id) }],
+      userVerification: 'required',
+      timeout: 60000,
+    },
+  });
+}
+
+let pinDiketik = '';
+let waktuDisembunyikan = 0;
+const KUNCI_SETELAH_MS = 60 * 1000;
+
+function kunciLayar() {
+  if (!kunciTersimpan()) return;
+  pinDiketik = '';
+  renderKunci();
+  $('#kunci').hidden = false;
+}
+function bukaKunci() {
+  pinDiketik = '';
+  $('#kunci').hidden = true;
+  $('#kunci').innerHTML = '';
+}
+function renderKunci(salah) {
+  const k = kunciTersimpan();
+  $('#kunci').innerHTML = `
+    <div class="kunci-isi">
+      <div class="logo" aria-hidden="true">🔒</div>
+      <b>Masukkan PIN</b>
+      <div class="titik-pin ${salah ? 'salah' : ''}">${Array.from({ length: k.panjang || 4 }, (_, i) =>
+        `<i class="${i < pinDiketik.length ? 'isi' : ''}"></i>`).join('')}</div>
+      <div class="papan-pin">
+        ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button type="button" data-aksi="pin" data-n="${n}">${n}</button>`).join('')}
+        ${k.bio ? '<button type="button" data-aksi="buka-bio" aria-label="Pakai sidik jari atau wajah">👆</button>' : '<span></span>'}
+        <button type="button" data-aksi="pin" data-n="0">0</button>
+        <button type="button" data-aksi="pin-hapus" aria-label="Hapus satu angka">⌫</button>
+      </div>
+      <button type="button" class="tombol-teks" data-aksi="lupa-pin">Lupa PIN?</button>
+    </div>`;
+}
+
+async function bukaFormKunci() {
+  const k = kunciTersimpan();
+  if (k) {
+    return bukaSheet('Kunci Aplikasi', `
+      <p style="margin-top:0">Kunci aktif: PIN${k.bio ? ' + sidik jari/wajah' : ''}. Diminta saat aplikasi dibuka atau ditinggal lebih dari 1 menit.</p>
+      <div class="grup-form">
+        <label class="label" for="k-pin">Masukkan PIN untuk mematikan kunci</label>
+        <input class="field" id="k-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password">
+      </div>
+      <div class="aksi-form"><button type="button" class="btn btn-hapus" style="flex:1" data-aksi="hapus-kunci">Matikan kunci</button></div>`);
+  }
+  const bio = await bioTersedia();
+  bukaSheet('Kunci Aplikasi', `
+    <p style="margin-top:0">PIN diminta setiap aplikasi dibuka, atau setelah ditinggal lebih dari 1 menit. Hanya berlaku di HP ini.</p>
+    <div class="grup-form">
+      <label class="label" for="k-pin">PIN baru (4–6 angka)</label>
+      <input class="field" id="k-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password">
+    </div>
+    <div class="grup-form">
+      <label class="label" for="k-pin2">Ulangi PIN</label>
+      <input class="field" id="k-pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password">
+    </div>
+    ${bio ? `<label class="baris" style="cursor:pointer"><input type="checkbox" id="k-bio" checked>
+      <span class="isi"><b>Juga pakai sidik jari / wajah</b><small>Lebih cepat dari mengetik PIN</small></span></label>` : ''}
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-kunci">Aktifkan</button></div>
+    <p class="info-kecil">Lupa PIN? Cukup keluar lalu masuk lagi dengan akun Google. Data tidak hilang.</p>`);
 }
 
 // ---------- Input cepat ----------
@@ -2053,6 +2205,63 @@ const AKSI = {
     kirim(el, 'simpanTransaksi', [t], pesan, e => !t.id && e.jaringan && tunda())
       .then(ok => { if (ok && dariJob) hapusJob(dariJob); });
   },
+  'tema': el => { aturTema(el.dataset.t); render(); },
+  'samar': () => { aturSamar(!modeSamar()); render(); },
+  'atur-kunci': () => bukaFormKunci(),
+  'simpan-kunci': async el => {
+    const pin = $('#k-pin').value;
+    if (!/^\d{4,6}$/.test(pin)) return toast('PIN harus 4–6 angka.', true);
+    if (pin !== $('#k-pin2').value) return toast('Kedua PIN belum sama.', true);
+    el.disabled = true;
+    const k = { garam: keBase64(crypto.getRandomValues(new Uint8Array(16))), panjang: pin.length };
+    // Sidik jari didaftarkan lebih dulu, selagi masih dalam ketukan pengguna (syarat browser).
+    if ($('#k-bio') && $('#k-bio').checked) {
+      try { k.bio = await daftarBio(); } catch (e) { toast('Sidik jari/wajah tidak bisa diaktifkan. PIN tetap dipakai.', true); }
+    }
+    k.hash = await hashPin(pin, k.garam);
+    tulisHp('dk_kunci', JSON.stringify(k));
+    el.disabled = false;
+    tutupSheet();
+    render();
+    toast('Kunci aplikasi aktif 🔒');
+  },
+  'hapus-kunci': async () => {
+    const k = kunciTersimpan();
+    if (!k || (await hashPin($('#k-pin').value, k.garam)) !== k.hash) return toast('PIN salah.', true);
+    tulisHp('dk_kunci', null);
+    tutupSheet();
+    render();
+    toast('Kunci aplikasi dimatikan');
+  },
+  'pin': async el => {
+    const k = kunciTersimpan();
+    if (!k || pinDiketik.length >= k.panjang) return;
+    pinDiketik += el.dataset.n;
+    renderKunci();
+    if (pinDiketik.length < k.panjang) return;
+    if ((await hashPin(pinDiketik, k.garam)) === k.hash) return bukaKunci();
+    pinDiketik = '';
+    getar();
+    renderKunci(true);
+  },
+  'pin-hapus': () => { pinDiketik = pinDiketik.slice(0, -1); renderKunci(); },
+  'buka-bio': async () => {
+    try {
+      await cekBio(kunciTersimpan().bio);
+      bukaKunci();
+    } catch (e) {
+      toast('Sidik jari/wajah gagal. Pakai PIN.', true);
+    }
+  },
+  'lupa-pin': () => {
+    if (!confirm('Untuk membuka kunci tanpa PIN, Anda perlu keluar lalu masuk lagi dengan akun Google. Data tetap aman di Google Drive. Lanjutkan?')) return;
+    tulisHp('dk_kunci', null);
+    tulisLokal('data', null);
+    GOOGLE.keluar();
+    S.data = null;
+    bukaKunci();
+    tampilMasuk();
+  },
   'rincian-aman': () => bukaRincianAman(),
   'atur-periode': () => bukaFormPeriode(),
   'pilih-periode': el => {
@@ -2457,6 +2666,14 @@ async function cekPembaruan() {
   if (!pembaruanDitunda) toast('Versi baru tersedia, dipasang setelah Anda selesai');
   pembaruanDitunda = true;
 }
+
+// Mode samar & kunci aplikasi: dipasang saat dibuka, dan kunci lagi setelah ditinggal > 1 menit.
+document.body.classList.toggle('samar', modeSamar());
+kunciLayar();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') waktuDisembunyikan = Date.now();
+  else if (waktuDisembunyikan && Date.now() - waktuDisembunyikan > KUNCI_SETELAH_MS && $('#kunci').hidden) kunciLayar();
+});
 
 // Sinyal kembali → keluar dari mode offline & kirim transaksi tertunda (kalau sesi habis, minta lanjutkan dulu).
 window.addEventListener('online', () => {

@@ -16,6 +16,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+    <script>
+      // Tema & mode samar dipasang sebelum CSS dimuat supaya layar tidak berkedip (lihat aturTema di app.js).
+      try {
+        var t = localStorage.getItem('dk_tema');
+        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+      } catch (e) { /* mode privat */ }
+    </script>
     <link rel="stylesheet" href="assets/styles.css">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
@@ -54,6 +61,7 @@
     <input type="file" id="input-struk" accept="image/*" hidden>
     <div id="loading" class="loading" hidden><div class="spinner"></div></div>
     <div id="sesi" class="sesi" role="alertdialog" aria-modal="true" aria-labelledby="sesi-judul" hidden></div>
+    <div id="kunci" class="kunci" role="dialog" aria-modal="true" aria-label="Aplikasi terkunci" hidden></div>
     <div id="toast" class="toast" hidden></div>
 
     <script src="assets/config.js"></script>

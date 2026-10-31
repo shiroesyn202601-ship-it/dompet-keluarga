@@ -31,8 +31,31 @@
   --status-critical: #d03b3b;
   color-scheme: light;
 }
+/* Mode gelap: otomatis ikut perangkat, kecuali dipilih manual di ⚙️ (atribut data-theme di <html>).
+   Isi dua blok di bawah harus sama. */
+:root[data-theme="dark"] {
+  --bg: #0b0c10;
+  --card: #15171d;
+  --card-2: #1d2028;
+  --text: #f2f4f7;
+  --muted: #98a2b3;
+  --line: #252833;
+  --primary: #8b8cf8;
+  --primary-soft: #1f2040;
+  --on-primary: #0b0b1a;
+  --masuk: #3ccb8b;
+  --keluar: #fb7593;
+  --transfer: #6ea2ff;
+  --hero-1: #1a1c3d;
+  --hero-2: #2c2475;
+  --shadow: none;
+  --shadow-up: 0 10px 30px rgba(0, 0, 0, .5);
+  --seri-1: #3987e5;
+  --seri-2: #d95926;
+  color-scheme: dark;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0b0c10;
     --card: #15171d;
     --card-2: #1d2028;
@@ -312,6 +335,25 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--primary); animation: putar .8s linear infinite; }
 @keyframes putar { to { transform: rotate(360deg); } }
 /* Sesi login habis: kartu di atas tampilan, form di belakangnya tetap utuh. */
+/* Mode samar: nominal disamarkan (blur) di semua halaman; form tetap jelas supaya bisa mengetik. */
+body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b, .bar-item .nilai, .bar-item .ket,
+  .grup-tanggal span:last-child, .ringkas-cari b, .aman b, .detail-bulan, .tabel-data td, .banding small, .banding span:last-child, .grafik .sumbu) {
+  filter: blur(7px); user-select: none;
+}
+/* Layar kunci (PIN / sidik jari) */
+.kunci { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px 16px; background: var(--bg); }
+.kunci-isi { width: 100%; max-width: 320px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.kunci-isi .logo { width: 72px; height: 72px; border-radius: 24px; display: grid; place-items: center; font-size: 34px; background: var(--card-2); }
+.kunci-isi b { font-size: 18px; font-weight: 800; }
+.titik-pin { display: flex; gap: 12px; margin: 4px 0 10px; }
+.titik-pin i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--muted); }
+.titik-pin i.isi { background: var(--text); border-color: var(--text); }
+.titik-pin.salah { animation: goyang .35s; }
+.titik-pin.salah i { border-color: var(--keluar); }
+@keyframes goyang { 25% { transform: translateX(-8px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-4px); } }
+.papan-pin { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%; }
+.papan-pin button { height: 64px; border-radius: 20px; background: var(--card); border: 1px solid var(--line); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.papan-pin button:active { background: var(--card-2); }
 .sesi { position: fixed; inset: 0; z-index: 35; display: grid; place-items: center; padding: 16px; background: rgba(8, 10, 18, .45); }
 .sesi-kartu {
   width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 10px; text-align: center;
