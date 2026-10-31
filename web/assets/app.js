@@ -764,7 +764,59 @@ function bagianAset() {
         <span class="isi"><b>${esc(w.nama)}</b><small>Ketuk untuk memperbarui nilai</small></span>
         <b class="nominal">${rp(w.saldo)}</b>
       </button>`).join('')}</section>` : ''}
-    <button class="tombol-tambah" data-aksi="tambah-aset">＋ Tambah aset (emas, reksadana, properti…)</button>`;
+    <button class="tombol-tambah" data-aksi="tambah-aset">＋ Tambah aset (emas, reksadana, properti…)</button>
+    <button class="tombol-tambah" style="margin-top:10px" data-aksi="buka-zakat">🕌 Hitung zakat</button>`;
+}
+
+// ---------- Kalkulator zakat ----------
+
+const NISAB_EMAS_GRAM = 85;
+const KADAR_ZAKAT = 0.025;
+
+/**
+ * Perkiraan zakat dari data yang ada. Maal: harta (dompet + tabungan + aset + piutang − utang) ≥ nisab 85 g emas.
+ * Penghasilan: pemasukan periode ini ≥ nisab/12 (pendapat yang umum dipakai di Indonesia). Haul tidak diperiksa.
+ */
+function bukaZakat() {
+  const hargaEmas = Number(bacaHp('dk_harga_emas')) || 0;
+  const k = hitungKekayaan();
+  const harta = k.bersih;
+  const masuk = total(S.data.transaksi, TIPE.MASUK);
+  const nisab = hargaEmas * NISAB_EMAS_GRAM;
+  const maal = hargaEmas && harta >= nisab ? Math.round(harta * KADAR_ZAKAT) : 0;
+  const penghasilan = hargaEmas && masuk >= nisab / 12 ? Math.round(masuk * KADAR_ZAKAT) : 0;
+  const hasil = (judul, dasar, batas, zakat, jenis) => `
+    <section class="kartu" style="margin:12px 0 0">
+      <h3 style="margin-bottom:6px">${judul}</h3>
+      <div class="baris-rincian"><span>${jenis === 'maal' ? 'Harta bersih saat ini' : 'Pemasukan ' + esc(namaBulan(S.bulan))}</span><span>${rp(dasar)}</span></div>
+      <div class="baris-rincian"><span>Nisab${jenis === 'maal' ? ` (${NISAB_EMAS_GRAM} g emas)` : ' per bulan'}</span><span>${hargaEmas ? rp(Math.round(batas)) : '—'}</span></div>
+      <div class="baris-rincian"><span><b>Zakat 2,5%</b></span><b>${!hargaEmas ? 'Isi harga emas' : zakat ? rp(zakat) : 'Belum wajib'}</b></div>
+      ${zakat ? `<button type="button" class="tombol-tambah" style="margin-top:10px" data-aksi="catat-zakat" data-jumlah="${zakat}" data-jenis="${jenis}">Catat pembayaran ${rp(zakat)}</button>` : ''}
+    </section>`;
+  bukaSheet('Kalkulator Zakat', `
+    <div class="grup-form">
+      <label class="label" for="z-emas">Harga emas per gram (Rp)</label>
+      <input class="field input-rp" id="z-emas" inputmode="numeric" placeholder="mis. 1.500.000" value="${formatAngka(hargaEmas)}">
+      <p class="info-kecil" style="text-align:left">Lihat harga emas hari ini (mis. di situs Antam), lalu ketuk Hitung. Disimpan di HP ini.</p>
+    </div>
+    <div class="aksi-form" style="margin-top:0"><button type="button" class="btn btn-hapus" style="flex:1" data-aksi="hitung-zakat">Hitung</button></div>
+    ${hasil('💰 Zakat maal (harta)', harta, nisab, maal, 'maal')}
+    ${hasil('💼 Zakat penghasilan', masuk, nisab / 12, penghasilan, 'penghasilan')}
+    <p class="info-kecil" style="text-align:left">Ini perkiraan. Zakat maal juga mensyaratkan harta sudah dimiliki selama 1 tahun (haul).
+      Untuk kepastian, tanyakan ke lembaga amil zakat atau ustadz.</p>`);
+}
+
+// ---------- Templat cepat (tabungan & tagihan rutin) ----------
+
+const TEMPLAT_TABUNGAN = [['🛡️', 'Dana Darurat'], ['🕌', 'Lebaran & THR'], ['🕋', 'Umroh / Haji'], ['🏖️', 'Liburan'],
+  ['🎓', 'Pendidikan Anak'], ['🏠', 'DP Rumah'], ['💍', 'Pernikahan'], ['🏍️', 'Kendaraan']];
+const TEMPLAT_RUTIN = [['💡', 'Listrik PLN', TIPE.KELUAR], ['📶', 'Internet / WiFi', TIPE.KELUAR], ['🎯', 'Arisan', TIPE.KELUAR],
+  ['🏍️', 'Cicilan motor', TIPE.KELUAR], ['🎓', 'SPP sekolah', TIPE.KELUAR], ['🛡️', 'BPJS Kesehatan', TIPE.KELUAR],
+  ['📱', 'Pulsa & kuota', TIPE.KELUAR], ['💼', 'Gaji', TIPE.MASUK]];
+
+function chipTemplat(daftar, aksi) {
+  return `<div class="chips" aria-label="Templat">${daftar.map((t, i) =>
+    `<button type="button" class="chip" data-aksi="${aksi}" data-i="${i}">${t[0]} ${esc(t[1])}</button>`).join('')}</div>`;
 }
 
 // ---------- Utang & piutang ----------
@@ -1476,6 +1528,8 @@ function renderFormTrx() {
         <button type="button" data-aksi="lewati-rutin">Lewati kali ini</button></span></div>` : ''}
 
     ${!rutin && !F.id && !F.dariRutin && !F.strukJob && !F.struk && F.tipe !== TIPE.TRANSFER ? bagianCepat() : ''}
+
+    ${rutin && !F.idRutin ? chipTemplat(TEMPLAT_RUTIN, 'templat-rutin') : ''}
 
     ${rutin ? `
       <div class="grup-form">
@@ -2196,6 +2250,7 @@ function bukaFormDompet(w, jenis) {
       ? (tab ? 'Jumlah yang sudah terkumpul sebelum dicatat di aplikasi ini.' : 'Saldo saat Anda mulai mencatat di aplikasi ini.')
       : `Tidak sama dengan ${tab ? 'jumlah sebenarnya' : 'saldo di rekening/dompet asli'}? Ganti dengan angka sebenarnya, saldo akan disesuaikan tanpa mengubah riwayat transaksi.`;
   bukaSheet((w ? 'Ubah ' : 'Tambah ') + (tab ? 'Tabungan' : aset ? 'Aset' : 'Dompet'), `
+    ${tab && !w ? chipTemplat(TEMPLAT_TABUNGAN, 'templat-tabungan') : ''}
     <div class="grup-form">
       <label class="label" for="d-nama">Nama ${sebutan}</label>
       <input class="field" id="d-nama" maxlength="40" placeholder="${tab ? 'mis. Dana Darurat, Liburan, Umroh' : aset ? 'mis. Emas 10 gram, Reksadana, Motor' : 'mis. BCA, GoPay, Celengan'}" value="${esc(w ? w.nama : '')}">
@@ -2566,6 +2621,31 @@ const AKSI = {
       target: tab ? angka($('#d-target').value) : 0,
       tenggat: $('#d-tenggat') ? $('#d-tenggat').value : '',
     }], 'Tersimpan ✔');
+  },
+  'buka-zakat': () => bukaZakat(),
+  'hitung-zakat': () => { tulisHp('dk_harga_emas', String(angka($('#z-emas').value) || '') || null); bukaZakat(); },
+  'catat-zakat': el => {
+    // Kategori sosial/donasi kalau ada; kalau tidak, biarkan pengguna memilih.
+    const k = S.data.kategori.find(x => x.tipe === TIPE.KELUAR && /zakat|sosial|donasi|sedekah/i.test(x.nama));
+    bukaFormTrx(null, { tipe: TIPE.KELUAR, jumlah: Number(el.dataset.jumlah), kategori: k ? k.nama : '',
+      catatan: el.dataset.jenis === 'maal' ? 'Zakat maal' : 'Zakat penghasilan ' + namaBulan(S.bulan) }, 'Bayar Zakat');
+  },
+  'templat-tabungan': el => {
+    const [ikon, nama] = TEMPLAT_TABUNGAN[Number(el.dataset.i)];
+    $('#d-nama').value = nama;
+    F.ikon = ikon;
+    document.querySelectorAll('.grid-ikon button').forEach(b => b.classList.toggle('aktif', b.dataset.ikon === ikon));
+    $('#d-target').focus();
+  },
+  'templat-rutin': el => {
+    const [, nama, tipe] = TEMPLAT_RUTIN[Number(el.dataset.i)];
+    bacaFieldTrx();
+    if (F.tipe !== tipe) { F.tipe = tipe; F.kategori = ''; }
+    F.nama = nama;
+    F.kategori = tebakKategori(tipe, nama) || F.kategori;
+    if (!F.catatan) F.catatan = nama;
+    renderFormTrx();
+    $('#f-jumlah').focus();
   },
   'buka-patungan': () => {
     bacaFieldTrx();
