@@ -6,6 +6,8 @@
  * jadi tetap ketemu walaupun pindah HP. Kunci API Gemini disimpan di sheet "Pengaturan".
  */
 const TIPE = { MASUK: 'Pemasukan', KELUAR: 'Pengeluaran', TRANSFER: 'Transfer' };
+/** Tabungan adalah dompet khusus: diisi/ditarik lewat transaksi Transfer, punya target opsional. */
+const JENIS = { DOMPET: 'Dompet', TABUNGAN: 'Tabungan' };
 
 const SERVER = (() => {
   const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
@@ -17,8 +19,8 @@ const SERVER = (() => {
       nama: 'Transaksi',
       kolom: ['ID', 'Tanggal', 'Tipe', 'Jumlah', 'Kategori', 'Dompet', 'Dompet Tujuan', 'Catatan', 'Dibuat Oleh', 'Dibuat Pada', 'Diubah Pada'],
     },
-    kategori: { nama: 'Kategori', kolom: ['Nama', 'Tipe', 'Ikon'] },
-    dompet: { nama: 'Dompet', kolom: ['Nama', 'Ikon', 'Saldo Awal'] },
+    kategori: { nama: 'Kategori', kolom: ['Nama', 'Tipe', 'Ikon', 'Anggaran'] },
+    dompet: { nama: 'Dompet', kolom: ['Nama', 'Ikon', 'Saldo Awal', 'Jenis', 'Target', 'Tenggat'] },
     pengaturan: { nama: 'Pengaturan', kolom: ['Kunci', 'Nilai'] },
   };
 
@@ -43,9 +45,9 @@ const SERVER = (() => {
   ];
 
   const DOMPET_AWAL = [
-    ['Tunai', '💵', 0],
-    ['Rekening Bank', '🏦', 0],
-    ['E-Wallet', '📱', 0],
+    ['Tunai', '💵', 0, JENIS.DOMPET],
+    ['Rekening Bank', '🏦', 0, JENIS.DOMPET],
+    ['E-Wallet', '📱', 0, JENIS.DOMPET],
   ];
 
   const POLA_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -105,7 +107,7 @@ const SERVER = (() => {
         throw new Error('Spreadsheet ini bukan database Dompet Keluarga (sheet "' + TABEL[k].nama + '" tidak ada).');
       }
     });
-    await pastikanPengaturan_(id);
+    await pastikanStruktur_(id);
     dbId = id;
     simpanLokal_(id);
     await tulisConfig_({ spreadsheetId: id });
@@ -127,16 +129,46 @@ const SERVER = (() => {
     }
   }
 
-  /** Spreadsheet dari versi Apps Script belum punya sheet Pengaturan. */
-  async function pastikanPengaturan_(id) {
+  /**
+   * Menyusulkan struktur versi terbaru ke spreadsheet lama: sheet Pengaturan,
+   * kolom Anggaran (Kategori), serta kolom Jenis/Target/Tenggat (Dompet).
+   */
+  async function pastikanStruktur_(id) {
     const t = TABEL.pengaturan;
-    if (t.nama in idSheet) return;
-    const r = await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', {
-      method: 'POST',
-      json: { requests: [{ addSheet: { properties: { title: t.nama, gridProperties: { frozenRowCount: 1 } } } }] },
-    });
-    idSheet[t.nama] = r.replies[0].addSheet.properties.sheetId;
-    await tulis_(id, "'" + t.nama + "'!A1", [t.kolom]);
+    if (!(t.nama in idSheet)) {
+      const r = await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', {
+        method: 'POST',
+        json: { requests: [{ addSheet: { properties: { title: t.nama, gridProperties: { frozenRowCount: 1 } } } }] },
+      });
+      idSheet[t.nama] = r.replies[0].addSheet.properties.sheetId;
+      await tulis_(id, "'" + t.nama + "'!A1", [t.kolom]);
+    }
+
+    const q = [TABEL.kategori, TABEL.dompet].map(x => 'ranges=' + encodeURIComponent("'" + x.nama + "'!A1:Z1")).join('&');
+    const [kat, dom] = (await GOOGLE.api(SHEETS + '/' + id + '/values:batchGet?' + q)).valueRanges.map(v => (v.values || [[]])[0]);
+    const data = [];
+    const format = [];
+    if (kat.length < TABEL.kategori.kolom.length) {
+      data.push({ range: "'" + TABEL.kategori.nama + "'!A1", values: [TABEL.kategori.kolom] });
+      format.push(formatKolom_(idSheet[TABEL.kategori.nama], 3, 4, 'NUMBER', '#,##0'));
+    }
+    if (dom.length < TABEL.dompet.kolom.length) {
+      data.push({ range: "'" + TABEL.dompet.nama + "'!A1", values: [TABEL.dompet.kolom] });
+      format.push(formatKolom_(idSheet[TABEL.dompet.nama], 4, 5, 'NUMBER', '#,##0'), formatKolom_(idSheet[TABEL.dompet.nama], 5, 6, 'DATE', 'yyyy-mm-dd'));
+    }
+    if (!data.length) return;
+    await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', { method: 'POST', json: { valueInputOption: 'RAW', data } });
+    await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', { method: 'POST', json: { requests: format } });
+  }
+
+  function formatKolom_(sheetId, kolomAwal, kolomAkhir, type, pattern) {
+    return {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 1, startColumnIndex: kolomAwal, endColumnIndex: kolomAkhir },
+        cell: { userEnteredFormat: { numberFormat: { type, pattern } } },
+        fields: 'userEnteredFormat.numberFormat',
+      },
+    };
   }
 
   async function db_() {
@@ -144,7 +176,7 @@ const SERVER = (() => {
     if (!id) throw new Error('Spreadsheet belum dipilih. Muat ulang aplikasi.');
     if (!idSheet) {
       idSheet = await bacaIdSheet_(id);
-      await pastikanPengaturan_(id);
+      await pastikanStruktur_(id);
     }
     return id;
   }
@@ -182,13 +214,7 @@ const SERVER = (() => {
       },
     });
 
-    const format = (sheetId, kolomAwal, kolomAkhir, type, pattern) => ({
-      repeatCell: {
-        range: { sheetId, startRowIndex: 1, startColumnIndex: kolomAwal, endColumnIndex: kolomAkhir },
-        cell: { userEnteredFormat: { numberFormat: { type, pattern } } },
-        fields: 'userEnteredFormat.numberFormat',
-      },
-    });
+    const format = formatKolom_;
     await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', {
       method: 'POST',
       json: {
@@ -202,7 +228,10 @@ const SERVER = (() => {
           format(0, 1, 2, 'DATE', 'yyyy-mm-dd'),
           format(0, 3, 4, 'NUMBER', '#,##0'),
           format(0, 9, 11, 'DATE_TIME', 'yyyy-mm-dd hh:mm'),
+          format(1, 3, 4, 'NUMBER', '#,##0'),
           format(2, 2, 3, 'NUMBER', '#,##0'),
+          format(2, 4, 5, 'NUMBER', '#,##0'),
+          format(2, 5, 6, 'DATE', 'yyyy-mm-dd'),
         ]),
       },
     });
@@ -263,13 +292,27 @@ const SERVER = (() => {
     if (!/^\d{4}-\d{2}$/.test(bulan || '')) bulan = tanggalLokal_().slice(0, 7);
 
     const saldo = {};
-    d.dompet.forEach(w => { saldo[w.nama] = w.saldoAwal; });
+    const jenis = {};
+    d.dompet.forEach(w => { saldo[w.nama] = w.saldoAwal; jenis[w.nama] = w.jenis; });
+
+    // Ringkasan per bulan untuk laporan: { 'yyyy-mm': { masuk, keluar, ditabung, kategori: {nama: n}, oleh: {email: n} } }
+    const bulanan = {};
     d.transaksi.forEach(t => {
-      if (t.tipe === TIPE.MASUK) tambah_(saldo, t.dompet, t.jumlah);
-      else if (t.tipe === TIPE.KELUAR) tambah_(saldo, t.dompet, -t.jumlah);
-      else if (t.tipe === TIPE.TRANSFER) {
+      const b = t.tanggal.slice(0, 7);
+      const r = bulanan[b] || (bulanan[b] = { masuk: 0, keluar: 0, ditabung: 0, kategori: {}, oleh: {} });
+      if (t.tipe === TIPE.MASUK) {
+        tambah_(saldo, t.dompet, t.jumlah);
+        r.masuk += t.jumlah;
+      } else if (t.tipe === TIPE.KELUAR) {
+        tambah_(saldo, t.dompet, -t.jumlah);
+        r.keluar += t.jumlah;
+        tambah_(r.kategori, t.kategori, t.jumlah);
+        tambah_(r.oleh, t.oleh || '?', t.jumlah);
+      } else if (t.tipe === TIPE.TRANSFER) {
         tambah_(saldo, t.dompet, -t.jumlah);
         tambah_(saldo, t.dompetTujuan, t.jumlah);
+        if (jenis[t.dompetTujuan] === JENIS.TABUNGAN) r.ditabung += t.jumlah;
+        if (jenis[t.dompet] === JENIS.TABUNGAN) r.ditabung -= t.jumlah;
       }
     });
 
@@ -280,7 +323,8 @@ const SERVER = (() => {
       kunciGemini: kunciGemini_(set).map(samarkanKunci_),
       bulan,
       kategori: d.kategori,
-      dompet: d.dompet.map(w => ({ nama: w.nama, ikon: w.ikon, saldoAwal: w.saldoAwal, saldo: saldo[w.nama] || 0 })),
+      dompet: d.dompet.map(w => Object.assign({}, w, { saldo: saldo[w.nama] || 0 })),
+      bulanan,
       transaksi: d.transaksi
         .filter(t => t.tanggal.slice(0, 7) === bulan)
         .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.dibuat.localeCompare(a.dibuat)),
@@ -314,13 +358,14 @@ const SERVER = (() => {
     return true;
   }
 
-  /** input: { namaLama?, tipeLama?, nama, tipe, ikon } */
+  /** input: { namaLama?, tipeLama?, nama, tipe, ikon, anggaran? } — anggaran bulanan, hanya untuk pengeluaran. */
   async function simpanKategori(input) {
     const nama = teks_(input.nama);
     const tipe = String(input.tipe);
     if (!nama) throw new Error('Nama kategori wajib diisi.');
     if (tipe !== TIPE.MASUK && tipe !== TIPE.KELUAR) throw new Error('Tipe kategori tidak valid.');
     const ikon = teks_(input.ikon) || '🏷️';
+    const anggaran = tipe === TIPE.KELUAR ? Math.max(0, Math.round(Number(input.anggaran) || 0)) || '' : '';
     const namaLama = teks_(input.namaLama);
     const tipeLama = String(input.tipeLama || tipe);
 
@@ -332,7 +377,9 @@ const SERVER = (() => {
     if (namaLama) {
       const i = cariBaris_(kat, sama(namaLama, tipeLama));
       if (bentrok >= 0 && bentrok !== i) throw new Error('Kategori "' + nama + '" sudah ada.');
-      await tulis_(id, rangeBaris_(TABEL.kategori, i), [[nama, tipe, ikon]]);
+      // Form yang tidak mengirim anggaran tidak boleh menghapus anggaran yang sudah ada.
+      const anggaranTetap = 'anggaran' in input ? anggaran : (tipe === TIPE.KELUAR ? kat[i][3] : '');
+      await tulis_(id, rangeBaris_(TABEL.kategori, i), [[nama, tipe, ikon, anggaranTetap]]);
       if (namaLama !== nama || tipeLama !== tipe) {
         await gantiDiTransaksi_(id, trx, r => {
           if (String(r[4]) === namaLama && String(r[2]) === tipeLama) { r[4] = nama; r[2] = tipe; return true; }
@@ -341,8 +388,25 @@ const SERVER = (() => {
       }
     } else {
       if (bentrok >= 0) throw new Error('Kategori "' + nama + '" sudah ada.');
-      await tambahBaris_(id, TABEL.kategori, [[nama, tipe, ikon]]);
+      await tambahBaris_(id, TABEL.kategori, [[nama, tipe, ikon, anggaran]]);
     }
+    return true;
+  }
+
+  /** peta: { "nama kategori pengeluaran": anggaran bulanan } — 0 berarti tanpa anggaran. */
+  async function simpanAnggaran(peta) {
+    const id = await db_();
+    const [kat] = await bacaTabel_(id, ['kategori']);
+    let ada = false;
+    kat.forEach(r => {
+      if (String(r[1]) === TIPE.KELUAR && Object.prototype.hasOwnProperty.call(peta, r[0])) {
+        r[3] = Math.max(0, Math.round(Number(peta[r[0]]) || 0)) || '';
+        ada = true;
+      }
+    });
+    if (!ada) return true;
+    const t = TABEL.kategori;
+    await tulis_(id, "'" + t.nama + "'!A2:" + hurufKolom_(t.kolom.length) + (kat.length + 1), kat);
     return true;
   }
 
@@ -355,13 +419,23 @@ const SERVER = (() => {
     return true;
   }
 
-  /** input: { namaLama?, nama, ikon, saldoAwal } */
+  /** input: { namaLama?, nama, ikon, saldoAwal, jenis?, target?, tenggat? } — target 0 = tabungan tanpa batas. */
   async function simpanDompet(input) {
     const nama = teks_(input.nama);
-    if (!nama) throw new Error('Nama dompet wajib diisi.');
-    const ikon = teks_(input.ikon) || '👛';
+    const jenis = input.jenis === JENIS.TABUNGAN ? JENIS.TABUNGAN : JENIS.DOMPET;
+    if (!nama) throw new Error('Nama ' + jenis.toLowerCase() + ' wajib diisi.');
+    const ikon = teks_(input.ikon) || (jenis === JENIS.TABUNGAN ? '🐷' : '👛');
     const saldoAwal = Math.round(Number(input.saldoAwal) || 0);
     const namaLama = teks_(input.namaLama);
+    let target = '';
+    let tenggat = '';
+    if (jenis === JENIS.TABUNGAN) {
+      target = Math.max(0, Math.round(Number(input.target) || 0)) || '';
+      const m = teks_(input.tenggat).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (teks_(input.tenggat) && !m) throw new Error('Tanggal target tidak valid.');
+      if (m) tenggat = keSerial_(Number(m[1]), Number(m[2]), Number(m[3]));
+    }
+    const baris = [nama, ikon, saldoAwal, jenis, target, tenggat];
 
     const id = await db_();
     const [dom, trx] = await bacaTabel_(id, ['dompet', 'transaksi']);
@@ -370,7 +444,7 @@ const SERVER = (() => {
     if (namaLama) {
       const i = cariBaris_(dom, r => String(r[0]) === namaLama);
       if (bentrok >= 0 && bentrok !== i) throw new Error('Dompet "' + nama + '" sudah ada.');
-      await tulis_(id, rangeBaris_(TABEL.dompet, i), [[nama, ikon, saldoAwal]]);
+      await tulis_(id, rangeBaris_(TABEL.dompet, i), [baris]);
       if (namaLama !== nama) {
         await gantiDiTransaksi_(id, trx, r => {
           let ubah = false;
@@ -381,7 +455,7 @@ const SERVER = (() => {
       }
     } else {
       if (bentrok >= 0) throw new Error('Dompet "' + nama + '" sudah ada.');
-      await tambahBaris_(id, TABEL.dompet, [[nama, ikon, saldoAwal]]);
+      await tambahBaris_(id, TABEL.dompet, [baris]);
     }
     return true;
   }
@@ -517,8 +591,17 @@ const SERVER = (() => {
         oleh: String(r[8]),
         dibuat: dariSerial_(r[9]),
       })),
-      kategori: kat.filter(r => r[0] !== '').map(r => ({ nama: String(r[0]), tipe: String(r[1]), ikon: String(r[2]) })),
-      dompet: dom.filter(r => r[0] !== '').map(r => ({ nama: String(r[0]), ikon: String(r[1]), saldoAwal: Number(r[2]) || 0 })),
+      kategori: kat.filter(r => r[0] !== '').map(r => ({
+        nama: String(r[0]), tipe: String(r[1]), ikon: String(r[2]), anggaran: Number(r[3]) || 0,
+      })),
+      dompet: dom.filter(r => r[0] !== '').map(r => ({
+        nama: String(r[0]),
+        ikon: String(r[1]),
+        saldoAwal: Number(r[2]) || 0,
+        jenis: String(r[3]) === JENIS.TABUNGAN ? JENIS.TABUNGAN : JENIS.DOMPET,
+        target: Number(r[4]) || 0,
+        tenggat: r[5] === '' ? '' : dariSerial_(r[5]).slice(0, 10),
+      })),
     };
   }
 
@@ -591,7 +674,7 @@ const SERVER = (() => {
 
   return {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe,
-    simpanTransaksi, hapusTransaksi, simpanKategori, hapusKategori, simpanDompet, hapusDompet,
+    simpanTransaksi, hapusTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     tambahKunciGemini, hapusKunciGemini, bacaStruk,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
   };

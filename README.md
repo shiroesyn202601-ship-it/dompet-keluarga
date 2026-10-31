@@ -74,6 +74,26 @@ Struk dibaca berlapis, lalu hasilnya dicocokkan:
 Kalau minimal dua lapis sepakat soal total, hasilnya dianggap pasti. Kalau berbeda, form menampilkan pilihan nominal untuk diketuk.
 Kunci Gemini disimpan di sheet **Pengaturan** pada spreadsheet keluarga. Model default-nya `gemini-3.8-flash`, dan bisa diganti dengan menambah baris `GEMINI_MODEL` di sheet itu.
 
+## Tabungan
+- Buka tab **Dompet → ＋ Tambah tabungan**. Target boleh diisi (mis. Dana Darurat Rp10 juta, tercapai Desember), atau dikosongkan untuk tabungan **tanpa batas**.
+- Ketuk sebuah tabungan, lalu pilih **Setor** atau **Tarik**. Keduanya dicatat sebagai transaksi Transfer dari atau ke dompet, jadi saldo dompet ikut berkurang atau bertambah.
+- Untuk tabungan bertarget, aplikasi menampilkan progres (%), kekurangannya, dan kalau ada tenggat, berapa yang perlu disetor per bulan.
+- Saldo tabungan tidak dihitung di "Total saldo dompet", tetapi ditampilkan terpisah.
+
+## Anggaran
+- Ketuk **Atur** di kartu Anggaran (Beranda), atau buka **⚙️ → Anggaran bulanan**. Isi batas belanja per kategori. Kosongkan kategori yang tidak perlu dibatasi.
+- Di Beranda, setiap kategori ditampilkan dengan meter. **⚠️ Hampir habis** muncul saat pemakaian mencapai 80%, dan **⛔ Lewat** saat melebihi batas.
+
+## Laporan
+Tab **Laporan** (per tahun) berisi:
+- Ringkasan: pemasukan, pengeluaran, selisih (dan persentasenya dari pemasukan), rata-rata pengeluaran per bulan, dan jumlah yang masuk tabungan.
+- Grafik pemasukan & pengeluaran per bulan. Ketuk sebuah bulan untuk melihat rinciannya. Data grafik juga bisa dilihat sebagai tabel.
+- Pengeluaran per kategori, untuk bulan terpilih atau setahun.
+- Perbandingan dengan bulan sebelumnya: kategori yang naik ▲ atau turun ▼.
+- Pengeluaran per anggota keluarga (siapa yang mencatat).
+
+Menu pengaturan (**Lainnya**) sekarang dibuka dari ikon ⚙️ di pojok kanan atas Beranda.
+
 ## Mengembangkan
 - Ubah file di `web/`, lalu commit dan push ke `main`. Deploy berjalan otomatis dalam 1–2 menit (pantau di tab **Actions**).
 - Untuk mencoba di komputer sendiri, jalankan server statis, misalnya `npx serve web`, lalu tambahkan `http://localhost:3000` ke **Authorized JavaScript origins** di Google Cloud.
@@ -81,8 +101,8 @@ Kunci Gemini disimpan di sheet **Pengaturan** pada spreadsheet keluarga. Model d
 ## Struktur data (spreadsheet)
 
 - **Transaksi:** ID, Tanggal, Tipe (Pemasukan/Pengeluaran/Transfer), Jumlah, Kategori, Dompet, Dompet Tujuan, Catatan, Dibuat Oleh, Dibuat Pada, Diubah Pada
-- **Kategori:** Nama, Tipe, Ikon
-- **Dompet:** Nama, Ikon, Saldo Awal
+- **Kategori:** Nama, Tipe, Ikon, Anggaran (batas per bulan, khusus pengeluaran)
+- **Dompet:** Nama, Ikon, Saldo Awal, Jenis (Dompet/Tabungan), Target, Tenggat
 - **Pengaturan:** Kunci, Nilai (kunci API Gemini, model)
 
 Saldo dompet dihitung otomatis: saldo awal + pemasukan − pengeluaran ± transfer.
@@ -92,6 +112,6 @@ Jangan mengubah nama sheet atau urutan kolom secara manual, karena aplikasi memb
 - [x] Tahap 1: catat transaksi, kategori, dompet, riwayat, ringkasan bulanan, dipakai berdua
 - [x] Tahap 2: input dari foto struk (kamera/galeri), dibaca berlapis (AI + OCR)
 - [x] Pindah ke GitHub Pages dengan deploy otomatis
-- [ ] Tahap 3: tabungan (dengan target dan tanpa batas) dan anggaran per kategori
-- [ ] Tahap 4: laporan dan grafik
+- [x] Tahap 3: tabungan (dengan target dan tanpa batas) dan anggaran per kategori
+- [x] Tahap 4: laporan dan grafik
 - [ ] Tahap 5: bot Telegram dengan AI (bahasa bebas, CRUD, kirim foto struk)

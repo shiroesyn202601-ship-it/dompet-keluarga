@@ -1,5 +1,6 @@
 const PILIHAN_IKON = ['🍜', '🛒', '⛽', '🚗', '🛵', '💡', '🏠', '💊', '📚', '👶', '🍼', '🎬', '👕', '🤲', '📦', '☕',
-  '🎮', '✈️', '🐱', '📞', '🔧', '🧾', '💼', '🎁', '🏪', '📈', '💰', '💵', '🏦', '📱', '💳', '👛'];
+  '🎮', '✈️', '🐱', '📞', '🔧', '🧾', '💼', '🎁', '🏪', '📈', '💰', '💵', '🏦', '📱', '💳', '👛',
+  '🐷', '🎯', '🏖️', '🎓', '💍', '🕋', '🏍️', '🛡️'];
 
 const S = {
   data: null,
@@ -8,6 +9,8 @@ const S = {
   filterTipe: 'Semua',
   cari: '',
   gabung: '', // ID spreadsheet dari link undangan (#gabung=...)
+  tahun: new Date().getFullYear(), // tahun yang dilihat di Laporan
+  lapKategori: 'bulan',            // Laporan → pengeluaran per kategori: 'bulan' | 'tahun'
 };
 let F = null; // state form yang sedang terbuka
 
@@ -36,6 +39,21 @@ function keTanggal(s) {
 function rp(n) {
   return (n < 0 ? '−Rp' : 'Rp') + new Intl.NumberFormat('id-ID').format(Math.abs(n));
 }
+/** Nominal ringkas untuk sumbu grafik: 1,5jt, 250rb. */
+function rpPendek(n) {
+  const f = (x, s) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(x) + s;
+  const a = Math.abs(n);
+  if (a >= 1e9) return f(n / 1e9, 'M');
+  if (a >= 1e6) return f(n / 1e6, 'jt');
+  if (a >= 1e3) return f(n / 1e3, 'rb');
+  return String(n);
+}
+function formatAngka(n) {
+  return n ? new Intl.NumberFormat('id-ID').format(n) : '';
+}
+const dompetBiasa = () => S.data.dompet.filter(w => w.jenis !== JENIS.TABUNGAN);
+const daftarTabungan = () => S.data.dompet.filter(w => w.jenis === JENIS.TABUNGAN);
+const adalahTabungan = nama => S.data.dompet.some(w => w.nama === nama && w.jenis === JENIS.TABUNGAN);
 function angka(s) {
   return Number(String(s).replace(/\D/g, '')) || 0;
 }
@@ -143,7 +161,7 @@ function viewGagal(e) {
 }
 
 function render() {
-  const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, lainnya: viewLainnya }[S.tab];
+  const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, laporan: viewLaporan, lainnya: viewLainnya }[S.tab];
   $('#view').innerHTML = view();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
 }
@@ -162,6 +180,8 @@ function itemTrx(t) {
   if (t.tipe === TIPE.MASUK) { kelas = 'masuk'; tanda = '+'; }
   if (t.tipe === TIPE.TRANSFER) {
     judul = 'Transfer'; ikon = '🔁'; kelas = 'transfer'; tanda = '';
+    if (adalahTabungan(t.dompetTujuan)) { judul = 'Setor tabungan'; ikon = ikonDompet(t.dompetTujuan); }
+    else if (adalahTabungan(t.dompet)) { judul = 'Tarik tabungan'; ikon = ikonDompet(t.dompet); }
     sub = [`${t.dompet} → ${t.dompetTujuan}`, t.catatan].filter(Boolean).join(' · ');
   }
   return `<button class="trx" data-aksi="edit-trx" data-id="${esc(t.id)}">
@@ -175,6 +195,58 @@ function kosong(ikon, teks) {
   return `<div class="kosong"><span>${ikon}</span>${teks}</div>`;
 }
 
+/** Bar horizontal berperingkat, satu warna. items: [{ ikon, nama, nilai }] sudah terurut besar → kecil. */
+function barBerperingkat(items, totalUntukPersen) {
+  const maks = Math.max(1, ...items.map(x => x.nilai));
+  return items.map(x => `
+    <div class="bar-item">
+      <span class="ikon">${esc(x.ikon)}</span>
+      <span class="nama">${esc(x.nama)}</span>
+      <span class="nilai">${rp(x.nilai)}${totalUntukPersen ? ` <small>${Math.round(x.nilai / totalUntukPersen * 100)}%</small>` : ''}</span>
+      <div class="bar"><i style="width:${Math.max(2, x.nilai / maks * 100)}%"></i></div>
+    </div>`).join('');
+}
+
+/** Status anggaran selalu berupa ikon + teks, tidak hanya warna. */
+function statusAnggaran(terpakai, batas) {
+  if (terpakai > batas) return { kelas: 'lewat', teks: `⛔ Lewat ${rp(terpakai - batas)}` };
+  if (terpakai >= batas * 0.8) return { kelas: 'hampir', teks: `⚠️ Hampir habis · sisa ${rp(batas - terpakai)}` };
+  return { kelas: '', teks: `Sisa ${rp(batas - terpakai)}` };
+}
+
+function meterAnggaran(ikon, nama, terpakai, batas) {
+  const s = statusAnggaran(terpakai, batas);
+  return `
+    <div class="bar-item">
+      <span class="ikon">${esc(ikon)}</span>
+      <span class="nama">${esc(nama)}</span>
+      <span class="nilai">${rp(terpakai)} <small>/ ${rp(batas)}</small></span>
+      <div class="meter ${s.kelas}" role="meter" aria-label="${esc(nama)}" aria-valuemin="0" aria-valuemax="${batas}" aria-valuenow="${terpakai}">
+        <i style="width:${Math.min(100, terpakai / batas * 100)}%"></i></div>
+      <small class="ket">${s.teks}</small>
+    </div>`;
+}
+
+function kartuAnggaran(perKategori) {
+  const daftar = S.data.kategori.filter(k => k.tipe === TIPE.KELUAR && k.anggaran > 0);
+  if (!daftar.length) {
+    return `<section class="kartu">
+      <h3>Anggaran bulanan <button data-aksi="atur-anggaran">Atur</button></h3>
+      <p class="info-kecil" style="text-align:left;margin:0">Belum ada anggaran. Ketuk <b>Atur</b> untuk memberi batas belanja per kategori setiap bulan.</p>
+    </section>`;
+  }
+  const pakai = k => perKategori[k.nama] || 0;
+  const totalBatas = daftar.reduce((a, k) => a + k.anggaran, 0);
+  const totalPakai = daftar.reduce((a, k) => a + pakai(k), 0);
+  const urut = daftar.slice().sort((a, b) => pakai(b) / b.anggaran - pakai(a) / a.anggaran);
+  return `<section class="kartu">
+    <h3>Anggaran bulan ini <button data-aksi="atur-anggaran">Atur</button></h3>
+    ${meterAnggaran('📊', 'Total', totalPakai, totalBatas)}
+    <div class="pemisah"></div>
+    ${urut.map(k => meterAnggaran(k.ikon, k.nama, pakai(k), k.anggaran)).join('')}
+  </section>`;
+}
+
 // ---------- Halaman: Beranda ----------
 
 function viewBeranda() {
@@ -182,40 +254,42 @@ function viewBeranda() {
   const trx = d.transaksi;
   const masuk = total(trx, TIPE.MASUK);
   const keluar = total(trx, TIPE.KELUAR);
-  const saldo = d.dompet.reduce((a, w) => a + w.saldo, 0);
+  const saldo = dompetBiasa().reduce((a, w) => a + w.saldo, 0);
+  const tabungan = daftarTabungan();
+  const totalTabungan = tabungan.reduce((a, w) => a + w.saldo, 0);
 
   const perKategori = {};
   trx.filter(t => t.tipe === TIPE.KELUAR).forEach(t => {
     perKategori[t.kategori] = (perKategori[t.kategori] || 0) + t.jumlah;
   });
   const urut = Object.entries(perKategori).sort((a, b) => b[1] - a[1]);
-  const terbesar = urut.length ? urut[0][1] : 1;
 
   return `
     <div class="kepala">
-      <div><small>Halo,</small><h1>${esc(namaPendek(d.user))} 👋</h1></div>
-      ${pemilihBulan()}
+      <div class="sapa"><small>Halo,</small><h1>${esc(namaPendek(d.user))} 👋</h1></div>
+      <div class="kepala-kanan">
+        ${pemilihBulan()}
+        <button class="tombol-ikon" data-aksi="tab" data-tab="lainnya" aria-label="Pengaturan">⚙️</button>
+      </div>
     </div>
 
     <section class="kartu kartu-saldo">
-      <small>Total saldo semua dompet</small>
+      <small>Total saldo dompet</small>
       <div class="besar">${rp(saldo)}</div>
       <div class="ringkas">
         <div><small>Pemasukan</small><b>${rp(masuk)}</b></div>
         <div><small>Pengeluaran</small><b>${rp(keluar)}</b></div>
       </div>
       <div class="selisih">Selisih bulan ini: <b>${rp(masuk - keluar)}</b></div>
+      ${tabungan.length ? `<button class="selisih tautan-putih" data-aksi="tab" data-tab="dompet">🐷 Tabungan: <b>${rp(totalTabungan)}</b> ›</button>` : ''}
     </section>
+
+    ${kartuAnggaran(perKategori)}
 
     <section class="kartu">
       <h3>Pengeluaran per kategori</h3>
-      ${urut.length ? urut.map(([nama, n]) => `
-        <div class="bar-item">
-          <span class="ikon">${esc(ikonKategori(nama, TIPE.KELUAR))}</span>
-          <span class="nama">${esc(nama)}</span>
-          <span class="nilai">${rp(n)}</span>
-          <div class="bar"><i style="width:${Math.max(3, n / terbesar * 100)}%"></i></div>
-        </div>`).join('') : kosong('🧾', 'Belum ada pengeluaran bulan ini.')}
+      ${urut.length ? barBerperingkat(urut.map(([nama, n]) => ({ ikon: ikonKategori(nama, TIPE.KELUAR), nama, nilai: n })))
+        : kosong('🧾', 'Belum ada pengeluaran bulan ini.')}
     </section>
 
     <section class="kartu">
@@ -256,23 +330,240 @@ function viewRiwayat() {
 // ---------- Halaman: Dompet ----------
 
 function viewDompet() {
-  const d = S.data;
-  const saldo = d.dompet.reduce((a, w) => a + w.saldo, 0);
+  const dompet = dompetBiasa();
+  const tabungan = daftarTabungan();
+  const saldo = dompet.reduce((a, w) => a + w.saldo, 0);
+  const totalTabungan = tabungan.reduce((a, w) => a + w.saldo, 0);
   return `
-    <div class="kepala"><h1>Dompet</h1></div>
+    <div class="kepala"><h1>Dompet & Tabungan</h1></div>
     <section class="kartu kartu-saldo">
-      <small>Total saldo</small>
+      <small>Total saldo dompet</small>
       <div class="besar" style="margin-bottom:0">${rp(saldo)}</div>
+      ${tabungan.length ? `<div class="selisih">🐷 Total tabungan: <b>${rp(totalTabungan)}</b></div>` : ''}
     </section>
+
+    <h2 class="judul-bagian">Dompet</h2>
     <section class="kartu" style="padding:4px 16px">
-      ${d.dompet.map(w => `
+      ${dompet.map(w => `
         <button class="baris" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">
           <span class="ikon-bulat">${esc(w.ikon)}</span>
           <span class="isi"><b>${esc(w.nama)}</b><small>Saldo awal ${rp(w.saldoAwal)}</small></span>
           <b class="nominal ${w.saldo < 0 ? 'keluar' : ''}">${rp(w.saldo)}</b>
         </button>`).join('') || kosong('👛', 'Belum ada dompet.')}
     </section>
-    <button class="tombol-tambah" data-aksi="tambah-dompet">＋ Tambah dompet</button>`;
+    <button class="tombol-tambah" data-aksi="tambah-dompet">＋ Tambah dompet</button>
+
+    <h2 class="judul-bagian">Tabungan</h2>
+    ${tabungan.length
+      ? `<section class="kartu" style="padding:4px 16px">${tabungan.map(itemTabungan).join('')}</section>`
+      : `<section class="kartu">${kosong('🐷', 'Belum ada tabungan. Buat tabungan dengan target (mis. dana darurat, liburan) atau tanpa batas.')}</section>`}
+    <button class="tombol-tambah" data-aksi="tambah-tabungan">＋ Tambah tabungan</button>`;
+}
+
+function tanggalPendek(s) {
+  return keTanggal(s).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** Progres tabungan: { persen, teks }. Tanpa target → persen null. */
+function progresTabungan(w) {
+  if (!w.target) return { persen: null, teks: 'Tanpa target' };
+  const persen = Math.max(0, Math.min(100, Math.floor(w.saldo / w.target * 100)));
+  if (w.saldo >= w.target) return { persen: 100, teks: `🎉 Target ${rp(w.target)} tercapai` };
+  const sisa = w.target - w.saldo;
+  let teks = `${persen}% dari ${rp(w.target)} · kurang ${rp(sisa)}`;
+  if (w.tenggat) {
+    if (w.tenggat < hariIni()) {
+      teks += ` · ⚠️ lewat tenggat ${tanggalPendek(w.tenggat)}`;
+    } else {
+      const [y1, m1] = hariIni().split('-').map(Number);
+      const [y2, m2] = w.tenggat.split('-').map(Number);
+      const bulanLagi = Math.max(1, (y2 - y1) * 12 + (m2 - m1));
+      teks += ` · ${rp(Math.ceil(sisa / bulanLagi))}/bulan s.d. ${tanggalPendek(w.tenggat)}`;
+    }
+  }
+  return { persen, teks };
+}
+
+function itemTabungan(w) {
+  const p = progresTabungan(w);
+  return `
+    <button class="baris" data-aksi="buka-tabungan" data-nama="${esc(w.nama)}">
+      <span class="ikon-bulat">${esc(w.ikon)}</span>
+      <span class="isi"><b>${esc(w.nama)}</b>
+        ${p.persen !== null ? `<span class="meter" role="meter" aria-label="${esc(w.nama)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.persen}"><i style="width:${p.persen}%"></i></span>` : ''}
+        <small>${esc(p.teks)}</small></span>
+      <b class="nominal">${rp(w.saldo)}</b>
+    </button>`;
+}
+
+// ---------- Halaman: Laporan ----------
+
+const NAMA_BULAN_PENDEK = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString('id-ID', { month: 'short' }));
+const RINGKAS_KOSONG = { masuk: 0, keluar: 0, ditabung: 0, kategori: {}, oleh: {} };
+const ringkasBulan = k => S.data.bulanan[k] || RINGKAS_KOSONG;
+
+function bulanSebelum(k) {
+  const d = keTanggal(k);
+  d.setMonth(d.getMonth() - 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function viewLaporan() {
+  const th = S.tahun;
+  const bulan = Array.from({ length: 12 }, (_, i) => th + '-' + String(i + 1).padStart(2, '0'));
+  const data = bulan.map(ringkasBulan);
+  const jumlah = f => data.reduce((a, x) => a + x[f], 0);
+  const masuk = jumlah('masuk');
+  const keluar = jumlah('keluar');
+  const ditabung = jumlah('ditabung');
+  const bulanAktif = data.filter(x => x.masuk || x.keluar).length;
+  const rasio = masuk ? Math.round((masuk - keluar) / masuk * 100) : null;
+  const pilih = S.bulan.slice(0, 4) === String(th) ? S.bulan : bulan[11];
+  const r = ringkasBulan(pilih);
+  const tile = (label, nilai, ket) => `<div class="tile"><small>${label}</small><b>${nilai}</b>${ket ? `<span>${ket}</span>` : ''}</div>`;
+
+  return `
+    <div class="kepala">
+      <h1>Laporan</h1>
+      <div class="pemilih-bulan">
+        <button data-aksi="tahun" data-geser="-1" aria-label="Tahun sebelumnya">‹</button>
+        <span>${th}</span>
+        <button data-aksi="tahun" data-geser="1" aria-label="Tahun berikutnya">›</button>
+      </div>
+    </div>
+
+    <div class="kpi">
+      ${tile('Pemasukan ' + th, rp(masuk))}
+      ${tile('Pengeluaran ' + th, rp(keluar))}
+      ${tile('Selisih', rp(masuk - keluar), rasio !== null ? `${rasio}% dari pemasukan` : '')}
+      ${tile('Rata-rata pengeluaran', rp(Math.round(keluar / Math.max(1, bulanAktif))), 'per bulan')}
+      ${ditabung ? tile('Masuk tabungan', rp(ditabung), 'setoran − penarikan') : ''}
+    </div>
+
+    <section class="kartu">
+      <h3>Pemasukan & pengeluaran per bulan</h3>
+      <div class="legenda"><span><i class="sw seri-1"></i>Pemasukan</span><span><i class="sw seri-2"></i>Pengeluaran</span></div>
+      ${grafikBulanan(bulan, data, pilih)}
+      <p class="detail-bulan"><b>${esc(namaBulan(pilih))}</b> · Pemasukan ${rp(r.masuk)} · Pengeluaran ${rp(r.keluar)}
+        <br><small>Ketuk bulan di grafik untuk melihat rinciannya.</small></p>
+      <details class="tabel-data">
+        <summary>Lihat sebagai tabel</summary>
+        <table>
+          <thead><tr><th>Bulan</th><th>Pemasukan</th><th>Pengeluaran</th><th>Selisih</th></tr></thead>
+          <tbody>${data.map((x, i) => `<tr><td>${NAMA_BULAN_PENDEK[i]}</td><td>${rp(x.masuk)}</td><td>${rp(x.keluar)}</td><td>${rp(x.masuk - x.keluar)}</td></tr>`).join('')}</tbody>
+        </table>
+      </details>
+    </section>
+
+    ${kartuKategoriLaporan(pilih, data)}
+    ${kartuBanding(pilih)}
+    ${kartuAnggota(pilih)}`;
+}
+
+/** Grafik batang berkelompok: 2 seri, satu sumbu, ujung atas membulat 4px, celah 2px antar batang. */
+function grafikBulanan(bulan, data, pilih) {
+  const W = 340, H = 190, kiri = 36, bawah = 22, atas = 8;
+  const tinggi = H - bawah - atas;
+  const skala = angkaBulat(Math.max(1, ...data.map(x => Math.max(x.masuk, x.keluar))));
+  const y = v => atas + tinggi - v / skala * tinggi;
+  const lebarGrup = (W - kiri) / 12;
+  const bw = Math.min(10, (lebarGrup - 8) / 2);
+  const dasar = y(0);
+
+  const grid = [skala / 2, skala].map(v => `
+    <line class="grid" x1="${kiri}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/>
+    <text class="sumbu" x="${kiri - 6}" y="${y(v) + 3}" text-anchor="end">${rpPendek(v)}</text>`).join('');
+
+  const grup = bulan.map((k, i) => {
+    const x0 = kiri + i * lebarGrup;
+    const cx = x0 + lebarGrup / 2;
+    const d = data[i];
+    const aktif = k === pilih;
+    return `
+      ${aktif ? `<rect class="pilih" x="${x0 + 1}" y="${atas}" width="${lebarGrup - 2}" height="${tinggi}" rx="6"/>` : ''}
+      ${batang(cx - 1 - bw, y(d.masuk), bw, dasar, 'seri-1')}
+      ${batang(cx + 1, y(d.keluar), bw, dasar, 'seri-2')}
+      <text class="sumbu ${aktif ? 'aktif' : ''}" x="${cx}" y="${H - 6}" text-anchor="middle">${NAMA_BULAN_PENDEK[i]}</text>
+      <rect class="hit" x="${x0}" y="0" width="${lebarGrup}" height="${H}" data-aksi="lap-bulan" data-bulan="${k}">
+        <title>${namaBulan(k)}: pemasukan ${rp(d.masuk)}, pengeluaran ${rp(d.keluar)}</title></rect>`;
+  }).join('');
+
+  return `<svg class="grafik" viewBox="0 0 ${W} ${H}" role="img" aria-label="Pemasukan dan pengeluaran per bulan">
+    ${grid}<line class="dasar" x1="${kiri}" x2="${W}" y1="${dasar}" y2="${dasar}"/>${grup}</svg>`;
+}
+
+/** Batang vertikal dengan sudut atas membulat, menempel di garis dasar. */
+function batang(x, yAtas, w, yDasar, kelas) {
+  const h = yDasar - yAtas;
+  if (h < 0.5) return '';
+  const r = Math.min(4, h, w / 2);
+  return `<path class="${kelas}" d="M${x},${yDasar} V${yAtas + r} Q${x},${yAtas} ${x + r},${yAtas} H${x + w - r} Q${x + w},${yAtas} ${x + w},${yAtas + r} V${yDasar} Z"/>`;
+}
+
+/** Membulatkan ke atas ke angka "rapi" untuk batas sumbu: 1, 2, 2,5, 5 × 10^n. */
+function angkaBulat(v) {
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+}
+
+function kartuKategoriLaporan(pilih, data) {
+  const setahun = S.lapKategori === 'tahun';
+  const per = {};
+  (setahun ? data : [ringkasBulan(pilih)]).forEach(x => {
+    Object.keys(x.kategori).forEach(n => { per[n] = (per[n] || 0) + x.kategori[n]; });
+  });
+  const urut = Object.keys(per).map(n => ({ ikon: ikonKategori(n, TIPE.KELUAR), nama: n, nilai: per[n] })).sort((a, b) => b.nilai - a.nilai);
+  const total = urut.reduce((a, x) => a + x.nilai, 0);
+  return `<section class="kartu">
+    <h3>Pengeluaran per kategori</h3>
+    <div class="chips">
+      <button class="chip ${setahun ? '' : 'aktif'}" data-aksi="lap-kategori" data-mode="bulan">${esc(namaBulan(pilih))}</button>
+      <button class="chip ${setahun ? 'aktif' : ''}" data-aksi="lap-kategori" data-mode="tahun">Setahun ${S.tahun}</button>
+    </div>
+    ${urut.length ? barBerperingkat(urut, total) : kosong('🧾', 'Belum ada pengeluaran.')}
+  </section>`;
+}
+
+function kartuBanding(pilih) {
+  const lalu = bulanSebelum(pilih);
+  const a = ringkasBulan(pilih).kategori;
+  const b = ringkasBulan(lalu).kategori;
+  const baris = Array.from(new Set(Object.keys(a).concat(Object.keys(b))))
+    .map(n => ({ nama: n, kini: a[n] || 0, lalu: b[n] || 0 }))
+    .map(x => Object.assign(x, { selisih: x.kini - x.lalu }))
+    .filter(x => x.selisih)
+    .sort((p, q) => Math.abs(q.selisih) - Math.abs(p.selisih))
+    .slice(0, 6);
+  const delta = (s, dasar) => {
+    if (!s) return 'sama';
+    const persen = dasar ? ` (${s > 0 ? '+' : '−'}${Math.abs(Math.round(s / dasar * 100))}%)` : ' (baru)';
+    return `<span class="${s > 0 ? 'naik' : 'turun'}">${s > 0 ? '▲' : '▼'} ${rp(Math.abs(s))}${persen}</span>`;
+  };
+  const totKini = ringkasBulan(pilih).keluar;
+  const totLalu = ringkasBulan(lalu).keluar;
+  return `<section class="kartu">
+    <h3>Dibanding ${esc(namaBulan(lalu))}</h3>
+    <div class="banding"><span class="isi"><b>Total pengeluaran</b><small>${rp(totLalu)} → ${rp(totKini)}</small></span>${delta(totKini - totLalu, totLalu)}</div>
+    ${baris.map(x => `
+      <div class="banding">
+        <span class="ikon">${esc(ikonKategori(x.nama, TIPE.KELUAR))}</span>
+        <span class="isi"><b>${esc(x.nama)}</b><small>${rp(x.lalu)} → ${rp(x.kini)}</small></span>
+        ${delta(x.selisih, x.lalu)}
+      </div>`).join('') || '<p class="info-kecil">Tidak ada perubahan per kategori.</p>'}
+    <p class="info-kecil" style="text-align:left">▲ pengeluaran naik · ▼ pengeluaran turun</p>
+  </section>`;
+}
+
+function kartuAnggota(pilih) {
+  const oleh = ringkasBulan(pilih).oleh;
+  const urut = Object.keys(oleh).map(e => ({ ikon: '👤', nama: e === '?' ? 'Tidak diketahui' : namaPendek(e), nilai: oleh[e] }))
+    .sort((a, b) => b.nilai - a.nilai);
+  if (urut.length < 2) return '';
+  return `<section class="kartu">
+    <h3>Pengeluaran per anggota · ${esc(namaBulan(pilih))}</h3>
+    ${barBerperingkat(urut, urut.reduce((a, x) => a + x.nilai, 0))}
+  </section>`;
 }
 
 // ---------- Halaman: Setup pertama kali ----------
@@ -313,12 +604,20 @@ function viewSetup() {
 function viewLainnya() {
   const d = S.data;
   return `
-    <div class="kepala"><h1>Lainnya</h1></div>
+    <div class="kepala kepala-kembali">
+      <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="Kembali">‹</button>
+      <h1>Lainnya</h1>
+    </div>
     <section class="kartu" style="padding:4px 16px">
       <button class="baris" data-aksi="keluar">
         <span class="ikon-bulat">👤</span>
         <span class="isi"><b>${esc(namaPendek(d.user))}</b><small>${esc(d.user)}</small></span>
         <span class="panah" style="font-size:13px">Keluar</span>
+      </button>
+      <button class="baris" data-aksi="atur-anggaran">
+        <span class="ikon-bulat">🎯</span>
+        <span class="isi"><b>Anggaran bulanan</b><small>Batas belanja per kategori</small></span>
+        <span class="panah">›</span>
       </button>
       <button class="baris" data-aksi="kelola-kategori">
         <span class="ikon-bulat">🏷️</span>
@@ -389,20 +688,23 @@ function gridIkon(terpilih) {
 
 // ---------- Form transaksi ----------
 
-function bukaFormTrx(t) {
-  const dompetPertama = S.data.dompet[0] ? S.data.dompet[0].nama : '';
-  F = t ? Object.assign({}, t) : {
-    tipe: TIPE.KELUAR, jumlah: 0, kategori: '', dompet: dompetPertama, dompetTujuan: '',
+/** preset: isian awal untuk transaksi baru, mis. setor/tarik tabungan. */
+function bukaFormTrx(t, preset, judul) {
+  const pertama = dompetBiasa()[0];
+  F = t ? Object.assign({}, t) : Object.assign({
+    tipe: TIPE.KELUAR, jumlah: 0, kategori: '', dompet: pertama ? pertama.nama : '', dompetTujuan: '',
     tanggal: hariIni(), catatan: '',
-  };
-  bukaSheet(t ? 'Ubah Transaksi' : 'Catat Transaksi', '<div id="form-trx"></div>');
+  }, preset);
+  bukaSheet(t ? 'Ubah Transaksi' : judul || 'Catat Transaksi', '<div id="form-trx"></div>');
   renderFormTrx();
   if (!t) setTimeout(() => $('#f-jumlah') && $('#f-jumlah').focus(), 250);
 }
 
 function renderFormTrx() {
   const kategori = S.data.kategori.filter(k => k.tipe === F.tipe);
-  const pilihDompet = (aksi, terpilih) => `<div class="grid-pilih">${S.data.dompet.map(w =>
+  // Tabungan hanya muncul untuk Transfer (setor/tarik); pemasukan & pengeluaran memakai dompet biasa.
+  const pilihDompet = (aksi, terpilih, termasukTabungan) => `<div class="grid-pilih">${S.data.dompet
+    .filter(w => termasukTabungan || w.jenis !== JENIS.TABUNGAN || w.nama === terpilih).map(w =>
     `<button type="button" class="pilihan ${w.nama === terpilih ? 'aktif' : ''}" data-aksi="${aksi}" data-nama="${esc(w.nama)}">
       <span>${esc(w.ikon)}</span>${esc(w.nama)}</button>`).join('')}</div>`;
 
@@ -432,13 +734,13 @@ function renderFormTrx() {
 
     <div class="grup-form">
       <span class="label">${F.tipe === TIPE.TRANSFER ? 'Dari dompet' : 'Dompet'}</span>
-      ${pilihDompet('f-dompet', F.dompet)}
+      ${pilihDompet('f-dompet', F.dompet, F.tipe === TIPE.TRANSFER)}
     </div>
 
     ${F.tipe === TIPE.TRANSFER ? `
       <div class="grup-form">
         <span class="label">Ke dompet</span>
-        ${pilihDompet('f-tujuan', F.dompetTujuan)}
+        ${pilihDompet('f-tujuan', F.dompetTujuan, true)}
       </div>` : ''}
 
     <div class="grup-form">
@@ -554,24 +856,73 @@ function bukaFormGemini() {
 
 // ---------- Form dompet ----------
 
-function bukaFormDompet(w) {
-  F = { namaLama: w ? w.nama : '', ikon: w ? w.ikon : '👛' };
-  bukaSheet(w ? 'Ubah Dompet' : 'Tambah Dompet', `
+/** Form dompet biasa maupun tabungan (jenis diambil dari w, atau dari parameter untuk yang baru). */
+function bukaFormDompet(w, jenis) {
+  jenis = w ? w.jenis : jenis || JENIS.DOMPET;
+  const tab = jenis === JENIS.TABUNGAN;
+  const sebutan = tab ? 'tabungan' : 'dompet';
+  F = { namaLama: w ? w.nama : '', ikon: w ? w.ikon : (tab ? '🐷' : '👛'), jenis };
+  bukaSheet((w ? 'Ubah ' : 'Tambah ') + (tab ? 'Tabungan' : 'Dompet'), `
     <div class="grup-form">
-      <label class="label" for="d-nama">Nama dompet</label>
-      <input class="field" id="d-nama" maxlength="40" placeholder="mis. BCA, GoPay, Celengan" value="${esc(w ? w.nama : '')}">
+      <label class="label" for="d-nama">Nama ${sebutan}</label>
+      <input class="field" id="d-nama" maxlength="40" placeholder="${tab ? 'mis. Dana Darurat, Liburan, Umroh' : 'mis. BCA, GoPay, Celengan'}" value="${esc(w ? w.nama : '')}">
     </div>
     <div class="grup-form">
-      <label class="label" for="d-saldo">Saldo awal</label>
-      <input class="field" id="d-saldo" inputmode="numeric" placeholder="0"
-        value="${w && w.saldoAwal ? new Intl.NumberFormat('id-ID').format(w.saldoAwal) : ''}">
-      <p class="info-kecil" style="text-align:left">Isi dengan saldo saat Anda mulai memakai aplikasi ini.</p>
+      <label class="label" for="d-saldo">${tab ? 'Sudah terkumpul' : 'Saldo awal'}</label>
+      <input class="field" id="d-saldo" inputmode="numeric" placeholder="0" value="${formatAngka(w && w.saldoAwal)}">
+      <p class="info-kecil" style="text-align:left">${tab ? 'Jumlah yang sudah ada sebelum dicatat di aplikasi ini.' : 'Isi dengan saldo saat Anda mulai memakai aplikasi ini.'}</p>
     </div>
+    ${tab ? `
+      <div class="grup-form">
+        <label class="label" for="d-target">Target (opsional)</label>
+        <input class="field" id="d-target" inputmode="numeric" placeholder="Tanpa batas" value="${formatAngka(w && w.target)}">
+        <p class="info-kecil" style="text-align:left">Kosongkan untuk tabungan tanpa batas.</p>
+      </div>
+      <div class="grup-form">
+        <label class="label" for="d-tenggat">Ingin tercapai pada (opsional)</label>
+        <input class="field" id="d-tenggat" type="date" value="${esc(w ? w.tenggat : '')}">
+      </div>` : ''}
     <div class="grup-form"><span class="label">Ikon</span>${gridIkon(F.ikon)}</div>
     <div class="aksi-form">
       ${w ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-dompet">Hapus</button>' : ''}
       <button type="button" class="btn btn-utama" data-aksi="simpan-dompet">Simpan</button>
     </div>`);
+}
+
+function bukaTabungan(w) {
+  const p = progresTabungan(w);
+  bukaSheet(w.nama, `
+    <div class="ringkas-tabungan">
+      <span class="ikon-bulat">${esc(w.ikon)}</span>
+      <div><small>Terkumpul</small><b>${rp(w.saldo)}</b></div>
+    </div>
+    ${p.persen !== null ? `<span class="meter" role="meter" aria-label="${esc(w.nama)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.persen}"><i style="width:${p.persen}%"></i></span>` : ''}
+    <p class="info-kecil" style="text-align:left;margin:8px 0 16px">${esc(p.teks)}</p>
+    <div class="aksi-form">
+      <button type="button" class="btn btn-hapus" data-aksi="tarik-tabungan" data-nama="${esc(w.nama)}">Tarik</button>
+      <button type="button" class="btn btn-utama" data-aksi="setor-tabungan" data-nama="${esc(w.nama)}">Setor</button>
+    </div>
+    <button type="button" class="tombol-tambah" style="margin-top:12px" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">✏️ Ubah tabungan</button>`);
+}
+
+function bukaFormAnggaran() {
+  const daftar = S.data.kategori.filter(k => k.tipe === TIPE.KELUAR);
+  bukaSheet('Anggaran Bulanan', `
+    <p class="info-kecil" style="text-align:left;margin:0 0 8px">Batas belanja per kategori setiap bulan. Kosongkan kategori yang tidak perlu dibatasi.</p>
+    ${daftar.map(k => `
+      <label class="baris baris-input">
+        <span class="ikon-bulat">${esc(k.ikon)}</span>
+        <span class="isi"><b>${esc(k.nama)}</b></span>
+        <input class="field input-rp input-anggaran" data-nama="${esc(k.nama)}" inputmode="numeric" placeholder="Tanpa batas" value="${formatAngka(k.anggaran)}">
+      </label>`).join('')}
+    <p class="info-kecil" id="total-anggaran"></p>
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-anggaran">Simpan</button></div>`);
+  hitungTotalAnggaran();
+}
+
+function hitungTotalAnggaran() {
+  const total = Array.from(document.querySelectorAll('.input-anggaran')).reduce((a, el) => a + angka(el.value), 0);
+  $('#total-anggaran').textContent = 'Total anggaran per bulan: ' + rp(total);
 }
 
 // ---------- Kelola kategori ----------
@@ -661,16 +1012,54 @@ const AKSI = {
     if (confirm('Hapus transaksi ini?')) kirim(el, 'hapusTransaksi', [F.id], 'Transaksi dihapus');
   },
 
-  'tambah-dompet': () => bukaFormDompet(null),
+  'tambah-dompet': () => bukaFormDompet(null, JENIS.DOMPET),
+  'tambah-tabungan': () => bukaFormDompet(null, JENIS.TABUNGAN),
   'edit-dompet': el => bukaFormDompet(S.data.dompet.find(w => w.nama === el.dataset.nama)),
+  'buka-tabungan': el => bukaTabungan(S.data.dompet.find(w => w.nama === el.dataset.nama)),
   'simpan-dompet': el => {
+    const tab = F.jenis === JENIS.TABUNGAN;
     const nama = $('#d-nama').value.trim();
-    if (!nama) return toast('Isi nama dompet dulu.', true);
-    kirim(el, 'simpanDompet', [{ namaLama: F.namaLama, nama, ikon: F.ikon, saldoAwal: angka($('#d-saldo').value) }], 'Dompet tersimpan ✔');
+    if (!nama) return toast('Isi nama ' + (tab ? 'tabungan' : 'dompet') + ' dulu.', true);
+    kirim(el, 'simpanDompet', [{
+      namaLama: F.namaLama, nama, ikon: F.ikon, jenis: F.jenis,
+      saldoAwal: angka($('#d-saldo').value),
+      target: tab ? angka($('#d-target').value) : 0,
+      tenggat: tab ? $('#d-tenggat').value : '',
+    }], (tab ? 'Tabungan' : 'Dompet') + ' tersimpan ✔');
   },
   'hapus-dompet': el => {
-    if (confirm('Hapus dompet "' + F.namaLama + '"?')) kirim(el, 'hapusDompet', [F.namaLama], 'Dompet dihapus');
+    if (confirm('Hapus "' + F.namaLama + '"?')) kirim(el, 'hapusDompet', [F.namaLama], 'Dihapus');
   },
+  'setor-tabungan': el => {
+    const pertama = dompetBiasa()[0];
+    if (!pertama) return toast('Buat dompet dulu sebagai sumber setoran.', true);
+    bukaFormTrx(null, { tipe: TIPE.TRANSFER, dompet: pertama.nama, dompetTujuan: el.dataset.nama }, 'Setor ke ' + el.dataset.nama);
+  },
+  'tarik-tabungan': el => {
+    const pertama = dompetBiasa()[0];
+    if (!pertama) return toast('Buat dompet dulu sebagai tujuan penarikan.', true);
+    bukaFormTrx(null, { tipe: TIPE.TRANSFER, dompet: el.dataset.nama, dompetTujuan: pertama.nama }, 'Tarik dari ' + el.dataset.nama);
+  },
+
+  'atur-anggaran': () => bukaFormAnggaran(),
+  'simpan-anggaran': el => {
+    const peta = {};
+    document.querySelectorAll('.input-anggaran').forEach(i => { peta[i.dataset.nama] = angka(i.value); });
+    kirim(el, 'simpanAnggaran', [peta], 'Anggaran tersimpan ✔');
+  },
+
+  'tahun': async el => {
+    S.tahun += Number(el.dataset.geser);
+    S.bulan = S.tahun === new Date().getFullYear() ? bulanSekarang() : S.tahun + '-12';
+    render();
+    muat(); // muat ulang transaksi bulan terpilih untuk tab lain, di latar belakang
+  },
+  'lap-bulan': el => {
+    S.bulan = el.dataset.bulan;
+    render();
+    muat();
+  },
+  'lap-kategori': el => { S.lapKategori = el.dataset.mode; render(); },
 
   'kelola-kategori': () => bukaDaftarKategori(TIPE.KELUAR),
   'daftar-kategori': el => bukaDaftarKategori(el.dataset.tipe),
@@ -805,9 +1194,9 @@ $('#input-struk').addEventListener('change', e => {
 
 // Format ribuan saat mengetik nominal.
 document.addEventListener('input', e => {
-  if (e.target.id === 'f-jumlah' || e.target.id === 'd-saldo') {
-    const n = angka(e.target.value);
-    e.target.value = n ? new Intl.NumberFormat('id-ID').format(n) : '';
+  if (['f-jumlah', 'd-saldo', 'd-target'].includes(e.target.id) || e.target.classList.contains('input-rp')) {
+    e.target.value = formatAngka(angka(e.target.value));
+    if (e.target.classList.contains('input-anggaran')) hitungTotalAnggaran();
   }
   if (e.target.id === 'cari') {
     S.cari = e.target.value;
