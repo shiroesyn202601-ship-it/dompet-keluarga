@@ -309,9 +309,34 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .loading { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(8, 10, 18, .18); }
 .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--primary); animation: putar .8s linear infinite; }
 @keyframes putar { to { transform: rotate(360deg); } }
+/* ---------- Antrian struk (dibaca di latar belakang) ---------- */
+.antrian {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 15;
+  bottom: calc(var(--nav-h) + 22px + env(safe-area-inset-bottom));
+  width: calc(100% - 24px); max-width: 496px; display: flex; flex-direction: column; gap: 8px;
+}
+.antrian-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 9px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-up);
+  animation: muncul .25s cubic-bezier(.2, .8, .2, 1);
+}
+.antrian-item.siap { border-color: color-mix(in srgb, var(--primary) 45%, var(--line)); }
+.antrian-item img, .antrian-ikon { width: 42px; height: 42px; border-radius: 12px; object-fit: cover; flex: none; background: var(--card-2); display: grid; place-items: center; font-size: 20px; }
+.antrian-item .isi { flex: 1; min-width: 0; }
+.antrian-item b { display: block; font-size: 14px; font-weight: 700; }
+.antrian-item small { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.antrian-tutup { width: 28px; height: 28px; border-radius: 50%; color: var(--muted); flex: none; }
+.btn.kecil { flex: none; padding: 9px 14px; font-size: 13px; border-radius: 12px; box-shadow: none; }
+.spinner.kecil { width: 22px; height: 22px; border-width: 2.5px; flex: none; margin: 0 6px; }
+body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-area-inset-bottom)); }
+.struk-proses { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 0 0 16px; border-radius: 16px; background: var(--primary-soft); }
+.struk-proses b { display: block; font-size: 14px; }
+.struk-proses small { display: block; font-size: 12px; color: var(--muted); }
+@keyframes muncul { from { opacity: 0; transform: translateY(12px); } }
+
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 40;
-  bottom: calc(var(--nav-h) + 28px + env(safe-area-inset-bottom));
+  top: calc(14px + env(safe-area-inset-top)); width: max-content;
   background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 16px; font-size: 14px; font-weight: 600;
   max-width: calc(100% - 32px); box-shadow: var(--shadow-up); animation: pudar .2s;
 }

@@ -772,7 +772,10 @@ function renderFormTrx() {
         `<button type="button" class="${F.tipe === t ? 'aktif' : ''}" data-aksi="f-tipe" data-tipe="${t}">${t}</button>`).join('')}
     </div>
 
-    ${!F.id && F.tipe === TIPE.KELUAR ? `
+    ${F.strukJob ? `
+      <div class="struk-proses" role="status"><span class="spinner kecil"></span>
+        <span><b>Membaca struk…</b><small>Isi lain boleh diisi dulu, atau tutup form ini. Hasilnya tetap muncul di bawah layar.</small></span></div>`
+    : !F.id && F.tipe === TIPE.KELUAR ? `
       <button type="button" class="tombol-tambah" style="margin:0 0 16px" data-aksi="foto-struk">📷 Isi otomatis dari foto struk</button>` : ''}
 
     <label class="input-jumlah">
@@ -826,9 +829,17 @@ function bacaFieldTrx() {
   F.catatan = $('#f-catatan').value;
 }
 
-// ---------- Foto struk ----------
+// ---------- Foto struk (dibaca di latar belakang) ----------
 
-/** Mengecilkan foto supaya cepat dikirim; hasilnya base64 JPEG tanpa awalan data URL. */
+/**
+ * Antrian struk yang sedang/selesai dibaca: { id, file, status: 'proses' | 'siap' | 'gagal', thumb, hasil, pesan }.
+ * Pengguna tetap bisa memakai aplikasi; hasilnya muncul di indikator di atas navigasi bawah.
+ */
+const ANTRIAN = [];
+let nomorStruk = 0;
+let sumberStruk = 'cepat'; // 'form' kalau foto dipilih dari dalam form transaksi
+
+/** Mengecilkan foto supaya cepat dikirim. Hasil: { base64 (JPEG tanpa awalan data URL), thumb (data URL kecil) }. */
 function kecilkanGambar(file, maks = 2000) {
   return new Promise((ok, gagal) => {
     const rusak = () => gagal(new Error('Gambar tidak bisa dibuka. Coba foto lain.'));
@@ -838,12 +849,18 @@ function kecilkanGambar(file, maks = 2000) {
       const img = new Image();
       img.onerror = rusak;
       img.onload = () => {
-        const skala = Math.min(1, maks / Math.max(img.width, img.height));
-        const c = document.createElement('canvas');
-        c.width = Math.round(img.width * skala);
-        c.height = Math.round(img.height * skala);
-        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        ok(c.toDataURL('image/jpeg', 0.85).split(',')[1]);
+        const gambar = ukuran => {
+          const skala = Math.min(1, ukuran / Math.max(img.width, img.height));
+          const c = document.createElement('canvas');
+          c.width = Math.round(img.width * skala);
+          c.height = Math.round(img.height * skala);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          return c;
+        };
+        ok({
+          base64: gambar(maks).toDataURL('image/jpeg', 0.85).split(',')[1],
+          thumb: gambar(120).toDataURL('image/jpeg', 0.7),
+        });
       };
       img.src = reader.result;
     };
@@ -851,25 +868,98 @@ function kecilkanGambar(file, maks = 2000) {
   });
 }
 
-async function prosesStruk(file) {
-  loading(true);
-  try {
-    const hasil = await api('bacaStruk', await kecilkanGambar(file), 'image/jpeg');
-    if (!F || !$('#form-trx')) return; // form sudah ditutup
+function mulaiStruk(file, dariForm) {
+  const job = { id: ++nomorStruk, file, status: 'proses', thumb: '', hasil: null, pesan: '' };
+  ANTRIAN.push(job);
+  if (dariForm && F && $('#form-trx')) {
     bacaFieldTrx();
-    F.tipe = TIPE.KELUAR;
-    F.jumlah = hasil.jumlah;
-    if (hasil.tanggal) F.tanggal = hasil.tanggal;
-    if (hasil.kategori) F.kategori = hasil.kategori;
-    if (hasil.catatan) F.catatan = hasil.catatan;
-    F.struk = hasil;
+    F.strukJob = job.id;
     renderFormTrx();
-    toast(hasil.yakin ? 'Struk terbaca ✔ Cek lagi sebelum disimpan.' : 'Struk terbaca, tapi hasilnya kurang pasti. Periksa totalnya.');
-  } catch (e) {
-    toast(pesanError(e), true);
-  } finally {
-    loading(false);
+  } else {
+    toast('🧾 Struk sedang dibaca. Silakan lanjut pakai aplikasi.');
   }
+  jalankanStruk(job);
+}
+
+async function jalankanStruk(job) {
+  job.status = 'proses';
+  job.pesan = '';
+  renderAntrian();
+  try {
+    const g = await kecilkanGambar(job.file);
+    job.thumb = g.thumb;
+    renderAntrian();
+    job.hasil = await api('bacaStruk', g.base64, 'image/jpeg');
+    if (!ANTRIAN.includes(job)) return; // sudah dibuang pengguna
+    job.status = 'siap';
+    if (formMenungguStruk(job)) {
+      terapkanStruk(job);
+      hapusJob(job.id);
+      toast(job.hasil.yakin ? 'Struk terbaca ✔ Cek lagi sebelum disimpan.' : 'Struk terbaca, tapi hasilnya kurang pasti. Periksa totalnya.');
+    } else {
+      getar();
+      toast('🧾 Struk siap ditinjau: ' + rp(job.hasil.jumlah));
+    }
+  } catch (e) {
+    if (!ANTRIAN.includes(job)) return;
+    job.status = 'gagal';
+    job.pesan = pesanError(e);
+    if (formMenungguStruk(job)) {
+      F.strukJob = null;
+      renderFormTrx();
+      toast('Struk gagal dibaca: ' + job.pesan, true);
+    }
+  }
+  renderAntrian();
+}
+
+const formMenungguStruk = job => !!(F && F.strukJob === job.id && $('#form-trx'));
+
+/** Mengisi form transaksi yang sedang terbuka dengan hasil struk. */
+function terapkanStruk(job) {
+  bacaFieldTrx();
+  const h = job.hasil;
+  F.tipe = TIPE.KELUAR;
+  F.jumlah = h.jumlah;
+  if (h.tanggal) F.tanggal = h.tanggal;
+  if (h.kategori) F.kategori = h.kategori;
+  if (h.catatan) F.catatan = h.catatan;
+  F.struk = h;
+  F.strukJob = null;
+  F.dariJob = job.id; // dihapus dari antrian setelah transaksinya disimpan
+  renderFormTrx();
+}
+
+function hapusJob(id) {
+  const i = ANTRIAN.findIndex(j => j.id === Number(id));
+  if (i >= 0) ANTRIAN.splice(i, 1);
+  renderAntrian();
+}
+
+function getar() {
+  try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* abaikan */ }
+}
+
+function renderAntrian() {
+  const el = $('#antrian');
+  el.hidden = !ANTRIAN.length;
+  document.body.classList.toggle('ada-antrian', ANTRIAN.length > 0);
+  el.innerHTML = ANTRIAN.map(j => {
+    const gambar = j.thumb ? `<img src="${j.thumb}" alt="">` : '<span class="antrian-ikon">🧾</span>';
+    let isi, aksi;
+    if (j.status === 'proses') {
+      isi = '<b>Membaca struk…</b><small>Boleh lanjut pakai aplikasi</small>';
+      aksi = '<span class="spinner kecil" aria-label="Sedang memproses"></span>';
+    } else if (j.status === 'siap') {
+      isi = `<b>✅ Struk siap · ${rp(j.hasil.jumlah)}</b><small>${esc(j.hasil.catatan || j.hasil.kategori || 'Ketuk Tinjau untuk menyimpan')}</small>`;
+      aksi = `<button type="button" class="btn btn-utama kecil" data-aksi="tinjau-struk" data-id="${j.id}">Tinjau</button>`;
+    } else {
+      isi = `<b>❌ Gagal dibaca</b><small>${esc(j.pesan)}</small>`;
+      aksi = `<button type="button" class="btn btn-hapus kecil" data-aksi="ulangi-struk" data-id="${j.id}">Ulangi</button>`;
+    }
+    const tutup = j.status === 'proses' ? '' : `<button type="button" class="antrian-tutup" data-aksi="buang-struk" data-id="${j.id}" aria-label="Buang">✕</button>`;
+    return `<div class="antrian-item ${j.status}" role="status">${gambar}<span class="isi">${isi}</span>${aksi}${tutup}</div>`;
+  }).join('');
 }
 
 /** Ringkasan hasil baca struk per lapis; kalau totalnya beda-beda, tampilkan pilihan. */
@@ -1095,7 +1185,23 @@ const AKSI = {
   'foto-struk': () => {
     // Tanpa kunci Gemini, struk tetap dibaca dengan OCR saja.
     bacaFieldTrx();
+    sumberStruk = 'form';
     $('#input-struk').click();
+  },
+  'tinjau-struk': el => {
+    const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
+    if (!job || job.status !== 'siap') return;
+    bukaFormTrx(null, null, 'Tinjau Struk');
+    terapkanStruk(job);
+  },
+  'ulangi-struk': el => {
+    const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
+    if (job) jalankanStruk(job);
+  },
+  'buang-struk': el => {
+    const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
+    if (job && job.status === 'siap' && !confirm('Buang hasil struk ini tanpa menyimpannya?')) return;
+    hapusJob(el.dataset.id);
   },
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
@@ -1145,7 +1251,8 @@ const AKSI = {
     if (F.tipe !== TIPE.TRANSFER && !F.kategori) return toast('Pilih kategorinya dulu.', true);
     if (F.tipe === TIPE.TRANSFER && (!F.dompetTujuan || F.dompetTujuan === F.dompet)) return toast('Pilih dompet tujuan yang berbeda.', true);
     const pesan = F.id ? 'Transaksi diperbarui ✔' : 'Transaksi tersimpan ✔';
-    kirim(el, 'simpanTransaksi', [F], pesan);
+    const dariJob = F.dariJob;
+    kirim(el, 'simpanTransaksi', [F], pesan).then(ok => { if (ok && dariJob) hapusJob(dariJob); });
   },
   'hapus-trx': el => {
     if (confirm('Hapus transaksi ini?')) kirim(el, 'hapusTransaksi', [F.id], 'Transaksi dihapus');
@@ -1183,8 +1290,9 @@ const AKSI = {
   'atur-anggaran': () => bukaFormAnggaran(),
   'rincian-anggaran': () => bukaRincianAnggaran(),
   'cepat-struk': () => {
-    // Langsung buka pemilih foto; masih dalam ketukan pengguna supaya tidak diblokir browser.
-    bukaFormTrx(null);
+    // Langsung buka pemilih foto (masih dalam ketukan pengguna supaya tidak diblokir browser);
+    // struk dibaca di latar belakang tanpa membuka form.
+    sumberStruk = 'cepat';
     $('#input-struk').click();
   },
   'cepat-transfer': () => bukaFormTrx(null, { tipe: TIPE.TRANSFER }, 'Transfer'),
@@ -1335,7 +1443,8 @@ document.addEventListener('click', e => {
 $('#input-struk').addEventListener('change', e => {
   const file = e.target.files[0];
   e.target.value = '';
-  if (file) prosesStruk(file);
+  if (file) mulaiStruk(file, sumberStruk === 'form');
+  sumberStruk = 'cepat';
 });
 
 // Format ribuan saat mengetik nominal.
