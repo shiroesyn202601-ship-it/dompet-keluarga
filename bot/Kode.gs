@@ -27,6 +27,12 @@ const MODEL_CADANGAN = ['gemini-flash-latest', 'gemini-flash-lite-latest'];
  * Setelah batas ini, AI tidak dicoba lagi supaya bot tetap sempat membalas.
  */
 const BATAS_AI_MS = 35000;
+/**
+ * Anggaran "thinking" Gemini (token). Menerjemahkan pesan cukup tanpa berpikir supaya cepat;
+ * pertanyaan/analisis tetap diberi sedikit ruang berpikir supaya hitungannya benar.
+ */
+const PIKIR_PERINTAH = 0;
+const PIKIR_TANYA = 1024;
 let mulaiProses_ = Date.now();
 const KOLOM_TRANSAKSI = 11;
 const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -166,6 +172,12 @@ function prosesAman_(update) {
     console.error(err && err.stack || err);
     if (chatId) kirim_(chatId, '⚠️ Maaf, ada kesalahan: ' + html_(err.message || String(err)));
   }
+  waktu_('selesai');
+}
+
+/** Log lama proses sejak update diterima, untuk mencari langkah yang lambat (lihat Executions). */
+function waktu_(langkah) {
+  console.log('⏱ ' + langkah + ': ' + (Date.now() - mulaiProses_) + ' ms');
 }
 
 function prosesPesan_(m) {
@@ -177,7 +189,8 @@ function prosesPesan_(m) {
   if (kode) return hubungkan_(m, kode[1].toUpperCase());
 
   const ss = db_();
-  const pengguna = penggunaTelegram_(ss)[m.from.id];
+  const p = pengaturan_(ss);
+  const pengguna = penggunaTelegram_(p)[m.from.id];
   if (!pengguna) {
     return kirim_(chatId, [
       '👋 Halo! Akun Telegram ini belum terhubung ke <b>Dompet Keluarga</b>.',
@@ -188,22 +201,22 @@ function prosesPesan_(m) {
   }
 
   if (m.photo || (m.document && /^image\//.test(m.document.mime_type || ''))) {
-    return prosesFoto_(ss, m, pengguna);
+    return prosesFoto_(ss, m, pengguna, p);
   }
   if (!teks) return;
 
   const perintah = teks.match(/^\/(\w+)/);
   if (perintah) {
-    const p = perintah[1].toLowerCase();
-    if (p === 'start' || p === 'bantuan' || p === 'help') return kirim_(chatId, 'Halo ' + html_(pengguna.nama) + '! ' + BANTUAN);
-    if (p === 'saldo') return kirim_(chatId, teksSaldo_(muatData_(ss)));
-    if (p === 'ringkasan') return kirim_(chatId, teksRingkasan_(muatData_(ss), bulanIni_()));
-    if (p === 'anggaran') return kirim_(chatId, teksAnggaran_(muatData_(ss), bulanIni_()));
-    if (p === 'terakhir') return kirim_(chatId, teksRiwayat_(muatData_(ss), ''));
+    const c = perintah[1].toLowerCase();
+    if (c === 'start' || c === 'bantuan' || c === 'help') return kirim_(chatId, 'Halo ' + html_(pengguna.nama) + '! ' + BANTUAN);
+    if (c === 'saldo') return kirim_(chatId, teksSaldo_(muatData_(ss, p)));
+    if (c === 'ringkasan') return kirim_(chatId, teksRingkasan_(muatData_(ss, p), bulanIni_()));
+    if (c === 'anggaran') return kirim_(chatId, teksAnggaran_(muatData_(ss, p), bulanIni_()));
+    if (c === 'terakhir') return kirim_(chatId, teksRiwayat_(muatData_(ss, p), ''));
     return kirim_(chatId, BANTUAN);
   }
 
-  prosesTeksBebas_(ss, chatId, teks, pengguna);
+  prosesTeksBebas_(ss, chatId, teks, pengguna, p);
 }
 
 function hubungkan_(m, kode) {
@@ -218,8 +231,8 @@ function hubungkan_(m, kode) {
   delete daftarKode[kode];
   simpanPengaturan_(ss, 'TELEGRAM_KODE', JSON.stringify(daftarKode));
 
-  const pengguna = penggunaTelegram_(ss);
-  const nama = [m.from.first_name, m.from.last_name].filter(Boolean).join(' ') || k.email.split('@')[0];
+  const pengguna = penggunaTelegram_(p);
+  const nama =[m.from.first_name, m.from.last_name].filter(Boolean).join(' ') || k.email.split('@')[0];
   pengguna[m.from.id] = { email: k.email, nama, username: m.from.username || '' };
   simpanPengaturan_(ss, 'TELEGRAM_PENGGUNA', JSON.stringify(pengguna));
   kirim_(m.chat.id, '✅ Terhubung sebagai <b>' + html_(k.email) + '</b>.\n\n' + BANTUAN);
@@ -229,17 +242,31 @@ function hubungkan_(m, kode) {
 // Teks bebas → perintah (Gemini)
 // ======================================================================
 
-function prosesTeksBebas_(ss, chatId, teks, pengguna) {
+function prosesTeksBebas_(ss, chatId, teks, pengguna, p) {
   tg_('sendChatAction', { chat_id: chatId, action: 'typing' });
-  const d = muatData_(ss);
+  const d = muatData_(ss, p);
+  waktu_('data dimuat');
   const kunci = kunciGemini_(d.pengaturan);
   const terakhir = d.transaksi.slice().sort((a, b) => b.dibuat.localeCompare(a.dibuat)).slice(0, 8);
+
+  // Pesan sederhana yang kategorinya jelas ("bakso 25rb") langsung dicatat tanpa menunggu AI.
+  const cepat = jalurCepat_(teks, d);
+  if (cepat) {
+    console.log('Jalur cepat: ' + JSON.stringify(cepat));
+    return jalankanPerintah_(ss, d, chatId, cepat, terakhir, pengguna, '', '', teks);
+  }
+  // Pertanyaan murni langsung dijawab dengan data lengkap: satu panggilan AI, bukan dua.
+  if (kunci.length && pertanyaanMurni_(teks)) {
+    console.log('Pertanyaan langsung');
+    return kirim_(chatId, jawabTanya_(d, pengguna, teks));
+  }
 
   let hasil;
   let tambahan = '';
   if (kunci.length) {
     const model = d.pengaturan.GEMINI_MODEL_CEPAT || MODEL_CEPAT;
-    const jawaban = jalankanGemini_(kunci, model, [{ sumber: 'perintah', parts: [{ text: petunjukPerintah_(d, terakhir, pengguna, teks) }] }], skemaPerintah_())[0];
+    const jawaban = jalankanGemini_(kunci, model, [{ sumber: 'perintah', pikir: PIKIR_PERINTAH, parts: [{ text: petunjukPerintah_(d, terakhir, pengguna, teks) }] }], skemaPerintah_())[0];
+    waktu_('AI menerjemahkan pesan');
     if (jawaban instanceof Error) {
       // AI sedang tidak bisa dipakai: pesan sederhana ("bakso 25rb") tetap dicatat tanpa AI.
       console.warn('AI gagal, pakai tebakan sederhana: ' + jawaban.message);
@@ -303,7 +330,9 @@ function jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, balasan, tambah
     case 'anggaran': return kirim_(chatId, teksAnggaran_(d, bulanIni_()));
     case 'riwayat': return kirim_(chatId, teksRiwayat_(d, /^\d{4}-\d{2}$/.test(x.bulan || '') ? x.bulan : ''));
     case 'bantuan': return kirim_(chatId, BANTUAN);
-    case 'tanya': return kirim_(chatId, jawabTanya_(d, pengguna, x.pertanyaan || pesanAsli, chatId));
+    case 'tanya':
+      tg_('sendChatAction', { chat_id: chatId, action: 'typing' });
+      return kirim_(chatId, jawabTanya_(d, pengguna, x.pertanyaan || pesanAsli));
     case 'ngobrol': return kirim_(chatId, htmlTerbatas_(balasan || 'Siap! 😊'));
     default: return kirim_(chatId, htmlTerbatas_(balasan || 'Maaf, saya belum paham.') + '\n\nKetik /bantuan untuk contoh.');
   }
@@ -313,8 +342,7 @@ function jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, balasan, tambah
  * Menjawab pertanyaan/analisis bebas dengan data keuangan terbaru (termasuk transaksi
  * yang baru dicatat dari pesan yang sama). Angka diambil dari ringkasan yang dihitung kode.
  */
-function jawabTanya_(d, pengguna, pertanyaan, chatId) {
-  tg_('sendChatAction', { chat_id: chatId, action: 'typing' });
+function jawabTanya_(d, pengguna, pertanyaan) {
   const kunci = kunciGemini_(d.pengaturan);
   if (!kunci.length) return 'Untuk tanya-jawab, AI perlu diaktifkan dulu: tambahkan kunci Gemini di aplikasi (⚙️ → Baca struk dengan AI).';
   const prompt = [
@@ -330,8 +358,9 @@ function jawabTanya_(d, pengguna, pertanyaan, chatId) {
     'PERTANYAAN PENGGUNA: """' + pertanyaan + '"""',
   ].join('\n');
   const model = d.pengaturan.GEMINI_MODEL_TANYA || 'gemini-flash-latest';
-  const h = jalankanGemini_(kunci, model, [{ sumber: 'tanya', parts: [{ text: prompt }] }],
+  const h = jalankanGemini_(kunci, model, [{ sumber: 'tanya', pikir: PIKIR_TANYA, parts: [{ text: prompt }] }],
     { type: 'OBJECT', properties: { jawaban: { type: 'STRING' } }, required: ['jawaban'] })[0];
+  waktu_('AI menjawab pertanyaan');
   if (h instanceof Error) return '⚠️ ' + html_(h.message) + '. Sementara itu, coba /ringkasan atau /anggaran.';
   return htmlTerbatas_(h.jawaban || 'Maaf, saya belum bisa menjawab itu.');
 }
@@ -341,26 +370,11 @@ function konteksKeuangan_(d) {
   const s = saldo_(d);
   const ini = bulanIni_();
   const lalu = bulanSebelum_(ini);
-  const ringkas = b => {
-    const trx = d.transaksi.filter(t => periode_(t.tanggal) === b);
-    const per = {};
-    trx.filter(t => t.tipe === TIPE.KELUAR).forEach(t => { per[t.kategori] = (per[t.kategori] || 0) + t.jumlah; });
-    return {
-      trx,
-      per,
-      masuk: trx.filter(t => t.tipe === TIPE.MASUK).reduce((a, t) => a + t.jumlah, 0),
-      keluar: trx.filter(t => t.tipe === TIPE.KELUAR).reduce((a, t) => a + t.jumlah, 0),
-    };
-  };
-  const a = ringkas(ini);
-  const b = ringkas(lalu);
-  const tigaBulan = [1, 2, 3].map(n => { let x = ini; for (let i = 0; i < n; i++) x = bulanSebelum_(x); return ringkas(x).keluar; });
+  const a = ringkasBulan_(d, ini);
+  const b = ringkasBulan_(d, lalu);
+  const tigaBulan = [1, 2, 3].map(n => { let x = ini; for (let i = 0; i < n; i++) x = bulanSebelum_(x); return ringkasBulan_(d, x).keluar; });
   const nama = email => email.split('@')[0];
-  // Hari ke-berapa di periode berjalan (periode bisa mulai tanggal gajian, bukan tanggal 1).
-  const [th, bl] = ini.split('-').map(Number);
-  const awal = new Date(th, bl - 1, mulaiPeriode_);
-  const jumlahHari = Math.round((new Date(th, bl, mulaiPeriode_) - awal) / 864e5);
-  const hariKe = Math.round((keTanggal_(hariIni_()) - awal) / 864e5) + 1;
+  const { hariKe, jumlahHari } = posisiPeriode_();
 
   const kategoriBulanIni = d.kategori.filter(k => k.tipe === TIPE.KELUAR && (a.per[k.nama] || k.anggaran)).map(k => {
     const pakai = a.per[k.nama] || 0;
@@ -392,6 +406,56 @@ function konteksKeuangan_(d) {
       .map(t => '- ' + t.tanggal + ' ' + t.tipe + ' ' + rp_(t.jumlah) + ' ' + (t.tipe === TIPE.TRANSFER ? t.dompet + ' → ' + t.dompetTujuan : t.kategori)
         + (t.catatan ? ' (' + t.catatan + ')' : '') + (t.oleh ? ' oleh ' + nama(t.oleh) : '')).join('\n') || '- (belum ada)',
   ].join('\n');
+}
+
+/**
+ * Konteks ringkas untuk menerjemahkan pesan: cukup untuk komentar singkat setelah mencatat
+ * (anggaran, berapa kali jajan serupa, banding bulan lalu). Prompt pendek = AI menjawab lebih cepat.
+ */
+function konteksRingkas_(d) {
+  const ini = bulanIni_();
+  const a = ringkasBulan_(d, ini);
+  const b = ringkasBulan_(d, bulanSebelum_(ini));
+  const { hariKe, jumlahHari } = posisiPeriode_();
+  const baris = d.kategori.filter(k => k.tipe === TIPE.KELUAR && (a.per[k.nama] || b.per[k.nama] || k.anggaran)).map(k => {
+    const pakai = a.per[k.nama] || 0;
+    return '- ' + k.nama + ': ' + rp_(pakai) + ' (' + (a.kali[k.nama] || 0) + 'x)'
+      + (k.anggaran ? ', anggaran ' + rp_(k.anggaran) + ' terpakai ' + Math.round(pakai / k.anggaran * 100) + '%' : '')
+      + ', bulan lalu ' + rp_(b.per[k.nama] || 0);
+  });
+  return [
+    'Hari ke-' + hariKe + ' dari ' + jumlahHari + ' hari periode ini. Pengeluaran bulan ini ' + rp_(a.keluar) + ', bulan lalu ' + rp_(b.keluar) + '.',
+    'Pengeluaran per kategori bulan ini:',
+    baris.join('\n') || '- (belum ada)',
+  ].join('\n');
+}
+
+/** Transaksi, total, dan pengeluaran per kategori (jumlah & berapa kali) dalam satu periode. */
+function ringkasBulan_(d, b) {
+  const trx = d.transaksi.filter(t => periode_(t.tanggal) === b);
+  const per = {};
+  const kali = {};
+  trx.filter(t => t.tipe === TIPE.KELUAR).forEach(t => {
+    per[t.kategori] = (per[t.kategori] || 0) + t.jumlah;
+    kali[t.kategori] = (kali[t.kategori] || 0) + 1;
+  });
+  return {
+    trx,
+    per,
+    kali,
+    masuk: trx.filter(t => t.tipe === TIPE.MASUK).reduce((a, t) => a + t.jumlah, 0),
+    keluar: trx.filter(t => t.tipe === TIPE.KELUAR).reduce((a, t) => a + t.jumlah, 0),
+  };
+}
+
+/** Hari ke-berapa di periode berjalan (periode bisa mulai tanggal gajian, bukan tanggal 1). */
+function posisiPeriode_() {
+  const [th, bl] = bulanIni_().split('-').map(Number);
+  const awal = new Date(th, bl - 1, mulaiPeriode_);
+  return {
+    jumlahHari: Math.round((new Date(th, bl, mulaiPeriode_) - awal) / 864e5),
+    hariKe: Math.round((keTanggal_(hariIni_()) - awal) / 864e5) + 1,
+  };
 }
 
 function bulanSebelum_(b) {
@@ -452,8 +516,8 @@ function petunjukPerintah_(d, terakhir, pengguna, pesan) {
     '  sudah beberapa kali jajan serupa bulan ini, pengeluaran lebih hemat dari bulan lalu). Santai dan tidak menggurui. Kosongkan jika tidak ada yang menarik.',
     '  Jangan mengulang rincian transaksi; rincian sudah ditampilkan sistem.',
     '',
-    'DATA KEUANGAN (sebelum pesan ini diproses):',
-    konteksKeuangan_(d),
+    'RINGKASAN BULAN INI (sebelum pesan ini diproses):',
+    konteksRingkas_(d),
     '',
     'Pesan: """' + pesan + '"""',
   ].join('\n');
@@ -526,11 +590,52 @@ function tebakSederhana_(teks, d) {
   return { perintah: [{ aksi: 'catat', tipe, jumlah: Math.round(n), kategori: kat ? kat.nama : '', catatan }] };
 }
 
+/** Kata yang membuat pesan perlu dipahami AI (ubah/hapus, tanggal, dompet, pemasukan, beberapa transaksi, dll.). */
+const BUTUH_AI = /\b(ubah|ganti|edit|hapus|batal|batalkan|transfer|pindah|setor|tarik|dari|ke|kemarin|kmrn|lusa|tgl|tanggal|lalu|minggu|senin|selasa|rabu|kamis|jumat|sabtu|utang|hutang|pinjam|pinjem|terima|dapat|dapet|masuk|gaji|bonus|jual|refund|kembalian|patungan|bagi|berdua|bertiga|dan|terus|pakai|pake|via|per|tiap)\b/;
+
+/**
+ * Pengeluaran sangat sederhana ("bakso 25rb", "parkir 5rb") dicatat tanpa AI supaya instan.
+ * Hanya kalau persis satu nominal, catatannya pendek, dan tepat satu kelompok kategori cocok;
+ * selain itu null (diserahkan ke AI).
+ */
+function jalurCepat_(teks, d) {
+  const kecil = teks.toLowerCase();
+  if (/[?\n]/.test(teks) || BUTUH_AI.test(kecil)) return null;
+  if (d.dompet.some(w => kecil.indexOf(w.nama.toLowerCase()) >= 0)) return null;
+  const nominal = semuaNominal_(teks);
+  if (nominal.length !== 1 || (teks.match(POLA_NOMINAL) || []).length !== 1) return null;
+
+  const catatan = teks.replace(POLA_NOMINAL, ' ').replace(/\s+/g, ' ').trim();
+  if (!catatan || catatan.split(' ').length > 4) return null;
+  const kata = ' ' + kecil.replace(/[^a-z0-9 ]/g, ' ') + ' ';
+  const grup = KATA_KATEGORI.filter(g => new RegExp('\\b(?:' + g[0].source + ')\\b').test(kata));
+  if (grup.length !== 1 || /gaji|bonus/.test(grup[0][1][0])) return null;
+  const k = d.kategori.find(k => k.tipe === TIPE.KELUAR && grup[0][1].some(w => k.nama.toLowerCase().indexOf(w) >= 0));
+  if (!k) return null;
+  return { aksi: 'catat', tipe: TIPE.KELUAR, jumlah: nominal[0], kategori: k.nama, catatan };
+}
+
+/**
+ * Pesan yang jelas berupa pertanyaan/analisis tanpa transaksi untuk dicatat. Pesan campuran
+ * ("catat makan 40rb, sisa anggaran berapa?") tetap lewat penerjemah supaya dicatat dulu.
+ */
+function pertanyaanMurni_(teks) {
+  const kecil = teks.toLowerCase();
+  if (/\b(catat|ubah|ganti|edit|hapus|batal|batalkan|tadi)\b/.test(kecil)) return false;
+  // Andaian boleh menyebut nominal: "aman nggak beli HP 3 juta?", "kalau nabung 500rb sebulan, kapan…?"
+  if (/\?\s*$/.test(kecil) && /\b(kalau|kalo|seandainya|misal|misalnya|aman|cukup)\b/.test(kecil)) return true;
+  if (semuaNominal_(teks).length || /\b(beli|bayar)\b/.test(kecil)) return false;
+  if (kecil.split(/\s+/).length < 3) return false;
+  return /\?\s*$/.test(kecil)
+    || /^(berapa|kapan|gimana|bagaimana|apa|apakah|kenapa|mengapa|kok|bandingkan|banding|analisis|analisa|saran|tips|cek)\b/.test(kecil)
+    || /\b(boros|hemat|aman (nggak|ngga|ga|gak|tidak)|cukup (nggak|ngga|ga|gak|tidak)|sisa anggaran|rata-rata|dibanding)\b/.test(kecil);
+}
+
 // ======================================================================
 // Foto struk
 // ======================================================================
 
-function prosesFoto_(ss, m, pengguna) {
+function prosesFoto_(ss, m, pengguna, p) {
   const chatId = m.chat.id;
   const tunggu = kirim_(chatId, '⏳ Membaca struk…').result;
   const fileId = m.photo ? m.photo[m.photo.length - 1].file_id : m.document.file_id;
@@ -539,7 +644,7 @@ function prosesFoto_(ss, m, pengguna) {
   const blob = UrlFetchApp.fetch('https://api.telegram.org/file/bot' + token + '/' + info.file_path).getBlob();
   const mime = /\.png$/i.test(info.file_path) ? 'image/png' : 'image/jpeg';
 
-  const d = muatData_(ss);
+  const d = muatData_(ss, p);
   const kategori = d.kategori.filter(k => k.tipe === TIPE.KELUAR).map(k => k.nama);
   let h;
   try {
@@ -578,7 +683,8 @@ function prosesTombol_(q) {
   const chatId = q.message.chat.id;
   const msgId = q.message.message_id;
   const ss = db_();
-  if (!penggunaTelegram_(ss)[q.from.id]) {
+  const p = pengaturan_(ss);
+  if (!penggunaTelegram_(p)[q.from.id]) {
     return tg_('answerCallbackQuery', { callback_query_id: q.id, text: 'Akun belum terhubung.' });
   }
   const [aksi, id, nilai] = String(q.data || '').split(':');
@@ -590,7 +696,7 @@ function prosesTombol_(q) {
     return ubahPesan_(chatId, msgId, ok ? (aksi === 'batal' ? '↩️ Dibatalkan, transaksi dihapus.' : '🗑️ Transaksi dihapus.') : 'Transaksi sudah tidak ada.');
   }
   if (aksi === 'jml') {
-    const d = muatData_(ss);
+    const d = muatData_(ss, p);
     const lama = d.transaksi.find(t => t.id === id);
     if (!lama) return ubahPesan_(chatId, msgId, 'Transaksi sudah tidak ada.');
     const baru = Object.assign({}, lama, { jumlah: Number(nilai) });
@@ -621,7 +727,8 @@ function baris_(ss, nama, kolom) {
   return n > 0 ? sh.getRange(2, 1, n, kolom).getValues() : [];
 }
 
-function muatData_(ss) {
+/** `pengaturanSiap`: isi sheet Pengaturan yang sudah dibaca, supaya tidak dibaca dua kali. */
+function muatData_(ss, pengaturanSiap) {
   const transaksi = baris_(ss, 'Transaksi', KOLOM_TRANSAKSI).filter(r => r[0] !== '').map(r => ({
     id: String(r[0]), tanggal: tgl_(r[1]), tipe: String(r[2]), jumlah: Number(r[3]) || 0, kategori: String(r[4]),
     dompet: String(r[5]), dompetTujuan: String(r[6]), catatan: String(r[7]), oleh: String(r[8]),
@@ -635,7 +742,7 @@ function muatData_(ss) {
     jenis: [JENIS.TABUNGAN, JENIS.UTANG, JENIS.ASET].indexOf(String(r[3])) >= 0 ? String(r[3]) : JENIS.DOMPET, target: Number(r[4]) || 0,
     tenggat: r[5] === '' ? '' : tgl_(r[5]),
   }));
-  const pengaturan = pengaturan_(ss);
+  const pengaturan = pengaturanSiap || pengaturan_(ss);
   mulaiPeriode_ = Math.min(28, Math.max(1, Math.round(Number(pengaturan.MULAI_PERIODE) || 1)));
   return { transaksi, kategori, dompet, pengaturan };
 }
@@ -655,8 +762,9 @@ function simpanPengaturan_(ss, kunci, nilai) {
   else sh.appendRow([kunci, nilai]);
 }
 
-function penggunaTelegram_(ss) {
-  try { return JSON.parse(pengaturan_(ss).TELEGRAM_PENGGUNA || '{}'); } catch (e) { return {}; }
+/** `p`: hasil pengaturan_(ss). */
+function penggunaTelegram_(p) {
+  try { return JSON.parse(p.TELEGRAM_PENGGUNA || '{}'); } catch (e) { return {}; }
 }
 
 function kunciGemini_(p) {
@@ -1011,7 +1119,7 @@ function jalankanGemini_(daftar, model, permintaan, skema) {
       const kunci = daftar[(mulai + n) % daftar.length];
       let jawaban;
       try {
-        jawaban = UrlFetchApp.fetchAll(sisa.map(function (i) { return mintaGemini_(kunci, model2[mi], permintaan[i].parts, skema); }));
+        jawaban = UrlFetchApp.fetchAll(sisa.map(function (i) { return mintaGemini_(kunci, model2[mi], permintaan[i].parts, skema, permintaan[i].pikir); }));
       } catch (e) {
         console.error('Gemini tidak bisa dihubungi: ' + e);
         sisa.forEach(function (i) { hasil[i] = new Error('Gemini terlalu lama menjawab atau tidak bisa dihubungi'); });
@@ -1164,7 +1272,11 @@ function skemaStruk_(kategori) {
   };
 }
 
-function mintaGemini_(kunci, model, parts, skema) {
+/** `pikir`: anggaran thinking (token); kosong = bawaan model. */
+function mintaGemini_(kunci, model, parts, skema, pikir) {
+  const config = { responseMimeType: 'application/json', responseSchema: skema };
+  // Model seri Pro tidak bisa mematikan thinking (ditolak 400), jadi dibiarkan bawaan.
+  if (pikir != null && !/pro/i.test(model)) config.thinkingConfig = { thinkingBudget: pikir };
   return {
     url: 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent',
     method: 'post',
@@ -1173,7 +1285,7 @@ function mintaGemini_(kunci, model, parts, skema) {
     muteHttpExceptions: true,
     payload: JSON.stringify({
       contents: [{ parts: parts }],
-      generationConfig: { responseMimeType: 'application/json', responseSchema: skema },
+      generationConfig: config,
     }),
   };
 }
