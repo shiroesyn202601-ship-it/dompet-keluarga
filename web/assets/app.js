@@ -415,18 +415,30 @@ function statusAnggaran(terpakai, batas) {
   return { kelas: '', teks: `Sisa ${rp(batas - terpakai)}` };
 }
 
-function meterAnggaran(ikon, nama, terpakai, batas) {
+function meterAnggaran(ikon, nama, terpakai, batas, catatan) {
   const s = statusAnggaran(terpakai, batas);
+  const lebar = batas ? Math.min(100, terpakai / batas * 100) : (terpakai ? 100 : 0);
   return `
     <div class="bar-item">
       <span class="ikon">${esc(ikon)}</span>
       <span class="nama">${esc(nama)}</span>
       <span class="nilai">${rp(terpakai)} <small>/ ${rp(batas)}</small></span>
       <div class="meter ${s.kelas}" role="meter" aria-label="${esc(nama)}" aria-valuemin="0" aria-valuemax="${batas}" aria-valuenow="${terpakai}">
-        <i style="width:${Math.min(100, terpakai / batas * 100)}%"></i></div>
-      <small class="ket">${s.teks}</small>
+        <i style="width:${lebar}%"></i></div>
+      <small class="ket">${s.teks}${catatan ? ' · ' + esc(catatan) : ''}</small>
     </div>`;
 }
+
+/**
+ * Anggaran efektif periode yang dilihat. Kategori "amplop" (bawaSisa) mendapat tambahan sisa periode
+ * sebelumnya, atau berkurang kalau periode sebelumnya lewat batas. Hanya satu periode ke belakang.
+ */
+function batasAnggaran(k) {
+  if (!k.bawaSisa) return { batas: k.anggaran, sisaLalu: 0 };
+  const sisaLalu = k.anggaran - (ringkasBulan(bulanSebelum(S.bulan)).kategori[k.nama] || 0);
+  return { batas: Math.max(0, k.anggaran + sisaLalu), sisaLalu };
+}
+const catatanAmplop = k => (k.bawaSisa && k.sisaLalu ? `📨 ${k.sisaLalu > 0 ? '+' : '−'}${rp(Math.abs(k.sisaLalu))} dari periode lalu` : '');
 
 /** Pengeluaran bulan terpilih per kategori: { nama: jumlah }. */
 function pengeluaranPerKategori() {
@@ -435,19 +447,21 @@ function pengeluaranPerKategori() {
   return per;
 }
 
-const kategoriBeranggaran = () => S.data.kategori.filter(k => k.tipe === TIPE.KELUAR && k.anggaran > 0);
+/** Kategori pengeluaran yang punya anggaran, dengan `batas` = anggaran efektif periode ini (lihat batasAnggaran). */
+const kategoriBeranggaran = () => S.data.kategori.filter(k => k.tipe === TIPE.KELUAR && k.anggaran > 0)
+  .map(k => Object.assign({}, k, batasAnggaran(k)));
 
 /** Rincian semua meter anggaran (dibuka dari tile Anggaran di Beranda). */
 function bukaRincianAnggaran() {
   const per = pengeluaranPerKategori();
   const pakai = k => per[k.nama] || 0;
-  const daftar = kategoriBeranggaran().sort((a, b) => pakai(b) / b.anggaran - pakai(a) / a.anggaran);
-  const totalBatas = daftar.reduce((a, k) => a + k.anggaran, 0);
+  const daftar = kategoriBeranggaran().sort((a, b) => pakai(b) / (b.batas || 1) - pakai(a) / (a.batas || 1));
+  const totalBatas = daftar.reduce((a, k) => a + k.batas, 0);
   const totalPakai = daftar.reduce((a, k) => a + pakai(k), 0);
   bukaSheet('Anggaran ' + namaBulan(S.bulan), `
     ${meterAnggaran('📊', 'Total', totalPakai, totalBatas)}
     <div class="pemisah"></div>
-    ${daftar.map(k => meterAnggaran(k.ikon, k.nama, pakai(k), k.anggaran)).join('')}
+    ${daftar.map(k => meterAnggaran(k.ikon, k.nama, pakai(k), k.batas, catatanAmplop(k))).join('')}
     <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="atur-anggaran">Atur anggaran</button></div>`);
 }
 
@@ -456,11 +470,11 @@ function tileAnggaran(per) {
   if (!daftar.length) {
     return `<button data-aksi="atur-anggaran"><small>Anggaran</small><b>Atur</b><span class="ket">Batasi belanja per kategori</span></button>`;
   }
-  const batas = daftar.reduce((a, k) => a + k.anggaran, 0);
+  const batas = daftar.reduce((a, k) => a + k.batas, 0);
   const pakai = daftar.reduce((a, k) => a + (per[k.nama] || 0), 0);
   const s = statusAnggaran(pakai, batas);
-  const persen = Math.round(pakai / batas * 100);
-  const lewat = daftar.filter(k => (per[k.nama] || 0) > k.anggaran).length;
+  const persen = batas ? Math.round(pakai / batas * 100) : 100;
+  const lewat = daftar.filter(k => (per[k.nama] || 0) > k.batas).length;
   return `<button data-aksi="rincian-anggaran">
     <small>Anggaran <span>›</span></small>
     <b>${persen}% <span style="font-size:13px;font-weight:600;color:var(--muted)">terpakai</span></b>
@@ -1661,7 +1675,7 @@ function hitungSisaAman() {
   const pakaiAnggaran = beranggaran.length > 0;
   const lingkup = k => !pakaiAnggaran || beranggaran.some(x => x.nama === k);
   const per = pengeluaranPerKategori();
-  const dasar = pakaiAnggaran ? beranggaran.reduce((a, k) => a + k.anggaran, 0) : total(S.data.transaksi, TIPE.MASUK);
+  const dasar = pakaiAnggaran ? beranggaran.reduce((a, k) => a + k.batas, 0) : total(S.data.transaksi, TIPE.MASUK);
   if (!dasar) return null;
   const terpakai = Object.keys(per).filter(lingkup).reduce((a, k) => a + per[k], 0);
   const tagihan = daftarRutin().filter(x => x.tipe === TIPE.KELUAR && x.berikutnya >= hariIni() && x.berikutnya <= r.akhir && lingkup(x.kategori))
@@ -2096,13 +2110,15 @@ function bukaTabungan(w) {
 function bukaFormAnggaran() {
   const daftar = S.data.kategori.filter(k => k.tipe === TIPE.KELUAR);
   bukaSheet('Anggaran Bulanan', `
-    <p class="info-kecil" style="text-align:left;margin:0 0 8px">Batas belanja per kategori setiap bulan. Kosongkan kategori yang tidak perlu dibatasi.</p>
+    <p class="info-kecil" style="text-align:left;margin:0 0 8px">Batas belanja per kategori setiap bulan. Kosongkan kategori yang tidak perlu dibatasi.
+      Centang <b>📨 Amplop</b> supaya sisa bulan ini menambah anggaran bulan depan (dan kelebihan menguranginya).</p>
     ${daftar.map(k => `
-      <label class="baris baris-input">
+      <div class="baris baris-input">
         <span class="ikon-bulat">${esc(k.ikon)}</span>
-        <span class="isi"><b>${esc(k.nama)}</b></span>
-        <input class="field input-rp input-anggaran" data-nama="${esc(k.nama)}" inputmode="numeric" placeholder="Tanpa batas" value="${formatAngka(k.anggaran)}">
-      </label>`).join('')}
+        <span class="isi"><b>${esc(k.nama)}</b>
+          <label class="amplop"><input type="checkbox" class="input-amplop" data-nama="${esc(k.nama)}" ${k.bawaSisa ? 'checked' : ''}> 📨 Amplop</label></span>
+        <input class="field input-rp input-anggaran" data-nama="${esc(k.nama)}" inputmode="numeric" placeholder="Tanpa batas" aria-label="Anggaran ${esc(k.nama)}" value="${formatAngka(k.anggaran)}">
+      </div>`).join('')}
     <p class="info-kecil" id="total-anggaran"></p>
     <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-anggaran">Simpan</button></div>`);
   hitungTotalAnggaran();
@@ -2468,8 +2484,10 @@ const AKSI = {
   'cepat-transfer': () => bukaFormTrx(null, { tipe: TIPE.TRANSFER }, 'Transfer'),
   'simpan-anggaran': el => {
     const peta = {};
+    const amplop = {};
     document.querySelectorAll('.input-anggaran').forEach(i => { peta[i.dataset.nama] = angka(i.value); });
-    kirim(el, 'simpanAnggaran', [peta], 'Anggaran tersimpan ✔');
+    document.querySelectorAll('.input-amplop').forEach(i => { amplop[i.dataset.nama] = i.checked; });
+    kirim(el, 'simpanAnggaran', [peta, amplop], 'Anggaran tersimpan ✔');
   },
 
   'tahun': async el => {

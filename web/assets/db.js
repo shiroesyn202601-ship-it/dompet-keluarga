@@ -24,7 +24,8 @@ const SERVER = (() => {
       nama: 'Transaksi',
       kolom: ['ID', 'Tanggal', 'Tipe', 'Jumlah', 'Kategori', 'Dompet', 'Dompet Tujuan', 'Catatan', 'Dibuat Oleh', 'Dibuat Pada', 'Diubah Pada'],
     },
-    kategori: { nama: 'Kategori', kolom: ['Nama', 'Tipe', 'Ikon', 'Anggaran'] },
+    // Bawa Sisa = 'Ya': anggaran "amplop", sisa/kelebihan periode lalu ikut dihitung (lihat batasAnggaran di app.js).
+    kategori: { nama: 'Kategori', kolom: ['Nama', 'Tipe', 'Ikon', 'Anggaran', 'Bawa Sisa'] },
     dompet: { nama: 'Dompet', kolom: ['Nama', 'Ikon', 'Saldo Awal', 'Jenis', 'Target', 'Tenggat'] },
     pengaturan: { nama: 'Pengaturan', kolom: ['Kunci', 'Nilai'] },
     // Tagihan & transaksi rutin. Mulai = tanggal patokan (hari ke-berapa), Berikutnya = jatuh tempo berikutnya.
@@ -665,15 +666,16 @@ const SERVER = (() => {
   }
 
   /** peta: { "nama kategori pengeluaran": anggaran bulanan } — 0 berarti tanpa anggaran. */
-  async function simpanAnggaran(peta) {
+  /** amplop (opsional): { "nama kategori": true } → sisa anggaran dibawa ke periode berikutnya (kolom Bawa Sisa). */
+  async function simpanAnggaran(peta, amplop) {
     const id = await db_();
     const [kat] = await bacaTabel_(id, ['kategori']);
+    const punya = (o, k) => o && Object.prototype.hasOwnProperty.call(o, k);
     let ada = false;
     kat.forEach(r => {
-      if (String(r[1]) === TIPE.KELUAR && Object.prototype.hasOwnProperty.call(peta, r[0])) {
-        r[3] = Math.max(0, Math.round(Number(peta[r[0]]) || 0)) || '';
-        ada = true;
-      }
+      if (String(r[1]) !== TIPE.KELUAR) return;
+      if (punya(peta, r[0])) { r[3] = Math.max(0, Math.round(Number(peta[r[0]]) || 0)) || ''; ada = true; }
+      if (punya(amplop, r[0])) { r[4] = amplop[r[0]] ? 'Ya' : ''; ada = true; }
     });
     if (!ada) return true;
     const t = TABEL.kategori;
@@ -955,7 +957,7 @@ const SERVER = (() => {
         dibuat: dariSerial_(r[9]),
       })),
       kategori: kat.filter(r => r[0] !== '').map(r => ({
-        nama: String(r[0]), tipe: String(r[1]), ikon: String(r[2]), anggaran: Number(r[3]) || 0,
+        nama: String(r[0]), tipe: String(r[1]), ikon: String(r[2]), anggaran: Number(r[3]) || 0, bawaSisa: String(r[4]) === 'Ya',
       })),
       dompet: dom.filter(r => r[0] !== '').map(r => ({
         nama: String(r[0]),

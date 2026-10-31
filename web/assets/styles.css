@@ -393,6 +393,9 @@ body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b
 .spinner.kecil { width: 22px; height: 22px; border-width: 2.5px; flex: none; margin: 0 6px; }
 body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-area-inset-bottom)); }
 .struk-proses { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 0 0 16px; border-radius: 16px; background: var(--primary-soft); }
+/* Anggaran amplop */
+.amplop { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.amplop input { margin: 0; }
 /* Riwayat: filter & ringkasan hasil */
 .ringkas-cari { margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; background: var(--primary-soft); font-size: 13px; font-weight: 600; }
 .ringkas-cari b { font-variant-numeric: tabular-nums; }
