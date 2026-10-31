@@ -138,6 +138,7 @@ async function mulai() {
     S.gabung = m[1];
     history.replaceState(null, '', location.pathname + location.search);
   }
+  pulihkanPosisi();
   if (GOOGLE.sudahMasuk()) muat();
   else if (!navigator.onLine && pakaiDataTerakhir()) { /* tanpa sinyal: tetap bisa mencatat, login menyusul saat online */ }
   else tampilMasuk();
@@ -346,6 +347,22 @@ function render() {
   const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, laporan: viewLaporan, lainnya: viewLainnya }[S.tab];
   $('#view').innerHTML = bannerStatus() + view();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
+  simpanPosisi();
+}
+
+// Halaman & bulan yang sedang dilihat diingat selama aplikasi terbuka, supaya refresh / update otomatis
+// tidak melempar kembali ke Beranda.
+function simpanPosisi() {
+  try { sessionStorage.setItem('dk_posisi', JSON.stringify({ tab: S.tab, bulan: S.bulan, tahun: S.tahun })); } catch (e) { /* mode privat */ }
+}
+function pulihkanPosisi() {
+  try {
+    const p = JSON.parse(sessionStorage.getItem('dk_posisi'));
+    if (!p || !['beranda', 'riwayat', 'dompet', 'laporan', 'lainnya'].includes(p.tab)) return;
+    S.tab = p.tab;
+    S.bulan = p.bulan || '';
+    S.tahun = p.tahun || S.tahun;
+  } catch (e) { /* abaikan */ }
 }
 
 function pemilihBulan() {
@@ -2458,5 +2475,52 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 setInterval(() => { if (document.visibilityState === 'visible') cekPembaruan(); }, 5 * 60 * 1000);
 // Pembaruan yang tertunda langsung dipasang begitu form ditutup & antrian struk kosong.
 setInterval(() => { if (pembaruanDitunda && !sedangSibuk()) location.reload(); }, 3000);
+
+// ---------- Tarik ke bawah untuk memperbarui ----------
+// Pengganti pull-to-refresh bawaan browser (dimatikan lewat overscroll-behavior di CSS): hanya data yang
+// dibaca ulang dari spreadsheet, halaman tidak dimuat ulang. Jalan juga di aplikasi terpasang.
+
+const JARAK_TARIK = 70;
+const tarik = { awal: null, jarak: 0, memuat: false };
+const indikatorTarik = document.createElement('div');
+indikatorTarik.className = 'tarik';
+indikatorTarik.innerHTML = '<div class="spinner kecil"></div>';
+document.body.appendChild(indikatorTarik);
+
+function aturIndikatorTarik() {
+  const y = tarik.memuat ? JARAK_TARIK : Math.min(tarik.jarak, JARAK_TARIK * 1.4);
+  indikatorTarik.style.transform = `translate(-50%, ${y - 50}px) rotate(${y * 4}deg)`;
+  indikatorTarik.style.opacity = tarik.memuat ? 1 : Math.min(tarik.jarak / JARAK_TARIK, 1);
+  indikatorTarik.classList.toggle('siap', tarik.memuat || tarik.jarak >= JARAK_TARIK);
+  indikatorTarik.classList.toggle('memuat', tarik.memuat);
+}
+
+document.addEventListener('touchstart', e => {
+  const bisa = !tarik.memuat && window.scrollY <= 0 && S.data && !S.data.perluSetup && !S.offline
+    && $('#sheet').hidden && e.touches.length === 1;
+  tarik.awal = bisa ? e.touches[0].clientY : null;
+  tarik.jarak = 0;
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (tarik.awal == null) return;
+  if (window.scrollY > 0) { tarik.awal = null; tarik.jarak = 0; return aturIndikatorTarik(); }
+  tarik.jarak = Math.max(0, (e.touches[0].clientY - tarik.awal) * 0.5);
+  aturIndikatorTarik();
+}, { passive: true });
+
+document.addEventListener('touchend', async () => {
+  if (tarik.awal == null) return;
+  const cukup = tarik.jarak >= JARAK_TARIK;
+  tarik.awal = null;
+  tarik.jarak = 0;
+  if (!cukup) return aturIndikatorTarik();
+  tarik.memuat = true;
+  aturIndikatorTarik();
+  try { await muat(); } finally {
+    tarik.memuat = false;
+    aturIndikatorTarik();
+  }
+});
 
 mulai();

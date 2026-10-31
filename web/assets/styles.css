@@ -56,7 +56,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; background: var(--bg); color: var(--text); }
+html, body { margin: 0; background: var(--bg); color: var(--text); overscroll-behavior-y: contain; }
 body {
   font: 15px/1.45 "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   max-width: 520px;
@@ -403,3 +403,15 @@ select.field, select.field:focus { appearance: none; -webkit-appearance: none; c
 /* ---------- Aplikasi terpasang ---------- */
 .catatan-versi { text-align: center; color: var(--muted); font-size: 12.5px; margin: 18px 0 8px; }
 .panduan .btn { width: 100%; margin-top: 4px; }
+
+/* ---------- Tarik ke bawah untuk memperbarui ---------- */
+.tarik {
+  position: fixed; top: env(safe-area-inset-top); left: 50%; z-index: 30;
+  width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--card); box-shadow: 0 4px 14px rgba(0, 0, 0, .15);
+  transform: translate(-50%, -50px); opacity: 0; pointer-events: none;
+}
+.tarik .spinner { animation: none; opacity: .45; }
+.tarik.siap .spinner { opacity: 1; }
+.tarik.memuat { transition: transform .2s; }
+.tarik.memuat .spinner { animation: putar .8s linear infinite; }
