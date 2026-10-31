@@ -28,6 +28,8 @@ Sekitar tiap 1 jam Google meminta konfirmasi ulang. Cukup ketuk **Lanjutkan seba
 - **Tagihan rutin:** saat mencatat listrik, internet, cicilan, atau gaji, pilih **🔁 Ulangi tiap bulan**. Menjelang jatuh tempo, tagihannya muncul di Beranda; ketuk untuk mencatat (nominal bisa diubah), atau **Lewati kali ini**. Kelola semuanya di **⚙️ → Tagihan & transaksi rutin**.
 - **Utang & piutang:** tab **Dompet → ＋ Catat utang / piutang**, pilih *Saya meminjamkan* atau *Saya meminjam*. Tidak dihitung sebagai pengeluaran/pemasukan. Ketuk nama orangnya untuk **Terima pembayaran**, **Bayar utang**, atau **Ingatkan lewat WhatsApp**. Kalau diberi jatuh tempo, muncul di Beranda menjelang tanggalnya.
 - **Anggaran:** ketuk **Atur** di kartu Anggaran (Beranda), lalu isi batas belanja per kategori. Muncul **⚠️ Hampir habis** di 80% dan **⛔ Lewat** saat melebihi batas.
+- **Gajian bukan tanggal 1?** Atur di **⚙️ → Periode gajian** (mis. tanggal 25). Ringkasan, anggaran, dan laporan lalu dihitung dari tanggal 25 sampai 24 bulan berikutnya.
+- **Aman dibelanjakan per hari:** di kartu saldo Beranda tertulis berapa yang aman dipakai per hari sampai gajian berikutnya, sudah dikurangi tagihan rutin yang belum dibayar. Ketuk untuk melihat hitungannya.
 - **Laporan:** pemasukan dan pengeluaran per bulan, pengeluaran per kategori, perbandingan dengan bulan lalu, dan siapa yang belanja.
 - **Bot Telegram** (kalau pemilik sudah memasangnya): catat cukup dengan chat, mis. *makan bakso 25rb* atau *bensin 30rb pakai gopay*, atau kirim foto struk. Tautkan akun di **⚙️ → Bot Telegram**.
 

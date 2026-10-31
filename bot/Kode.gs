@@ -342,7 +342,7 @@ function konteksKeuangan_(d) {
   const ini = bulanIni_();
   const lalu = bulanSebelum_(ini);
   const ringkas = b => {
-    const trx = d.transaksi.filter(t => t.tanggal.slice(0, 7) === b);
+    const trx = d.transaksi.filter(t => periode_(t.tanggal) === b);
     const per = {};
     trx.filter(t => t.tipe === TIPE.KELUAR).forEach(t => { per[t.kategori] = (per[t.kategori] || 0) + t.jumlah; });
     return {
@@ -356,16 +356,19 @@ function konteksKeuangan_(d) {
   const b = ringkas(lalu);
   const tigaBulan = [1, 2, 3].map(n => { let x = ini; for (let i = 0; i < n; i++) x = bulanSebelum_(x); return ringkas(x).keluar; });
   const nama = email => email.split('@')[0];
-  const [, , hariKe] = hariIni_().split('-').map(Number);
+  // Hari ke-berapa di periode berjalan (periode bisa mulai tanggal gajian, bukan tanggal 1).
   const [th, bl] = ini.split('-').map(Number);
-  const jumlahHari = new Date(th, bl, 0).getDate();
+  const awal = new Date(th, bl - 1, mulaiPeriode_);
+  const jumlahHari = Math.round((new Date(th, bl, mulaiPeriode_) - awal) / 864e5);
+  const hariKe = Math.round((keTanggal_(hariIni_()) - awal) / 864e5) + 1;
 
   const kategoriBulanIni = d.kategori.filter(k => k.tipe === TIPE.KELUAR && (a.per[k.nama] || k.anggaran)).map(k => {
     const pakai = a.per[k.nama] || 0;
     return '- ' + k.nama + ': ' + rp_(pakai) + (k.anggaran ? ' (anggaran ' + rp_(k.anggaran) + ', terpakai ' + Math.round(pakai / k.anggaran * 100) + '%, sisa ' + rp_(k.anggaran - pakai) + ')' : '');
   });
   return [
-    'Hari ini ' + hariIni_() + ' (hari ke-' + hariKe + ' dari ' + jumlahHari + ' hari bulan ini).',
+    'Hari ini ' + hariIni_() + ' (hari ke-' + hariKe + ' dari ' + jumlahHari + ' hari periode ini).'
+      + (mulaiPeriode_ > 1 ? ' "Bulan" di data ini = periode gajian yang mulai tanggal ' + mulaiPeriode_ + '.' : ''),
     'Saldo dompet: ' + d.dompet.filter(w => w.jenis === JENIS.DOMPET).map(w => w.nama + ' ' + rp_(s[w.nama])).join(', ')
       + '. Total ' + rp_(d.dompet.filter(w => w.jenis === JENIS.DOMPET).reduce((x, w) => x + s[w.nama], 0)) + '.',
     'Tabungan: ' + (d.dompet.filter(w => w.jenis === JENIS.TABUNGAN).map(w => w.nama + ' ' + rp_(s[w.nama])
@@ -629,7 +632,9 @@ function muatData_(ss) {
     jenis: [JENIS.TABUNGAN, JENIS.UTANG].indexOf(String(r[3])) >= 0 ? String(r[3]) : JENIS.DOMPET, target: Number(r[4]) || 0,
     tenggat: r[5] === '' ? '' : tgl_(r[5]),
   }));
-  return { transaksi, kategori, dompet, pengaturan: pengaturan_(ss) };
+  const pengaturan = pengaturan_(ss);
+  mulaiPeriode_ = Math.min(28, Math.max(1, Math.round(Number(pengaturan.MULAI_PERIODE) || 1)));
+  return { transaksi, kategori, dompet, pengaturan };
 }
 
 function pengaturan_(ss) {
@@ -791,8 +796,8 @@ function peringatanAnggaran_(d, t) {
   if (t.tipe !== TIPE.KELUAR) return '';
   const k = d.kategori.find(k => k.tipe === TIPE.KELUAR && k.nama === t.kategori && k.anggaran > 0);
   if (!k) return '';
-  const bulan = t.tanggal.slice(0, 7);
-  const pakai = d.transaksi.filter(x => x.tipe === TIPE.KELUAR && x.kategori === k.nama && x.tanggal.slice(0, 7) === bulan)
+  const bulan = periode_(t.tanggal);
+  const pakai = d.transaksi.filter(x => x.tipe === TIPE.KELUAR && x.kategori === k.nama && periode_(x.tanggal) === bulan)
     .reduce((a, x) => a + x.jumlah, 0);
   const persen = Math.round(pakai / k.anggaran * 100);
   if (pakai > k.anggaran) return '\n\n⛔ Anggaran ' + html_(k.nama) + ' lewat ' + rp_(pakai - k.anggaran) + ' (' + persen + '%)';
@@ -815,7 +820,7 @@ function teksSaldo_(d) {
 }
 
 function teksRingkasan_(d, bulan) {
-  const trx = d.transaksi.filter(t => t.tanggal.slice(0, 7) === bulan);
+  const trx = d.transaksi.filter(t => periode_(t.tanggal) === bulan);
   const masuk = trx.filter(t => t.tipe === TIPE.MASUK).reduce((a, t) => a + t.jumlah, 0);
   const keluar = trx.filter(t => t.tipe === TIPE.KELUAR).reduce((a, t) => a + t.jumlah, 0);
   const per = {};
@@ -833,7 +838,7 @@ function teksRingkasan_(d, bulan) {
 function teksAnggaran_(d, bulan) {
   const daftar = d.kategori.filter(k => k.tipe === TIPE.KELUAR && k.anggaran > 0);
   if (!daftar.length) return '🎯 Belum ada anggaran. Atur di aplikasi: Beranda → Anggaran.';
-  const pakai = n => d.transaksi.filter(t => t.tipe === TIPE.KELUAR && t.kategori === n && t.tanggal.slice(0, 7) === bulan).reduce((a, t) => a + t.jumlah, 0);
+  const pakai = n => d.transaksi.filter(t => t.tipe === TIPE.KELUAR && t.kategori === n && periode_(t.tanggal) === bulan).reduce((a, t) => a + t.jumlah, 0);
   return ['🎯 <b>Anggaran ' + namaBulan_(bulan) + '</b>'].concat(daftar.map(k => {
     const p = pakai(k.nama);
     const persen = Math.round(p / k.anggaran * 100);
@@ -843,7 +848,7 @@ function teksAnggaran_(d, bulan) {
 }
 
 function teksRiwayat_(d, bulan) {
-  const trx = d.transaksi.filter(t => !bulan || t.tanggal.slice(0, 7) === bulan)
+  const trx = d.transaksi.filter(t => !bulan || periode_(t.tanggal) === bulan)
     .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.dibuat.localeCompare(a.dibuat)).slice(0, 10);
   if (!trx.length) return 'Belum ada transaksi.';
   return ['🧾 <b>Transaksi terakhir' + (bulan ? ' ' + namaBulan_(bulan) : '') + '</b>']
@@ -908,8 +913,20 @@ function hariIni_() {
   return Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
 }
 
+/** Periode yang sedang berjalan (mengikuti tanggal gajian, lihat periode_). */
 function bulanIni_() {
-  return hariIni_().slice(0, 7);
+  return periode_(hariIni_());
+}
+
+/**
+ * Tanggal mulai periode gajian dari sheet Pengaturan (MULAI_PERIODE, 1–28), diisi oleh muatData_.
+ * Kunci periode = bulan tempat periode dimulai, sama seperti aplikasi web (web/assets/db.js).
+ */
+let mulaiPeriode_ = 1;
+function periode_(tgl) {
+  const [y, m, d] = String(tgl).split('-').map(Number);
+  if (mulaiPeriode_ <= 1 || d >= mulaiPeriode_) return String(tgl).slice(0, 7);
+  return m === 1 ? (y - 1) + '-12' : y + '-' + String(m - 1).padStart(2, '0');
 }
 
 function sekarangIso_() {
@@ -933,7 +950,9 @@ function tglPendek_(s) {
 
 function namaBulan_(b) {
   const [y, m] = b.split('-').map(Number);
-  return NAMA_BULAN_PANJANG[m - 1] + ' ' + y;
+  if (mulaiPeriode_ <= 1) return NAMA_BULAN_PANJANG[m - 1] + ' ' + y;
+  const akhir = new Date(y, m, mulaiPeriode_ - 1); // bulan berikutnya, sehari sebelum tanggal mulai
+  return mulaiPeriode_ + ' ' + NAMA_BULAN[m - 1] + ' – ' + akhir.getDate() + ' ' + NAMA_BULAN[akhir.getMonth()] + ' ' + akhir.getFullYear();
 }
 
 function denganKunci_(fn) {

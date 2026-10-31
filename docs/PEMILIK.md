@@ -122,7 +122,8 @@ Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang 
 - **Dompet:** Nama, Ikon, Saldo Awal, Jenis (Dompet/Tabungan/Utang), Target, Tenggat
   - Jenis **Utang** = satu baris per orang. Saldo positif: orang itu berutang ke kita; negatif: kita berutang. Pinjaman & pelunasan dicatat sebagai Transfer antara dompet dan orang itu. Tenggat = jatuh tempo.
   - Bot Telegram mengenali jenis Utang mulai versi ini: setelah menarik kode terbaru, salin ulang `bot/Kode.gs` ke Apps Script lalu **Deploy → Manage deployments → ✏️ → New version**.
-- **Pengaturan:** Kunci, Nilai (kunci API Gemini, model, username bot, akun Telegram yang tertaut)
+- **Pengaturan:** Kunci, Nilai (kunci API Gemini, model, username bot, akun Telegram yang tertaut, `MULAI_PERIODE` = tanggal gajian 1–28)
+  - Dengan `MULAI_PERIODE` = 25, kunci periode `2026-10` berarti 25 Okt – 24 Nov 2026 (kunci = bulan tempat periode dimulai). Web (`periodeDari_`/`rentangPeriode_` di db.js) dan bot (`periode_`) memakai aturan yang sama.
 - **Rutin:** ID, Nama, Tipe, Jumlah, Kategori, Dompet, Dompet Tujuan, Catatan, Ulang (Bulanan/Mingguan/Tahunan), Mulai (patokan tanggal), Berikutnya (jatuh tempo berikutnya). Ditambahkan otomatis ke spreadsheet lama. Tagihan tanggal 31 jatuh di akhir bulan pendek lalu kembali ke 31 (patokan dari kolom Mulai).
 
 Saldo dompet dihitung otomatis: saldo awal + pemasukan − pengeluaran ± transfer.

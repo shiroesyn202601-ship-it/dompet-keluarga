@@ -353,21 +353,26 @@ const SERVER = (() => {
 
   // ---------- Data ----------
 
+  /**
+   * bulan: kunci periode 'yyyy-mm' (bulan tempat periode dimulai); kosong = periode yang sedang berjalan.
+   * Kalau tanggal mulai periode (gajian) = 25, periode '2026-10' = 25 Okt – 24 Nov 2026.
+   */
   async function getData(bulan) {
     if (!(await cariIdDb_())) return { perluSetup: true, user: GOOGLE.email() };
     const id = await db_();
     const [trx, kat, dom, set, rut] = await bacaTabel_(id, ['transaksi', 'kategori', 'dompet', 'pengaturan', 'rutin']);
     const d = olahData_(trx, kat, dom);
-    if (!/^\d{4}-\d{2}$/.test(bulan || '')) bulan = tanggalLokal_().slice(0, 7);
+    const mulai = mulaiPeriode_(set);
+    if (!/^\d{4}-\d{2}$/.test(bulan || '')) bulan = periodeDari_(tanggalLokal_(), mulai);
 
     const saldo = {};
     const jenis = {};
     d.dompet.forEach(w => { saldo[w.nama] = w.saldoAwal; jenis[w.nama] = w.jenis; });
 
-    // Ringkasan per bulan untuk laporan: { 'yyyy-mm': { masuk, keluar, ditabung, kategori: {nama: n}, oleh: {email: n} } }
+    // Ringkasan per periode untuk laporan: { 'yyyy-mm': { masuk, keluar, ditabung, kategori: {nama: n}, oleh: {email: n} } }
     const bulanan = {};
     d.transaksi.forEach(t => {
-      const b = t.tanggal.slice(0, 7);
+      const b = periodeDari_(t.tanggal, mulai);
       const r = bulanan[b] || (bulanan[b] = { masuk: 0, keluar: 0, ditabung: 0, kategori: {}, oleh: {} });
       if (t.tipe === TIPE.MASUK) {
         tambah_(saldo, t.dompet, t.jumlah);
@@ -393,14 +398,48 @@ const SERVER = (() => {
       spreadsheetId: id,
       telegram: infoTelegram_(set),
       bulan,
+      mulaiPeriode: mulai,
       kategori: d.kategori,
       dompet: d.dompet.map(w => Object.assign({}, w, { saldo: saldo[w.nama] || 0 })),
       rutin: olahRutin_(rut),
       bulanan,
       transaksi: d.transaksi
-        .filter(t => t.tanggal.slice(0, 7) === bulan)
+        .filter(t => periodeDari_(t.tanggal, mulai) === bulan)
         .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.dibuat.localeCompare(a.dibuat)),
     };
+  }
+
+  // ---------- Periode gajian ----------
+
+  /** Tanggal mulai periode (1–28) dari sheet Pengaturan; 1 = bulan kalender biasa. */
+  function mulaiPeriode_(rows) {
+    const n = Math.round(Number(pengaturan_(rows).MULAI_PERIODE) || 1);
+    return Math.min(28, Math.max(1, n));
+  }
+
+  /** Kunci periode 'yyyy-mm' untuk tanggal 'yyyy-mm-dd': sebelum tanggal mulai → masih periode bulan lalu. */
+  function periodeDari_(tgl, mulai) {
+    const [y, m, d] = String(tgl).split('-').map(Number);
+    if (!mulai || mulai <= 1 || d >= mulai) return String(tgl).slice(0, 7);
+    return m === 1 ? (y - 1) + '-12' : y + '-' + String(m - 1).padStart(2, '0');
+  }
+
+  /** { awal, akhir } ('yyyy-mm-dd', inklusif) untuk kunci periode. */
+  function rentangPeriode_(k, mulai) {
+    const [y, m] = k.split('-').map(Number);
+    const iso = (Y, M, D) => Y + '-' + String(M).padStart(2, '0') + '-' + String(D).padStart(2, '0');
+    if (!mulai || mulai <= 1) return { awal: iso(y, m, 1), akhir: iso(y, m, new Date(Date.UTC(y, m, 0)).getUTCDate()) };
+    const akhir = new Date(Date.UTC(y, m, mulai - 1)); // bulan berikutnya, sehari sebelum tanggal mulai
+    return { awal: iso(y, m, mulai), akhir: iso(akhir.getUTCFullYear(), akhir.getUTCMonth() + 1, akhir.getUTCDate()) };
+  }
+
+  async function simpanMulaiPeriode(n) {
+    n = Math.round(Number(n));
+    if (!(n >= 1 && n <= 28)) throw new Error('Pilih tanggal 1 sampai 28.');
+    const id = await db_();
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    await simpanPengaturan_(id, set, 'MULAI_PERIODE', String(n));
+    return true;
   }
 
   // ---------- Tagihan & transaksi rutin ----------
@@ -944,6 +983,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe,
     simpanTransaksi, hapusTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_, catatUtang,
+    simpanMulaiPeriode, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
   };

@@ -4,7 +4,7 @@ const PILIHAN_IKON = ['🍜', '🛒', '⛽', '🚗', '🛵', '💡', '🏠', '�
 
 const S = {
   data: null,
-  bulan: bulanSekarang(),
+  bulan: '', // kunci periode 'yyyy-mm' yang dilihat; '' = periode berjalan (diisi setelah data dimuat)
   tab: 'beranda',
   filterTipe: 'Semua',
   cari: '',
@@ -78,8 +78,17 @@ function angka(s) {
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+/** Nama periode: "November 2026", atau "25 Okt – 24 Nov 2026" kalau periode gajian tidak mulai tanggal 1. */
 function namaBulan(b) {
-  return keTanggal(b).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  const mulai = S.data && S.data.mulaiPeriode || 1;
+  if (mulai === 1) return keTanggal(b).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  const r = SERVER.rentangPeriode(b, mulai);
+  const f = (s, opsi) => keTanggal(s).toLocaleDateString('id-ID', opsi);
+  return f(r.awal, { day: 'numeric', month: 'short' }) + ' – ' + f(r.akhir, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+/** Kunci periode yang sedang berjalan (mengikuti tanggal gajian). */
+function periodeSekarang() {
+  return S.data && S.data.mulaiPeriode > 1 ? SERVER.periodeDari(hariIni(), S.data.mulaiPeriode) : bulanSekarang();
 }
 function labelTanggal(s) {
   if (s === hariIni()) return 'Hari ini';
@@ -144,6 +153,7 @@ async function muat() {
     $('#nav').hidden = !!S.data.perluSetup;
     if (S.data.perluSetup) $('#view').innerHTML = viewSetup();
     else {
+      S.bulan = S.data.bulan; // kosong = periode berjalan, ditentukan server dari tanggal gajian
       tulisLokal('data', S.data);
       render();
       kirimTertunda();
@@ -488,6 +498,7 @@ function viewBeranda() {
         <div><span class="panah-bulat keluar" aria-hidden="true">↑</span><span><small>Pengeluaran</small><b>${rp(keluar)}</b></span></div>
       </div>
       <div class="selisih">Selisih ${esc(namaBulan(S.bulan))}: <b>${rp(masuk - keluar)}</b></div>
+      ${barisSisaAman()}
     </section>
 
     <div class="aksi-cepat">
@@ -985,6 +996,11 @@ function viewLainnya() {
         <span class="isi"><b>Tagihan & transaksi rutin</b><small>${daftarRutin().length ? `${daftarRutin().length} rutin · berikutnya ${esc(daftarRutin()[0].nama)}, ${esc(tanggalPendek(daftarRutin()[0].berikutnya))}` : 'Listrik, internet, cicilan, SPP, gaji…'}</small></span>
         <span class="panah">›</span>
       </button>
+      <button class="baris" data-aksi="atur-periode">
+        <span class="ikon-bulat">📅</span>
+        <span class="isi"><b>Periode gajian</b><small>${(d.mulaiPeriode || 1) > 1 ? `Mulai tanggal ${d.mulaiPeriode} tiap bulan` : 'Bulan kalender (tanggal 1)'}</small></span>
+        <span class="panah">›</span>
+      </button>
       <button class="baris" data-aksi="kelola-kategori">
         <span class="ikon-bulat">🏷️</span>
         <span class="isi"><b>Kelola kategori</b><small>Tambah, ubah nama, atau hapus kategori</small></span>
@@ -1193,6 +1209,73 @@ function bacaFieldTrx() {
   F.tanggal = $('#f-tanggal').value;
   F.catatan = $('#f-catatan').value;
   if ($('#f-nama')) F.nama = $('#f-nama').value;
+}
+
+// ---------- Sisa aman per hari & periode gajian ----------
+
+/**
+ * Berapa yang aman dibelanjakan per hari sampai akhir periode (hanya untuk periode berjalan).
+ * Dasar: total anggaran kalau ada (hanya kategori beranggaran yang dihitung), kalau tidak: pemasukan periode ini.
+ * Tagihan rutin yang masih akan jatuh tempo di periode ini ikut disisihkan. null kalau tidak berlaku.
+ */
+function hitungSisaAman() {
+  if (S.bulan !== periodeSekarang()) return null;
+  const r = SERVER.rentangPeriode(S.bulan, S.data.mulaiPeriode || 1);
+  const beranggaran = kategoriBeranggaran();
+  const pakaiAnggaran = beranggaran.length > 0;
+  const lingkup = k => !pakaiAnggaran || beranggaran.some(x => x.nama === k);
+  const per = pengeluaranPerKategori();
+  const dasar = pakaiAnggaran ? beranggaran.reduce((a, k) => a + k.anggaran, 0) : total(S.data.transaksi, TIPE.MASUK);
+  if (!dasar) return null;
+  const terpakai = Object.keys(per).filter(lingkup).reduce((a, k) => a + per[k], 0);
+  const tagihan = daftarRutin().filter(x => x.tipe === TIPE.KELUAR && x.berikutnya >= hariIni() && x.berikutnya <= r.akhir && lingkup(x.kategori))
+    .reduce((a, x) => a + x.jumlah, 0);
+  const hari = selisihHari(r.akhir) + 1;
+  const sisa = dasar - terpakai - tagihan;
+  return { pakaiAnggaran, dasar, terpakai, tagihan, hari, akhir: r.akhir, sisa, perHari: sisa > 0 ? Math.floor(sisa / hari / 500) * 500 : 0 };
+}
+
+function barisSisaAman() {
+  const a = hitungSisaAman();
+  if (!a) return '';
+  return `<button type="button" class="tautan-putih aman" data-aksi="rincian-aman">
+    ${a.sisa > 0 ? `🟢 Aman dibelanjakan <b>${rp(a.perHari)}/hari</b> · ${a.hari} hari lagi` : '⚠️ Batas periode ini sudah terlewati'} ›</button>`;
+}
+
+function bukaRincianAman() {
+  const a = hitungSisaAman();
+  if (!a) return;
+  const baris = (label, nilai, tebal) => `<div class="baris-rincian"><span>${label}</span>${tebal ? `<b>${nilai}</b>` : `<span>${nilai}</span>`}</div>`;
+  bukaSheet('Aman Dibelanjakan', `
+    ${baris(a.pakaiAnggaran ? 'Total anggaran periode ini' : 'Pemasukan periode ini', rp(a.dasar))}
+    ${baris(a.pakaiAnggaran ? '− Terpakai (kategori beranggaran)' : '− Pengeluaran sejauh ini', rp(a.terpakai))}
+    ${a.tagihan ? baris('− Tagihan rutin sampai ' + tanggalPendek(a.akhir), rp(a.tagihan)) : ''}
+    ${baris('= Sisa', rp(a.sisa), true)}
+    ${baris('÷ ' + a.hari + ' hari (s.d. ' + tanggalPendek(a.akhir) + ')', a.sisa > 0 ? rp(a.perHari) + '/hari' : '—', true)}
+    <p class="info-kecil" style="text-align:left">${a.pakaiAnggaran
+      ? 'Dihitung dari anggaran per kategori. Pengeluaran di kategori tanpa anggaran tidak ikut dihitung.'
+      : 'Belum ada anggaran, jadi dihitung dari pemasukan yang dicatat di periode ini. Atur anggaran supaya lebih tepat.'}</p>
+    <div class="aksi-form">
+      <button type="button" class="btn btn-hapus" data-aksi="atur-periode">Periode gajian</button>
+      <button type="button" class="btn btn-utama" data-aksi="atur-anggaran">Atur anggaran</button>
+    </div>`);
+}
+
+function bukaFormPeriode() {
+  const kini = S.data.mulaiPeriode || 1;
+  F = { mulai: kini };
+  const contoh = n => {
+    if (n === 1) return 'Periode = bulan kalender (1 – akhir bulan).';
+    const r = SERVER.rentangPeriode(SERVER.periodeDari(hariIni(), n), n);
+    return `Periode berjalan: ${tanggalPendek(r.awal)} – ${tanggalPendek(r.akhir)}.`;
+  };
+  bukaSheet('Periode Gajian', `
+    <p style="margin-top:0">Tanggal berapa biasanya gajian? Ringkasan, anggaran, dan laporan dihitung dari tanggal itu sampai sehari sebelum gajian berikutnya.</p>
+    <div class="grid-tanggal">${Array.from({ length: 28 }, (_, i) => i + 1).map(n =>
+      `<button type="button" class="${n === kini ? 'aktif' : ''}" data-aksi="pilih-periode" data-n="${n}">${n}</button>`).join('')}</div>
+    <p class="info-kecil" id="contoh-periode" style="text-align:left">${contoh(kini)}</p>
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-periode">Simpan</button></div>`);
+  F.contoh = contoh;
 }
 
 // ---------- Tagihan & transaksi rutin ----------
@@ -1728,6 +1811,18 @@ const AKSI = {
     kirim(el, 'simpanTransaksi', [t], pesan, e => !t.id && e.jaringan && tunda())
       .then(ok => { if (ok && dariJob) hapusJob(dariJob); });
   },
+  'rincian-aman': () => bukaRincianAman(),
+  'atur-periode': () => bukaFormPeriode(),
+  'pilih-periode': el => {
+    F.mulai = Number(el.dataset.n);
+    document.querySelectorAll('.grid-tanggal button').forEach(b => b.classList.toggle('aktif', b === el));
+    $('#contoh-periode').textContent = F.contoh(F.mulai);
+  },
+  'simpan-periode': el => {
+    S.bulan = ''; // pindah ke periode berjalan menurut tanggal gajian yang baru
+    S.tahun = new Date().getFullYear();
+    kirim(el, 'simpanMulaiPeriode', [F.mulai], 'Periode gajian tersimpan ✔');
+  },
   'f-ulang': el => { bacaFieldTrx(); F.ulang = el.dataset.ulang; renderFormTrx(); },
   'kelola-rutin': () => bukaDaftarRutin(),
   'tambah-rutin': () => bukaFormRutin(null),
@@ -1852,7 +1947,7 @@ const AKSI = {
 
   'tahun': async el => {
     S.tahun += Number(el.dataset.geser);
-    S.bulan = S.tahun === new Date().getFullYear() ? bulanSekarang() : S.tahun + '-12';
+    S.bulan = S.tahun === new Date().getFullYear() ? periodeSekarang() : S.tahun + '-12';
     render();
     muat(); // muat ulang transaksi bulan terpilih untuk tab lain, di latar belakang
   },
