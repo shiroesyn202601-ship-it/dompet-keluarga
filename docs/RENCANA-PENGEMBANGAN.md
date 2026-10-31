@@ -73,6 +73,29 @@ Masalah saat ini:
 - Bot Telegram belum tahu: anggaran amplop (peringatan anggaran bot memakai anggaran dasar), lampiran foto, dan buku selain yang diatur di `SPREADSHEET_ID`.
 - Belum diuji di HP sungguhan: kunci sidik jari/wajah (tergantung HP & browser), berbagi gambar, unggah lampiran.
 
+## Langkah 7 — Hasil audit (keamanan, kenyamanan, kemudahan)
+
+Audit kode 1 Nov 2026. Sudah aman: semua isian di-escape, tulis Sheets mode `RAW` (tidak ada injeksi rumus), scope sempit, webhook bot berkode rahasia, Keluar membersihkan data di HP.
+
+**7a — Cepat, dampak besar**
+- [x] **K1** PIN dibatasi: 5× salah → tunggu 30 detik; 10× salah → wajib masuk ulang dengan Google.
+- [x] **M1** Menu Bot Telegram hanya tampil kalau bot sudah terpasang di buku ini (teman tidak melihat instruksi @BotFather).
+- [x] **N2** "Dihapus · Urungkan" (6 detik) setelah menghapus transaksi; konfirmasi hapus dihilangkan. Diuji.
+- [x] **K4** Foto lampiran ikut dipindah ke Sampah Drive saat transaksinya dihapus atau fotonya diganti/dihapus (diambil kembali saat diurungkan). Diuji.
+
+**7b — Menengah**
+- [ ] **N1** Perpanjang sesi Google otomatis saat pengguna mengetuk sesuatu di 5 menit terakhir sebelum token habis.
+- [ ] **N3** ⚙️ → Unduh data (CSV/Excel) + info riwayat versi Google Sheets.
+- [ ] **K3** Daftar anggota + tombol Keluarkan (cabut akses spreadsheet & folder struk).
+
+**7c — Sentuhan akhir**
+- [ ] **N4** Ganti `confirm()` bawaan browser dengan lembar konfirmasi bergaya aplikasi.
+- [ ] **M2** Kartu tips 3 langkah di Beranda untuk pengguna baru (bisa ditutup).
+- [ ] **K5** Content-Security-Policy (`<meta>`) di index.html.
+- [ ] **M4** Pesan kesalahan Google yang umum diterjemahkan ke bahasa Indonesia.
+- [ ] **K6** Peringatan bahwa kunci Gemini terlihat oleh anggota spreadsheet.
+- [x] **K2** Jelaskan batas Kunci aplikasi (melindungi dari orang yang meminjam HP, bukan dari pencurian HP).
+
 ## Tidak disarankan
 
 - Sinkron otomatis bank — belum ada open banking untuk aplikasi perorangan di Indonesia.
