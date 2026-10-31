@@ -232,6 +232,12 @@ function prosesTeksBebas_(ss, chatId, teks, pengguna) {
       tambahan = '\n\n<i>ℹ️ AI sedang tidak tersedia (' + html_(jawaban.message) + '), jadi dicatat dengan cara sederhana. Periksa kategorinya.</i>';
     } else {
       hasil = jawaban;
+      // Model kadang tidak mengisi jumlah; lengkapi dari nominal yang tertulis di pesan.
+      const catat = (hasil.perintah || []).filter(x => x && x.aksi === 'catat');
+      const nominal = semuaNominal_(teks);
+      if (catat.length === nominal.length) {
+        catat.forEach((x, i) => { if (!(Number(x.jumlah) > 0)) x.jumlah = nominal[i]; });
+      }
     }
   } else {
     hasil = tebakSederhana_(teks, d);
@@ -305,6 +311,7 @@ function petunjukPerintah_(d, terakhir, pengguna, pesan) {
       + (t.dompetTujuan ? ' → ' + t.dompetTujuan : '') + ' | ' + t.catatan).join('\n') || '(belum ada)',
     '',
     'Aturan:',
+    '- Selalu isi jumlah (rupiah bulat). Untuk aksi selain "catat"/"ubah", atau jika nominal tidak berubah, isi 0.',
     '- "catat": transaksi baru. jumlah dalam rupiah bulat: 25rb/25k = 25000, 1,5jt = 1500000, goceng = 5000, ceban = 10000, gopek = 500.',
     '  tipe Pengeluaran, kecuali jelas pemasukan (gaji, terima, dapat, bonus) atau perpindahan uang antar dompet/setor/tarik tabungan (tipe Transfer: isi dompet asal & dompetTujuan).',
     '  kategori: pilih yang paling cocok dari daftar sesuai tipe (kosongkan untuk Transfer). dompet: isi hanya jika disebut, pakai nama persis dari daftar.',
@@ -339,7 +346,7 @@ function skemaPerintah_() {
             ref: { type: 'STRING' },
             bulan: { type: 'STRING' },
           },
-          required: ['aksi'],
+          required: ['aksi', 'jumlah'],
         },
       },
       balasan: { type: 'STRING' },
@@ -348,14 +355,35 @@ function skemaPerintah_() {
   };
 }
 
-/** Tanpa kunci Gemini: "bakso 25rb" / "25rb bakso" dicatat sebagai pengeluaran. */
-function tebakSederhana_(teks, d) {
-  const m = teks.match(/(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta)?\b/i);
-  if (!m) return { perintah: [{ aksi: 'tidak_jelas' }], balasan: 'Sebutkan nominalnya, mis. "bakso 25rb". (AI belum aktif: tambahkan kunci Gemini di aplikasi.)' };
-  let n = Number(m[1].replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.'));
-  const s = (m[2] || '').toLowerCase();
+const POLA_NOMINAL = /(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta)?\b/gi;
+
+/** "25rb" → 25000, "1,5jt" → 1500000, "25.000" → 25000. */
+function nominal_(angka, satuan) {
+  let n = Number(angka.replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.'));
+  const s = (satuan || '').toLowerCase();
   if (s === 'rb' || s === 'ribu' || s === 'k') n *= 1000;
   if (s === 'jt' || s === 'juta') n *= 1e6;
+  return Math.round(n);
+}
+
+/** Semua nominal uang di pesan, urut kemunculan. Angka kecil tanpa satuan (jumlah barang) diabaikan. */
+function semuaNominal_(teks) {
+  const hasil = [];
+  let m;
+  POLA_NOMINAL.lastIndex = 0;
+  while ((m = POLA_NOMINAL.exec(teks))) {
+    const n = nominal_(m[1], m[2]);
+    if (m[2] || n >= 100) hasil.push(n);
+  }
+  return hasil;
+}
+
+/** Tanpa AI: "bakso 25rb" / "25rb bakso" dicatat sebagai pengeluaran. */
+function tebakSederhana_(teks, d) {
+  POLA_NOMINAL.lastIndex = 0;
+  const m = POLA_NOMINAL.exec(teks);
+  if (!m) return { perintah: [{ aksi: 'tidak_jelas' }], balasan: 'Sebutkan nominalnya, mis. "bakso 25rb". (AI belum aktif: tambahkan kunci Gemini di aplikasi.)' };
+  const n = nominal_(m[1], m[2]);
   const catatan = teks.replace(m[0], '').replace(/\s+/g, ' ').trim();
   const masuk = /\b(gaji|terima|dapat|bonus|masuk)\b/i.test(teks);
   const tipe = masuk ? TIPE.MASUK : TIPE.KELUAR;
