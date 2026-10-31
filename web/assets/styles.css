@@ -448,6 +448,8 @@ select.field, select.field:focus { appearance: none; -webkit-appearance: none; c
   max-width: calc(100% - 32px); box-shadow: var(--shadow-up); animation: pudar .2s;
 }
 .toast.error { background: #c4183c; color: #fff; }
+.toast.ada-tombol { display: flex; align-items: center; gap: 14px; padding: 8px 8px 8px 18px; }
+.toast button { background: none; border: 0; color: inherit; font: inherit; font-weight: 800; text-decoration: underline; padding: 6px 10px; cursor: pointer; }
 [hidden] { display: none !important; }
 
 /* ---------- Layar masuk ---------- */

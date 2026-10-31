@@ -120,13 +120,16 @@ function $(sel) { return document.querySelector(sel); }
 
 function loading(ya) { $('#loading').hidden = !ya; }
 let timerToast;
-function toast(pesan, error) {
+let trxTerhapus = null; // baris terakhir yang dihapus, untuk tombol "Urungkan"
+/** tombol (opsional): { label, aksi } → tombol di dalam toast, mis. "Urungkan"; toast tampil lebih lama. */
+function toast(pesan, error, tombol) {
   const el = $('#toast');
   el.textContent = pesan;
-  el.className = 'toast' + (error ? ' error' : '');
+  if (tombol) el.insertAdjacentHTML('beforeend', `<button type="button" data-aksi="${esc(tombol.aksi)}">${esc(tombol.label)}</button>`);
+  el.className = 'toast' + (error ? ' error' : '') + (tombol ? ' ada-tombol' : '');
   el.hidden = false;
   clearTimeout(timerToast);
-  timerToast = setTimeout(() => { el.hidden = true; }, error ? 8000 : 2500);
+  timerToast = setTimeout(() => { el.hidden = true; }, error ? 8000 : tombol ? 6000 : 2500);
 }
 function pesanError(e) {
   return (e && e.message ? e.message : String(e)).replace(/^Error:\s*/, '');
@@ -1529,14 +1532,16 @@ function tutupSheet() {
 }
 
 /** tanganiGagal(e): opsional; kembalikan true kalau error sudah ditangani (mis. disimpan sebagai tertunda). */
+/** pesan: teks toast, atau fungsi(hasil) yang menampilkan toast-nya sendiri. */
 async function kirim(tombol, fungsi, args, pesan, tanganiGagal) {
   tombol.disabled = true;
   loading(true);
   try {
-    await api(fungsi, ...args);
+    const hasil = await api(fungsi, ...args);
     tutupSheet();
     await muat();
-    toast(pesan);
+    if (typeof pesan === 'function') pesan(hasil);
+    else toast(pesan);
     return true;
   } catch (e) {
     if (tanganiGagal && tanganiGagal(e)) return false;
@@ -2694,8 +2699,16 @@ const AKSI = {
         dompetTujuan: t.dompetTujuan, tanggal: t.tanggal, catatan: t.catatan }, 'Catat Ulang');
     }
   },
-  'hapus-trx': el => {
-    if (confirm('Hapus transaksi ini?')) kirim(el, 'hapusTransaksi', [F.id], 'Transaksi dihapus');
+  // Tanpa konfirmasi: kesalahan cukup diurungkan dari toast.
+  'hapus-trx': el => kirim(el, 'hapusTransaksi', [F.id], baris => {
+    trxTerhapus = baris;
+    toast('Transaksi dihapus', false, { label: 'Urungkan', aksi: 'urungkan-hapus' });
+  }),
+  'urungkan-hapus': el => {
+    const baris = trxTerhapus;
+    trxTerhapus = null;
+    $('#toast').hidden = true;
+    if (baris) kirim(el, 'kembalikanTransaksi', [baris], 'Transaksi dikembalikan');
   },
 
   'tambah-dompet': () => bukaFormDompet(null, JENIS.DOMPET),

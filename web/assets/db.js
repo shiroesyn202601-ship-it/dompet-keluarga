@@ -627,12 +627,14 @@ const SERVER = (() => {
       // Foto diunggah dulu, supaya baris tidak bergeser selama menunggu unggahan.
       const lampiran = input.lampiranData ? await unggahStruk_(input.lampiranData, input.tanggal) : null;
       const baris = cariBaris_(await daftarId_(id), x => x === t.id) + 2;
+      const lampiranLama = lampiran || input.hapusLampiran ? (await bacaBarisTransaksi_(id, baris))[11] : '';
       const data = [
         { range: "'" + tbl.nama + "'!B" + baris + ':H' + baris, values: [[t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan]] },
         { range: "'" + tbl.nama + "'!K" + baris, values: [[sekarang]] },
       ];
       if (lampiran || input.hapusLampiran) data.push({ range: "'" + tbl.nama + "'!L" + baris, values: [[lampiran || '']] });
       await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', { method: 'POST', json: { valueInputOption: 'RAW', data } });
+      if (lampiranLama && lampiranLama !== lampiran) await buangLampiran_(lampiranLama); // foto lama diganti/dihapus
     } else {
       t.id = teks_(input.idBaru) || crypto.randomUUID();
       if (input.idBaru && (await daftarId_(id)).includes(t.id)) return t.id;
@@ -745,10 +747,45 @@ const SERVER = (() => {
     return f.id;
   }
 
+  /** Mengembalikan isi baris yang dihapus, untuk "Urungkan" (kembalikanTransaksi). Fotonya ikut ke Sampah Drive. */
   async function hapusTransaksi(idTrx) {
     const id = await db_();
-    await hapusBaris_(id, TABEL.transaksi, cariBaris_(await daftarId_(id), x => x === String(idTrx)));
+    const i = cariBaris_(await daftarId_(id), x => x === String(idTrx));
+    const baris = await bacaBarisTransaksi_(id, i + 2);
+    await hapusBaris_(id, TABEL.transaksi, i);
+    await buangLampiran_(baris[11]);
+    return baris;
+  }
+
+  /** baris: hasil hapusTransaksi. Ditambah lagi apa adanya (pencatat & waktu asli tetap), foto diambil dari Sampah. */
+  async function kembalikanTransaksi(baris) {
+    const id = await db_();
+    if (!Array.isArray(baris) || !baris[0]) throw new Error('Data transaksi tidak lengkap.');
+    if ((await daftarId_(id)).includes(String(baris[0]))) return true;
+    await tambahBaris_(id, TABEL.transaksi, [baris.slice(0, TABEL.transaksi.kolom.length)]);
+    await buangLampiran_(baris[11], false);
     return true;
+  }
+
+  /** Satu baris Transaksi (nomor baris sheet), nilai mentah supaya bisa ditulis ulang persis. */
+  async function bacaBarisTransaksi_(id, nomor) {
+    const n = TABEL.transaksi.kolom.length;
+    const range = "'" + TABEL.transaksi.nama + "'!A" + nomor + ':L' + nomor;
+    const r = await GOOGLE.api(SHEETS + '/' + id + '/values/' + encodeURIComponent(range) + '?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER');
+    const isi = ((r.values || [])[0] || []).slice(0, n);
+    while (isi.length < n) isi.push('');
+    return isi;
+  }
+
+  /**
+   * Memindahkan foto lampiran ke Sampah Drive (buang = false: mengambilnya kembali).
+   * Gagal diabaikan: foto milik anggota lain tidak bisa dibuang, dan perubahan di sheet sudah terjadi.
+   */
+  async function buangLampiran_(idFile, buang = true) {
+    if (!teks_(idFile)) return;
+    try {
+      await GOOGLE.api(DRIVE + '/files/' + encodeURIComponent(teks_(idFile)), { method: 'PATCH', json: { trashed: buang } });
+    } catch (e) { /* lihat di atas */ }
   }
 
   /** Kolom ID transaksi saja (cepat dibaca), urut sesuai baris data. */
@@ -1205,7 +1242,7 @@ const SERVER = (() => {
 
   return {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, buatBuku, lupakanBuku,
-    simpanTransaksi, hapusTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
+    simpanTransaksi, hapusTransaksi, kembalikanTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, buatKodeTelegram, putuskanTelegram,
