@@ -908,6 +908,7 @@ function viewLaporan() {
       ${grafikBulanan(bulan, data, pilih)}
       <p class="detail-bulan"><b>${esc(namaBulan(pilih))}</b> · Pemasukan ${rp(r.masuk)} · Pengeluaran ${rp(r.keluar)}
         <br><small>Ketuk bulan di grafik untuk melihat rinciannya.</small></p>
+      <button type="button" class="tombol-tambah" style="margin:0 0 12px" data-aksi="bagikan-laporan" data-bulan="${esc(pilih)}">📤 Bagikan ringkasan ${esc(namaBulan(pilih))}</button>
       <details class="tabel-data">
         <summary>Lihat sebagai tabel</summary>
         <table>
@@ -920,6 +921,72 @@ function viewLaporan() {
     ${kartuKategoriLaporan(pilih, data)}
     ${kartuBanding(pilih)}
     ${kartuAnggota(pilih)}`;
+}
+
+/**
+ * Gambar ringkasan satu periode (1080×1350, pas untuk WhatsApp/Instagram), lalu dibagikan lewat menu berbagi HP;
+ * kalau browser tidak mendukung berbagi file, gambarnya diunduh.
+ */
+async function bagikanLaporan(k) {
+  const r = ringkasBulan(k);
+  const top = Object.keys(r.kategori).map(n => ({ n, v: r.kategori[n] })).sort((a, b) => b.v - a.v).slice(0, 5);
+  const W = 1080, H = 1350, P = 80;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  if (!g.roundRect) g.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); }; // browser lama: sudut kotak biasa
+  try { await document.fonts.ready; } catch (e) { /* font cadangan */ }
+  const font = (ukuran, tebal) => `${tebal || 700} ${ukuran}px "Plus Jakarta Sans", system-ui, sans-serif`;
+  const teks = (s, x, y, ukuran, warna, tebal, rata) => {
+    g.font = font(ukuran, tebal); g.fillStyle = warna; g.textAlign = rata || 'left'; g.fillText(s, x, y);
+  };
+
+  const latar = g.createLinearGradient(0, 0, W, H);
+  latar.addColorStop(0, '#0c111d'); latar.addColorStop(1, '#1f1b4d');
+  g.fillStyle = latar; g.fillRect(0, 0, W, H);
+
+  teks('👛  Dompet Keluarga', P, 130, 34, 'rgba(255,255,255,.7)', 600);
+  teks('Ringkasan keuangan', P, 220, 44, '#ffffff', 600);
+  teks(namaBulan(k), P, 290, 60, '#ffffff', 800);
+
+  const kotak = (x, y, w, label, nilai, warna) => {
+    g.fillStyle = 'rgba(255,255,255,.08)'; g.beginPath(); g.roundRect(x, y, w, 170, 28); g.fill();
+    teks(label, x + 32, y + 62, 30, 'rgba(255,255,255,.7)', 600);
+    teks(nilai, x + 32, y + 128, 46, warna, 800);
+  };
+  const lebar = (W - P * 2 - 24) / 2;
+  kotak(P, 350, lebar, 'Pemasukan', rp(r.masuk), '#3ccb8b');
+  kotak(P + lebar + 24, 350, lebar, 'Pengeluaran', rp(r.keluar), '#fb7593');
+  kotak(P, 544, W - P * 2, 'Selisih' + (r.masuk ? ` · ${Math.round((r.masuk - r.keluar) / r.masuk * 100)}% dari pemasukan` : ''), rp(r.masuk - r.keluar), '#ffffff');
+
+  teks('Pengeluaran terbesar', P, 820, 36, '#ffffff', 700);
+  const maks = Math.max(1, ...top.map(x => x.v));
+  top.forEach((x, i) => {
+    const y = 880 + i * 82;
+    teks(ikonKategori(x.n, TIPE.KELUAR) + '  ' + x.n, P, y + 30, 32, '#ffffff', 600);
+    teks(rp(x.v) + (r.keluar ? `  ${Math.round(x.v / r.keluar * 100)}%` : ''), W - P, y + 30, 32, 'rgba(255,255,255,.85)', 700, 'right');
+    g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.roundRect(P, y + 46, W - P * 2, 12, 6); g.fill();
+    g.fillStyle = '#8b8cf8'; g.beginPath(); g.roundRect(P, y + 46, Math.max(12, (W - P * 2) * x.v / maks), 12, 6); g.fill();
+  });
+  if (!top.length) teks('Belum ada pengeluaran.', P, 900, 32, 'rgba(255,255,255,.7)', 600);
+  teks('Dicatat dengan Dompet Keluarga', W / 2, H - 70, 28, 'rgba(255,255,255,.5)', 600, 'center');
+
+  const blob = await new Promise(ok => c.toBlob(ok, 'image/png'));
+  const nama = 'ringkasan-' + k + '.png';
+  const file = new File([blob], nama, { type: 'image/png' });
+  const keterangan = `Ringkasan keuangan ${namaBulan(k)}: pemasukan ${rp(r.masuk)}, pengeluaran ${rp(r.keluar)}, selisih ${rp(r.masuk - r.keluar)}.`;
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'Ringkasan ' + namaBulan(k), text: keterangan });
+    } catch (e) { /* dibatalkan pengguna */ }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = nama;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast('Gambar ringkasan diunduh ✔');
 }
 
 /** Grafik batang berkelompok: 2 seri, satu sumbu, ujung atas membulat 4px, celah 2px antar batang. */
@@ -2204,6 +2271,11 @@ const AKSI = {
     if (!t.id && (S.offline || !navigator.onLine)) return tunda();
     kirim(el, 'simpanTransaksi', [t], pesan, e => !t.id && e.jaringan && tunda())
       .then(ok => { if (ok && dariJob) hapusJob(dariJob); });
+  },
+  'bagikan-laporan': async el => {
+    el.disabled = true;
+    try { await bagikanLaporan(el.dataset.bulan); } catch (e) { toast('Gambar tidak bisa dibuat: ' + pesanError(e), true); }
+    el.disabled = false;
   },
   'tema': el => { aturTema(el.dataset.t); render(); },
   'samar': () => { aturSamar(!modeSamar()); render(); },
