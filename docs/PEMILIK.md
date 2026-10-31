@@ -121,6 +121,7 @@ Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang 
 - **Kategori:** Nama, Tipe, Ikon, Anggaran (batas per bulan, khusus pengeluaran)
 - **Dompet:** Nama, Ikon, Saldo Awal, Jenis (Dompet/Tabungan), Target, Tenggat
 - **Pengaturan:** Kunci, Nilai (kunci API Gemini, model, username bot, akun Telegram yang tertaut)
+- **Rutin:** ID, Nama, Tipe, Jumlah, Kategori, Dompet, Dompet Tujuan, Catatan, Ulang (Bulanan/Mingguan/Tahunan), Mulai (patokan tanggal), Berikutnya (jatuh tempo berikutnya). Ditambahkan otomatis ke spreadsheet lama. Tagihan tanggal 31 jatuh di akhir bulan pendek lalu kembali ke 31 (patokan dari kolom Mulai).
 
 Saldo dompet dihitung otomatis: saldo awal + pemasukan − pengeluaran ± transfer.
 Jangan mengubah nama sheet atau urutan kolom secara manual, karena aplikasi membacanya berdasarkan posisi kolom.

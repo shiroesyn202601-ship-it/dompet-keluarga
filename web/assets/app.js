@@ -192,6 +192,7 @@ function simpanTertunda(t) {
   tulisLokal('tertunda', tertunda().concat([{
     idBaru: t.idBaru || crypto.randomUUID(), tipe: t.tipe, jumlah: t.jumlah, kategori: t.kategori,
     dompet: t.dompet, dompetTujuan: t.dompetTujuan, tanggal: t.tanggal, catatan: t.catatan,
+    dariRutin: t.dariRutin || '', ulang: t.ulang || '',
   }]));
   tutupSheet();
   render();
@@ -491,6 +492,8 @@ function viewBeranda() {
       <button data-aksi="cepat-transfer"><span class="kotak">${svg('transfer')}</span>Transfer</button>
       <button data-aksi="tab" data-tab="laporan"><span class="kotak">${svg('laporan')}</span>Laporan</button>
     </div>
+
+    ${kartuTagihan()}
 
     <div class="bento">${tileAnggaran(per)}${tileTabungan()}</div>
 
@@ -858,6 +861,11 @@ function viewLainnya() {
         <span class="isi"><b>Anggaran bulanan</b><small>Batas belanja per kategori</small></span>
         <span class="panah">›</span>
       </button>
+      <button class="baris" data-aksi="kelola-rutin">
+        <span class="ikon-bulat">🔁</span>
+        <span class="isi"><b>Tagihan & transaksi rutin</b><small>${daftarRutin().length ? `${daftarRutin().length} rutin · berikutnya ${esc(daftarRutin()[0].nama)}, ${esc(tanggalPendek(daftarRutin()[0].berikutnya))}` : 'Listrik, internet, cicilan, SPP, gaji…'}</small></span>
+        <span class="panah">›</span>
+      </button>
       <button class="baris" data-aksi="kelola-kategori">
         <span class="ikon-bulat">🏷️</span>
         <span class="isi"><b>Kelola kategori</b><small>Tambah, ubah nama, atau hapus kategori</small></span>
@@ -976,7 +984,23 @@ function renderFormTrx() {
     `<button type="button" class="pilihan ${w.nama === terpilih ? 'aktif' : ''}" data-aksi="${aksi}" data-nama="${esc(w.nama)}">
       <span>${esc(w.ikon)}</span>${esc(w.nama)}</button>`).join('')}</div>`;
 
+  // Form yang sama dipakai untuk: transaksi baru/ubah, membayar tagihan rutin (F.dariRutin),
+  // dan membuat/mengubah tagihan rutin itu sendiri (F.modeRutin).
+  const rutin = F.modeRutin;
+  const bolehUlang = rutin || (!F.id && !F.dariRutin);
+  const berikutUlang = F.ulang && !rutin ? SERVER.tanggalBerikut(F.tanggal || hariIni(), F.tanggal || hariIni(), F.ulang) : '';
+
   $('#form-trx').innerHTML = `
+    ${F.dariRutin ? `
+      <div class="info-rutin">🔁 <span>Setelah disimpan, jatuh tempo berikutnya <b>${esc(tanggalPendek(F.berikutRutin))}</b>.
+        <button type="button" data-aksi="lewati-rutin">Lewati kali ini</button></span></div>` : ''}
+
+    ${rutin ? `
+      <div class="grup-form">
+        <label class="label" for="f-nama">Nama tagihan</label>
+        <input class="field" id="f-nama" maxlength="60" placeholder="mis. Listrik PLN, Internet, Cicilan motor, Gaji" value="${esc(F.nama)}">
+      </div>` : ''}
+
     <div class="segmen">
       ${[TIPE.KELUAR, TIPE.MASUK, TIPE.TRANSFER].map(t =>
         `<button type="button" class="${F.tipe === t ? 'aktif' : ''}" data-aksi="f-tipe" data-tipe="${t}">${t}</button>`).join('')}
@@ -985,7 +1009,7 @@ function renderFormTrx() {
     ${F.strukJob ? `
       <div class="struk-proses" role="status"><span class="spinner kecil"></span>
         <span><b>Membaca struk…</b><small>Isi lain boleh diisi dulu, atau tutup form ini. Hasilnya tetap muncul di bawah layar.</small></span></div>`
-    : !F.id && F.tipe === TIPE.KELUAR ? `
+    : !F.id && !rutin && F.tipe === TIPE.KELUAR ? `
       <button type="button" class="tombol-tambah" style="margin:0 0 16px" data-aksi="foto-struk">📷 Isi otomatis dari foto struk</button>` : ''}
 
     <label class="input-jumlah">
@@ -1015,9 +1039,17 @@ function renderFormTrx() {
       </div>` : ''}
 
     <div class="grup-form">
-      <label class="label" for="f-tanggal">Tanggal</label>
+      <label class="label" for="f-tanggal">${rutin ? 'Jatuh tempo berikutnya' : 'Tanggal'}</label>
       <input class="field" id="f-tanggal" type="date" value="${esc(F.tanggal)}">
     </div>
+
+    ${bolehUlang ? `
+      <div class="grup-form">
+        <span class="label">🔁 ${rutin ? 'Berulang' : 'Ulangi (tagihan rutin)'}</span>
+        <div class="chips">${(rutin ? [] : [['', 'Tidak']]).concat([['Bulanan', 'Tiap bulan'], ['Mingguan', 'Tiap minggu'], ['Tahunan', 'Tiap tahun']]).map(([u, l]) =>
+          `<button type="button" class="chip ${(F.ulang || '') === u ? 'aktif' : ''}" data-aksi="f-ulang" data-ulang="${u}">${l}</button>`).join('')}</div>
+        ${berikutUlang ? `<p class="info-kecil" style="text-align:left">Muncul lagi di Beranda menjelang ${esc(tanggalPendek(berikutUlang))}, tinggal ketuk untuk mencatat.</p>` : ''}
+      </div>` : ''}
 
     <div class="grup-form">
       <label class="label" for="f-catatan">Catatan (opsional)</label>
@@ -1025,8 +1057,11 @@ function renderFormTrx() {
     </div>
 
     <div class="aksi-form">
-      ${F.id ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-trx">Hapus</button>' : ''}
-      <button type="button" class="btn btn-utama" data-aksi="simpan-trx">Simpan</button>
+      ${rutin
+        ? `${F.idRutin ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-rutin">Hapus</button>' : ''}
+           <button type="button" class="btn btn-utama" data-aksi="simpan-rutin">Simpan</button>`
+        : `${F.id ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-trx">Hapus</button>' : ''}
+           <button type="button" class="btn btn-utama" data-aksi="simpan-trx">Simpan</button>`}
     </div>
     ${F.oleh ? `<p class="info-kecil">Dicatat oleh ${esc(namaPendek(F.oleh))}</p>` : ''}`;
 }
@@ -1037,6 +1072,75 @@ function bacaFieldTrx() {
   F.jumlah = angka($('#f-jumlah').value);
   F.tanggal = $('#f-tanggal').value;
   F.catatan = $('#f-catatan').value;
+  if ($('#f-nama')) F.nama = $('#f-nama').value;
+}
+
+// ---------- Tagihan & transaksi rutin ----------
+
+const SEBUTAN_ULANG = { Bulanan: 'Tiap bulan', Mingguan: 'Tiap minggu', Tahunan: 'Tiap tahun' };
+const daftarRutin = () => S.data.rutin || []; // data offline versi lama belum punya rutin
+
+function ikonRutin(r) {
+  return r.tipe === TIPE.TRANSFER ? (adalahTabungan(r.dompetTujuan) ? ikonDompet(r.dompetTujuan) : '🔁') : ikonKategori(r.kategori, r.tipe);
+}
+
+function selisihHari(tgl) {
+  return Math.round((keTanggal(tgl) - keTanggal(hariIni())) / 864e5);
+}
+
+function labelJatuhTempo(tgl) {
+  const n = selisihHari(tgl);
+  if (n < 0) return `⛔ Terlambat ${-n} hari · ${tanggalPendek(tgl)}`;
+  if (n === 0) return '⚠️ Jatuh tempo hari ini';
+  if (n === 1) return 'Besok · ' + tanggalPendek(tgl);
+  return `${n} hari lagi · ${tanggalPendek(tgl)}`;
+}
+
+/** Kartu Beranda: rutin yang jatuh tempo dalam 7 hari atau sudah terlewat. */
+function kartuTagihan() {
+  const dibayarOffline = tertunda().map(t => t.dariRutin).filter(Boolean); // sudah dibayar, menunggu sinyal
+  const daftar = daftarRutin().filter(r => selisihHari(r.berikutnya) <= 7 && !dibayarOffline.includes(r.id));
+  if (!daftar.length) return '';
+  return `
+    <h2 class="judul-bagian">Tagihan mendatang <button data-aksi="kelola-rutin">Kelola</button></h2>
+    <section class="kartu" style="padding:4px 16px">${daftar.map(r => `
+      <button class="baris" data-aksi="bayar-rutin" data-id="${esc(r.id)}">
+        <span class="ikon-bulat">${esc(ikonRutin(r))}</span>
+        <span class="isi"><b>${esc(r.nama)}</b><small class="${selisihHari(r.berikutnya) < 0 ? 'terlambat' : ''}">${esc(labelJatuhTempo(r.berikutnya))}</small></span>
+        <b class="nominal">${rp(r.jumlah)}</b>
+      </button>`).join('')}
+    </section>`;
+}
+
+function bukaDaftarRutin() {
+  const daftar = daftarRutin();
+  bukaSheet('Tagihan & Transaksi Rutin', `
+    <p class="info-kecil" style="text-align:left;margin:0 0 8px">Muncul di Beranda 7 hari sebelum jatuh tempo. Ketuk di sana untuk mencatat, nominal bisa diubah saat itu.</p>
+    ${daftar.map(r => `
+      <button class="baris" data-aksi="edit-rutin" data-id="${esc(r.id)}">
+        <span class="ikon-bulat">${esc(ikonRutin(r))}</span>
+        <span class="isi"><b>${esc(r.nama)}</b><small>${SEBUTAN_ULANG[r.ulang]} · berikutnya ${esc(tanggalPendek(r.berikutnya))}</small></span>
+        <b class="nominal">${rp(r.jumlah)}</b>
+      </button>`).join('') || kosong('🔁', 'Belum ada. Contoh: listrik, internet, cicilan, SPP, gaji.')}
+    <button class="tombol-tambah" data-aksi="tambah-rutin">＋ Tambah tagihan rutin</button>`);
+}
+
+function bukaFormRutin(r) {
+  const pertama = dompetBiasa()[0];
+  F = r
+    ? Object.assign({}, r, { modeRutin: true, idRutin: r.id, id: '', tanggal: r.berikutnya })
+    : { modeRutin: true, idRutin: '', nama: '', tipe: TIPE.KELUAR, jumlah: 0, kategori: '', dompet: pertama ? pertama.nama : '',
+        dompetTujuan: '', tanggal: hariIni(), catatan: '', ulang: 'Bulanan' };
+  bukaSheet(r ? 'Ubah Tagihan Rutin' : 'Tagihan Rutin Baru', '<div id="form-trx"></div>');
+  renderFormTrx();
+}
+
+/** Validasi bersama form transaksi & rutin; mengembalikan pesan kesalahan atau ''. */
+function cekIsianTrx() {
+  if (!F.jumlah) return 'Isi jumlahnya dulu.';
+  if (F.tipe !== TIPE.TRANSFER && !F.kategori) return 'Pilih kategorinya dulu.';
+  if (F.tipe === TIPE.TRANSFER && (!F.dompetTujuan || F.dompetTujuan === F.dompet)) return 'Pilih dompet tujuan yang berbeda.';
+  return '';
 }
 
 // ---------- Foto struk (dibaca di latar belakang) ----------
@@ -1479,6 +1583,36 @@ const AKSI = {
     if (!t.id && (S.offline || !navigator.onLine)) return tunda();
     kirim(el, 'simpanTransaksi', [t], pesan, e => !t.id && e.jaringan && tunda())
       .then(ok => { if (ok && dariJob) hapusJob(dariJob); });
+  },
+  'f-ulang': el => { bacaFieldTrx(); F.ulang = el.dataset.ulang; renderFormTrx(); },
+  'kelola-rutin': () => bukaDaftarRutin(),
+  'tambah-rutin': () => bukaFormRutin(null),
+  'edit-rutin': el => bukaFormRutin(daftarRutin().find(r => r.id === el.dataset.id)),
+  'bayar-rutin': el => {
+    const r = daftarRutin().find(x => x.id === el.dataset.id);
+    if (!r) return;
+    bukaFormTrx(null, {
+      tipe: r.tipe, jumlah: r.jumlah, kategori: r.kategori, dompet: r.dompet, dompetTujuan: r.dompetTujuan,
+      catatan: r.catatan || r.nama, dariRutin: r.id, berikutRutin: SERVER.tanggalBerikut(r.berikutnya, r.mulai, r.ulang),
+    }, r.nama);
+  },
+  'lewati-rutin': el => {
+    if (!confirm('Lewati tagihan ini tanpa mencatat transaksi? Jatuh temponya pindah ke ' + tanggalPendek(F.berikutRutin) + '.')) return;
+    kirim(el, 'majukanRutin', [F.dariRutin], 'Dilewati ✔ Berikutnya ' + tanggalPendek(F.berikutRutin));
+  },
+  'simpan-rutin': async el => {
+    bacaFieldTrx();
+    const salah = cekIsianTrx() || (!F.tanggal ? 'Isi tanggal jatuh tempo.' : '');
+    if (salah) return toast(salah, true);
+    const ok = await kirim(el, 'simpanRutin', [{
+      id: F.idRutin, nama: F.nama, tipe: F.tipe, jumlah: F.jumlah, kategori: F.kategori, dompet: F.dompet,
+      dompetTujuan: F.dompetTujuan, catatan: F.catatan, ulang: F.ulang, berikutnya: F.tanggal,
+    }], 'Tagihan rutin tersimpan ✔');
+    if (ok) bukaDaftarRutin();
+  },
+  'hapus-rutin': async el => {
+    if (!confirm('Hapus tagihan rutin "' + (F.nama || '') + '"? Transaksi yang sudah dicatat tidak ikut terhapus.')) return;
+    if (await kirim(el, 'hapusRutin', [F.idRutin], 'Tagihan rutin dihapus')) bukaDaftarRutin();
   },
   'kirim-tertunda': async () => {
     if (!GOOGLE.sudahMasuk()) return perluMasukLagi();

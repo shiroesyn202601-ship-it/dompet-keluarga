@@ -22,7 +22,13 @@ const SERVER = (() => {
     kategori: { nama: 'Kategori', kolom: ['Nama', 'Tipe', 'Ikon', 'Anggaran'] },
     dompet: { nama: 'Dompet', kolom: ['Nama', 'Ikon', 'Saldo Awal', 'Jenis', 'Target', 'Tenggat'] },
     pengaturan: { nama: 'Pengaturan', kolom: ['Kunci', 'Nilai'] },
+    // Tagihan & transaksi rutin. Mulai = tanggal patokan (hari ke-berapa), Berikutnya = jatuh tempo berikutnya.
+    rutin: {
+      nama: 'Rutin',
+      kolom: ['ID', 'Nama', 'Tipe', 'Jumlah', 'Kategori', 'Dompet', 'Dompet Tujuan', 'Catatan', 'Ulang', 'Mulai', 'Berikutnya'],
+    },
   };
+  const ULANG = ['Bulanan', 'Mingguan', 'Tahunan'];
 
   const KATEGORI_AWAL = [
     ['Makan & Minum', TIPE.KELUAR, '🍜'],
@@ -139,18 +145,19 @@ const SERVER = (() => {
   }
 
   /**
-   * Menyusulkan struktur versi terbaru ke spreadsheet lama: sheet Pengaturan,
+   * Menyusulkan struktur versi terbaru ke spreadsheet lama: sheet Pengaturan & Rutin,
    * kolom Anggaran (Kategori), serta kolom Jenis/Target/Tenggat (Dompet).
    */
   async function pastikanStruktur_(id) {
-    const t = TABEL.pengaturan;
-    if (!(t.nama in idSheet)) {
+    for (const t of [TABEL.pengaturan, TABEL.rutin]) {
+      if (t.nama in idSheet) continue;
       const r = await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', {
         method: 'POST',
         json: { requests: [{ addSheet: { properties: { title: t.nama, gridProperties: { frozenRowCount: 1 } } } }] },
       });
       idSheet[t.nama] = r.replies[0].addSheet.properties.sheetId;
       await tulis_(id, "'" + t.nama + "'!A1", [t.kolom]);
+      if (t === TABEL.rutin) await formatRutin_(id, idSheet[t.nama]);
     }
 
     await lindungiSheet_(id);
@@ -187,6 +194,25 @@ const SERVER = (() => {
     } catch (e) {
       console.warn('Proteksi sheet dilewati:', e); // tidak wajib; jangan menghalangi pemakaian
     }
+  }
+
+  function formatRutin_(id, sheetId) {
+    return GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', {
+      method: 'POST',
+      json: {
+        requests: [
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+              cell: { userEnteredFormat: { textFormat: { bold: true } } },
+              fields: 'userEnteredFormat.textFormat.bold',
+            },
+          },
+          formatKolom_(sheetId, 3, 4, 'NUMBER', '#,##0'),
+          formatKolom_(sheetId, 9, 11, 'DATE', 'yyyy-mm-dd'),
+        ],
+      },
+    });
   }
 
   function formatKolom_(sheetId, kolomAwal, kolomAkhir, type, pattern) {
@@ -325,7 +351,7 @@ const SERVER = (() => {
   async function getData(bulan) {
     if (!(await cariIdDb_())) return { perluSetup: true, user: GOOGLE.email() };
     const id = await db_();
-    const [trx, kat, dom, set] = await bacaTabel_(id, ['transaksi', 'kategori', 'dompet', 'pengaturan']);
+    const [trx, kat, dom, set, rut] = await bacaTabel_(id, ['transaksi', 'kategori', 'dompet', 'pengaturan', 'rutin']);
     const d = olahData_(trx, kat, dom);
     if (!/^\d{4}-\d{2}$/.test(bulan || '')) bulan = tanggalLokal_().slice(0, 7);
 
@@ -364,6 +390,7 @@ const SERVER = (() => {
       bulan,
       kategori: d.kategori,
       dompet: d.dompet.map(w => Object.assign({}, w, { saldo: saldo[w.nama] || 0 })),
+      rutin: olahRutin_(rut),
       bulanan,
       transaksi: d.transaksi
         .filter(t => t.tanggal.slice(0, 7) === bulan)
@@ -371,9 +398,87 @@ const SERVER = (() => {
     };
   }
 
+  // ---------- Tagihan & transaksi rutin ----------
+
+  function olahRutin_(rows) {
+    return rows.filter(r => r[0] !== '').map(r => ({
+      id: String(r[0]),
+      nama: String(r[1]),
+      tipe: String(r[2]),
+      jumlah: Number(r[3]) || 0,
+      kategori: String(r[4]),
+      dompet: String(r[5]),
+      dompetTujuan: String(r[6]),
+      catatan: String(r[7]),
+      ulang: ULANG.includes(String(r[8])) ? String(r[8]) : 'Bulanan',
+      mulai: dariSerial_(r[9]).slice(0, 10),
+      berikutnya: dariSerial_(r[10]).slice(0, 10),
+    })).sort((a, b) => a.berikutnya.localeCompare(b.berikutnya));
+  }
+
+  /**
+   * Jatuh tempo setelah `berikut` ('yyyy-mm-dd'). Bulanan/tahunan berpatokan pada tanggal di `mulai`,
+   * jadi tagihan tanggal 31 jatuh di 28/29 Feb lalu kembali ke 31 Maret (tidak bergeser terus).
+   */
+  function tanggalBerikut_(berikut, mulai, ulang) {
+    const [y, m, d] = berikut.split('-').map(Number);
+    const iso = (Y, M, D) => Y + '-' + String(M).padStart(2, '0') + '-' + String(D).padStart(2, '0');
+    if (ulang === 'Mingguan') {
+      const t = new Date(Date.UTC(y, m - 1, d + 7));
+      return iso(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+    }
+    let Y = y, M = m;
+    if (ulang === 'Tahunan') Y++;
+    else if (++M > 12) { M = 1; Y++; }
+    const patokan = Number(String(mulai).slice(8, 10)) || d;
+    return iso(Y, M, Math.min(patokan, new Date(Date.UTC(Y, M, 0)).getUTCDate()));
+  }
+
+  const serialTanggal_ = s => { const [y, m, d] = s.split('-').map(Number); return keSerial_(y, m, d); };
+
+  /**
+   * input: { id?, nama, tipe, jumlah, kategori, dompet, dompetTujuan, catatan, ulang, berikutnya }.
+   * `berikutnya` sekaligus jadi patokan tanggal untuk periode-periode selanjutnya.
+   */
+  async function simpanRutin(input) {
+    const t = validasiTransaksi_(Object.assign({}, input, { tanggal: input.berikutnya }));
+    const nama = teks_(input.nama).slice(0, 60) || t.catatan || t.kategori || 'Transfer';
+    const ulang = String(input.ulang);
+    if (!ULANG.includes(ulang)) throw new Error('Pilih jarak pengulangan.');
+    const id = await db_();
+    const baris = [t.id || crypto.randomUUID(), nama, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, ulang, t.tanggal, t.tanggal];
+    if (t.id) {
+      const [rows] = await bacaTabel_(id, ['rutin']);
+      await tulis_(id, rangeBaris_(TABEL.rutin, cariBaris_(rows, r => String(r[0]) === t.id)), [baris]);
+    } else {
+      await tambahBaris_(id, TABEL.rutin, [baris]);
+    }
+    return baris[0];
+  }
+
+  async function hapusRutin(idRutin) {
+    const id = await db_();
+    const [rows] = await bacaTabel_(id, ['rutin']);
+    await hapusBaris_(id, TABEL.rutin, cariBaris_(rows, r => String(r[0]) === String(idRutin)));
+    return true;
+  }
+
+  /** Memajukan jatuh tempo ke periode berikutnya (setelah dibayar, atau "lewati kali ini"). */
+  async function majukanRutin(idRutin) {
+    const id = await db_();
+    const [rows] = await bacaTabel_(id, ['rutin']);
+    const i = rows.findIndex(r => String(r[0]) === String(idRutin));
+    if (i < 0) return false; // sudah dihapus orang lain: transaksinya tetap tersimpan
+    const r = olahRutin_([rows[i]])[0];
+    await tulis_(id, "'" + TABEL.rutin.nama + "'!K" + (i + 2), [[serialTanggal_(tanggalBerikut_(r.berikutnya, r.mulai, r.ulang))]]);
+    return true;
+  }
+
   /**
    * input.idBaru (opsional): ID yang sudah dibuat di HP untuk transaksi antrean offline.
    * Kalau ID itu sudah ada di sheet (kiriman sebelumnya sampai tapi jawabannya hilang), tidak ditambah lagi.
+   * input.dariRutin (opsional): ID rutin yang dibayar dengan transaksi ini → jatuh temponya dimajukan.
+   * input.ulang (opsional, transaksi baru): 'Bulanan' | 'Mingguan' | 'Tahunan' → sekalian dibuatkan rutin.
    */
   async function simpanTransaksi(input) {
     const t = validasiTransaksi_(input);
@@ -401,6 +506,11 @@ const SERVER = (() => {
       await tambahBaris_(id, tbl, [[
         t.id, t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, GOOGLE.email(), sekarang, sekarang,
       ]]);
+      if (input.dariRutin) await majukanRutin(input.dariRutin);
+      if (ULANG.includes(input.ulang)) {
+        const tgl = String(input.tanggal);
+        await simpanRutin(Object.assign({}, input, { id: '', nama: '', berikutnya: tanggalBerikut_(tgl, tgl, input.ulang) }));
+      }
     }
     return t.id;
   }
@@ -440,10 +550,12 @@ const SERVER = (() => {
       const anggaranTetap = 'anggaran' in input ? anggaran : (tipe === TIPE.KELUAR ? kat[i][3] : '');
       await tulis_(id, rangeBaris_(TABEL.kategori, i), [[nama, tipe, ikon, anggaranTetap]]);
       if (namaLama !== nama || tipeLama !== tipe) {
-        await gantiDiTransaksi_(id, trx, r => {
+        const ganti = r => {
           if (String(r[4]) === namaLama && String(r[2]) === tipeLama) { r[4] = nama; r[2] = tipe; return true; }
           return false;
-        });
+        };
+        await gantiDiTransaksi_(id, trx, ganti);
+        await gantiDiRutin_(id, ganti);
       }
     } else {
       if (bentrok >= 0) throw new Error('Kategori "' + nama + '" sudah ada.');
@@ -471,9 +583,11 @@ const SERVER = (() => {
 
   async function hapusKategori(nama, tipe) {
     const id = await db_();
-    const [kat, trx] = await bacaTabel_(id, ['kategori', 'transaksi']);
+    const [kat, trx, rut] = await bacaTabel_(id, ['kategori', 'transaksi', 'rutin']);
     const dipakai = trx.filter(r => String(r[4]) === nama && String(r[2]) === tipe).length;
     if (dipakai) throw new Error('Kategori ini dipakai di ' + dipakai + ' transaksi. Ubah dulu kategori transaksinya, atau ganti nama kategorinya saja.');
+    const rutin = rut.filter(r => String(r[4]) === nama && String(r[2]) === tipe).length;
+    if (rutin) throw new Error('Kategori ini dipakai di ' + rutin + ' tagihan rutin. Ubah atau hapus dulu tagihan rutinnya.');
     await hapusBaris_(id, TABEL.kategori, cariBaris_(kat, r => String(r[0]) === nama && String(r[1]) === tipe));
     return true;
   }
@@ -505,12 +619,14 @@ const SERVER = (() => {
       if (bentrok >= 0 && bentrok !== i) throw new Error('Dompet "' + nama + '" sudah ada.');
       await tulis_(id, rangeBaris_(TABEL.dompet, i), [baris]);
       if (namaLama !== nama) {
-        await gantiDiTransaksi_(id, trx, r => {
+        const ganti = r => {
           let ubah = false;
           if (String(r[5]) === namaLama) { r[5] = nama; ubah = true; }
           if (String(r[6]) === namaLama) { r[6] = nama; ubah = true; }
           return ubah;
-        });
+        };
+        await gantiDiTransaksi_(id, trx, ganti);
+        await gantiDiRutin_(id, ganti);
       }
     } else {
       if (bentrok >= 0) throw new Error('Dompet "' + nama + '" sudah ada.');
@@ -521,9 +637,11 @@ const SERVER = (() => {
 
   async function hapusDompet(nama) {
     const id = await db_();
-    const [dom, trx] = await bacaTabel_(id, ['dompet', 'transaksi']);
+    const [dom, trx, rut] = await bacaTabel_(id, ['dompet', 'transaksi', 'rutin']);
     const dipakai = trx.filter(r => String(r[5]) === nama || String(r[6]) === nama).length;
     if (dipakai) throw new Error('Dompet ini dipakai di ' + dipakai + ' transaksi, jadi tidak bisa dihapus.');
+    const rutin = rut.filter(r => String(r[5]) === nama || String(r[6]) === nama).length;
+    if (rutin) throw new Error('Dompet ini dipakai di ' + rutin + ' tagihan rutin. Ubah atau hapus dulu tagihan rutinnya.');
     await hapusBaris_(id, TABEL.dompet, cariBaris_(dom, r => String(r[0]) === nama));
     return true;
   }
@@ -682,6 +800,14 @@ const SERVER = (() => {
     if (data.length) await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', { method: 'POST', json: { valueInputOption: 'RAW', data } });
   }
 
+  /** Sama seperti gantiDiTransaksi_, untuk sheet Rutin (posisi kolom Tipe/Kategori/Dompet/Tujuan sama). */
+  async function gantiDiRutin_(id, ubahBaris) {
+    const [rows] = await bacaTabel_(id, ['rutin']);
+    const data = [];
+    rows.forEach((r, i) => { if (ubahBaris(r)) data.push({ range: rangeBaris_(TABEL.rutin, i), values: [r] }); });
+    if (data.length) await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', { method: 'POST', json: { valueInputOption: 'RAW', data } });
+  }
+
   function olahData_(trx, kat, dom) {
     return {
       transaksi: trx.filter(r => r[0] !== '').map(r => ({
@@ -780,6 +906,7 @@ const SERVER = (() => {
   return {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe,
     simpanTransaksi, hapusTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
+    simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
   };

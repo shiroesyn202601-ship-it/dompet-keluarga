@@ -351,6 +351,10 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .spinner.kecil { width: 22px; height: 22px; border-width: 2.5px; flex: none; margin: 0 6px; }
 body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-area-inset-bottom)); }
 .struk-proses { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 0 0 16px; border-radius: 16px; background: var(--primary-soft); }
+/* Tagihan rutin */
+.info-rutin { display: flex; gap: 8px; padding: 12px 14px; margin: 0 0 16px; border-radius: 16px; background: var(--primary-soft); font-size: 14px; }
+.info-rutin button { display: block; margin-top: 6px; font-size: 13px; font-weight: 800; color: var(--primary); }
+.isi small.terlambat { color: var(--keluar); font-weight: 700; }
 .struk-proses b { display: block; font-size: 14px; }
 .struk-proses small { display: block; font-size: 12px; color: var(--muted); }
 @keyframes muncul { from { opacity: 0; transform: translateY(12px); } }
