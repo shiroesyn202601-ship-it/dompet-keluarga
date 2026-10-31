@@ -530,13 +530,14 @@ function bukaFormGemini() {
   bukaSheet('Baca Struk dengan AI', `
     <p style="margin-bottom:12px">Untuk membaca foto struk, aplikasi memakai Gemini dari Google. Perlu kunci API (gratis).
       Boleh lebih dari satu: kunci dipakai bergiliran, dan kalau satu kena batas kuota otomatis pindah ke kunci lain.</p>
-    ${daftar.length ? `<span class="label">Kunci tersimpan (${daftar.length})</span>
+    <span class="label">Kunci tersimpan: ${daftar.length}</span>
+    ${daftar.length ? `
       <div style="margin-bottom:16px">${daftar.map((k, i) => `
         <div class="baris">
           <span class="ikon-bulat">🔑</span>
           <span class="isi"><b>Kunci ${i + 1}</b><small>${esc(k)}</small></span>
           <button type="button" class="tombol-ikon" data-aksi="hapus-gemini" data-kunci="${esc(k)}" aria-label="Hapus kunci ${i + 1}">🗑️</button>
-        </div>`).join('')}</div>` : ''}
+        </div>`).join('')}</div>` : `<p class="info-kecil" style="text-align:left;margin:0 0 16px">Belum ada kunci. Tambahkan di bawah.</p>`}
     <ol class="panduan" style="padding-left:20px;margin-bottom:16px">
       <li>Buka <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>.</li>
       <li>Klik <b>Create API key</b>, lalu salin kuncinya.</li>
