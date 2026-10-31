@@ -40,7 +40,13 @@ const BANTUAN = [
   '',
   '<b>Lihat</b>',
   '/saldo · /ringkasan · /anggaran · /terakhir',
-  '• <i>pengeluaran bulan lalu berapa?</i>',
+  '',
+  '<b>Tanya apa saja</b>',
+  '• <i>bulan ini aku boros di mana?</i>',
+  '• <i>bandingkan belanja bulan ini sama bulan lalu</i>',
+  '• <i>aman nggak kalau beli HP 3 juta bulan ini?</i>',
+  '• <i>kalau nabung 500rb sebulan, kapan dana darurat penuh?</i>',
+  '• <i>catat makan 40rb, terus sisa anggaran makan berapa?</i>',
 ].join('\n');
 
 // ======================================================================
@@ -246,12 +252,17 @@ function prosesTeksBebas_(ss, chatId, teks, pengguna) {
 
   const daftar = (hasil.perintah || []).filter(x => x && x.aksi);
   if (!daftar.length || daftar.every(x => x.aksi === 'tidak_jelas')) {
-    return kirim_(chatId, html_(hasil.balasan || 'Maaf, saya belum paham. Contoh: "makan bakso 25rb".') + '\n\nKetik /bantuan untuk contoh lain.');
+    return kirim_(chatId, htmlTerbatas_(hasil.balasan || 'Maaf, saya belum paham. Contoh: "makan bakso 25rb".') + '\n\nKetik /bantuan untuk contoh lain.');
   }
-  daftar.forEach(x => jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, hasil.balasan, tambahan));
+  // Komentar AI ditempel di konfirmasi catat yang terakhir.
+  const iCatatTerakhir = daftar.map(x => x.aksi).lastIndexOf('catat');
+  daftar.forEach((x, i) => {
+    const ekstra = (i === iCatatTerakhir && hasil.komentar ? '\n\n💬 ' + htmlTerbatas_(hasil.komentar) : '') + tambahan;
+    jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, hasil.balasan, ekstra, teks);
+  });
 }
 
-function jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, balasan, tambahan) {
+function jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, balasan, tambahan, pesanAsli) {
   const ref = r => {
     const i = Number(String(r || '').replace(/\D/g, '')) - 1;
     return terakhir[i] || null;
@@ -282,8 +293,100 @@ function jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, balasan, tambah
     case 'anggaran': return kirim_(chatId, teksAnggaran_(d, bulanIni_()));
     case 'riwayat': return kirim_(chatId, teksRiwayat_(d, /^\d{4}-\d{2}$/.test(x.bulan || '') ? x.bulan : ''));
     case 'bantuan': return kirim_(chatId, BANTUAN);
-    default: return kirim_(chatId, html_(balasan || 'Maaf, saya belum paham.') + '\n\nKetik /bantuan untuk contoh.');
+    case 'tanya': return kirim_(chatId, jawabTanya_(d, pengguna, x.pertanyaan || pesanAsli, chatId));
+    case 'ngobrol': return kirim_(chatId, htmlTerbatas_(balasan || 'Siap! 😊'));
+    default: return kirim_(chatId, htmlTerbatas_(balasan || 'Maaf, saya belum paham.') + '\n\nKetik /bantuan untuk contoh.');
   }
+}
+
+/**
+ * Menjawab pertanyaan/analisis bebas dengan data keuangan terbaru (termasuk transaksi
+ * yang baru dicatat dari pesan yang sama). Angka diambil dari ringkasan yang dihitung kode.
+ */
+function jawabTanya_(d, pengguna, pertanyaan, chatId) {
+  tg_('sendChatAction', { chat_id: chatId, action: 'typing' });
+  const kunci = kunciGemini_(d.pengaturan);
+  if (!kunci.length) return 'Untuk tanya-jawab, AI perlu diaktifkan dulu: tambahkan kunci Gemini di aplikasi (⚙️ → Baca struk dengan AI).';
+  const prompt = [
+    'Kamu asisten keuangan keluarga "Dompet Keluarga" yang ramah, jujur, dan praktis. Kamu sedang chat dengan ' + pengguna.nama + '.',
+    'Jawab dalam bahasa Indonesia santai, singkat (maksimal 6 kalimat atau poin), langsung ke inti.',
+    'Gunakan HANYA angka dari data di bawah; boleh menghitung (selisih, persen, perkiraan) tapi jangan mengarang data yang tidak ada.',
+    'Kalau datanya tidak cukup, katakan terus terang dan sarankan cara mencatatnya.',
+    'Format: teks biasa. Boleh <b>tebal</b> untuk angka penting. Jangan pakai markdown, tabel, atau tag HTML lain. Tulis rupiah seperti Rp25.000.',
+    '',
+    'DATA KEUANGAN:',
+    konteksKeuangan_(d),
+    '',
+    'PERTANYAAN PENGGUNA: """' + pertanyaan + '"""',
+  ].join('\n');
+  const model = d.pengaturan.GEMINI_MODEL || MODEL_GEMINI;
+  const h = jalankanGemini_(kunci, model, [{ sumber: 'tanya', parts: [{ text: prompt }] }],
+    { type: 'OBJECT', properties: { jawaban: { type: 'STRING' } }, required: ['jawaban'] })[0];
+  if (h instanceof Error) return '⚠️ ' + html_(h.message) + '. Sementara itu, coba /ringkasan atau /anggaran.';
+  return htmlTerbatas_(h.jawaban || 'Maaf, saya belum bisa menjawab itu.');
+}
+
+/** Ringkasan data untuk AI: semua angka dihitung di sini supaya AI tidak salah menjumlah. */
+function konteksKeuangan_(d) {
+  const s = saldo_(d);
+  const ini = bulanIni_();
+  const lalu = bulanSebelum_(ini);
+  const ringkas = b => {
+    const trx = d.transaksi.filter(t => t.tanggal.slice(0, 7) === b);
+    const per = {};
+    trx.filter(t => t.tipe === TIPE.KELUAR).forEach(t => { per[t.kategori] = (per[t.kategori] || 0) + t.jumlah; });
+    return {
+      trx,
+      per,
+      masuk: trx.filter(t => t.tipe === TIPE.MASUK).reduce((a, t) => a + t.jumlah, 0),
+      keluar: trx.filter(t => t.tipe === TIPE.KELUAR).reduce((a, t) => a + t.jumlah, 0),
+    };
+  };
+  const a = ringkas(ini);
+  const b = ringkas(lalu);
+  const tigaBulan = [1, 2, 3].map(n => { let x = ini; for (let i = 0; i < n; i++) x = bulanSebelum_(x); return ringkas(x).keluar; });
+  const nama = email => email.split('@')[0];
+  const [, , hariKe] = hariIni_().split('-').map(Number);
+  const [th, bl] = ini.split('-').map(Number);
+  const jumlahHari = new Date(th, bl, 0).getDate();
+
+  const kategoriBulanIni = d.kategori.filter(k => k.tipe === TIPE.KELUAR && (a.per[k.nama] || k.anggaran)).map(k => {
+    const pakai = a.per[k.nama] || 0;
+    return '- ' + k.nama + ': ' + rp_(pakai) + (k.anggaran ? ' (anggaran ' + rp_(k.anggaran) + ', terpakai ' + Math.round(pakai / k.anggaran * 100) + '%, sisa ' + rp_(k.anggaran - pakai) + ')' : '');
+  });
+  return [
+    'Hari ini ' + hariIni_() + ' (hari ke-' + hariKe + ' dari ' + jumlahHari + ' hari bulan ini).',
+    'Saldo dompet: ' + d.dompet.filter(w => w.jenis === JENIS.DOMPET).map(w => w.nama + ' ' + rp_(s[w.nama])).join(', ')
+      + '. Total ' + rp_(d.dompet.filter(w => w.jenis === JENIS.DOMPET).reduce((x, w) => x + s[w.nama], 0)) + '.',
+    'Tabungan: ' + (d.dompet.filter(w => w.jenis === JENIS.TABUNGAN).map(w => w.nama + ' ' + rp_(s[w.nama])
+      + (w.target ? ' dari target ' + rp_(w.target) + (w.tenggat ? ' (tenggat ' + w.tenggat + ')' : '') : ' (tanpa target)')).join('; ') || 'belum ada') + '.',
+    '',
+    'BULAN INI (' + namaBulan_(ini) + '): pemasukan ' + rp_(a.masuk) + ', pengeluaran ' + rp_(a.keluar) + ', selisih ' + rp_(a.masuk - a.keluar) + '.',
+    'Pengeluaran per kategori bulan ini:',
+    kategoriBulanIni.join('\n') || '- (belum ada)',
+    '',
+    'BULAN LALU (' + namaBulan_(lalu) + '): pemasukan ' + rp_(b.masuk) + ', pengeluaran ' + rp_(b.keluar) + '.',
+    'Per kategori bulan lalu: ' + (Object.keys(b.per).map(n => n + ' ' + rp_(b.per[n])).join(', ') || '(belum ada)') + '.',
+    'Pengeluaran 3 bulan sebelumnya (terbaru dulu): ' + tigaBulan.map(rp_).join(', ') + '.',
+    '',
+    'Transaksi bulan ini (terbaru dulu, maks 25):',
+    a.trx.slice().sort((x, y) => y.tanggal.localeCompare(x.tanggal) || y.dibuat.localeCompare(x.dibuat)).slice(0, 25)
+      .map(t => '- ' + t.tanggal + ' ' + t.tipe + ' ' + rp_(t.jumlah) + ' ' + (t.tipe === TIPE.TRANSFER ? t.dompet + ' → ' + t.dompetTujuan : t.kategori)
+        + (t.catatan ? ' (' + t.catatan + ')' : '') + (t.oleh ? ' oleh ' + nama(t.oleh) : '')).join('\n') || '- (belum ada)',
+  ].join('\n');
+}
+
+function bulanSebelum_(b) {
+  const [y, m] = b.split('-').map(Number);
+  return m === 1 ? (y - 1) + '-12' : y + '-' + String(m - 1).padStart(2, '0');
+}
+
+/** Teks dari AI: semua di-escape, lalu hanya <b>/<i> yang seimbang yang dikembalikan. */
+function htmlTerbatas_(s) {
+  let t = html_(String(s || '').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')).replace(/&lt;(\/?)(b|i)&gt;/g, '<$1$2>');
+  const seimbang = tag => (t.match(new RegExp('<' + tag + '>', 'g')) || []).length === (t.match(new RegExp('</' + tag + '>', 'g')) || []).length;
+  if (!seimbang('b') || !seimbang('i')) t = t.replace(/<\/?(b|i)>/g, '');
+  return t;
 }
 
 /** Ambil hanya field yang diisi Gemini (untuk "ubah"). */
@@ -319,8 +422,19 @@ function petunjukPerintah_(d, terakhir, pengguna, pesan) {
     '- Satu pesan bisa berisi beberapa transaksi → beberapa perintah.',
     '- "ubah": ubah transaksi yang sudah ada. ref = T1 untuk yang paling terakhir, atau pilih yang cocok dengan deskripsi. Isi hanya field yang berubah.',
     '- "hapus": isi ref.',
-    '- "saldo", "ringkasan" (isi bulan yyyy-mm jika disebut, mis. bulan lalu), "riwayat", "anggaran", "bantuan".',
-    '- Jika pesan bukan tentang keuangan atau tidak jelas: aksi "tidak_jelas", tulis balasan singkat dan ramah.',
+    '- "saldo", "ringkasan" (isi bulan yyyy-mm jika disebut), "riwayat", "anggaran": hanya untuk permintaan laporan standar (mis. "/saldo", "lihat ringkasan").',
+    '- "tanya": pertanyaan, analisis, perbandingan, saran, atau perhitungan tentang keuangan (mis. "boros di mana?", "bandingkan dengan bulan lalu",',
+    '  "aman beli HP 3jt?", "kapan dana darurat penuh?", "sisa anggaran makan berapa?"). Isi pertanyaan dengan pertanyaan lengkapnya.',
+    '  Kalau pesan berisi catat sekaligus pertanyaan, buat "catat" dulu lalu "tanya".',
+    '- "ngobrol": sapaan, terima kasih, basa-basi, atau curhat ringan → isi balasan dengan jawaban ramah dan natural (1–2 kalimat), boleh sebut fitur yang relevan.',
+    '- "bantuan": jika pengguna bertanya cara memakai bot.',
+    '- "tidak_jelas": hanya jika benar-benar tidak bisa dipahami; isi balasan dengan pertanyaan klarifikasi yang ramah.',
+    '- komentar: jika ada "catat", boleh isi 1 kalimat singkat yang relevan dan bermanfaat berdasarkan DATA (mis. anggaran kategori itu hampir habis,',
+    '  sudah beberapa kali jajan serupa bulan ini, pengeluaran lebih hemat dari bulan lalu). Santai dan tidak menggurui. Kosongkan jika tidak ada yang menarik.',
+    '  Jangan mengulang rincian transaksi; rincian sudah ditampilkan sistem.',
+    '',
+    'DATA KEUANGAN (sebelum pesan ini diproses):',
+    konteksKeuangan_(d),
     '',
     'Pesan: """' + pesan + '"""',
   ].join('\n');
@@ -335,7 +449,7 @@ function skemaPerintah_() {
         items: {
           type: 'OBJECT',
           properties: {
-            aksi: { type: 'STRING', enum: ['catat', 'ubah', 'hapus', 'saldo', 'ringkasan', 'riwayat', 'anggaran', 'bantuan', 'tidak_jelas'] },
+            aksi: { type: 'STRING', enum: ['catat', 'ubah', 'hapus', 'saldo', 'ringkasan', 'riwayat', 'anggaran', 'tanya', 'ngobrol', 'bantuan', 'tidak_jelas'] },
             tipe: { type: 'STRING', enum: [TIPE.KELUAR, TIPE.MASUK, TIPE.TRANSFER] },
             jumlah: { type: 'INTEGER' },
             kategori: { type: 'STRING' },
@@ -345,11 +459,13 @@ function skemaPerintah_() {
             catatan: { type: 'STRING' },
             ref: { type: 'STRING' },
             bulan: { type: 'STRING' },
+            pertanyaan: { type: 'STRING' },
           },
           required: ['aksi', 'jumlah'],
         },
       },
       balasan: { type: 'STRING' },
+      komentar: { type: 'STRING' },
     },
     required: ['perintah'],
   };
@@ -498,6 +614,7 @@ function muatData_(ss) {
   const dompet = baris_(ss, 'Dompet', 6).filter(r => r[0] !== '').map(r => ({
     nama: String(r[0]), ikon: String(r[1]), saldoAwal: Number(r[2]) || 0,
     jenis: String(r[3]) === JENIS.TABUNGAN ? JENIS.TABUNGAN : JENIS.DOMPET, target: Number(r[4]) || 0,
+    tenggat: r[5] === '' ? '' : tgl_(r[5]),
   }));
   return { transaksi, kategori, dompet, pengaturan: pengaturan_(ss) };
 }
@@ -702,10 +819,20 @@ function tg_(metode, data) {
 }
 
 function kirim_(chatId, teks, tombol) {
-  return tg_('sendMessage', {
+  const data = {
     chat_id: chatId, text: teks, parse_mode: 'HTML', disable_web_page_preview: true,
     reply_markup: tombol ? { inline_keyboard: tombol } : undefined,
-  });
+  };
+  const r = tg_('sendMessage', data);
+  // Format HTML ditolak (mis. teks AI yang aneh) → kirim ulang sebagai teks polos.
+  if (!r.ok && /parse entities/i.test(r.description || '')) {
+    return tg_('sendMessage', Object.assign(data, { parse_mode: undefined, text: teksPolos_(teks) }));
+  }
+  return r;
+}
+
+function teksPolos_(s) {
+  return String(s).replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
 
 function ubahPesan_(chatId, msgId, teks, tombol) {
