@@ -55,18 +55,23 @@ Masalah saat ini:
 
 ## Langkah 5 — Fitur prioritas 2
 
-- [ ] Bagikan laporan bulanan sebagai gambar/PDF ke WhatsApp.
-- [ ] Simpan foto struk sebagai lampiran transaksi (sudah diunggah ke Drive untuk OCR).
-- [ ] Mode sembunyikan nominal 👁 & kunci PIN/sidik jari (WebAuthn).
-- [ ] Anggaran rollover & pola "amplop" per pos.
-- [ ] Beberapa buku keuangan (Pribadi / Keluarga / Usaha).
-- [ ] Patungan / split bill.
+- [x] Bagikan ringkasan periode sebagai **gambar** (1080×1350) lewat menu berbagi HP → WhatsApp; diunduh kalau browser tidak mendukung. (PDF tidak dibuat: gambar lebih praktis di WhatsApp.)
+- [x] **Lampiran foto struk / bukti transfer**: foto dari baca struk ikut disimpan, atau 📎 manual; folder Drive "Dompet Keluarga - Struk", dibagikan lihat-saja ke akun yang punya akses spreadsheet; kolom Transaksi baru "Lampiran". Diuji.
+- [x] **Sembunyikan nominal** (👁 di Beranda & ⚙️) dan **kunci aplikasi**: PIN 4–6 angka (hash bergaram) + opsional sidik jari/wajah (WebAuthn), terkunci saat dibuka & setelah ditinggal > 1 menit.
+- [x] **Anggaran amplop**: centang 📨 per kategori → sisa/kelebihan periode lalu ditambahkan ke anggaran periode ini (satu periode ke belakang). Kolom Kategori baru "Bawa Sisa". Diuji.
+- [x] **Beberapa buku keuangan**: satu buku = satu spreadsheet; ⚙️ → Buku keuangan (buat, pindah, hapus dari daftar, pilih dari Drive); chip buku di Beranda; transaksi tertunda terikat ke bukunya. Sekalian memperbaiki bug: ganti akun tanpa muat ulang membuka spreadsheet akun lama. Diuji.
+- [x] **Patungan**: dari form catat pengeluaran; bagian sendiri = pengeluaran, bagian teman = piutang; diperiksa dulu supaya tidak tercatat setengah. Diuji.
 
 ## Langkah 6 — Pelengkap (prioritas 3)
 
-- [ ] Kalkulator zakat, pos THR/Lebaran, arisan.
-- [ ] Kekayaan bersih (aset emas/reksadana − utang).
-- [ ] Mode gelap manual (sekarang hanya ikut sistem).
+- [x] **Kalkulator zakat** (Dompet → Hitung zakat): maal & penghasilan, nisab 85 g emas (harga emas diisi sendiri). **Templat** tabungan (Lebaran & THR, Dana Darurat, Umroh, …) dan tagihan rutin (Arisan, Listrik, Cicilan, SPP, BPJS, Gaji, …).
+- [x] **Kekayaan bersih**: dompet jenis **Aset** (nilai diperbarui manual, beli = transfer); kartu Kekayaan bersih di tab Dompet; bot ikut (perlu deploy versi baru). Diuji.
+- [x] **Mode gelap manual**: ⚙️ → Tema Otomatis / Terang / Gelap, dipasang sebelum CSS supaya tidak berkedip.
+
+## Catatan setelah Langkah 6
+
+- Bot Telegram belum tahu: anggaran amplop (peringatan anggaran bot memakai anggaran dasar), lampiran foto, dan buku selain yang diatur di `SPREADSHEET_ID`.
+- Belum diuji di HP sungguhan: kunci sidik jari/wajah (tergantung HP & browser), berbagi gambar, unggah lampiran.
 
 ## Tidak disarankan
 

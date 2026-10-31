@@ -7,7 +7,8 @@ Panduan untuk **pengguna** ada di [README](../README.md); rencana pengembangan d
 
 - Tidak ada server. Saat dibuka, aplikasi meminta login Google, lalu langsung memanggil Google Sheets API dan Drive API dari browser.
 - Saat pertama kali login, aplikasi menawarkan **membuat spreadsheet "Dompet Keluarga"** di Drive akun itu, atau **menghubungkan spreadsheet yang sudah ada**.
-- Alamat spreadsheet tiap akun disimpan di folder tersembunyi khusus aplikasi di Google Drive (`appDataFolder`), jadi tetap ketemu walaupun ganti HP.
+- Alamat spreadsheet tiap akun disimpan di folder tersembunyi khusus aplikasi di Google Drive (`appDataFolder`, file `config.json`: `spreadsheetId` = buku aktif, `buku` = daftar buku `[{id, nama}]`, `folderStruk` = folder lampiran), jadi tetap ketemu walaupun ganti HP.
+- **Satu buku keuangan = satu spreadsheet.** Nama buku diambil dari judul spreadsheet ("Dompet Keluarga - Usaha" → "Usaha").
 - Setiap `git push` ke branch `main` otomatis men-deploy folder `web/` ke GitHub Pages (lihat [.github/workflows/deploy.yml](../.github/workflows/deploy.yml)).
 
 ## Isi repo
@@ -117,9 +118,11 @@ Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang 
 
 ## Struktur data (spreadsheet)
 
-- **Transaksi:** ID, Tanggal, Tipe (Pemasukan/Pengeluaran/Transfer), Jumlah, Kategori, Dompet, Dompet Tujuan, Catatan, Dibuat Oleh, Dibuat Pada, Diubah Pada
-- **Kategori:** Nama, Tipe, Ikon, Anggaran (batas per bulan, khusus pengeluaran)
-- **Dompet:** Nama, Ikon, Saldo Awal, Jenis (Dompet/Tabungan/Utang), Target, Tenggat
+- **Transaksi:** ID, Tanggal, Tipe (Pemasukan/Pengeluaran/Transfer), Jumlah, Kategori, Dompet, Dompet Tujuan, Catatan, Dibuat Oleh, Dibuat Pada, Diubah Pada, Lampiran (ID file foto di Drive)
+  - Lampiran disimpan di folder "Dompet Keluarga - Struk" milik pencatat dan dibagikan lihat-saja ke akun yang punya akses spreadsheet. Bot membaca/menulis 11 kolom pertama saja.
+- **Kategori:** Nama, Tipe, Ikon, Anggaran (batas per bulan, khusus pengeluaran), Bawa Sisa (`Ya` = anggaran amplop: sisa/kelebihan periode lalu ikut dihitung)
+- **Dompet:** Nama, Ikon, Saldo Awal, Jenis (Dompet/Tabungan/Utang/Aset), Target, Tenggat
+  - Jenis **Aset** (emas, reksadana, properti…): nilainya diperbarui manual lewat "Nilai sekarang"; beli dari rekening = Transfer ke aset. Kekayaan bersih = semua dompet + tabungan + aset + piutang − utang.
   - Jenis **Utang** = satu baris per orang. Saldo positif: orang itu berutang ke kita; negatif: kita berutang. Pinjaman & pelunasan dicatat sebagai Transfer antara dompet dan orang itu. Tenggat = jatuh tempo.
   - Bot Telegram mengenali jenis Utang mulai versi ini: setelah menarik kode terbaru, salin ulang `bot/Kode.gs` ke Apps Script lalu **Deploy → Manage deployments → ✏️ → New version**.
 - **Pengaturan:** Kunci, Nilai (kunci API Gemini, model, username bot, akun Telegram yang tertaut, `MULAI_PERIODE` = tanggal gajian 1–28)
@@ -150,3 +153,5 @@ Transaksi diubah/dihapus berdasarkan kolom **ID** (dicari sesaat sebelum menulis
 - [x] Langkah 2: wizard setup (dompet + saldo), sesuaikan saldo, menu fitur lanjutan, bahasa netral
 - [x] Langkah 3: mode offline & transaksi tertunda, zoom tidak diblokir, tulis/hapus transaksi berdasarkan ID, proteksi peringatan di sheet
 - [x] Langkah 4: tagihan rutin (sheet Rutin), utang & piutang (dompet jenis Utang), periode gajian & sisa aman per hari, input cepat, riwayat lintas bulan
+- [x] Langkah 5: bagikan ringkasan sebagai gambar, lampiran foto, sembunyikan nominal & kunci PIN/sidik jari, anggaran amplop, beberapa buku, patungan
+- [x] Langkah 6: kalkulator zakat & templat, aset & kekayaan bersih, tema gelap/terang manual
