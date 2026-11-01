@@ -84,17 +84,19 @@ Audit kode 1 Nov 2026. Sudah aman: semua isian di-escape, tulis Sheets mode `RAW
 - [x] **K4** Foto lampiran ikut dipindah ke Sampah Drive saat transaksinya dihapus atau fotonya diganti/dihapus (diambil kembali saat diurungkan). Diuji.
 
 **7b — Menengah**
-- [ ] **N1** Perpanjang sesi Google otomatis saat pengguna mengetuk sesuatu di 5 menit terakhir sebelum token habis.
-- [ ] **N3** ⚙️ → Unduh data (CSV/Excel) + info riwayat versi Google Sheets.
-- [ ] **K3** Daftar anggota + tombol Keluarkan (cabut akses spreadsheet & folder struk).
+- [x] **N1** Sesi Google diperpanjang otomatis: token tinggal < 10 menit → ketukan berikutnya minta token baru diam-diam (aksi kamera/bagikan/salin/sidik jari dikecualikan).
+- [x] **N3** ⚙️ → Unduh & cadangan data: semua transaksi sebagai CSV (titik koma + BOM untuk Excel Indonesia, aman dari injeksi rumus) + info histori versi Google Sheets.
+- [x] **K3** ⚙️ → Anggota keluarga: daftar akun + tombol Keluarkan (cabut izin spreadsheet, izin lihat foto struk buku ini, dan akun Telegram-nya). Diuji.
 
 **7c — Sentuhan akhir**
-- [ ] **N4** Ganti `confirm()` bawaan browser dengan lembar konfirmasi bergaya aplikasi.
-- [ ] **M2** Kartu tips 3 langkah di Beranda untuk pengguna baru (bisa ditutup).
-- [ ] **K5** Content-Security-Policy (`<meta>`) di index.html.
-- [ ] **M4** Pesan kesalahan Google yang umum diterjemahkan ke bahasa Indonesia.
-- [ ] **K6** Peringatan bahwa kunci Gemini terlihat oleh anggota spreadsheet.
+- [x] **N4** Dialog konfirmasi bergaya aplikasi (`tanya()`) menggantikan 11 `confirm()`.
+- [x] **M2** Kartu "Mulai di sini" di Beranda: catat pertama, anggaran, undang keluarga, pasang di layar utama; bisa ditutup, tidak muncul kalau periode ini sudah ≥ 15 transaksi.
+- [x] **K5** Content-Security-Policy (`<meta>`) di index.html. Diuji di Chrome headless: login Google & Picker termuat tanpa pelanggaran.
+- [x] **M4** Pesan kesalahan Google yang umum diterjemahkan (izin, tidak ditemukan, kuota, gangguan, Drive penuh, batas sel, nama sheet berubah).
+- [x] **K6** Peringatan di form kunci Gemini: terlihat semua anggota, jangan pakai kunci yang terhubung ke billing.
 - [x] **K2** Jelaskan batas Kunci aplikasi (melindungi dari orang yang meminjam HP, bukan dari pencurian HP).
+
+**Belum diuji di HP sungguhan (Langkah 7):** perpanjangan sesi otomatis (popup berkedip), unduh CSV di iPhone (mode aplikasi terpasang), tampilan dialog konfirmasi & kartu Mulai di sini.
 
 ## Tidak disarankan
 
