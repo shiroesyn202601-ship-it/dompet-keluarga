@@ -1758,7 +1758,11 @@ function renderFormTrx() {
       <div class="struk-proses" role="status"><span class="spinner kecil"></span>
         <span><b>Membaca struk…</b><small>Isi lain boleh diisi dulu, atau tutup form ini. Hasilnya tetap muncul di bawah layar.</small></span></div>`
     : !F.id && !rutin && F.tipe === TIPE.KELUAR ? `
-      <button type="button" class="tombol-tambah" style="margin:0 0 16px" data-aksi="foto-struk">📷 Isi otomatis dari foto struk</button>` : ''}
+      <p class="label" style="margin:0 0 6px">Isi otomatis dari foto struk</p>
+      <div style="display:flex;gap:8px;margin:0 0 16px">
+        <button type="button" class="tombol-tambah" style="margin:0" data-aksi="foto-struk" data-kamera="1">📷 Kamera</button>
+        <button type="button" class="tombol-tambah" style="margin:0" data-aksi="foto-struk">🖼️ Galeri</button>
+      </div>` : ''}
 
     <label class="input-jumlah">
       <span>Rp</span>
@@ -2661,11 +2665,11 @@ const AKSI = {
     if (F.tipe !== el.dataset.tipe) { F.tipe = el.dataset.tipe; F.kategori = ''; }
     renderFormTrx();
   },
-  'foto-struk': () => {
+  'foto-struk': el => {
     // Tanpa kunci Gemini, struk tetap dibaca dengan OCR saja.
     bacaFieldTrx();
     sumberStruk = 'form';
-    $('#input-struk').click();
+    $(el.dataset.kamera ? '#input-struk-kamera' : '#input-struk').click();
   },
   'tinjau-struk': el => {
     const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
@@ -3033,10 +3037,10 @@ const AKSI = {
   'atur-anggaran': () => bukaFormAnggaran(),
   'rincian-anggaran': () => bukaRincianAnggaran(),
   'cepat-struk': () => {
-    // Langsung buka pemilih foto (masih dalam ketukan pengguna supaya tidak diblokir browser);
-    // struk dibaca di latar belakang tanpa membuka form.
+    // Langsung buka kamera (masih dalam ketukan pengguna supaya tidak diblokir browser);
+    // struk dibaca di latar belakang tanpa membuka form. Di komputer, capture diabaikan → pemilih file.
     sumberStruk = 'cepat';
-    $('#input-struk').click();
+    $('#input-struk-kamera').click();
   },
   'cepat-transfer': () => bukaFormTrx(null, { tipe: TIPE.TRANSFER }, 'Transfer'),
   'simpan-anggaran': el => {
@@ -3233,12 +3237,12 @@ document.addEventListener('click', e => {
   AKSI[el.dataset.aksi](el, e);
 });
 
-$('#input-struk').addEventListener('change', e => {
+['#input-struk', '#input-struk-kamera'].forEach(sel => $(sel).addEventListener('change', e => {
   const file = e.target.files[0];
   e.target.value = '';
   if (file) mulaiStruk(file, sumberStruk === 'form');
   sumberStruk = 'cepat';
-});
+}));
 
 // Format ribuan saat mengetik nominal.
 document.addEventListener('input', e => {
