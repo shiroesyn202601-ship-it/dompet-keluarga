@@ -12,7 +12,7 @@ Catat keuangan keluarga bersama dari HP. Gratis, tanpa iklan, dan **semua data t
 3. Ketuk **Mulai pakai**. Aplikasi membuat spreadsheet **Dompet Keluarga** di Google Drive Anda.
 4. Supaya terasa seperti aplikasi biasa, pasang ke layar utama HP: buka **⚙️**, lalu ikuti kartu **Pasang sebagai aplikasi**.
 
-Sekitar tiap 1 jam Google meminta konfirmasi ulang. Cukup ketuk **Lanjutkan sebagai …**, isian Anda tidak hilang.
+Selama aplikasi dipakai, sesi Google diperpanjang otomatis (jendela Google kadang berkedip sebentar). Kalau aplikasi lama tidak dibuka, Google meminta konfirmasi ulang: cukup ketuk **Lanjutkan sebagai …**, isian Anda tidak hilang.
 
 ## Mencatat bersama keluarga
 - **Mengundang:** buka **⚙️ → Undang anggota keluarga**, isi email Google-nya, lalu ketuk **Undang**. Bisa juga salin link undangan dan kirim lewat WhatsApp.

@@ -3059,10 +3059,20 @@ const AKSI = {
   },
 };
 
+/**
+ * Aksi yang tidak memicu perpanjangan sesi: login/kunci sendiri, dan aksi yang butuh "ketukan segar"
+ * (kamera, bagikan, salin, sidik jari, pasang) — popup Google bisa memakai izin ketukan itu lebih dulu.
+ */
+const AKSI_TANPA_SEGARKAN = new Set([
+  'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi',
+]);
+
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-aksi]');
   if (!el || !AKSI[el.dataset.aksi]) return;
   e.preventDefault();
+  if (!AKSI_TANPA_SEGARKAN.has(el.dataset.aksi) && $('#kunci').hidden) GOOGLE.segarkanKalauPerlu();
   AKSI[el.dataset.aksi](el, e);
 });
 

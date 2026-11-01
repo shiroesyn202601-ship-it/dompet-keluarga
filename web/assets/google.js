@@ -87,6 +87,19 @@ const GOOGLE = (() => {
   }
 
   /**
+   * Token tinggal < 10 menit → minta token baru diam-diam (jendela Google hanya berkedip), supaya sesi
+   * tidak habis di tengah mengisi form. Harus dipanggil dari ketukan pengguna (syarat popup browser).
+   */
+  const SEGARKAN_MS = 10 * 60 * 1000;
+  let sedangSegarkan = false;
+  function segarkanKalauPerlu() {
+    if (sedangSegarkan || !sudahMasuk() || sesi.kadaluarsa - Date.now() > SEGARKAN_MS || !navigator.onLine) return;
+    sedangSegarkan = true;
+    masuk().catch(() => { /* gagal: nanti tetap muncul kartu "Sesi login berakhir" seperti biasa */ })
+      .then(() => { sedangSegarkan = false; });
+  }
+
+  /**
    * fetch ke API Google dengan token. Opsi tambahan:
    *   json: objek yang dikirim sebagai body JSON
    *   teks: true untuk mengembalikan teks, bukan JSON
@@ -184,5 +197,5 @@ const GOOGLE = (() => {
     });
   }
 
-  return { masuk, keluar, sudahMasuk, email: () => sesi && sesi.email, api, multipart, pilihSpreadsheet, PerluMasuk };
+  return { masuk, keluar, sudahMasuk, segarkanKalauPerlu, email: () => sesi && sesi.email, api, multipart, pilihSpreadsheet, PerluMasuk };
 })();
