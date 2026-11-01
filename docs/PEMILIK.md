@@ -88,35 +88,57 @@ Kunci Gemini disimpan di sheet **Pengaturan** pada spreadsheet keluarga. Model d
 
 Bot berjalan di **Google Apps Script** (gratis), karena GitHub Pages tidak bisa menerima pesan dari Telegram. Kodenya ada di folder [bot/](../bot/).
 
+Ada dua cara memakai bot:
+- **Bot bersama (disarankan kalau aplikasi dibagikan ke teman):** satu bot untuk semua pengguna. Pengguna cukup mengetuk **⚙️ → Bot Telegram → Hubungkan**. Aplikasi membagikan spreadsheet mereka ke **akun robot** bot (service account Google), lalu bot menautkan akun Telegram ke spreadsheet itu.
+- **Bot khusus pemilik (mode lama):** bot hanya mencatat ke satu spreadsheet (`SPREADSHEET_ID`), memakai akun Google pemilik.
+
+Keduanya bisa aktif bersamaan. Spreadsheet `SPREADSHEET_ID` tetap dibuka dengan akun pemilik, spreadsheet lain dengan akun robot.
+
 ### Memasang bot (sekali saja, oleh pemilik)
-1. **Buat bot:** di Telegram, buka [@BotFather](https://t.me/BotFather) → `/newbot`, beri nama (mis. *Dompet Keluarga Kita*) dan username (harus berakhiran `bot`). Salin **token** yang diberikan.
-2. **Buat proyek Apps Script:** buka https://script.new, lalu beri nama **Dompet Keluarga Bot**.
+1. **Buat bot:** di Telegram, buka [@BotFather](https://t.me/BotFather) → `/newbot`, beri nama (mis. *Dompet Keluarga*) dan username (harus berakhiran `bot`). Salin **token** yang diberikan.
+2. **Buat akun robot** (untuk bot bersama; lewati kalau hanya mode lama):
+   - Buka [Google Cloud Console](https://console.cloud.google.com/), pilih project yang sama dengan aplikasi.
+   - **IAM & Admin → Service Accounts → + Create service account**. Nama: `dompet-bot`. Klik **Create and continue**, **lewati** pemberian role (biarkan kosong), lalu **Done**.
+   - Klik akun `dompet-bot@….iam.gserviceaccount.com` → tab **Keys → Add key → Create new key → JSON → Create**. File JSON terunduh. **Simpan baik-baik; jangan dibagikan atau di-commit.**
+   - Pastikan **Google Sheets API** aktif di project (**APIs & Services → Library**). Biasanya sudah aktif untuk aplikasi.
+3. **Buat proyek Apps Script:** buka https://script.new, lalu beri nama **Dompet Keluarga Bot**.
    - ⚙️ **Project Settings** → centang **Show "appsscript.json" manifest file in editor**.
    - Tempel isi [bot/appsscript.json](../bot/appsscript.json) ke `appsscript.json`, dan isi [bot/Kode.gs](../bot/Kode.gs) ke `Kode.gs`. Simpan.
-3. **Isi Script Properties:** ⚙️ **Project Settings → Script Properties → Add script property**:
+4. **Isi Script Properties:** ⚙️ **Project Settings → Script Properties → Add script property**:
    - `TELEGRAM_TOKEN` = token dari BotFather
-   - `SPREADSHEET_ID` = ID spreadsheet keluarga (buka **⚙️ → Buka spreadsheet**, lalu salin bagian alamat di antara `/d/` dan `/edit`)
-4. **Deploy:** **Deploy → New deployment → ⚙️ Web app**:
+   - `SA_KEY` = **seluruh isi** file JSON akun robot (buka dengan Notepad, salin semua, tempel). Untuk bot bersama.
+   - `SPREADSHEET_ID` = opsional, untuk mode lama: ID spreadsheet keluarga Anda (buka **⚙️ → Buka spreadsheet**, lalu salin bagian alamat di antara `/d/` dan `/edit`).
+5. **Deploy:** **Deploy → New deployment → ⚙️ Web app**:
    - **Execute as:** `Me`
    - **Who has access:** `Anyone`
 
    Klik **Deploy** dan beri izin (**Advanced → Go to … → Allow**).
-5. **Pasang webhook:** di editor, pilih fungsi **pasangWebhook** lalu klik **▶ Run**. Di Execution log akan muncul `✅ Bot @namabot terpasang`.
-6. **Tautkan akun:** muat ulang aplikasi (menu **Bot Telegram** baru muncul setelah langkah 5), lalu buka **⚙️ → Bot Telegram → Hubungkan akun Telegram saya**, lalu ketuk **Buka Telegram & hubungkan**. Anggota keluarga lain melakukan hal yang sama dari akunnya sendiri.
+6. **Pasang webhook:** di editor, pilih fungsi **pasangWebhook** lalu klik **▶ Run**. Di Execution log muncul `✅ Bot @namabot terpasang`, dan untuk bot bersama juga baris berisi nilai `botTelegram` dan `emailBot`.
+7. **Bot bersama:** salin kedua nilai itu ke [web/assets/config.js](../web/assets/config.js), lalu commit dan push. Sejak itu menu **⚙️ → Bot Telegram** muncul untuk semua pengguna.
+8. **Tautkan akun:** di aplikasi, buka **⚙️ → Bot Telegram → Hubungkan akun Telegram saya**, setujui, lalu ketuk **Buka Telegram & hubungkan** dan **Start**. Anggota keluarga lain melakukan hal yang sama dari akunnya sendiri.
 
 Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang menemukan bot hanya mendapat pesan "belum terhubung".
+
+### Keamanan & privasi bot bersama
+- Spreadsheet yang dihubungkan ke bot **bisa dibuka oleh akun robot**, jadi secara teknis pengelola bot (pemegang file JSON) bisa melihat isinya. Aplikasi meminta persetujuan pengguna sebelum membagikan.
+- Menautkan butuh **ID spreadsheet + kode 6 huruf** yang ditulis aplikasi ke sheet Pengaturan spreadsheet itu (berlaku 15 menit, sekali pakai). Mengetahui ID spreadsheet saja tidak cukup.
+- Spreadsheet adalah sumber kebenaran. Kalau akun Telegram diputus di aplikasi, anggota dikeluarkan, atau akses robot dicabut, bot langsung menolak dan menghapus tautannya (`tg_<id>` di Script Properties).
+- Akun Telegram terakhir di sebuah buku diputus → aplikasi juga mencabut akses akun robot dari spreadsheet itu.
+- **File JSON akun robot bocor?** Di Google Cloud → akun `dompet-bot` → **Keys**, hapus kunci lama, buat yang baru, lalu ganti `SA_KEY`.
+- Batas **300 pesan per buku per hari** (konstanta `BATAS_PESAN_HARIAN`), supaya kuota gratis Apps Script (±20.000 panggilan internet per hari) cukup untuk semua. Spreadsheet mode lama tidak dibatasi.
 
 ### Kalau bot tidak membalas
 - Jalankan fungsi **cekWebhook** dan lihat `last_error_message` di Execution log.
 - Buka **⏱ Executions** di Apps Script untuk melihat error tiap pesan.
 - Kalau webhook terus bermasalah, jalankan **modePolling**. Bot lalu mengecek pesan setiap 1 menit, jadi balasannya sedikit lebih lambat. Jalankan **pasangWebhook** untuk kembali ke mode webhook.
+- `Token akun robot gagal` di log → isi `SA_KEY` salah, atau kuncinya sudah dihapus di Google Cloud.
 - Setiap kali `Kode.gs` diubah: **Deploy → Manage deployments → ✏️ → New version → Deploy**. URL tidak berubah, jadi webhook tidak perlu dipasang ulang.
 
 ### Kecepatan bot
-- Bot membaca semua sheet dalam satu permintaan **Sheets API**, bersamaan dengan status "mengetik". Karena itu `appsscript.json` mengaktifkan layanan **Sheets**. Kalau Sheets API gagal (mis. manifest lama), bot otomatis kembali ke SpreadsheetApp yang lebih lambat (`Sheets API … pakai SpreadsheetApp` di log).
+- Bot membaca semua sheet dalam satu permintaan **Sheets API**, bersamaan dengan status "mengetik".
 - Pengeluaran sederhana ("bakso 25rb") dicatat tanpa AI. Pertanyaan murni langsung dijawab dalam satu panggilan AI.
 - Lama tiap langkah tercatat di **⏱ Executions** (baris `⏱ data dimuat`, `⏱ AI …`, `⏱ selesai`).
-- Data tidak di-cache, karena aplikasi web menulis langsung ke spreadsheet dan bot harus selalu melihat data terbaru.
+- Data tidak di-cache, karena aplikasi web menulis langsung ke spreadsheet dan bot harus selalu melihat data terbaru. Yang di-cache hanya token akun robot (±55 menit).
 
 ## Mengembangkan
 - Ubah file di `web/`, lalu commit dan push ke `main`. Deploy berjalan otomatis dalam 1–2 menit (pantau di tab **Actions**).
