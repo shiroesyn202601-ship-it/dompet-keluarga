@@ -1,7 +1,7 @@
 // Service worker: membuat aplikasi bisa dipasang & tetap terbuka saat sinyal jelek.
 // Strategi "jaringan dulu": selalu ambil versi terbaru dari GitHub Pages, cache hanya cadangan.
 // Jadi setiap update di GitHub langsung terpakai tanpa pasang ulang.
-const CACHE = 'dompet-keluarga-v1';
+const CACHE = 'dompet-keluarga-v2';
 const INTI = [
   'index.html', 'manifest.webmanifest',
   'assets/styles.css', 'assets/config.js', 'assets/google.js', 'assets/struk.js', 'assets/db.js', 'assets/app.js',

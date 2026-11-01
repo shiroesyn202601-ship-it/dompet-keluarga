@@ -313,7 +313,7 @@ function tampilMasuk() {
   const email = GOOGLE.email();
   $('#view').innerHTML = `
     <div class="sambut">
-      <div class="logo">👛</div>
+      <img class="logo" src="ikon/ikon-192.png" alt="">
       <h1>Dompet Keluarga</h1>
       <p>Catat keuangan keluarga bersama. Semua data tersimpan di Google Spreadsheet milik Anda sendiri.</p>
       ${S.gabung ? '<p><b>Anda diundang bergabung.</b> Masuk dengan akun Google yang diundang untuk melanjutkan.</p>' : ''}
