@@ -548,6 +548,40 @@ function tileTabungan() {
 
 // ---------- Halaman: Beranda ----------
 
+/** Tanda per perangkat untuk kartu "Mulai di sini": { undang: 1, tutup: 1 }. */
+const tandaTips = () => { try { return JSON.parse(bacaHp('dk_tips')) || {}; } catch (e) { return {}; } };
+function tandaiTips(kunci) {
+  const t = tandaTips();
+  if (t[kunci]) return;
+  t[kunci] = 1;
+  tulisHp('dk_tips', JSON.stringify(t));
+}
+
+/** Daftar langkah pertama untuk pengguna baru. Hilang kalau semua selesai atau ditutup. */
+function kartuMulai() {
+  const t = tandaTips();
+  if (t.tutup || S.data.transaksi.length >= 15) return ''; // pengguna lama tidak perlu panduan
+  const langkah = [
+    [S.data.transaksi.length > 0, 'Catat transaksi pertama', 'Ketik saja "bakso 25rb gopay" lalu Enter', 'tambah-trx', ''],
+    [S.data.kategori.some(k => k.anggaran > 0), 'Atur anggaran belanja', 'Diberi tahu sebelum belanja kebablasan', 'atur-anggaran', ''],
+    [!!t.undang, 'Undang pasangan / keluarga', 'Catat bersama di satu buku', 'undang', ''],
+    [MODE_APLIKASI, 'Pasang di layar utama HP', 'Buka cepat seperti aplikasi biasa', 'tab', 'lainnya'],
+  ];
+  const sisa = langkah.filter(l => !l[0]).length;
+  if (!sisa) return '';
+  return `
+    <section class="kartu mulai">
+      <h3><span>👋 Mulai di sini · ${langkah.length - sisa}/${langkah.length}</span>
+        <button type="button" data-aksi="tutup-tips" aria-label="Tutup panduan">Tutup</button></h3>
+      ${langkah.map(([selesai, judul, ket, aksi, tab]) => `
+        <button class="baris ${selesai ? 'selesai' : ''}" data-aksi="${aksi}"${tab ? ` data-tab="${tab}"` : ''}>
+          <span class="ikon-bulat">${selesai ? '✅' : '⬜'}</span>
+          <span class="isi"><b>${judul}</b><small>${ket}</small></span>
+          <span class="panah">›</span>
+        </button>`).join('')}
+    </section>`;
+}
+
 function viewBeranda() {
   const d = S.data;
   const trx = d.transaksi;
@@ -590,6 +624,7 @@ function viewBeranda() {
       <button data-aksi="tab" data-tab="laporan"><span class="kotak">${svg('laporan')}</span>Laporan</button>
     </div>
 
+    ${kartuMulai()}
     ${kartuTagihan()}
 
     <div class="bento">${tileAnggaran(per)}${tileTabungan()}</div>
@@ -3134,7 +3169,8 @@ const AKSI = {
     tampilMasuk();
   },
 
-  'undang': () => bukaAnggota(),
+  'undang': () => { tandaiTips('undang'); bukaAnggota(); },
+  'tutup-tips': () => { tandaiTips('tutup'); render(); },
   'keluarkan-anggota': async el => {
     if (!await tanya(`Keluarkan ${el.dataset.email}? Akun ini tidak bisa lagi membuka buku ini, melihat foto struknya, atau mencatat lewat bot Telegram. Transaksi yang sudah dicatatnya tetap ada.`, 'Keluarkan')) return;
     kirim(el, 'keluarkanAnggota', [el.dataset.id, el.dataset.email], 'Anggota dikeluarkan');

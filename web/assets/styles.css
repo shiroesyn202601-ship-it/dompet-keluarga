@@ -326,6 +326,10 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .panduan ol { padding-left: 20px; margin: 8px 0 0; }
 .panduan li { margin-bottom: 6px; }
 .panduan a { color: var(--primary); font-weight: 700; }
+.mulai { padding-top: 14px; padding-bottom: 4px; }
+.mulai h3 { margin-bottom: 2px; }
+.mulai .baris:last-child { border-bottom: 0; }
+.mulai .baris.selesai .isi b { color: var(--muted); text-decoration: line-through; }
 .salin { display: flex; gap: 8px; }
 .salin .field { flex: 1; min-width: 0; font-size: 13px; }
 
