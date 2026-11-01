@@ -98,7 +98,7 @@ Audit kode 1 Nov 2026. Sudah aman: semua isian di-escape, tulis Sheets mode `RAW
 
 **Belum diuji di HP sungguhan (Langkah 7):** perpanjangan sesi otomatis (popup berkedip), unduh CSV di iPhone (mode aplikasi terpasang), tampilan dialog konfirmasi & kartu Mulai di sini.
 
-## Langkah 8 — Satu bot Telegram untuk semua pengguna (rancangan)
+## Langkah 8 — Satu bot Telegram untuk semua pengguna
 
 **Masalah:** sekarang satu bot = satu spreadsheet (`SPREADSHEET_ID` diisi manual di Apps Script). Teman yang memakai aplikasi tidak bisa memakai bot tanpa memasang Apps Script sendiri.
 
@@ -159,14 +159,14 @@ Aplikasi (HP teman)                         Bot (Apps Script milik pemilik)
 5. Tempel `Kode.gs` baru, lalu **Deploy → New version**. `SPREADSHEET_ID` boleh tetap ada untuk mode lama.
 
 ### Urutan kerja
-- [ ] **8a** Bot: token akun robot (JWT RS256 lewat `Utilities.computeRsaSha256Signature`, di-cache), semua baca/tulis Sheets lewat REST dengan token itu, ID spreadsheet per pesan (bukan konstanta).
-- [ ] **8b** Bot: penautan `start=<idSheet>_<kode>`, indeks Telegram ID → spreadsheet di Script Properties, pengecekan ulang ke `TELEGRAM_PENGGUNA`, migrasi mode lama.
-- [ ] **8c** Aplikasi: `config.js` (`botTelegram`, `emailBot`), layar persetujuan, bagikan ke akun robot lalu buka link, dan "Putuskan" yang mencabut izin robot saat akun terakhir diputus.
-- [ ] **8d** Kunci antrean per pengguna, plus batas pesan per keluarga per hari (mis. 200) supaya satu pengguna tidak menghabiskan kuota semua.
-- [ ] **8e** Privasi & dokumentasi: `privasi.html`, README, PEMILIK.md (setup service account).
-- [ ] **8f** Uji: dua keluarga berbeda di satu bot; putuskan / keluarkan anggota langsung memutus bot; spreadsheet yang aksesnya dicabut tidak bisa dipakai lagi.
+- [x] **8a** Bot: token akun robot (JWT RS256 lewat `Utilities.computeRsaSha256Signature`, di-cache ±55 menit); semua baca/tulis Sheets lewat REST (SpreadsheetApp tidak dipakai lagi); spreadsheet dipilih per pesan. Diuji dengan Apps Script/Sheets/Telegram tiruan.
+- [x] **8b** Bot: penautan `/start <idSheet>_<kode>`, indeks `tg_<id>` di Script Properties, cek ulang ke `TELEGRAM_PENGGUNA` tiap pesan, mode lama `SPREADSHEET_ID` tetap jalan dengan token pemilik. Diuji (termasuk serangan: kode salah/kedaluwarsa, spreadsheet tidak dibagikan).
+- [x] **8c** Aplikasi: `config.js` (`botTelegram`, `emailBot`), layar persetujuan, bagikan ke akun robot (sekali) lalu buka link, dan akses robot dicabut saat akun Telegram terakhir diputus / anggota dikeluarkan. Diuji.
+- [~] **8d** Batas 300 pesan per buku per hari: selesai. Kunci antrean masih satu untuk semua (hanya dipakai sebentar saat ubah/hapus); dipecah per pengguna kalau nanti terasa lambat.
+- [x] **8e** Privasi & dokumentasi: `privasi.html`, README, PEMILIK.md (setup service account, keamanan, troubleshooting).
+- [ ] **8f** Uji sungguhan setelah pemilik memasang akun robot: dua keluarga di satu bot; putuskan / keluarkan anggota langsung memutus bot; spreadsheet yang aksesnya dicabut tidak bisa dipakai lagi.
 
-**Pertanyaan terbuka:** pengingat tagihan harian lewat bot (per keluarga) dikerjakan sekalian, atau setelah 8a–8f stabil?
+**Diputuskan:** pengingat tagihan harian lewat bot dikerjakan nanti, setelah 8a–8f stabil.
 
 ## Tidak disarankan
 
