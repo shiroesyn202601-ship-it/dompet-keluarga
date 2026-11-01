@@ -131,6 +131,37 @@ function toast(pesan, error, tombol) {
   clearTimeout(timerToast);
   timerToast = setTimeout(() => { el.hidden = true; }, error ? 8000 : tombol ? 6000 : 2500);
 }
+/**
+ * Pengganti confirm() bawaan browser, bergaya aplikasi. Hasil: Promise<boolean>.
+ * ya: label tombol utama; aman: true kalau tindakannya tidak merusak (tombol tidak merah).
+ */
+function tanya(pesan, ya = 'Lanjutkan', aman) {
+  const el = $('#tanya');
+  el.innerHTML = `
+    <div class="sesi-kartu">
+      <p id="tanya-pesan">${esc(pesan)}</p>
+      <button type="button" class="btn ${aman ? 'btn-utama' : 'btn-bahaya'}" data-jawab="1">${esc(ya)}</button>
+      <button type="button" class="tombol-teks" data-jawab="">Batal</button>
+    </div>`;
+  el.hidden = false;
+  el.querySelector('[data-jawab="1"]').focus();
+  return new Promise(selesai => {
+    const jawab = v => {
+      el.hidden = true;
+      el.innerHTML = '';
+      el.onclick = null;
+      document.removeEventListener('keydown', tombol);
+      selesai(v);
+    };
+    const tombol = e => { if (e.key === 'Escape') jawab(false); };
+    document.addEventListener('keydown', tombol);
+    el.onclick = e => {
+      const b = e.target.closest('[data-jawab]');
+      if (b) jawab(!!b.dataset.jawab);
+      else if (e.target === el) jawab(false); // ketuk di luar kartu = batal
+    };
+  });
+}
 function pesanError(e) {
   return (e && e.message ? e.message : String(e)).replace(/^Error:\s*/, '');
 }
@@ -2605,9 +2636,9 @@ const AKSI = {
     const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
     if (job) jalankanStruk(job);
   },
-  'buang-struk': el => {
+  'buang-struk': async el => {
     const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
-    if (job && job.status === 'siap' && !confirm('Buang hasil struk ini tanpa menyimpannya?')) return;
+    if (job && job.status === 'siap' && !await tanya('Buang hasil struk ini tanpa menyimpannya?', 'Buang')) return;
     hapusJob(el.dataset.id);
   },
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
@@ -2635,7 +2666,7 @@ const AKSI = {
     }
   },
   'putus-telegram': async el => {
-    if (!confirm('Putuskan akun Telegram ini dari Dompet Keluarga?')) return;
+    if (!await tanya('Putuskan akun Telegram ini dari Dompet Keluarga?', 'Putuskan')) return;
     if (await kirim(el, 'putuskanTelegram', [el.dataset.id], 'Akun Telegram diputuskan')) bukaFormTelegram();
   },
   'simpan-gemini': async el => {
@@ -2644,7 +2675,7 @@ const AKSI = {
     if (await kirim(el, 'tambahKunciGemini', [kunci], 'Kunci Gemini tersimpan ✔')) bukaFormGemini();
   },
   'hapus-gemini': async el => {
-    if (!confirm('Hapus kunci API ' + el.dataset.kunci + '?')) return;
+    if (!await tanya('Hapus kunci API ' + el.dataset.kunci + '?', 'Hapus')) return;
     if (await kirim(el, 'hapusKunciGemini', [el.dataset.kunci], 'Kunci API dihapus')) bukaFormGemini();
   },
   'f-kategori': el => { bacaFieldTrx(); F.kategori = el.dataset.nama; renderFormTrx(); },
@@ -2722,8 +2753,8 @@ const AKSI = {
       toast('Sidik jari/wajah gagal. Pakai PIN.', true);
     }
   },
-  'lupa-pin': () => {
-    if (!confirm('Untuk membuka kunci tanpa PIN, Anda perlu keluar lalu masuk lagi dengan akun Google. Data tetap aman di Google Drive. Lanjutkan?')) return;
+  'lupa-pin': async () => {
+    if (!await tanya('Untuk membuka kunci tanpa PIN, Anda perlu keluar lalu masuk lagi dengan akun Google. Data tetap aman di Google Drive. Lanjutkan?', 'Keluar & masuk lagi')) return;
     resetKunci();
   },
   'rincian-aman': () => bukaRincianAman(),
@@ -2754,8 +2785,8 @@ const AKSI = {
       catatan: r.catatan || r.nama, dariRutin: r.id, berikutRutin: SERVER.tanggalBerikut(r.berikutnya, r.mulai, r.ulang),
     }, r.nama);
   },
-  'lewati-rutin': el => {
-    if (!confirm('Lewati tagihan ini tanpa mencatat transaksi? Jatuh temponya pindah ke ' + tanggalPendek(F.berikutRutin) + '.')) return;
+  'lewati-rutin': async el => {
+    if (!await tanya('Lewati tagihan ini tanpa mencatat transaksi? Jatuh temponya pindah ke ' + tanggalPendek(F.berikutRutin) + '.', 'Lewati', true)) return;
     kirim(el, 'majukanRutin', [F.dariRutin], 'Dilewati ✔ Berikutnya ' + tanggalPendek(F.berikutRutin));
   },
   'simpan-rutin': async el => {
@@ -2769,7 +2800,7 @@ const AKSI = {
     if (ok) bukaDaftarRutin();
   },
   'hapus-rutin': async el => {
-    if (!confirm('Hapus tagihan rutin "' + (F.nama || '') + '"? Transaksi yang sudah dicatat tidak ikut terhapus.')) return;
+    if (!await tanya('Hapus tagihan rutin "' + (F.nama || '') + '"? Transaksi yang sudah dicatat tidak ikut terhapus.', 'Hapus')) return;
     if (await kirim(el, 'hapusRutin', [F.idRutin], 'Tagihan rutin dihapus')) bukaDaftarRutin();
   },
   'kirim-tertunda': async () => {
@@ -2859,7 +2890,7 @@ const AKSI = {
   },
   'lupakan-buku': async el => {
     const b = (S.data.buku || []).find(x => x.id === el.dataset.id);
-    if (!confirm('Hapus "' + (b ? b.nama : 'buku ini') + '" dari daftar? Spreadsheet-nya tetap ada di Google Drive.')) return;
+    if (!await tanya('Hapus "' + (b ? b.nama : 'buku ini') + '" dari daftar? Spreadsheet-nya tetap ada di Google Drive.', 'Hapus dari daftar')) return;
     if (await kirim(el, 'lupakanBuku', [el.dataset.id], 'Dihapus dari daftar')) bukaDaftarBuku();
   },
   'buka-zakat': () => bukaZakat(),
@@ -2939,8 +2970,8 @@ const AKSI = {
       catatan: dia ? 'Pelunasan dari ' + w.nama : 'Bayar utang ke ' + w.nama,
     }, dia ? 'Terima dari ' + w.nama : 'Bayar ke ' + w.nama);
   },
-  'hapus-dompet': el => {
-    if (confirm('Hapus "' + F.namaLama + '"?')) kirim(el, 'hapusDompet', [F.namaLama], 'Dihapus');
+  'hapus-dompet': async el => {
+    if (await tanya('Hapus "' + F.namaLama + '"?', 'Hapus')) kirim(el, 'hapusDompet', [F.namaLama], 'Dihapus');
   },
   'setor-tabungan': el => {
     const pertama = dompetBiasa()[0];
@@ -2995,7 +3026,7 @@ const AKSI = {
     if (ok) bukaDaftarKategori(tipe);
   },
   'hapus-kategori': async el => {
-    if (!confirm('Hapus kategori "' + F.namaLama + '"?')) return;
+    if (!await tanya('Hapus kategori "' + F.namaLama + '"?', 'Hapus')) return;
     const tipe = F.tipeLama;
     const ok = await kirim(el, 'hapusKategori', [F.namaLama, F.tipeLama], 'Kategori dihapus');
     if (ok) bukaDaftarKategori(tipe);
@@ -3092,9 +3123,9 @@ const AKSI = {
       el.disabled = false;
     }
   },
-  'keluar': () => {
+  'keluar': async () => {
     const n = bacaLokal('tertunda', []).length; // semua buku, karena semuanya ikut terhapus
-    if (!confirm(n ? `${n} transaksi belum terkirim dan akan hilang. Tetap keluar dari ${GOOGLE.email()}?` : 'Keluar dari ' + GOOGLE.email() + '?')) return;
+    if (!await tanya(n ? `${n} transaksi belum terkirim dan akan hilang. Tetap keluar dari ${GOOGLE.email()}?` : 'Keluar dari ' + GOOGLE.email() + '?', 'Keluar')) return;
     // Data yang tersimpan di HP ikut dihapus, karena HP bisa dipakai orang lain.
     tulisLokal('data', null);
     tulisLokal('tertunda', null);
@@ -3104,8 +3135,8 @@ const AKSI = {
   },
 
   'undang': () => bukaAnggota(),
-  'keluarkan-anggota': el => {
-    if (!confirm(`Keluarkan ${el.dataset.email}? Akun ini tidak bisa lagi membuka buku ini, melihat foto struknya, atau mencatat lewat bot Telegram. Transaksi yang sudah dicatatnya tetap ada.`)) return;
+  'keluarkan-anggota': async el => {
+    if (!await tanya(`Keluarkan ${el.dataset.email}? Akun ini tidak bisa lagi membuka buku ini, melihat foto struknya, atau mencatat lewat bot Telegram. Transaksi yang sudah dicatatnya tetap ada.`, 'Keluarkan')) return;
     kirim(el, 'keluarkanAnggota', [el.dataset.id, el.dataset.email], 'Anggota dikeluarkan');
   },
   'kirim-undangan': el => {

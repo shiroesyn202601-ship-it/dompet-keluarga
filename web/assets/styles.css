@@ -362,6 +362,9 @@ body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b
 .sesi-kartu b { font-size: 17px; font-weight: 800; }
 .sesi-kartu p { margin: 0 0 6px; font-size: 14px; color: var(--muted); }
 .sesi-kartu .btn { flex: none; }
+.tanya { z-index: 70; } /* di atas lembar, layar kunci, dan kartu sesi */
+.tanya .sesi-kartu p { color: var(--text); text-align: left; }
+.btn-bahaya { color: #fff; background: var(--keluar); }
 .tombol-teks { padding: 10px; font-size: 14px; font-weight: 700; color: var(--primary); text-decoration: none; }
 .setup-intro { margin: -6px 0 14px; color: var(--muted); font-size: 14px; }
 /* Baris status di atas halaman: offline / transaksi tertunda */
