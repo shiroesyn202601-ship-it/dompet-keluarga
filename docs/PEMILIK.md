@@ -65,7 +65,7 @@ Aplikasi hanya memakai izin **non-sensitif** (`drive.file`, `drive.appdata`, `em
 Token login Google berlaku sekitar 1 jam. Setelah itu muncul kartu **Sesi login berakhir**. Cukup ketuk **Lanjutkan sebagai …**, isian form tidak hilang.
 
 ### 4. Undang anggota keluarga
-1. Buka **⚙️ → Undang anggota keluarga**, isi email Google-nya, lalu ketuk **Undang**. Google akan mengirim email berisi link undangan.
+1. Buka **⚙️ → Anggota keluarga**, isi email Google-nya, lalu ketuk **Undang**. Google akan mengirim email berisi link undangan.
 2. Bisa juga salin **link undangan** di menu yang sama, lalu kirim lewat WhatsApp.
 3. Yang diundang membuka link itu, masuk dengan akunnya, lalu ketuk **Pilih spreadsheet**, pilih file **Dompet Keluarga**, dan konfirmasi.
    Langkah memilih ini hanya sekali, karena aplikasi baru boleh membuka spreadsheet milik orang lain setelah dipilih sendiri oleh penggunanya.

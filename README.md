@@ -15,7 +15,8 @@ Catat keuangan keluarga bersama dari HP. Gratis, tanpa iklan, dan **semua data t
 Selama aplikasi dipakai, sesi Google diperpanjang otomatis (jendela Google kadang berkedip sebentar). Kalau aplikasi lama tidak dibuka, Google meminta konfirmasi ulang: cukup ketuk **Lanjutkan sebagai …**, isian Anda tidak hilang.
 
 ## Mencatat bersama keluarga
-- **Mengundang:** buka **⚙️ → Undang anggota keluarga**, isi email Google-nya, lalu ketuk **Undang**. Bisa juga salin link undangan dan kirim lewat WhatsApp.
+- **Mengundang:** buka **⚙️ → Anggota keluarga**, isi email Google-nya, lalu ketuk **Undang**. Bisa juga salin link undangan dan kirim lewat WhatsApp.
+- **Mengeluarkan:** di **⚙️ → Anggota keluarga**, ketuk **✕** di samping namanya. Aksesnya ke spreadsheet, foto struk, dan bot Telegram ikut dicabut; transaksi yang sudah dicatatnya tetap ada.
 - **Diundang:** buka link undangan, masuk dengan akun Google yang diundang, ketuk **Pilih spreadsheet**, lalu pilih file **Dompet Keluarga**. Cukup sekali.
 
 ## Fitur

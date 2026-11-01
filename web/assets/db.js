@@ -385,6 +385,58 @@ const SERVER = (() => {
     }
   }
 
+  /** Akun yang punya akses ke spreadsheet buku ini: [{ id (ID izin Drive), email, nama, peran: owner|writer|reader }]. */
+  async function daftarAnggota() {
+    const r = await GOOGLE.api(DRIVE + '/files/' + (await db_()) + '/permissions?fields=permissions(id,type,role,emailAddress,displayName)');
+    return (r.permissions || []).filter(p => p.type === 'user')
+      .map(p => ({ id: p.id, email: p.emailAddress || '', nama: p.displayName || '', peran: p.role }));
+  }
+
+  /**
+   * Mencabut akses satu anggota: spreadsheet, foto struk buku ini yang diunggah akun ini, dan akun Telegram-nya
+   * (bot berjalan sebagai pemilik, jadi tanpa ini anggota yang dikeluarkan masih bisa mencatat lewat bot).
+   */
+  async function keluarkanAnggota(idIzin, email) {
+    const id = await db_();
+    email = teks_(email).toLowerCase();
+    if (email && email === String(GOOGLE.email() || '').toLowerCase()) throw new Error('Tidak bisa mengeluarkan akun sendiri.');
+    try {
+      await GOOGLE.api(DRIVE + '/files/' + id + '/permissions/' + encodeURIComponent(idIzin), { method: 'DELETE' });
+    } catch (e) {
+      if (e.status === 403 || e.status === 404) {
+        throw new Error('Akses anggota ini tidak bisa dicabut dari akun Anda (biasanya hanya pemilik spreadsheet yang bisa). Minta pemiliknya, atau buka spreadsheet → Bagikan.');
+      }
+      throw e;
+    }
+    const [trx, set] = await bacaTabel_(id, ['transaksi', 'pengaturan']);
+    const pengguna = bacaJson_(pengaturan_(set).TELEGRAM_PENGGUNA, {});
+    const sisa = {};
+    Object.keys(pengguna).forEach(k => { if (String(pengguna[k].email || '').toLowerCase() !== email) sisa[k] = pengguna[k]; });
+    if (Object.keys(sisa).length !== Object.keys(pengguna).length) {
+      await simpanPengaturan_(id, set, 'TELEGRAM_PENGGUNA', JSON.stringify(sisa));
+    }
+    if (email) await cabutLampiran_(trx.map(r => teks_(r[11])).filter(Boolean), email);
+    return true;
+  }
+
+  /** Mencabut izin lihat foto-foto ini dari satu email. Foto milik anggota lain dilewati (bukan hak akun ini). */
+  async function cabutLampiran_(daftar, email) {
+    const antre = Array.from(new Set(daftar));
+    const kerja = async () => {
+      for (let f = antre.shift(); f; f = antre.shift()) {
+        try {
+          const r = await GOOGLE.api(DRIVE + '/files/' + encodeURIComponent(f) + '/permissions?fields=permissions(id,emailAddress)');
+          for (const p of r.permissions || []) {
+            if (String(p.emailAddress || '').toLowerCase() === email) {
+              await GOOGLE.api(DRIVE + '/files/' + encodeURIComponent(f) + '/permissions/' + p.id, { method: 'DELETE' });
+            }
+          }
+        } catch (e) { /* bukan milik akun ini / sudah dihapus */ }
+      }
+    };
+    await Promise.all([kerja(), kerja(), kerja(), kerja()]); // 4 sekaligus supaya tidak lama
+  }
+
   // ---------- Data ----------
 
   /**
@@ -1241,7 +1293,7 @@ const SERVER = (() => {
   }
 
   return {
-    getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, buatBuku, lupakanBuku,
+    getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,

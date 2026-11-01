@@ -1384,7 +1384,7 @@ function viewSetup() {
       <div class="grup-form">
         <label class="label" for="s-anggota">Email Google anggota keluarga</label>
         <input class="field" id="s-anggota" type="email" inputmode="email" placeholder="nama@gmail.com" value="${esc(st.email)}">
-        <p class="info-kecil" style="text-align:left">Bisa juga nanti dari ⚙️ → Undang anggota keluarga.</p>
+        <p class="info-kecil" style="text-align:left">Bisa juga nanti dari ⚙️ → Anggota keluarga.</p>
       </div>
       <div class="aksi-form">
         <button type="button" class="btn btn-utama" data-aksi="buat-db">Mulai pakai</button>
@@ -1450,7 +1450,7 @@ function viewLainnya() {
       </button>
       <button class="baris" data-aksi="undang">
         <span class="ikon-bulat">👨‍👩‍👧</span>
-        <span class="isi"><b>Undang anggota keluarga</b><small>Beri akses ke akun Google lain</small></span>
+        <span class="isi"><b>Anggota keluarga</b><small>Undang atau keluarkan akun Google lain</small></span>
         <span class="panah">›</span>
       </button>
     </section>
@@ -1520,6 +1520,49 @@ function kartuPasang() {
         <b>Android (Chrome):</b>
         <ol><li>Ketuk menu ⋮ di kanan atas.</li><li>Pilih <b>Instal aplikasi</b> atau <b>Tambahkan ke layar utama</b>.</li><li>Ketuk <b>Instal</b>.</li></ol>`}
     </section>`;
+}
+
+// ---------- Anggota keluarga ----------
+
+/** Daftar akun yang punya akses ke buku ini (dimuat setelah lembar terbuka) + form undangan. */
+async function bukaAnggota() {
+  bukaSheet('Anggota Keluarga', `
+    <div id="daftar-anggota"><p class="info-kecil">Memuat anggota…</p></div>
+    <span class="label" style="margin-top:16px">Undang anggota baru</span>
+    <div class="grup-form">
+      <label class="label" for="u-email">Email Google</label>
+      <input class="field" id="u-email" type="email" inputmode="email" placeholder="nama@gmail.com">
+      <p class="info-kecil" style="text-align:left">Akun ini akan jadi Editor spreadsheet, dan Google mengirim email berisi link undangan.</p>
+    </div>
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="kirim-undangan">Undang</button></div>
+    <div class="grup-form" style="margin-top:20px">
+      <label class="label" for="u-link">Atau kirim link undangan ini (mis. lewat WhatsApp)</label>
+      <div class="salin">
+        <input class="field" id="u-link" readonly value="${esc(S.data.linkUndangan)}">
+        <button type="button" class="btn btn-hapus" data-aksi="salin-link">Salin</button>
+      </div>
+      <p class="info-kecil" style="text-align:left">Link ini hanya bisa dipakai akun yang sudah diberi akses ke spreadsheet.</p>
+    </div>`);
+  const kotak = () => $('#daftar-anggota'); // null kalau lembar sudah ditutup
+  let anggota;
+  try {
+    anggota = await api('daftarAnggota');
+  } catch (e) {
+    if (kotak()) kotak().innerHTML = `<p class="info-kecil">Daftar anggota tidak bisa dimuat: ${esc(pesanError(e))}</p>`;
+    return;
+  }
+  if (!kotak()) return;
+  const saya = String(GOOGLE.email() || '').toLowerCase();
+  const peran = { owner: 'Pemilik', writer: 'Bisa mencatat', reader: 'Hanya lihat', commenter: 'Hanya lihat' };
+  kotak().innerHTML = anggota.map(a => {
+    const sendiri = a.email.toLowerCase() === saya;
+    return `
+    <div class="baris">
+      <span class="ikon-bulat">${a.peran === 'owner' ? '👑' : '👤'}</span>
+      <span class="isi"><b>${esc(a.nama || a.email)}${sendiri ? ' (Anda)' : ''}</b><small>${esc(a.email)} · ${esc(peran[a.peran] || a.peran)}</small></span>
+      ${sendiri || a.peran === 'owner' ? '' : `<button type="button" class="tombol-ikon" data-aksi="keluarkan-anggota" data-id="${esc(a.id)}" data-email="${esc(a.email)}" aria-label="Keluarkan ${esc(a.email)}">✕</button>`}
+    </div>`;
+  }).join('');
 }
 
 // ---------- Unduh & cadangan ----------
@@ -3060,21 +3103,11 @@ const AKSI = {
     tampilMasuk();
   },
 
-  'undang': () => bukaSheet('Undang Anggota Keluarga', `
-    <div class="grup-form">
-      <label class="label" for="u-email">Email Google</label>
-      <input class="field" id="u-email" type="email" inputmode="email" placeholder="nama@gmail.com">
-      <p class="info-kecil" style="text-align:left">Akun ini akan jadi Editor spreadsheet, dan Google mengirim email berisi link undangan.</p>
-    </div>
-    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="kirim-undangan">Undang</button></div>
-    <div class="grup-form" style="margin-top:20px">
-      <label class="label" for="u-link">Atau kirim link undangan ini (mis. lewat WhatsApp)</label>
-      <div class="salin">
-        <input class="field" id="u-link" readonly value="${esc(S.data.linkUndangan)}">
-        <button type="button" class="btn btn-hapus" data-aksi="salin-link">Salin</button>
-      </div>
-      <p class="info-kecil" style="text-align:left">Link ini hanya bisa dipakai akun yang sudah diberi akses ke spreadsheet.</p>
-    </div>`),
+  'undang': () => bukaAnggota(),
+  'keluarkan-anggota': el => {
+    if (!confirm(`Keluarkan ${el.dataset.email}? Akun ini tidak bisa lagi membuka buku ini, melihat foto struknya, atau mencatat lewat bot Telegram. Transaksi yang sudah dicatatnya tetap ada.`)) return;
+    kirim(el, 'keluarkanAnggota', [el.dataset.id, el.dataset.email], 'Anggota dikeluarkan');
+  },
   'kirim-undangan': el => {
     const email = $('#u-email').value.trim();
     if (!email) return toast('Isi emailnya dulu.', true);
