@@ -1528,9 +1528,9 @@ function viewLainnya() {
         <span class="isi"><b>Baca struk lebih akurat</b><small>${d.kunciGemini.length ? 'Aktif · memakai AI Gemini' : 'Opsional · pakai kunci Gemini gratis dari Google'}</small></span>
         <span class="panah">›</span>
       </button>
-      ${d.telegram.bot ? `<button class="baris" data-aksi="telegram">
+      ${d.telegram.bot || d.telegram.pengguna.length ? `<button class="baris" data-aksi="telegram">
         <span class="ikon-bulat">💬</span>
-        <span class="isi"><b>Bot Telegram</b><small>@${esc(d.telegram.bot)} · ${d.telegram.pengguna.length} akun terhubung</small></span>
+        <span class="isi"><b>Bot Telegram</b><small>${d.telegram.bot ? '@' + esc(d.telegram.bot) + ' · ' : ''}${d.telegram.pengguna.length} akun terhubung</small></span>
         <span class="panah">›</span>
       </button>` : ''}
       <a class="baris" href="${esc(d.urlSpreadsheet)}" target="_blank" style="color:inherit;text-decoration:none">
@@ -2405,17 +2405,17 @@ function infoStruk(h) {
 function bukaFormTelegram(kode) {
   const t = S.data.telegram;
   bukaSheet('Bot Telegram', `
-    <a class="baris" href="https://t.me/${esc(t.bot)}" target="_blank" rel="noopener">
+    ${t.bot ? `<a class="baris" href="https://t.me/${esc(t.bot)}" target="_blank" rel="noopener">
       <span class="ikon-bulat">🤖</span>
       <span class="isi"><b>@${esc(t.bot)}</b><small>Buka di Telegram</small></span>
       <span class="panah">›</span>
-    </a>
+    </a>` : ''}
     ${kode ? `
       <div class="kartu" style="margin:14px 0;text-align:center;background:var(--primary-soft);border:0">
         <small class="label" style="margin:0">Kode penautan · berlaku 15 menit</small>
         <div style="font-size:30px;font-weight:800;letter-spacing:.2em;margin:6px 0 12px">${esc(kode)}</div>
-        <a class="btn btn-utama" style="display:block;text-decoration:none" href="https://t.me/${esc(t.bot)}?start=${esc(kode)}" target="_blank" rel="noopener">Buka Telegram & hubungkan</a>
-        <p class="info-kecil" style="margin-bottom:0">Atau kirim <b>/hubungkan ${esc(kode)}</b> ke bot.</p>
+        ${t.bot ? `<a class="btn btn-utama" style="display:block;text-decoration:none" href="https://t.me/${esc(t.bot)}?start=${esc(kode)}" target="_blank" rel="noopener">Buka Telegram & hubungkan</a>` : ''}
+        <p class="info-kecil" style="margin-bottom:0">${t.bot ? 'Atau kirim' : 'Kirim'} <b>/hubungkan ${esc(kode)}</b> ke bot.</p>
       </div>` : ''}
     <span class="label" style="margin-top:14px">Akun terhubung (${t.pengguna.length})</span>
     ${t.pengguna.map(p => `
