@@ -1472,6 +1472,11 @@ function viewLainnya() {
         <span class="isi"><b>Buka spreadsheet</b><small>Lihat semua data di Google Sheets</small></span>
         <span class="panah">›</span>
       </a>
+      <button class="baris" data-aksi="cadangan">
+        <span class="ikon-bulat">💾</span>
+        <span class="isi"><b>Unduh & cadangan data</b><small>Simpan semua transaksi sebagai file Excel/CSV</small></span>
+        <span class="panah">›</span>
+      </button>
       <a class="baris" href="privasi.html" style="color:inherit;text-decoration:none">
         <span class="ikon-bulat">🔒</span>
         <span class="isi"><b>Kebijakan privasi</b><small>Data apa yang dipakai aplikasi ini</small></span>
@@ -1515,6 +1520,39 @@ function kartuPasang() {
         <b>Android (Chrome):</b>
         <ol><li>Ketuk menu ⋮ di kanan atas.</li><li>Pilih <b>Instal aplikasi</b> atau <b>Tambahkan ke layar utama</b>.</li><li>Ketuk <b>Instal</b>.</li></ol>`}
     </section>`;
+}
+
+// ---------- Unduh & cadangan ----------
+
+function bukaCadangan() {
+  bukaSheet('Unduh & cadangan data', `
+    <p style="margin-top:0">Semua transaksi buku <b>${esc(S.data.namaBuku || 'ini')}</b> diunduh sebagai file CSV, bisa dibuka di Excel atau Google Sheets.</p>
+    <div class="aksi-form"><button type="button" class="btn btn-utama" style="flex:1" data-aksi="unduh-csv">Unduh semua transaksi</button></div>
+    <span class="label" style="margin-top:16px">Salah hapus atau salah ubah?</span>
+    <p class="info-kecil" style="text-align:left;margin-top:0">Google Sheets menyimpan riwayat perubahan. Buka spreadsheet di komputer, lalu
+      <b>File → Histori versi → Lihat histori versi</b> untuk melihat atau memulihkan versi sebelumnya.</p>
+    <a class="btn btn-hapus" style="display:block;text-decoration:none;text-align:center" href="${esc(S.data.urlSpreadsheet)}" target="_blank" rel="noopener">Buka spreadsheet</a>`);
+}
+
+/** Teks yang diawali = + - @ tidak dibaca sebagai rumus oleh Excel (CSV injection). */
+function selCsv(v) {
+  let s = String(v == null ? '' : v);
+  if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+async function unduhCsv() {
+  const trx = await api('cariTransaksi', '', '');
+  // Titik koma + BOM: langsung terbaca rapi di Excel berbahasa Indonesia, dan tetap bisa diimpor Google Sheets.
+  const baris = [['Tanggal', 'Tipe', 'Jumlah', 'Kategori', 'Dompet', 'Dompet Tujuan', 'Catatan', 'Dicatat oleh']]
+    .concat(trx.slice().reverse().map(t => [t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, t.oleh]));
+  const blob = new Blob(['﻿' + baris.map(r => r.map(selCsv).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Dompet Keluarga - ${S.data.namaBuku || 'Transaksi'} - ${hariIni()}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast(`${trx.length} transaksi diunduh ✔`);
 }
 
 // ---------- Bottom sheet ----------
@@ -2532,6 +2570,14 @@ const AKSI = {
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
   'telegram': () => bukaFormTelegram(),
+  'cadangan': () => bukaCadangan(),
+  'unduh-csv': async el => {
+    el.disabled = true;
+    loading(true);
+    try { await unduhCsv(); } catch (e) { if (!(e instanceof GOOGLE.PerluMasuk)) toast('Gagal mengunduh: ' + pesanError(e), true); }
+    el.disabled = false;
+    loading(false);
+  },
   'kode-telegram': async el => {
     el.disabled = true;
     loading(true);

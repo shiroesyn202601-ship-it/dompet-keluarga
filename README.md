@@ -47,4 +47,4 @@ Selama aplikasi dipakai, sesi Google diperpanjang otomatis (jendela Google kadan
 Aplikasi ini tidak punya server. Semua catatan ada di spreadsheet di Google Drive Anda, dan hanya Anda serta orang yang Anda undang yang bisa membukanya.
 Aplikasi hanya bisa membuka file yang dibuatnya sendiri atau yang Anda pilih. Lihat [kebijakan privasi](web/privasi.html).
 
-Data juga bisa dilihat langsung di Google Sheets lewat **⚙️ → Buka spreadsheet**. Jangan mengganti nama sheet atau menggeser kolom, karena aplikasi membacanya berdasarkan posisi kolom.
+Data juga bisa dilihat langsung di Google Sheets lewat **⚙️ → Buka spreadsheet**, atau diunduh sebagai file Excel/CSV lewat **⚙️ → Unduh & cadangan data**. Salah hapus? Google Sheets menyimpan histori versi (**File → Histori versi**). Jangan mengganti nama sheet atau menggeser kolom, karena aplikasi membacanya berdasarkan posisi kolom.
