@@ -414,6 +414,7 @@ const SERVER = (() => {
     Object.keys(pengguna).forEach(k => { if (String(pengguna[k].email || '').toLowerCase() !== email) sisa[k] = pengguna[k]; });
     if (Object.keys(sisa).length !== Object.keys(pengguna).length) {
       await simpanPengaturan_(id, set, 'TELEGRAM_PENGGUNA', JSON.stringify(sisa));
+      await cabutRobotKalauKosong_(id, sisa);
     }
     if (email) await cabutLampiran_(trx.map(r => teks_(r[11])).filter(Boolean), email);
     return true;
@@ -1086,13 +1087,57 @@ const SERVER = (() => {
     try { return JSON.parse(teks || '') || cadangan; } catch (e) { return cadangan; }
   }
 
+  /**
+   * Bot bersama (web/assets/config.js: botTelegram + emailBot): satu bot untuk semua pengguna. Spreadsheet
+   * dibagikan ke email akun robot bot saat menghubungkan. Tanpa itu: bot khusus pemilik (SPREADSHEET_ID).
+   */
+  function botBersama_() {
+    const k = typeof KONFIG !== 'undefined' ? KONFIG : {};
+    return k.botTelegram && k.emailBot ? { nama: k.botTelegram, email: String(k.emailBot).toLowerCase() } : null;
+  }
+
   function infoTelegram_(rows) {
     const p = pengaturan_(rows);
     const pengguna = bacaJson_(p.TELEGRAM_PENGGUNA, {});
+    const bersama = botBersama_();
     return {
-      bot: p.TELEGRAM_BOT || '',
+      bot: (bersama && bersama.nama) || p.TELEGRAM_BOT || '',
+      bersama: !!bersama,
       pengguna: Object.keys(pengguna).map(id => Object.assign({ id }, pengguna[id])),
     };
+  }
+
+  /** ID izin Drive akun robot di spreadsheet ini, atau '' kalau belum dibagikan. */
+  async function izinRobot_(id, email) {
+    const r = await GOOGLE.api(DRIVE + '/files/' + id + '/permissions?fields=permissions(id,emailAddress)');
+    const p = (r.permissions || []).find(x => String(x.emailAddress || '').toLowerCase() === email);
+    return p ? p.id : '';
+  }
+
+  /** Membagikan spreadsheet (Editor, tanpa email) ke akun robot bot bersama, kalau belum. */
+  async function bagikanKeRobot_(id) {
+    const bot = botBersama_();
+    if (!bot || await izinRobot_(id, bot.email)) return;
+    try {
+      await GOOGLE.api(DRIVE + '/files/' + id + '/permissions?sendNotificationEmail=false', {
+        method: 'POST', json: { type: 'user', role: 'writer', emailAddress: bot.email },
+      });
+    } catch (e) {
+      if (e.status === 403 || e.status === 404) {
+        throw new Error('Spreadsheet ini tidak bisa dibagikan ke bot dari akun Anda. Minta pemilik spreadsheet menghubungkan bot lebih dulu.');
+      }
+      throw e;
+    }
+  }
+
+  /** Akun Telegram terakhir di buku ini diputus → akses akun robot dicabut. Gagal diabaikan. */
+  async function cabutRobotKalauKosong_(id, pengguna) {
+    const bot = botBersama_();
+    if (!bot || Object.keys(pengguna).length) return;
+    try {
+      const idIzin = await izinRobot_(id, bot.email);
+      if (idIzin) await GOOGLE.api(DRIVE + '/files/' + id + '/permissions/' + idIzin, { method: 'DELETE' });
+    } catch (e) { /* bot tetap ditolak karena TELEGRAM_PENGGUNA sudah kosong */ }
   }
 
   /** Kode 6 karakter, berlaku 15 menit, untuk menautkan akun Telegram ke akun Google yang sedang login. */
@@ -1106,8 +1151,10 @@ const SERVER = (() => {
     const acak = crypto.getRandomValues(new Uint8Array(6));
     const kode = Array.from(acak, b => huruf[b % huruf.length]).join('');
     daftar[kode] = { email: GOOGLE.email(), sampai: Date.now() + 15 * 60 * 1000 };
+    await bagikanKeRobot_(id);
     await simpanPengaturan_(id, set, 'TELEGRAM_KODE', JSON.stringify(daftar));
-    return { kode, bot: p.TELEGRAM_BOT || '' };
+    // Bot bersama perlu tahu spreadsheet-nya: /start <ID spreadsheet>_<kode> (maks. 64 karakter, cukup).
+    return { kode, muatan: botBersama_() ? id + '_' + kode : kode };
   }
 
   async function putuskanTelegram(idTelegram) {
@@ -1116,6 +1163,7 @@ const SERVER = (() => {
     const pengguna = bacaJson_(pengaturan_(set).TELEGRAM_PENGGUNA, {});
     delete pengguna[idTelegram];
     await simpanPengaturan_(id, set, 'TELEGRAM_PENGGUNA', JSON.stringify(pengguna));
+    await cabutRobotKalauKosong_(id, pengguna);
     return true;
   }
 

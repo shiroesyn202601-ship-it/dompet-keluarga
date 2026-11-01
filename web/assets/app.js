@@ -2401,8 +2401,11 @@ function infoStruk(h) {
   return `<div style="margin:-8px 0 16px">${pilihan}<p class="info-kecil" style="text-align:left;margin-top:0">${status}</p></div>`;
 }
 
-/** kode: kode penautan yang baru dibuat, ditampilkan beserta tombol pembuka Telegram. */
-function bukaFormTelegram(kode) {
+/**
+ * kode: kode penautan yang baru dibuat, ditampilkan beserta tombol pembuka Telegram.
+ * muatan: isi /start untuk bot (bot bersama: "<ID spreadsheet>_<kode>", supaya bot tahu spreadsheet-nya).
+ */
+function bukaFormTelegram(kode, muatan = kode) {
   const t = S.data.telegram;
   bukaSheet('Bot Telegram', `
     ${t.bot ? `<a class="baris" href="https://t.me/${esc(t.bot)}" target="_blank" rel="noopener">
@@ -2414,8 +2417,8 @@ function bukaFormTelegram(kode) {
       <div class="kartu" style="margin:14px 0;text-align:center;background:var(--primary-soft);border:0">
         <small class="label" style="margin:0">Kode penautan · berlaku 15 menit</small>
         <div style="font-size:30px;font-weight:800;letter-spacing:.2em;margin:6px 0 12px">${esc(kode)}</div>
-        ${t.bot ? `<a class="btn btn-utama" style="display:block;text-decoration:none" href="https://t.me/${esc(t.bot)}?start=${esc(kode)}" target="_blank" rel="noopener">Buka Telegram & hubungkan</a>` : ''}
-        <p class="info-kecil" style="margin-bottom:0">${t.bot ? 'Atau kirim' : 'Kirim'} <b>/hubungkan ${esc(kode)}</b> ke bot.</p>
+        ${t.bot ? `<a class="btn btn-utama" style="display:block;text-decoration:none" href="https://t.me/${esc(t.bot)}?start=${esc(muatan)}" target="_blank" rel="noopener">Buka Telegram & hubungkan</a>` : ''}
+        <p class="info-kecil" style="margin-bottom:0;word-break:break-all">${t.bot ? 'Atau kirim' : 'Kirim'} <b>/hubungkan ${esc(muatan)}</b> ke bot.</p>
       </div>` : ''}
     <span class="label" style="margin-top:14px">Akun terhubung (${t.pengguna.length})</span>
     ${t.pengguna.map(p => `
@@ -2425,6 +2428,9 @@ function bukaFormTelegram(kode) {
         <button type="button" class="tombol-ikon" data-aksi="putus-telegram" data-id="${esc(p.id)}" aria-label="Putuskan ${esc(p.nama)}">✕</button>
       </div>`).join('') || '<p class="info-kecil" style="text-align:left;margin-top:0">Belum ada.</p>'}
     ${kode ? '' : '<div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="kode-telegram">Hubungkan akun Telegram saya</button></div>'}
+    ${t.bersama ? `<p class="info-kecil" style="text-align:left">🔐 ${t.pengguna.length
+      ? 'Buku ini dibagikan ke akun bot selama masih ada akun Telegram yang terhubung. Putuskan semua akun untuk mencabutnya.'
+      : 'Saat menghubungkan, buku ini dibagikan ke akun bot supaya bot bisa mencatat.'}</p>` : ''}
     <details class="tabel-data">
       <summary>Contoh pesan ke bot</summary>
       <ul class="panduan" style="padding-left:20px">
@@ -2688,11 +2694,16 @@ const AKSI = {
     loading(false);
   },
   'kode-telegram': async el => {
+    const t = S.data.telegram;
+    // Bot bersama: buku ini akan dibagikan ke akun robot bot → minta persetujuan dulu.
+    if (t.bersama && !t.pengguna.length && !await tanya(
+      `Supaya bisa mencatat lewat Telegram, spreadsheet buku "${S.data.namaBuku || 'ini'}" dibagikan (bisa mengubah) ke akun bot Dompet Keluarga. `
+      + 'Pengelola bot secara teknis bisa membuka isinya. Akses bot dicabut otomatis saat semua akun Telegram diputus.', 'Setuju & lanjut', true)) return;
     el.disabled = true;
     loading(true);
     try {
       const r = await api('buatKodeTelegram');
-      bukaFormTelegram(r.kode);
+      bukaFormTelegram(r.kode, r.muatan);
     } catch (e) {
       toast(pesanError(e), true);
     } finally {
