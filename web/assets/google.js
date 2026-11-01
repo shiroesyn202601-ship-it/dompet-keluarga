@@ -128,12 +128,31 @@ const GOOGLE = (() => {
     if (!res.ok) {
       let pesan = '';
       try { pesan = (await res.json()).error.message; } catch (e) { /* bukan JSON */ }
-      const err = new Error(pesan || 'Google API error ' + res.status);
+      const err = new Error(terjemahkan(res.status, pesan));
       err.status = res.status;
+      err.asli = pesan; // pesan asli Google (Inggris), untuk console
+      if (pesan) console.warn('Google API ' + res.status + ': ' + pesan);
       throw err;
     }
     if (opsi.teks) return res.text();
     return res.status === 204 ? null : res.json();
+  }
+
+  /** Pesan kesalahan Google yang umum → bahasa Indonesia; selain itu pesan aslinya dipakai. */
+  const TERJEMAHAN = [
+    [/storage quota|storageQuotaExceeded/i, 'Penyimpanan Google Drive Anda penuh. Kosongkan sebagian di drive.google.com lalu coba lagi.'],
+    [/above the limit|cells in the workbook/i, 'Spreadsheet sudah mencapai batas ukuran Google. Buat buku baru di ⚙️ → Buku keuangan.'],
+    [/insufficient (permission|authentication)/i, 'Izin Google belum lengkap. Keluar, lalu masuk lagi dan centang semua akses yang diminta.'],
+    [/unable to parse range/i, 'Susunan spreadsheet berubah (mungkin nama sheet diganti). Kembalikan nama sheet aslinya, lalu coba lagi.'],
+  ];
+  function terjemahkan(status, pesan) {
+    const cocok = TERJEMAHAN.find(([pola]) => pola.test(pesan));
+    if (cocok) return cocok[1];
+    if (status === 429 || /rate ?limit|quota/i.test(pesan)) return 'Terlalu banyak permintaan ke Google dalam waktu singkat. Tunggu sebentar, lalu coba lagi.';
+    if (status >= 500) return 'Layanan Google sedang gangguan. Coba lagi beberapa saat lagi.';
+    if (status === 403) return 'Anda tidak punya akses untuk tindakan ini. Minta pemilik spreadsheet memberi akses Editor.';
+    if (status === 404) return 'File tidak ditemukan di Google Drive. Mungkin sudah dihapus atau dipindahkan.';
+    return pesan || 'Terjadi kesalahan di Google (kode ' + status + '). Coba lagi.';
   }
 
   /** Body multipart/related untuk upload Drive: metadata JSON + isi file. */
