@@ -3,3 +3,7 @@ node_modules/
 Thumbs.db
 .vscode/
 *.log
+
+# Kunci service account bot (RAHASIA) - jangan pernah di-commit
+bot/*.json
+!bot/appsscript.json

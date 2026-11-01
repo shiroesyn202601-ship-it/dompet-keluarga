@@ -8,6 +8,6 @@ const KONFIG = {
   pickerApiKey: 'AIzaSyB1MrwwVPctbKC6-6RaF0IZW1pj4s1PEVs',
   // Bot Telegram bersama (satu bot untuk semua pengguna, lihat docs/PEMILIK.md → Bot Telegram).
   // Nama bot tanpa @, dan email service account bot. Kosong = bot khusus pemilik (SPREADSHEET_ID).
-  botTelegram: '',
-  emailBot: '',
+  botTelegram: 'catkeukuBot',
+  emailBot: 'dompet-bot@dompet-keluarga-513306.iam.gserviceaccount.com',
 };
