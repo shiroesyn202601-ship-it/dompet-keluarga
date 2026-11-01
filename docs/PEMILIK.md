@@ -112,6 +112,12 @@ Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang 
 - Kalau webhook terus bermasalah, jalankan **modePolling**. Bot lalu mengecek pesan setiap 1 menit, jadi balasannya sedikit lebih lambat. Jalankan **pasangWebhook** untuk kembali ke mode webhook.
 - Setiap kali `Kode.gs` diubah: **Deploy → Manage deployments → ✏️ → New version → Deploy**. URL tidak berubah, jadi webhook tidak perlu dipasang ulang.
 
+### Kecepatan bot
+- Bot membaca semua sheet dalam satu permintaan **Sheets API**, bersamaan dengan status "mengetik". Karena itu `appsscript.json` mengaktifkan layanan **Sheets**. Kalau Sheets API gagal (mis. manifest lama), bot otomatis kembali ke SpreadsheetApp yang lebih lambat (`Sheets API … pakai SpreadsheetApp` di log).
+- Pengeluaran sederhana ("bakso 25rb") dicatat tanpa AI. Pertanyaan murni langsung dijawab dalam satu panggilan AI.
+- Lama tiap langkah tercatat di **⏱ Executions** (baris `⏱ data dimuat`, `⏱ AI …`, `⏱ selesai`).
+- Data tidak di-cache, karena aplikasi web menulis langsung ke spreadsheet dan bot harus selalu melihat data terbaru.
+
 ## Mengembangkan
 - Ubah file di `web/`, lalu commit dan push ke `main`. Deploy berjalan otomatis dalam 1–2 menit (pantau di tab **Actions**).
 - `web/index.html` memasang **Content-Security-Policy**: skrip hanya dari situs ini dan Google. Menambah layanan/CDN baru → tambahkan domainnya di tag itu. Kalau isi `<script>` tema di `<head>` diubah, hitung ulang hash-nya: `node -e "const s=require('fs').readFileSync('web/index.html','utf8');console.log(require('crypto').createHash('sha256').update(s.split('<script>')[1].split('</script>')[0]).digest('base64'))"`, lalu ganti nilai `sha256-…`.

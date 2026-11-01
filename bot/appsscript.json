@@ -2,7 +2,8 @@
   "timeZone": "Asia/Jakarta",
   "dependencies": {
     "enabledAdvancedServices": [
-      { "userSymbol": "Drive", "serviceId": "drive", "version": "v3" }
+      { "userSymbol": "Drive", "serviceId": "drive", "version": "v3" },
+      { "userSymbol": "Sheets", "serviceId": "sheets", "version": "v4" }
     ]
   },
   "exceptionLogging": "STACKDRIVER",

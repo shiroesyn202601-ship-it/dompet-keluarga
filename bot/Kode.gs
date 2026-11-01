@@ -188,9 +188,11 @@ function prosesPesan_(m) {
   const kode = teks.match(/^\/(?:start|hubungkan)(?:@\w+)?\s+([A-Z0-9]{6})$/i);
   if (kode) return hubungkan_(m, kode[1].toUpperCase());
 
-  const ss = db_();
-  const p = pengaturan_(ss);
-  const pengguna = penggunaTelegram_(p)[m.from.id];
+  const foto = m.photo || (m.document && /^image\//.test(m.document.mime_type || ''));
+  // Pesan bebas: status "mengetik" dikirim bersamaan dengan membaca data.
+  const d = muatData_(teks && !foto && !/^\//.test(teks) ? chatId : null);
+  waktu_('data dimuat');
+  const pengguna = penggunaTelegram_(d.pengaturan)[m.from.id];
   if (!pengguna) {
     return kirim_(chatId, [
       '👋 Halo! Akun Telegram ini belum terhubung ke <b>Dompet Keluarga</b>.',
@@ -200,23 +202,21 @@ function prosesPesan_(m) {
     ].join('\n'));
   }
 
-  if (m.photo || (m.document && /^image\//.test(m.document.mime_type || ''))) {
-    return prosesFoto_(ss, m, pengguna, p);
-  }
+  if (foto) return prosesFoto_(m, pengguna, d);
   if (!teks) return;
 
   const perintah = teks.match(/^\/(\w+)/);
   if (perintah) {
     const c = perintah[1].toLowerCase();
     if (c === 'start' || c === 'bantuan' || c === 'help') return kirim_(chatId, 'Halo ' + html_(pengguna.nama) + '! ' + BANTUAN);
-    if (c === 'saldo') return kirim_(chatId, teksSaldo_(muatData_(ss, p)));
-    if (c === 'ringkasan') return kirim_(chatId, teksRingkasan_(muatData_(ss, p), bulanIni_()));
-    if (c === 'anggaran') return kirim_(chatId, teksAnggaran_(muatData_(ss, p), bulanIni_()));
-    if (c === 'terakhir') return kirim_(chatId, teksRiwayat_(muatData_(ss, p), ''));
+    if (c === 'saldo') return kirim_(chatId, teksSaldo_(d));
+    if (c === 'ringkasan') return kirim_(chatId, teksRingkasan_(d, bulanIni_()));
+    if (c === 'anggaran') return kirim_(chatId, teksAnggaran_(d, bulanIni_()));
+    if (c === 'terakhir') return kirim_(chatId, teksRiwayat_(d, ''));
     return kirim_(chatId, BANTUAN);
   }
 
-  prosesTeksBebas_(ss, chatId, teks, pengguna, p);
+  prosesTeksBebas_(chatId, teks, pengguna, d);
 }
 
 function hubungkan_(m, kode) {
@@ -242,10 +242,7 @@ function hubungkan_(m, kode) {
 // Teks bebas → perintah (Gemini)
 // ======================================================================
 
-function prosesTeksBebas_(ss, chatId, teks, pengguna, p) {
-  tg_('sendChatAction', { chat_id: chatId, action: 'typing' });
-  const d = muatData_(ss, p);
-  waktu_('data dimuat');
+function prosesTeksBebas_(chatId, teks, pengguna, d) {
   const kunci = kunciGemini_(d.pengaturan);
   const terakhir = d.transaksi.slice().sort((a, b) => b.dibuat.localeCompare(a.dibuat)).slice(0, 8);
 
@@ -253,7 +250,7 @@ function prosesTeksBebas_(ss, chatId, teks, pengguna, p) {
   const cepat = jalurCepat_(teks, d);
   if (cepat) {
     console.log('Jalur cepat: ' + JSON.stringify(cepat));
-    return jalankanPerintah_(ss, d, chatId, cepat, terakhir, pengguna, '', '', teks);
+    return jalankanPerintah_(d, chatId, cepat, terakhir, pengguna, '', '', teks);
   }
   // Pertanyaan murni langsung dijawab dengan data lengkap: satu panggilan AI, bukan dua.
   if (kunci.length && pertanyaanMurni_(teks)) {
@@ -295,11 +292,11 @@ function prosesTeksBebas_(ss, chatId, teks, pengguna, p) {
   const iCatatTerakhir = daftar.map(x => x.aksi).lastIndexOf('catat');
   daftar.forEach((x, i) => {
     const ekstra = (i === iCatatTerakhir && hasil.komentar ? '\n\n💬 ' + htmlTerbatas_(hasil.komentar) : '') + tambahan;
-    jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, hasil.balasan, ekstra, teks);
+    jalankanPerintah_(d, chatId, x, terakhir, pengguna, hasil.balasan, ekstra, teks);
   });
 }
 
-function jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, balasan, tambahan, pesanAsli) {
+function jalankanPerintah_(d, chatId, x, terakhir, pengguna, balasan, tambahan, pesanAsli) {
   const ref = r => {
     const i = Number(String(r || '').replace(/\D/g, '')) - 1;
     return terakhir[i] || null;
@@ -307,7 +304,7 @@ function jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, balasan, tambah
   switch (x.aksi) {
     case 'catat': {
       const t = siapkanTransaksi_(d, x, pengguna);
-      const id = tambahTransaksi_(ss, t, pengguna.email);
+      const id = tambahTransaksi_(t, pengguna.email);
       d.transaksi.push(Object.assign({ id, oleh: pengguna.email, dibuat: sekarangIso_() }, t, { tanggal: t.tanggal }));
       return kirim_(chatId, '✅ <b>Tercatat</b>\n' + ringkasTransaksi_(d, t) + peringatanAnggaran_(d, t) + (tambahan || ''),
         [[{ text: '↩️ Batalkan', callback_data: 'batal:' + id }]]);
@@ -316,7 +313,7 @@ function jalankanPerintah_(ss, d, chatId, x, terakhir, pengguna, balasan, tambah
       const lama = ref(x.ref);
       if (!lama) return kirim_(chatId, '❓ Transaksi yang mau diubah tidak ditemukan.');
       const baru = siapkanTransaksi_(d, Object.assign({}, lama, bersihkan_(x)), pengguna);
-      ubahTransaksi_(ss, lama.id, baru);
+      ubahTransaksi_(lama.id, baru);
       return kirim_(chatId, '✏️ <b>Diubah</b>\n' + ringkasTransaksi_(d, baru));
     }
     case 'hapus': {
@@ -635,16 +632,14 @@ function pertanyaanMurni_(teks) {
 // Foto struk
 // ======================================================================
 
-function prosesFoto_(ss, m, pengguna, p) {
+function prosesFoto_(m, pengguna, d) {
   const chatId = m.chat.id;
   const tunggu = kirim_(chatId, '⏳ Membaca struk…').result;
   const fileId = m.photo ? m.photo[m.photo.length - 1].file_id : m.document.file_id;
   const info = tg_('getFile', { file_id: fileId }).result;
-  const token = PropertiesService.getScriptProperties().getProperty('TELEGRAM_TOKEN');
-  const blob = UrlFetchApp.fetch('https://api.telegram.org/file/bot' + token + '/' + info.file_path).getBlob();
+  const blob = UrlFetchApp.fetch('https://api.telegram.org/file/bot' + properti_('TELEGRAM_TOKEN') + '/' + info.file_path).getBlob();
   const mime = /\.png$/i.test(info.file_path) ? 'image/png' : 'image/jpeg';
 
-  const d = muatData_(ss, p);
   const kategori = d.kategori.filter(k => k.tipe === TIPE.KELUAR).map(k => k.nama);
   let h;
   try {
@@ -660,7 +655,7 @@ function prosesFoto_(ss, m, pengguna, p) {
     tipe: TIPE.KELUAR, jumlah: h.jumlah, kategori: h.kategori, tanggal: h.tanggal,
     dompet: dompet ? dompet.nama : '', catatan: [h.catatan, dompet ? '' : ket].filter(Boolean).join(' · '),
   }, pengguna);
-  const id = tambahTransaksi_(ss, t, pengguna.email);
+  const id = tambahTransaksi_(t, pengguna.email);
 
   const tombol = [];
   // Kalau lapis-lapis tidak sepakat, tampilkan pilihan nominal (sama seperti di aplikasi).
@@ -682,9 +677,8 @@ function prosesFoto_(ss, m, pengguna, p) {
 function prosesTombol_(q) {
   const chatId = q.message.chat.id;
   const msgId = q.message.message_id;
-  const ss = db_();
-  const p = pengaturan_(ss);
-  if (!penggunaTelegram_(p)[q.from.id]) {
+  const d = muatData_();
+  if (!penggunaTelegram_(d.pengaturan)[q.from.id]) {
     return tg_('answerCallbackQuery', { callback_query_id: q.id, text: 'Akun belum terhubung.' });
   }
   const [aksi, id, nilai] = String(q.data || '').split(':');
@@ -692,15 +686,14 @@ function prosesTombol_(q) {
 
   if (aksi === 'x') return ubahPesan_(chatId, msgId, 'Oke, tidak jadi.');
   if (aksi === 'batal' || aksi === 'hapus') {
-    const ok = hapusTransaksi_(ss, id);
+    const ok = hapusTransaksi_(id);
     return ubahPesan_(chatId, msgId, ok ? (aksi === 'batal' ? '↩️ Dibatalkan, transaksi dihapus.' : '🗑️ Transaksi dihapus.') : 'Transaksi sudah tidak ada.');
   }
   if (aksi === 'jml') {
-    const d = muatData_(ss, p);
     const lama = d.transaksi.find(t => t.id === id);
     if (!lama) return ubahPesan_(chatId, msgId, 'Transaksi sudah tidak ada.');
     const baru = Object.assign({}, lama, { jumlah: Number(nilai) });
-    ubahTransaksi_(ss, id, baru);
+    ubahTransaksi_(id, baru);
     return ubahPesan_(chatId, msgId, '✏️ <b>Total diperbarui</b>\n' + ringkasTransaksi_(d, baru), [[{ text: '↩️ Batalkan', callback_data: 'batal:' + id }]]);
   }
 }
@@ -709,10 +702,39 @@ function prosesTombol_(q) {
 // Data (spreadsheet keluarga)
 // ======================================================================
 
-function db_() {
-  const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+/**
+ * Membaca dipakai Sheets API (satu permintaan untuk semua sheet); SpreadsheetApp hanya dibuka
+ * kalau perlu (ubah/hapus, pengaturan, cadangan) karena membukanya saja butuh waktu.
+ */
+const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets/';
+/** Tanggal disimpan sebagai angka serial Sheets (hari sejak 30 Des 1899), sama seperti aplikasi web. */
+const EPOCH_SERIAL = Date.UTC(1899, 11, 30);
+let ss_ = null;
+let isiProperti_ = null;
+
+/** Script Properties dibaca sekali per eksekusi. */
+function properti_(kunci) {
+  if (!isiProperti_) isiProperti_ = PropertiesService.getScriptProperties().getProperties();
+  return isiProperti_[kunci];
+}
+
+function idSpreadsheet_() {
+  const id = properti_('SPREADSHEET_ID');
   if (!id) throw new Error('SPREADSHEET_ID belum diisi di Script Properties.');
-  return SpreadsheetApp.openById(id);
+  return id;
+}
+
+function db_() {
+  if (!ss_) ss_ = SpreadsheetApp.openById(idSpreadsheet_());
+  return ss_;
+}
+
+function sheetsApi_(jalur, opsi) {
+  return Object.assign({
+    url: SHEETS_API + idSpreadsheet_() + jalur,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true,
+  }, opsi || {});
 }
 
 function sheet_(ss, nama) {
@@ -727,22 +749,45 @@ function baris_(ss, nama, kolom) {
   return n > 0 ? sh.getRange(2, 1, n, kolom).getValues() : [];
 }
 
-/** `pengaturanSiap`: isi sheet Pengaturan yang sudah dibaca, supaya tidak dibaca dua kali. */
-function muatData_(ss, pengaturanSiap) {
-  const transaksi = baris_(ss, 'Transaksi', KOLOM_TRANSAKSI).filter(r => r[0] !== '').map(r => ({
+const TABEL_BACA = [['Transaksi', KOLOM_TRANSAKSI], ['Kategori', 4], ['Dompet', 6], ['Pengaturan', 2]];
+
+/**
+ * Semua data dalam satu permintaan Sheets API. `ketikKe` (opsional): chat yang sekalian dikirimi
+ * status "mengetik", paralel dengan membaca. Kalau Sheets API gagal, kembali ke SpreadsheetApp.
+ */
+function muatData_(ketikKe) {
+  const ranges = TABEL_BACA.map(t => 'ranges=' + encodeURIComponent("'" + t[0] + "'!A2:" + String.fromCharCode(64 + t[1]))).join('&');
+  const minta = [sheetsApi_('/values:batchGet?' + ranges + '&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER')];
+  if (ketikKe) minta.push(permintaanTg_('sendChatAction', { chat_id: ketikKe, action: 'typing' }));
+  const res = UrlFetchApp.fetchAll(minta)[0];
+  if (res.getResponseCode() === 200) {
+    return olahData_(JSON.parse(res.getContentText()).valueRanges.map((vr, i) => (vr.values || []).map(r => {
+      const isi = r.slice(0, TABEL_BACA[i][1]);
+      while (isi.length < TABEL_BACA[i][1]) isi.push('');
+      return isi;
+    })));
+  }
+  console.warn('Sheets API ' + res.getResponseCode() + ', pakai SpreadsheetApp: ' + res.getContentText().slice(0, 300));
+  const ss = db_();
+  return olahData_(TABEL_BACA.map(t => t[0] === 'Pengaturan' && !ss.getSheetByName(t[0]) ? [] : baris_(ss, t[0], t[1])));
+}
+
+function olahData_([trx, kat, dom, set]) {
+  const transaksi = trx.filter(r => r[0] !== '').map(r => ({
     id: String(r[0]), tanggal: tgl_(r[1]), tipe: String(r[2]), jumlah: Number(r[3]) || 0, kategori: String(r[4]),
     dompet: String(r[5]), dompetTujuan: String(r[6]), catatan: String(r[7]), oleh: String(r[8]),
-    dibuat: r[9] instanceof Date ? Utilities.formatDate(r[9], TZ, "yyyy-MM-dd'T'HH:mm:ss") : String(r[9]),
+    dibuat: tglWaktu_(r[9]),
   }));
-  const kategori = baris_(ss, 'Kategori', 4).filter(r => r[0] !== '').map(r => ({
+  const kategori = kat.filter(r => r[0] !== '').map(r => ({
     nama: String(r[0]), tipe: String(r[1]), ikon: String(r[2]), anggaran: Number(r[3]) || 0,
   }));
-  const dompet = baris_(ss, 'Dompet', 6).filter(r => r[0] !== '').map(r => ({
+  const dompet = dom.filter(r => r[0] !== '').map(r => ({
     nama: String(r[0]), ikon: String(r[1]), saldoAwal: Number(r[2]) || 0,
     jenis: [JENIS.TABUNGAN, JENIS.UTANG, JENIS.ASET].indexOf(String(r[3])) >= 0 ? String(r[3]) : JENIS.DOMPET, target: Number(r[4]) || 0,
     tenggat: r[5] === '' ? '' : tgl_(r[5]),
   }));
-  const pengaturan = pengaturanSiap || pengaturan_(ss);
+  const pengaturan = {};
+  set.forEach(r => { if (r[0] !== '') pengaturan[String(r[0])] = String(r[1]); });
   mulaiPeriode_ = Math.min(28, Math.max(1, Math.round(Number(pengaturan.MULAI_PERIODE) || 1)));
   return { transaksi, kategori, dompet, pengaturan };
 }
@@ -762,7 +807,7 @@ function simpanPengaturan_(ss, kunci, nilai) {
   else sh.appendRow([kunci, nilai]);
 }
 
-/** `p`: hasil pengaturan_(ss). */
+/** `p`: hasil pengaturan_(ss) atau muatData_().pengaturan. */
 function penggunaTelegram_(p) {
   try { return JSON.parse(p.TELEGRAM_PENGGUNA || '{}'); } catch (e) { return {}; }
 }
@@ -840,16 +885,26 @@ function cocokKategori_(daftar, nama, catatan) {
   return null;
 }
 
-function tambahTransaksi_(ss, t, email) {
+/** Ditambah lewat Sheets API (RAW: teks tidak pernah dianggap rumus), sama seperti aplikasi web. */
+function tambahTransaksi_(t, email) {
   const id = Utilities.getUuid();
-  const sekarang = new Date();
-  sheet_(ss, 'Transaksi').appendRow([
-    id, keTanggal_(t.tanggal), t.tipe, t.jumlah, aman_(t.kategori), aman_(t.dompet), aman_(t.dompetTujuan), aman_(t.catatan), email, sekarang, sekarang,
-  ]);
+  const sekarang = keSerial_(sekarangIso_());
+  const res = UrlFetchApp.fetchAll([sheetsApi_('/values/' + encodeURIComponent("'Transaksi'!A1") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
+    method: 'post', contentType: 'application/json',
+    payload: JSON.stringify({ values: [[id, keSerial_(t.tanggal), t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, email, sekarang, sekarang]] }),
+  })])[0];
+  if (res.getResponseCode() !== 200) {
+    console.warn('Sheets API append ' + res.getResponseCode() + ', pakai SpreadsheetApp: ' + res.getContentText().slice(0, 300));
+    const kini = new Date();
+    sheet_(db_(), 'Transaksi').appendRow([
+      id, keTanggal_(t.tanggal), t.tipe, t.jumlah, aman_(t.kategori), aman_(t.dompet), aman_(t.dompetTujuan), aman_(t.catatan), email, kini, kini,
+    ]);
+  }
   return id;
 }
 
-function ubahTransaksi_(ss, id, t) {
+function ubahTransaksi_(id, t) {
+  const ss = db_();
   denganKunci_(() => {
     const rows = baris_(ss, 'Transaksi', KOLOM_TRANSAKSI);
     const i = rows.findIndex(r => String(r[0]) === id);
@@ -861,7 +916,8 @@ function ubahTransaksi_(ss, id, t) {
   });
 }
 
-function hapusTransaksi_(ss, id) {
+function hapusTransaksi_(id) {
+  const ss = db_();
   return denganKunci_(() => {
     const rows = baris_(ss, 'Transaksi', 1);
     const i = rows.findIndex(r => String(r[0]) === id);
@@ -979,11 +1035,16 @@ function teksRiwayat_(d, bulan) {
 // Telegram API
 // ======================================================================
 
-function tg_(metode, data) {
-  const token = PropertiesService.getScriptProperties().getProperty('TELEGRAM_TOKEN');
-  const res = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/' + metode, {
+/** Permintaan Telegram untuk UrlFetchApp.fetchAll (bisa dikirim bersamaan dengan permintaan lain). */
+function permintaanTg_(metode, data) {
+  return {
+    url: 'https://api.telegram.org/bot' + properti_('TELEGRAM_TOKEN') + '/' + metode,
     method: 'post', contentType: 'application/json', payload: JSON.stringify(data || {}), muteHttpExceptions: true,
-  });
+  };
+}
+
+function tg_(metode, data) {
+  const res = UrlFetchApp.fetchAll([permintaanTg_(metode, data)])[0];
   const j = JSON.parse(res.getContentText());
   if (!j.ok) console.error('Telegram ' + metode + ': ' + j.description);
   return j;
@@ -1050,7 +1111,20 @@ function sekarangIso_() {
 }
 
 function tgl_(v) {
-  return v instanceof Date ? Utilities.formatDate(v, TZ, 'yyyy-MM-dd') : String(v).slice(0, 10);
+  return tglWaktu_(v).slice(0, 10);
+}
+
+/** Isi sel (Date dari SpreadsheetApp, angka serial dari Sheets API, atau teks) → "yyyy-MM-ddTHH:mm:ss". */
+function tglWaktu_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, TZ, "yyyy-MM-dd'T'HH:mm:ss");
+  if (typeof v === 'number') return new Date(EPOCH_SERIAL + Math.round(v * 864e5)).toISOString().slice(0, 19);
+  return String(v);
+}
+
+/** "yyyy-MM-dd" atau "yyyy-MM-ddTHH:mm:ss" (jam Jakarta) → angka serial Sheets. */
+function keSerial_(s) {
+  const [y, m, d, jam, menit, detik] = s.split(/[-T:]/).map(Number);
+  return (Date.UTC(y, m - 1, d, jam || 0, menit || 0, detik || 0) - EPOCH_SERIAL) / 864e5;
 }
 
 function keTanggal_(s) {
