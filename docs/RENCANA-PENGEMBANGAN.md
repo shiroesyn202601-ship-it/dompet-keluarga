@@ -98,6 +98,76 @@ Audit kode 1 Nov 2026. Sudah aman: semua isian di-escape, tulis Sheets mode `RAW
 
 **Belum diuji di HP sungguhan (Langkah 7):** perpanjangan sesi otomatis (popup berkedip), unduh CSV di iPhone (mode aplikasi terpasang), tampilan dialog konfirmasi & kartu Mulai di sini.
 
+## Langkah 8 — Satu bot Telegram untuk semua pengguna (rancangan)
+
+**Masalah:** sekarang satu bot = satu spreadsheet (`SPREADSHEET_ID` diisi manual di Apps Script). Teman yang memakai aplikasi tidak bisa memakai bot tanpa memasang Apps Script sendiri.
+
+**Tujuan:** teman cukup mengetuk **⚙️ → Bot Telegram → Hubungkan**, lalu **Buka Telegram**. Tidak ada Apps Script, BotFather, atau ID yang perlu diisi.
+
+### Cara kerja
+
+```
+Aplikasi (HP teman)                         Bot (Apps Script milik pemilik)
+1. Bagikan spreadsheet ke akun robot   ─┐
+2. Tulis kode 6 huruf di sheet          │
+   Pengaturan (TELEGRAM_KODE, 15 mnt)   │
+3. Buka t.me/<bot>?start=<idSheet>_<kode>┴→ 4. Buka spreadsheet itu sebagai akun robot,
+                                               cocokkan kode di sheet Pengaturan-nya
+                                            5. Catat Telegram ID → spreadsheet:
+                                               - TELEGRAM_PENGGUNA di sheet itu (seperti sekarang)
+                                               - indeks di Script Properties bot
+                                            6. Pesan berikutnya: cari spreadsheet lewat indeks,
+                                               cek ID masih ada di TELEGRAM_PENGGUNA, lalu proses
+```
+
+- **Akun robot = service account Google** (mis. `dompet-bot@<project>.iam.gserviceaccount.com`). Bot membuka spreadsheet lewat Sheets REST API dengan token akun robot. Sekarang bot sudah memakai Sheets REST API; hanya sumber tokennya yang diganti, dari `ScriptApp.getOAuthToken()` ke token JWT akun robot (di-cache sekitar 55 menit).
+- **Membagikan otomatis:** aplikasi sudah punya izin `drive.file` atas spreadsheet-nya, jadi bisa menambah izin Editor untuk email robot tanpa email notifikasi dan **tanpa scope baru**. Verifikasi OAuth aplikasi tidak terpengaruh.
+- **Kenapa aman dari "mengambil alih" spreadsheet orang:** ID spreadsheet saja tidak cukup. Kode penautan harus ada di sheet Pengaturan milik spreadsheet itu, dan yang bisa menulisnya hanya akun yang punya akses ke spreadsheet tersebut.
+- **Spreadsheet adalah sumber kebenaran.** Indeks di bot hanya jalan pintas. Kalau Telegram ID sudah tidak ada di `TELEGRAM_PENGGUNA`, atau akses robot sudah dicabut (403), indeks dihapus dan bot membalas "belum terhubung". Akibatnya, **Putuskan** dan **Keluarkan anggota** (K3) otomatis memutus akses bot juga.
+- **Panjang link:** parameter `start` Telegram maksimal 64 karakter dan hanya boleh `A–Z a–z 0–9 _ -`. ID spreadsheet ±44 karakter + `_` + kode 6 huruf masih muat.
+- **Nama bot di `config.js`** (`botTelegram: 'namabot'`, `emailBot: '…iam.gserviceaccount.com'`). Menu Bot Telegram tampil untuk semua pengguna, tidak bergantung pada `TELEGRAM_BOT` di sheet.
+
+### Bagian yang ikut berubah
+| Bagian | Sekarang | Langkah 8 |
+|---|---|---|
+| Spreadsheet tujuan | `SPREADSHEET_ID` tetap | Dicari per Telegram ID dari indeks |
+| Akses spreadsheet | Akun pemilik (`USER_DEPLOYING`) | Akun robot (service account) |
+| Kode penautan | `/hubungkan KODE` | Link `start=<idSheet>_<kode>`, plus `/hubungkan <idSheet>_<kode>` untuk disalin manual |
+| Kunci Gemini | Dari sheet keluarga | Tetap dari sheet keluarga. Tanpa kunci: hanya jalur cepat tanpa AI ("bakso 25rb") |
+| OCR foto struk | Drive pemilik (file sementara) | Tetap Drive pemilik, karena akun robot tidak punya kuota penyimpanan. File langsung dihapus |
+| Kunci antrean (LockService) | Satu kunci untuk semua | Kunci per Telegram ID (CacheService), supaya pengguna tidak saling menunggu |
+| Mode lama | — | Tetap jalan: kalau indeks kosong tapi `SPREADSHEET_ID` diisi, pakai cara lama, lalu daftarkan otomatis ke indeks (migrasi keluarga pemilik) |
+
+### Privasi (wajib jujur ke pengguna)
+- Spreadsheet yang disambungkan ke bot **bisa dibuka oleh akun robot milik pengelola bot**. Secara teknis pengelola bisa melihat isinya. Pengguna yang tidak memakai bot tetap 100% privat.
+- Layar persetujuan sebelum menghubungkan, kurang lebih: *"Untuk memakai bot, spreadsheet ini dibagikan ke akun bot Dompet Keluarga yang dikelola <pengelola>. Bisa diputus kapan saja."*
+- **Putuskan semua akun Telegram** di buku itu → aplikasi juga mencabut izin akun robot dari spreadsheet.
+- Kunci akun robot (JSON) hanya disimpan di Script Properties bot, tidak pernah di repo atau aplikasi. Kalau bocor: hapus kunci di Google Cloud, lalu buat yang baru.
+- Perbarui `web/privasi.html` (bagian bot) dan README.
+
+### Batas gratis Apps Script (akun Gmail biasa)
+- UrlFetch ±20.000 per hari. Satu pesan butuh ±3–5 panggilan (Telegram, Sheets, Gemini), jadi cukup untuk ±4.000 pesan per hari.
+- Script Properties total 500 KB. Satu entri indeks ±80 byte, jadi muat ±5.000 akun Telegram.
+- Pengingat harian (nanti) memakai trigger berwaktu dengan batas total ±90 menit per hari, jadi perlu dibatasi per keluarga.
+- Kalau sudah melewati batas ini: pindahkan bot ke server kecil (mis. Cloud Run). Cara kerjanya tetap sama.
+
+### Setup sekali oleh pemilik
+1. Google Cloud (project yang sama) → **IAM & Admin → Service Accounts → Create**, beri nama `dompet-bot`, **tanpa role**.
+2. Buka akun itu → **Keys → Add key → JSON**. Isi file JSON-nya ditempel ke Script Properties `SA_KEY`.
+3. Pastikan **Google Sheets API** aktif di project (sudah aktif untuk aplikasi).
+4. Isi `botTelegram` dan `emailBot` di `web/assets/config.js`, lalu push.
+5. Tempel `Kode.gs` baru, lalu **Deploy → New version**. `SPREADSHEET_ID` boleh tetap ada untuk mode lama.
+
+### Urutan kerja
+- [ ] **8a** Bot: token akun robot (JWT RS256 lewat `Utilities.computeRsaSha256Signature`, di-cache), semua baca/tulis Sheets lewat REST dengan token itu, ID spreadsheet per pesan (bukan konstanta).
+- [ ] **8b** Bot: penautan `start=<idSheet>_<kode>`, indeks Telegram ID → spreadsheet di Script Properties, pengecekan ulang ke `TELEGRAM_PENGGUNA`, migrasi mode lama.
+- [ ] **8c** Aplikasi: `config.js` (`botTelegram`, `emailBot`), layar persetujuan, bagikan ke akun robot lalu buka link, dan "Putuskan" yang mencabut izin robot saat akun terakhir diputus.
+- [ ] **8d** Kunci antrean per pengguna, plus batas pesan per keluarga per hari (mis. 200) supaya satu pengguna tidak menghabiskan kuota semua.
+- [ ] **8e** Privasi & dokumentasi: `privasi.html`, README, PEMILIK.md (setup service account).
+- [ ] **8f** Uji: dua keluarga berbeda di satu bot; putuskan / keluarkan anggota langsung memutus bot; spreadsheet yang aksesnya dicabut tidak bisa dipakai lagi.
+
+**Pertanyaan terbuka:** pengingat tagihan harian lewat bot (per keluarga) dikerjakan sekalian, atau setelah 8a–8f stabil?
+
 ## Tidak disarankan
 
 - Sinkron otomatis bank — belum ada open banking untuk aplikasi perorangan di Indonesia.
@@ -115,7 +185,7 @@ Bot butuh sesuatu yang selalu menyala. Sekarang bot berupa Google Apps Script (`
 
 Akibatnya bot hanya cocok untuk spreadsheet pemilik. Supaya teman bisa pakai, pilihannya:
 1. **Tiap keluarga deploy bot sendiri** (salin Apps Script + token @BotFather sendiri) — tanpa ubah kode, tapi terlalu teknis untuk orang awam.
-2. **Satu bot untuk semua** — perlu desain ulang: peta `chat_id → spreadsheet`, dan bot harus bisa membuka spreadsheet tiap keluarga (mis. pemilik spreadsheet membagikan ke akun bot) → menyangkut privasi & kuota Apps Script.
+2. **Satu bot untuk semua** — perlu desain ulang: peta `chat_id → spreadsheet`, dan bot harus bisa membuka spreadsheet tiap keluarga (mis. pemilik spreadsheet membagikan ke akun bot) → menyangkut privasi & kuota Apps Script. **Dirancang di Langkah 8.**
 
 Kerjakan Langkah 1–4 dulu; bot menyusul sebagai fitur opsional (sekalian untuk pengingat harian). Untuk sekarang, bot cukup ditandai "fitur khusus pemilik" saat aplikasi dibagikan.
 
