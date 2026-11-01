@@ -2434,7 +2434,7 @@ function bukaFormGemini() {
         <li>Tempel di bawah, lalu ketuk Simpan.</li>
       </ol>
       ${isian('Kunci Gemini', 'Simpan')}`}
-    <p class="info-kecil" style="text-align:left">Kunci disimpan di spreadsheet keluarga, jadi otomatis dipakai semua anggota.</p>`);
+    <p class="info-kecil" style="text-align:left">Kunci disimpan di spreadsheet keluarga, jadi otomatis dipakai semua anggota, dan <b>bisa dilihat semua anggota</b> yang membuka spreadsheet. Pakai kunci gratis khusus untuk aplikasi ini, jangan kunci yang terhubung ke penagihan (billing).</p>`);
 }
 
 // ---------- Form dompet ----------
