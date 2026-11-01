@@ -5,10 +5,15 @@
  * Pesan bebas ("makan bakso 25rb pakai gopay") diterjemahkan Gemini menjadi perintah,
  * foto struk dibaca berlapis (AI foto, OCR + AI, OCR).
  *
- * Script Properties yang wajib diisi:
- *   TELEGRAM_TOKEN  — token dari @BotFather
- *   SPREADSHEET_ID  — ID spreadsheet Dompet Keluarga (lihat aplikasi: ⚙️ → Bot Telegram)
- * Opsional: WEBAPP_URL (kalau URL web app tidak terdeteksi otomatis).
+ * Satu bot bisa melayani banyak keluarga: tiap akun Telegram tertaut ke spreadsheet keluarganya
+ * (lihat bagian Data). Script Properties:
+ *   TELEGRAM_TOKEN  — wajib, token dari @BotFather
+ *   SA_KEY          — isi file JSON kunci service account ("akun robot"); spreadsheet yang dibagikan
+ *                     aplikasi ke email akun ini bisa dipakai lewat bot (banyak keluarga)
+ *   SPREADSHEET_ID  — opsional, mode lama: satu spreadsheet yang dibuka dengan akun pemilik
+ *                     (paling tidak salah satu dari SA_KEY / SPREADSHEET_ID harus diisi)
+ *   WEBAPP_URL      — opsional, kalau URL web app tidak terdeteksi otomatis
+ * Indeks tautan disimpan otomatis sebagai tg_<id Telegram> = ID spreadsheet.
  *
  * Setelah deploy sebagai web app, jalankan pasangWebhook() sekali dari editor.
  */
@@ -72,8 +77,15 @@ const BANTUAN = [
 function pasangWebhook() {
   const p = PropertiesService.getScriptProperties();
   if (!p.getProperty('TELEGRAM_TOKEN')) throw new Error('Isi dulu Script Property TELEGRAM_TOKEN (dari @BotFather).');
-  if (!p.getProperty('SPREADSHEET_ID')) throw new Error('Isi dulu Script Property SPREADSHEET_ID (lihat aplikasi: ⚙️ → Bot Telegram).');
-  db_(); // memastikan spreadsheet bisa dibuka
+  if (!p.getProperty('SA_KEY') && !p.getProperty('SPREADSHEET_ID')) {
+    throw new Error('Isi Script Property SA_KEY (banyak keluarga, lihat docs/PEMILIK.md) atau SPREADSHEET_ID (satu keluarga).');
+  }
+  // Memastikan akses benar sebelum memasang webhook.
+  if (p.getProperty('SA_KEY')) tokenRobot_();
+  if (p.getProperty('SPREADSHEET_ID')) {
+    pakaiSpreadsheet_(p.getProperty('SPREADSHEET_ID'));
+    pengaturan_();
+  }
 
   const url = p.getProperty('WEBAPP_URL') || ScriptApp.getService().getUrl();
   if (!url || !/\/exec$/.test(url)) {
@@ -98,8 +110,11 @@ function pasangWebhook() {
     ],
   });
   const saya = tg_('getMe', {}).result;
-  simpanPengaturan_(db_(), 'TELEGRAM_BOT', saya.username);
+  if (p.getProperty('SPREADSHEET_ID')) simpanPengaturan_('TELEGRAM_BOT', saya.username);
   Logger.log('✅ Bot @' + saya.username + ' terpasang ke ' + url);
+  if (p.getProperty('SA_KEY')) {
+    Logger.log("Isi web/assets/config.js lalu push: botTelegram: '" + saya.username + "', emailBot: '" + akunRobot_().client_email + "'");
+  }
 }
 
 /** Cadangan kalau webhook bermasalah: bot mengecek pesan baru setiap 1 menit. */
@@ -184,22 +199,18 @@ function prosesPesan_(m) {
   const chatId = m.chat.id;
   const teks = (m.text || m.caption || '').trim();
 
-  // Penautan akun: /start KODE (dari tombol di aplikasi) atau /hubungkan KODE
-  const kode = teks.match(/^\/(?:start|hubungkan)(?:@\w+)?\s+([A-Z0-9]{6})$/i);
-  if (kode) return hubungkan_(m, kode[1].toUpperCase());
+  // Penautan akun: /start <ID spreadsheet>_<KODE> (tombol di aplikasi), /hubungkan …, atau KODE saja (mode lama).
+  const tautan = teks.match(/^\/(?:start|hubungkan)(?:@\w+)?\s+(?:([A-Za-z0-9_-]{20,})_)?([A-Z0-9]{6})$/i);
+  if (tautan) return hubungkan_(m, tautan[1] || properti_('SPREADSHEET_ID'), tautan[2].toUpperCase());
 
   const foto = m.photo || (m.document && /^image\//.test(m.document.mime_type || ''));
   // Pesan bebas: status "mengetik" dikirim bersamaan dengan membaca data.
-  const d = muatData_(teks && !foto && !/^\//.test(teks) ? chatId : null);
+  const buka = bukaUntuk_(m.from.id, chatId, teks && !foto && !/^\//.test(teks) ? chatId : null);
   waktu_('data dimuat');
-  const pengguna = penggunaTelegram_(d.pengaturan)[m.from.id];
-  if (!pengguna) {
-    return kirim_(chatId, [
-      '👋 Halo! Akun Telegram ini belum terhubung ke <b>Dompet Keluarga</b>.',
-      '',
-      'Buka aplikasi Dompet Keluarga → ⚙️ → <b>Bot Telegram</b> → <b>Hubungkan akun Telegram</b>.',
-      'Atau kirim <code>/hubungkan KODE</code> dengan kode dari menu tersebut.',
-    ].join('\n'));
+  if (!buka) return;
+  const { d, pengguna } = buka;
+  if (!kuotaHarianCukup_()) {
+    return kirim_(chatId, '⏳ Batas ' + BATAS_PESAN_HARIAN + ' pesan per hari untuk buku ini sudah tercapai. Lanjut besok, atau catat lewat aplikasi.');
   }
 
   if (foto) return prosesFoto_(m, pengguna, d);
@@ -219,9 +230,22 @@ function prosesPesan_(m) {
   prosesTeksBebas_(chatId, teks, pengguna, d);
 }
 
-function hubungkan_(m, kode) {
-  const ss = db_();
-  const p = pengaturan_(ss);
+/**
+ * Kode penautan dibuat aplikasi di sheet Pengaturan spreadsheet itu sendiri (TELEGRAM_KODE), jadi
+ * mengetahui ID spreadsheet saja tidak cukup untuk menautkan diri ke keuangan orang lain.
+ */
+function hubungkan_(m, idSheet, kode) {
+  if (!idSheet) {
+    return kirim_(m.chat.id, '❌ Kodenya tidak lengkap. Buka aplikasi → ⚙️ → Bot Telegram, lalu ketuk <b>Buka Telegram & hubungkan</b>.');
+  }
+  pakaiSpreadsheet_(idSheet);
+  let p;
+  try {
+    p = pengaturan_();
+  } catch (err) {
+    if (err.status !== 403 && err.status !== 404) throw err;
+    return kirim_(m.chat.id, '❌ Bot belum bisa membuka spreadsheet ini. Ulangi dari aplikasi: ⚙️ → Bot Telegram → Hubungkan akun Telegram saya.');
+  }
   let daftarKode = {};
   try { daftarKode = JSON.parse(p.TELEGRAM_KODE || '{}'); } catch (e) { daftarKode = {}; }
   const k = daftarKode[kode];
@@ -229,12 +253,14 @@ function hubungkan_(m, kode) {
     return kirim_(m.chat.id, '❌ Kode tidak valid atau sudah kedaluwarsa. Buat kode baru dari aplikasi: ⚙️ → Bot Telegram.');
   }
   delete daftarKode[kode];
-  simpanPengaturan_(ss, 'TELEGRAM_KODE', JSON.stringify(daftarKode));
+  simpanPengaturan_('TELEGRAM_KODE', JSON.stringify(daftarKode));
 
   const pengguna = penggunaTelegram_(p);
-  const nama =[m.from.first_name, m.from.last_name].filter(Boolean).join(' ') || k.email.split('@')[0];
+  const nama = [m.from.first_name, m.from.last_name].filter(Boolean).join(' ') || k.email.split('@')[0];
   pengguna[m.from.id] = { email: k.email, nama, username: m.from.username || '' };
-  simpanPengaturan_(ss, 'TELEGRAM_PENGGUNA', JSON.stringify(pengguna));
+  simpanPengaturan_('TELEGRAM_PENGGUNA', JSON.stringify(pengguna));
+  // Satu akun Telegram = satu buku: tautan sebelumnya (kalau ada) diganti.
+  if (!modeLama_() || properti_('tg_' + m.from.id)) catatIndeks_(m.from.id, idSheet);
   kirim_(m.chat.id, '✅ Terhubung sebagai <b>' + html_(k.email) + '</b>.\n\n' + BANTUAN);
 }
 
@@ -677,10 +703,9 @@ function prosesFoto_(m, pengguna, d) {
 function prosesTombol_(q) {
   const chatId = q.message.chat.id;
   const msgId = q.message.message_id;
-  const d = muatData_();
-  if (!penggunaTelegram_(d.pengaturan)[q.from.id]) {
-    return tg_('answerCallbackQuery', { callback_query_id: q.id, text: 'Akun belum terhubung.' });
-  }
+  const buka = bukaUntuk_(q.from.id, null);
+  if (!buka) return tg_('answerCallbackQuery', { callback_query_id: q.id, text: 'Akun belum terhubung.' });
+  const d = buka.d;
   const [aksi, id, nilai] = String(q.data || '').split(':');
   tg_('answerCallbackQuery', { callback_query_id: q.id });
 
@@ -703,13 +728,19 @@ function prosesTombol_(q) {
 // ======================================================================
 
 /**
- * Membaca dipakai Sheets API (satu permintaan untuk semua sheet); SpreadsheetApp hanya dibuka
- * kalau perlu (ubah/hapus, pengaturan, cadangan) karena membukanya saja butuh waktu.
+ * Satu bot melayani banyak keluarga. Spreadsheet tujuan dicari per akun Telegram: indeks `tg_<id>` di
+ * Script Properties (diisi saat menautkan), atau SPREADSHEET_ID (mode lama, satu keluarga).
+ * Semua akses lewat Sheets REST API dengan token:
+ *   - akun pemilik (ScriptApp) untuk SPREADSHEET_ID, atau kalau akun robot belum diatur;
+ *   - akun robot (service account, Script Property SA_KEY) untuk spreadsheet lain. Akun robot hanya bisa
+ *     membuka spreadsheet yang dibagikan aplikasi ke emailnya (⚙️ → Bot Telegram → Hubungkan).
  */
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets/';
 /** Tanggal disimpan sebagai angka serial Sheets (hari sejak 30 Des 1899), sama seperti aplikasi web. */
 const EPOCH_SERIAL = Date.UTC(1899, 11, 30);
-let ss_ = null;
+/** Batas pesan per spreadsheet per hari (selain mode lama), supaya kuota Apps Script cukup untuk semua. */
+const BATAS_PESAN_HARIAN = 300;
+let idSs_ = ''; // spreadsheet yang sedang dilayani di eksekusi ini
 let isiProperti_ = null;
 
 /** Script Properties dibaca sekali per eksekusi. */
@@ -718,58 +749,167 @@ function properti_(kunci) {
   return isiProperti_[kunci];
 }
 
-function idSpreadsheet_() {
-  const id = properti_('SPREADSHEET_ID');
-  if (!id) throw new Error('SPREADSHEET_ID belum diisi di Script Properties.');
-  return id;
+function pakaiSpreadsheet_(id) {
+  idSs_ = String(id || '');
 }
 
-function db_() {
-  if (!ss_) ss_ = SpreadsheetApp.openById(idSpreadsheet_());
-  return ss_;
+function idSpreadsheet_() {
+  if (!idSs_) throw new Error('Spreadsheet belum diketahui.');
+  return idSs_;
+}
+
+function modeLama_() {
+  return !!idSs_ && idSs_ === properti_('SPREADSHEET_ID');
+}
+
+/** Spreadsheet untuk akun Telegram ini ('' = belum terhubung). */
+function spreadsheetUntuk_(idTelegram) {
+  return properti_('tg_' + idTelegram) || properti_('SPREADSHEET_ID') || '';
+}
+
+/** idSheet kosong = hapus tautan. */
+function catatIndeks_(idTelegram, idSheet) {
+  const p = PropertiesService.getScriptProperties();
+  if (idSheet) p.setProperty('tg_' + idTelegram, idSheet);
+  else p.deleteProperty('tg_' + idTelegram);
+  if (isiProperti_) {
+    if (idSheet) isiProperti_['tg_' + idTelegram] = idSheet;
+    else delete isiProperti_['tg_' + idTelegram];
+  }
+}
+
+/**
+ * Membuka spreadsheet milik akun Telegram ini dan memastikan akunnya masih tertaut di sana
+ * (TELEGRAM_PENGGUNA). Spreadsheet adalah sumber kebenaran: diputus dari aplikasi / akses bot dicabut
+ * → indeks ikut dihapus. Hasil: { d, pengguna }, atau null kalau tidak bisa (chatId sudah diberi tahu).
+ */
+function bukaUntuk_(idTelegram, chatId, ketikKe) {
+  const idSheet = spreadsheetUntuk_(idTelegram);
+  if (!idSheet) {
+    belumTerhubung_(chatId);
+    return null;
+  }
+  pakaiSpreadsheet_(idSheet);
+  let d;
+  try {
+    d = muatData_(ketikKe);
+  } catch (err) {
+    if (err.status !== 403 && err.status !== 404) throw err;
+    if (properti_('tg_' + idTelegram)) catatIndeks_(idTelegram, '');
+    if (chatId) kirim_(chatId, '⚠️ ' + html_(err.message));
+    return null;
+  }
+  const pengguna = penggunaTelegram_(d.pengaturan)[idTelegram];
+  if (!pengguna) {
+    if (properti_('tg_' + idTelegram)) catatIndeks_(idTelegram, '');
+    belumTerhubung_(chatId);
+    return null;
+  }
+  return { d, pengguna };
+}
+
+function belumTerhubung_(chatId) {
+  if (!chatId) return;
+  kirim_(chatId, [
+    '👋 Halo! Akun Telegram ini belum terhubung ke <b>Dompet Keluarga</b>.',
+    '',
+    'Buka aplikasi Dompet Keluarga → ⚙️ → <b>Bot Telegram</b> → <b>Hubungkan akun Telegram saya</b>, lalu ketuk <b>Buka Telegram & hubungkan</b>.',
+  ].join('\n'));
+}
+
+/** Pesan untuk spreadsheet ini hari ini masih di bawah batas? (perkiraan, lewat cache) */
+function kuotaHarianCukup_() {
+  if (modeLama_()) return true;
+  const cache = CacheService.getScriptCache();
+  const kunci = 'n_' + idSs_ + '_' + hariIni_();
+  const n = (Number(cache.get(kunci)) || 0) + 1;
+  cache.put(kunci, String(n), 26 * 3600);
+  return n <= BATAS_PESAN_HARIAN;
+}
+
+function tokenAkses_() {
+  if (modeLama_() || !properti_('SA_KEY')) return ScriptApp.getOAuthToken();
+  return tokenRobot_();
+}
+
+/** Token akun robot: JWT bertanda tangan RS256 ditukar ke token OAuth, di-cache ±55 menit. */
+function tokenRobot_() {
+  const cache = CacheService.getScriptCache();
+  const ada = cache.get('token_robot');
+  if (ada) return ada;
+  const sa = akunRobot_();
+  const b64 = s => Utilities.base64EncodeWebSafe(s).replace(/=+$/, '');
+  const kini = Math.floor(Date.now() / 1000);
+  const isi = b64(JSON.stringify({ alg: 'RS256', typ: 'JWT' })) + '.' + b64(JSON.stringify({
+    iss: sa.client_email, scope: 'https://www.googleapis.com/auth/spreadsheets',
+    aud: 'https://oauth2.googleapis.com/token', iat: kini, exp: kini + 3600,
+  }));
+  const res = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+    method: 'post', muteHttpExceptions: true,
+    payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: isi + '.' + b64(Utilities.computeRsaSha256Signature(isi, sa.private_key)) },
+  });
+  const j = JSON.parse(res.getContentText());
+  if (!j.access_token) throw new Error('Token akun robot gagal: ' + (j.error_description || j.error || res.getResponseCode()));
+  cache.put('token_robot', j.access_token, 3300);
+  return j.access_token;
+}
+
+/** Isi Script Property SA_KEY (file JSON kunci service account). */
+function akunRobot_() {
+  try {
+    const sa = JSON.parse(properti_('SA_KEY'));
+    if (sa.client_email && sa.private_key) return sa;
+  } catch (e) { /* di bawah */ }
+  throw new Error('Script Property SA_KEY harus berisi seluruh isi file JSON kunci service account.');
 }
 
 function sheetsApi_(jalur, opsi) {
   return Object.assign({
     url: SHEETS_API + idSpreadsheet_() + jalur,
-    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    headers: { Authorization: 'Bearer ' + tokenAkses_() },
     muteHttpExceptions: true,
   }, opsi || {});
 }
 
-function sheet_(ss, nama) {
-  const sh = ss.getSheetByName(nama);
-  if (!sh) throw new Error('Sheet "' + nama + '" tidak ada. Buka aplikasi web sekali untuk menyiapkan spreadsheet.');
-  return sh;
+/** Satu permintaan Sheets API. Gagal → Error dengan .status (403/404 = bot tidak punya akses). */
+function sheets_(jalur, opsi) {
+  return jawabanSheets_(UrlFetchApp.fetchAll([sheetsApi_(jalur, opsi)])[0]);
 }
 
-function baris_(ss, nama, kolom) {
-  const sh = sheet_(ss, nama);
-  const n = sh.getLastRow() - 1;
-  return n > 0 ? sh.getRange(2, 1, n, kolom).getValues() : [];
+function jsonSheets_(metode, payload) {
+  return { method: metode, contentType: 'application/json', payload: JSON.stringify(payload) };
+}
+
+function jawabanSheets_(res) {
+  const kode = res.getResponseCode();
+  if (kode === 200) return JSON.parse(res.getContentText() || '{}');
+  let pesan = '';
+  try { pesan = JSON.parse(res.getContentText()).error.message; } catch (e) { /* bukan JSON */ }
+  console.warn('Sheets API ' + kode + ': ' + pesan);
+  const err = new Error(kode === 403 || kode === 404
+    ? 'Bot tidak lagi punya akses ke spreadsheet ini. Hubungkan ulang dari aplikasi: ⚙️ → Bot Telegram.'
+    : 'Google Sheets sedang bermasalah (kode ' + kode + '). Coba lagi sebentar lagi.');
+  err.status = kode;
+  throw err;
+}
+
+function range_(r) {
+  return encodeURIComponent(r);
 }
 
 const TABEL_BACA = [['Transaksi', KOLOM_TRANSAKSI], ['Kategori', 4], ['Dompet', 6], ['Pengaturan', 2]];
 
-/**
- * Semua data dalam satu permintaan Sheets API. `ketikKe` (opsional): chat yang sekalian dikirimi
- * status "mengetik", paralel dengan membaca. Kalau Sheets API gagal, kembali ke SpreadsheetApp.
- */
+/** Semua data dalam satu permintaan Sheets API. `ketikKe` (opsional): chat yang sekalian dikirimi status "mengetik". */
 function muatData_(ketikKe) {
-  const ranges = TABEL_BACA.map(t => 'ranges=' + encodeURIComponent("'" + t[0] + "'!A2:" + String.fromCharCode(64 + t[1]))).join('&');
+  const ranges = TABEL_BACA.map(t => 'ranges=' + range_("'" + t[0] + "'!A2:" + String.fromCharCode(64 + t[1]))).join('&');
   const minta = [sheetsApi_('/values:batchGet?' + ranges + '&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER')];
   if (ketikKe) minta.push(permintaanTg_('sendChatAction', { chat_id: ketikKe, action: 'typing' }));
-  const res = UrlFetchApp.fetchAll(minta)[0];
-  if (res.getResponseCode() === 200) {
-    return olahData_(JSON.parse(res.getContentText()).valueRanges.map((vr, i) => (vr.values || []).map(r => {
-      const isi = r.slice(0, TABEL_BACA[i][1]);
-      while (isi.length < TABEL_BACA[i][1]) isi.push('');
-      return isi;
-    })));
-  }
-  console.warn('Sheets API ' + res.getResponseCode() + ', pakai SpreadsheetApp: ' + res.getContentText().slice(0, 300));
-  const ss = db_();
-  return olahData_(TABEL_BACA.map(t => t[0] === 'Pengaturan' && !ss.getSheetByName(t[0]) ? [] : baris_(ss, t[0], t[1])));
+  const j = jawabanSheets_(UrlFetchApp.fetchAll(minta)[0]);
+  return olahData_(j.valueRanges.map((vr, i) => (vr.values || []).map(r => {
+    const isi = r.slice(0, TABEL_BACA[i][1]);
+    while (isi.length < TABEL_BACA[i][1]) isi.push('');
+    return isi;
+  })));
 }
 
 function olahData_([trx, kat, dom, set]) {
@@ -792,22 +932,23 @@ function olahData_([trx, kat, dom, set]) {
   return { transaksi, kategori, dompet, pengaturan };
 }
 
-function pengaturan_(ss) {
+function barisPengaturan_() {
+  return sheets_('/values/' + range_("'Pengaturan'!A2:B")).values || [];
+}
+
+function pengaturan_() {
   const p = {};
-  if (!ss.getSheetByName('Pengaturan')) return p;
-  baris_(ss, 'Pengaturan', 2).forEach(r => { if (r[0] !== '') p[String(r[0])] = String(r[1]); });
+  barisPengaturan_().forEach(r => { if (r[0] !== '') p[String(r[0])] = String(r[1] == null ? '' : r[1]); });
   return p;
 }
 
-function simpanPengaturan_(ss, kunci, nilai) {
-  const sh = sheet_(ss, 'Pengaturan');
-  const rows = baris_(ss, 'Pengaturan', 2);
-  const i = rows.findIndex(r => String(r[0]) === kunci);
-  if (i >= 0) sh.getRange(i + 2, 2).setValue(nilai);
-  else sh.appendRow([kunci, nilai]);
+function simpanPengaturan_(kunci, nilai) {
+  const i = barisPengaturan_().findIndex(r => String(r[0]) === kunci);
+  if (i >= 0) sheets_('/values/' + range_("'Pengaturan'!B" + (i + 2)) + '?valueInputOption=RAW', jsonSheets_('put', { values: [[nilai]] }));
+  else sheets_('/values/' + range_("'Pengaturan'!A1") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', jsonSheets_('post', { values: [[kunci, nilai]] }));
 }
 
-/** `p`: hasil pengaturan_(ss) atau muatData_().pengaturan. */
+/** `p`: muatData_().pengaturan atau pengaturan_(). */
 function penggunaTelegram_(p) {
   try { return JSON.parse(p.TELEGRAM_PENGGUNA || '{}'); } catch (e) { return {}; }
 }
@@ -889,40 +1030,41 @@ function cocokKategori_(daftar, nama, catatan) {
 function tambahTransaksi_(t, email) {
   const id = Utilities.getUuid();
   const sekarang = keSerial_(sekarangIso_());
-  const res = UrlFetchApp.fetchAll([sheetsApi_('/values/' + encodeURIComponent("'Transaksi'!A1") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', {
-    method: 'post', contentType: 'application/json',
-    payload: JSON.stringify({ values: [[id, keSerial_(t.tanggal), t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, email, sekarang, sekarang]] }),
-  })])[0];
-  if (res.getResponseCode() !== 200) {
-    console.warn('Sheets API append ' + res.getResponseCode() + ', pakai SpreadsheetApp: ' + res.getContentText().slice(0, 300));
-    const kini = new Date();
-    sheet_(db_(), 'Transaksi').appendRow([
-      id, keTanggal_(t.tanggal), t.tipe, t.jumlah, aman_(t.kategori), aman_(t.dompet), aman_(t.dompetTujuan), aman_(t.catatan), email, kini, kini,
-    ]);
-  }
+  sheets_('/values/' + range_("'Transaksi'!A1") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', jsonSheets_('post', {
+    values: [[id, keSerial_(t.tanggal), t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, email, sekarang, sekarang]],
+  }));
   return id;
 }
 
+/** Nomor baris sheet (2, 3, …) transaksi ini, dicari ulang sesaat sebelum menulis; 0 kalau sudah tidak ada. */
+function barisTransaksi_(id) {
+  const kolom = ((sheets_('/values/' + range_("'Transaksi'!A2:A") + '?majorDimension=COLUMNS').values || [])[0] || []).map(String);
+  const i = kolom.indexOf(String(id));
+  return i < 0 ? 0 : i + 2;
+}
+
 function ubahTransaksi_(id, t) {
-  const ss = db_();
   denganKunci_(() => {
-    const rows = baris_(ss, 'Transaksi', KOLOM_TRANSAKSI);
-    const i = rows.findIndex(r => String(r[0]) === id);
-    if (i < 0) throw new Error('Transaksi sudah tidak ada.');
-    sheet_(ss, 'Transaksi').getRange(i + 2, 2, 1, 7).setValues([[
-      keTanggal_(t.tanggal), t.tipe, t.jumlah, aman_(t.kategori), aman_(t.dompet), aman_(t.dompetTujuan), aman_(t.catatan),
-    ]]);
-    sheet_(ss, 'Transaksi').getRange(i + 2, 11).setValue(new Date());
+    const n = barisTransaksi_(id);
+    if (!n) throw new Error('Transaksi sudah tidak ada.');
+    sheets_('/values:batchUpdate', jsonSheets_('post', {
+      valueInputOption: 'RAW',
+      data: [
+        { range: "'Transaksi'!B" + n + ':H' + n, values: [[keSerial_(t.tanggal), t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan]] },
+        { range: "'Transaksi'!K" + n, values: [[keSerial_(sekarangIso_())]] },
+      ],
+    }));
   });
 }
 
 function hapusTransaksi_(id) {
-  const ss = db_();
   return denganKunci_(() => {
-    const rows = baris_(ss, 'Transaksi', 1);
-    const i = rows.findIndex(r => String(r[0]) === id);
-    if (i < 0) return false;
-    sheet_(ss, 'Transaksi').deleteRow(i + 2);
+    const n = barisTransaksi_(id);
+    if (!n) return false;
+    const sh = (sheets_('?fields=' + range_('sheets.properties(sheetId,title)')).sheets || []).find(s => s.properties.title === 'Transaksi');
+    sheets_(':batchUpdate', jsonSheets_('post', {
+      requests: [{ deleteDimension: { range: { sheetId: sh.properties.sheetId, dimension: 'ROWS', startIndex: n - 1, endIndex: n } } }],
+    }));
     return true;
   });
 }
@@ -1157,11 +1299,6 @@ function denganKunci_(fn) {
 
 function teks_(v) {
   return String(v == null ? '' : v).trim();
-}
-
-/** Teks yang diawali "=", "+", "-", "@" diberi tanda kutip supaya tidak dianggap rumus oleh Sheets. */
-function aman_(s) {
-  return /^[=+\-@]/.test(s) ? "'" + s : s;
 }
 
 // ======================================================================
