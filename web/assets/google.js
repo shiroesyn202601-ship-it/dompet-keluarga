@@ -108,6 +108,7 @@ const GOOGLE = (() => {
    *   json: objek yang dikirim sebagai body JSON
    *   teks: true untuk mengembalikan teks, bukan JSON
    *   blob: true untuk mengembalikan isi file (Blob), mis. foto lampiran
+   *   kemajuan: fungsi(persen 0–100) selama body diunggah (dipakai untuk foto lampiran)
    */
   async function api(url, opsi = {}) {
     if (!sudahMasuk()) throw new PerluMasuk(T('Sesi login sudah habis. Silakan masuk lagi.'));
@@ -119,7 +120,8 @@ const GOOGLE = (() => {
     }
     let res;
     try {
-      res = await fetch(url, { method: opsi.method || 'GET', headers, body });
+      res = opsi.kemajuan ? await kirimDenganKemajuan_(url, opsi.method || 'GET', headers, body, opsi.kemajuan)
+        : await fetch(url, { method: opsi.method || 'GET', headers, body });
     } catch (e) {
       const err = new Error(T('Tidak bisa terhubung ke Google. Periksa koneksi internet.'));
       err.jaringan = true; // dipakai app.js untuk mode offline & antrean transaksi
@@ -159,6 +161,20 @@ const GOOGLE = (() => {
     if (status === 403) return T('Anda tidak punya akses untuk tindakan ini. Minta pemilik spreadsheet memberi akses Editor.');
     if (status === 404) return T('File tidak ditemukan di Google Drive. Mungkin sudah dihapus atau dipindahkan.');
     return pesan || T('Terjadi kesalahan di Google (kode {kode}). Coba lagi.', { kode: status });
+  }
+
+  /** fetch tidak bisa melaporkan progres unggah; XHR bisa. Hasilnya dibungkus Response supaya penanganan sama. */
+  function kirimDenganKemajuan_(url, method, headers, body, kemajuan) {
+    return new Promise((ok, gagal) => {
+      const x = new XMLHttpRequest();
+      x.open(method, url);
+      Object.keys(headers).forEach(k => x.setRequestHeader(k, headers[k]));
+      x.responseType = 'blob';
+      x.upload.onprogress = e => { if (e.lengthComputable) kemajuan(Math.round(e.loaded / e.total * 100)); };
+      x.onload = () => ok(new Response(x.status === 204 ? null : x.response, { status: x.status }));
+      x.onerror = () => gagal(new Error('jaringan'));
+      x.send(body);
+    });
   }
 
   /** Body multipart/related untuk upload Drive: metadata JSON + isi file. */

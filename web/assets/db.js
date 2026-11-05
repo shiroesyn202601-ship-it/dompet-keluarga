@@ -44,7 +44,7 @@ const SERVER = (() => {
       kolom: ['ID', 'Tanggal', 'Judul', 'Isi', 'Pengingat', 'Ulang', 'Warna', 'Dibuat Oleh', 'Dibuat Pada'],
     },
     // Riwayat perubahan oleh anggota: ubah / hapus / kembalikan transaksi (pencatatan baru sudah tercatat di Dibuat Oleh).
-    log: { nama: 'Log', kolom: ['Waktu', 'Oleh', 'Aksi', 'Ringkasan'] },
+    log: { nama: 'Log', kolom: ['Waktu', 'Oleh', 'Aksi', 'Ringkasan', 'ID Transaksi'] },
   };
   const ULANG = ['Bulanan', 'Mingguan', 'Tahunan'];
 
@@ -215,10 +215,14 @@ const SERVER = (() => {
 
     await lindungiSheet_(id);
 
-    const q = [TABEL.kategori, TABEL.dompet, TABEL.transaksi].map(x => 'ranges=' + encodeURIComponent("'" + x.nama + "'!A1:Z1")).join('&');
-    const [kat, dom, trx] = (await GOOGLE.api(SHEETS + '/' + id + '/values:batchGet?' + q)).valueRanges.map(v => (v.values || [[]])[0]);
+    const adaLog = TABEL.log.nama in idSheet;
+    const q = [TABEL.kategori, TABEL.dompet, TABEL.transaksi].concat(adaLog ? [TABEL.log] : []).map(x => 'ranges=' + encodeURIComponent("'" + x.nama + "'!A1:Z1")).join('&');
+    const [kat, dom, trx, lg] = (await GOOGLE.api(SHEETS + '/' + id + '/values:batchGet?' + q)).valueRanges.map(v => (v.values || [[]])[0]);
     const data = [];
     const format = [];
+    if (adaLog && lg.length < TABEL.log.kolom.length) {
+      data.push({ range: "'" + TABEL.log.nama + "'!A1", values: [TABEL.log.kolom] }); // kolom ID Transaksi
+    }
     if (trx.length < TABEL.transaksi.kolom.length) {
       data.push({ range: "'" + TABEL.transaksi.nama + "'!A1", values: [TABEL.transaksi.kolom] }); // kolom Lampiran
     }
@@ -548,7 +552,9 @@ const SERVER = (() => {
       rutin: olahRutin_(rut),
       catatan: adaCatatan ? olahCatatan_(cat) : [],
       bisaCatatan: adaCatatan,
-      log: lg.filter(r => r[0] !== '').slice(-60).map(r => ({ waktu: dariSerial_(r[0]), oleh: String(r[1]), aksi: String(r[2]), ringkasan: String(r[3]) })).reverse(),
+      log: lg.filter(r => r[0] !== '').slice(-200).map(r => ({ waktu: dariSerial_(r[0]), oleh: String(r[1]), aksi: String(r[2]), ringkasan: String(r[3]), idTrx: String(r[4] || '') })).reverse(),
+      pembanding: pembanding_(d.transaksi, bulan, mulai),
+      anggaranLabel: anggaranLabel_(set),
       cepat: kebiasaan_(d.transaksi),
       saranRutin: saranRutin_(d.transaksi, olahRutin_(rut)),
       setoranTabungan: setoranTabungan_(d.transaksi, d.dompet),
@@ -857,7 +863,7 @@ const SERVER = (() => {
       // Baris dicari lewat ID sesaat sebelum menulis, dan hanya kolom yang berubah yang ditulis
       // (Dibuat Oleh/Pada tidak disentuh), supaya perubahan orang lain di saat bersamaan tidak tertimpa.
       // Foto diunggah dulu, supaya baris tidak bergeser selama menunggu unggahan.
-      const lampiran = input.lampiranData ? await unggahStruk_(input.lampiranData, input.tanggal) : null;
+      const lampiran = input.lampiranData ? await unggahStruk_(input.lampiranData, input.tanggal, input.kabarUnggah) : null;
       const baris = cariBaris_(await daftarId_(id), x => x === t.id) + 2;
       const lama = await bacaBarisTransaksi_(id, baris); // untuk log perubahan & foto lama
       const lampiranLama = lampiran || input.hapusLampiran ? lama[11] : '';
@@ -877,12 +883,12 @@ const SERVER = (() => {
       await Promise.all([
         lampiran ? bagikanStruk_(lampiran) : null,
         lampiranLama && lampiranLama !== lampiran ? buangLampiran_(lampiranLama) : null, // foto lama diganti/dihapus
-        beda.length ? catatLog_(id, 'ubah', (t.kategori || t.tipe) + ' ' + rpLog_(t.jumlah) + ': ' + beda.join(', ')) : null,
+        beda.length ? catatLog_(id, 'ubah', (t.kategori || t.tipe) + ' ' + rpLog_(t.jumlah) + ': ' + beda.join(', '), t.id) : null,
       ]);
     } else {
       t.id = teks_(input.idBaru) || crypto.randomUUID();
       if (input.idBaru && (await daftarId_(id)).includes(t.id)) return t.id;
-      const lampiran = input.lampiranData ? await unggahStruk_(input.lampiranData, input.tanggal) : '';
+      const lampiran = input.lampiranData ? await unggahStruk_(input.lampiranData, input.tanggal, input.kabarUnggah) : '';
       await tambahBaris_(id, tbl, [[
         t.id, t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, GOOGLE.email(), sekarang, sekarang, lampiran,
       ]]);
@@ -1064,11 +1070,11 @@ const SERVER = (() => {
   }
 
   /** Mengunggah foto (base64 JPEG) ke folder struk. Hasil: ID file Drive. Dibagikan terpisah lewat bagikanStruk_. */
-  async function unggahStruk_(base64, tanggal) {
+  async function unggahStruk_(base64, tanggal, kemajuan) {
     const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
     const blob = new Blob([bytes], { type: 'image/jpeg' });
     const meta = { name: 'Struk ' + teks_(tanggal) + '.jpg', mimeType: 'image/jpeg', parents: [await folderStruk_()] };
-    const f = await GOOGLE.api(UPLOAD + '/files?uploadType=multipart&fields=id', Object.assign({ method: 'POST' }, GOOGLE.multipart(meta, blob)));
+    const f = await GOOGLE.api(UPLOAD + '/files?uploadType=multipart&fields=id', Object.assign({ method: 'POST', kemajuan }, GOOGLE.multipart(meta, blob)));
     return f.id;
   }
 
@@ -1102,7 +1108,7 @@ const SERVER = (() => {
     const baris = await bacaBarisTransaksi_(id, i + 2);
     await hapusBaris_(id, TABEL.transaksi, i);
     await buangLampiran_(baris[11]);
-    await catatLog_(id, 'hapus', ringkasBaris_(baris));
+    await catatLog_(id, 'hapus', ringkasBaris_(baris), baris[0]);
     return baris;
   }
 
@@ -1115,11 +1121,106 @@ const SERVER = (() => {
     return judul + ' ' + rpLog_(b[3]) + (b[7] ? ' · ' + String(b[7]).slice(0, 40) : '') + ' (' + tgl + ')';
   }
   /** Tulis satu baris log; gagal (mis. akses hanya lihat / sheet belum ada) tidak menggagalkan aksi utamanya. */
-  async function catatLog_(id, aksi, ringkasan) {
+  async function catatLog_(id, aksi, ringkasan, idTrx) {
     if (!(TABEL.log.nama in idSheet)) return;
     try {
-      await tambahBaris_(id, TABEL.log, [[serialSekarang_(), GOOGLE.email(), aksi, String(ringkasan).slice(0, 200)]]);
+      await tambahBaris_(id, TABEL.log, [[serialSekarang_(), GOOGLE.email(), aksi, String(ringkasan).slice(0, 200), teks_(idTrx)]]);
     } catch (e) { console.warn('Log tidak tercatat:', e); }
+  }
+
+  // ---------- Ubah / hapus banyak transaksi sekaligus (Riwayat: pilih banyak) ----------
+
+  /** ubah: { kategori } atau { dompet }. Hanya kolom itu (+ Diubah Pada) yang ditulis; posisi baris dicari lewat ID. */
+  async function ubahBanyak(ids, ubah) {
+    const id = await db_();
+    const daftar = await daftarId_(id);
+    const tbl = TABEL.transaksi;
+    const kolom = ubah.kategori ? 'E' : 'F';
+    const nilai = teks_(ubah.kategori || ubah.dompet);
+    if (!nilai) throw new Error(T('Pilih kategori atau dompetnya dulu.'));
+    const sekarang = serialSekarang_();
+    const data = [];
+    ids.forEach(x => {
+      const i = daftar.indexOf(String(x));
+      if (i < 0) return;
+      data.push({ range: "'" + tbl.nama + "'!" + kolom + (i + 2), values: [[nilai]] }, { range: "'" + tbl.nama + "'!K" + (i + 2), values: [[sekarang]] });
+    });
+    if (!data.length) throw new Error(T('Data tidak ditemukan. Mungkin sudah diubah atau dihapus orang lain — coba muat ulang.'));
+    await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', { method: 'POST', json: { valueInputOption: 'RAW', data } });
+    await catatLog_(id, 'ubah', (data.length / 2) + ' transaksi: ' + (ubah.kategori ? 'kategori → ' : 'dompet → ') + nilai);
+    return data.length / 2;
+  }
+
+  /** Menghapus beberapa transaksi sekaligus. Hasil: baris-baris aslinya, untuk "Urungkan" (kembalikanBanyak). */
+  async function hapusBanyak(ids) {
+    const id = await db_();
+    const daftar = await daftarId_(id);
+    const indeks = ids.map(x => daftar.indexOf(String(x))).filter(i => i >= 0).sort((a, b) => b - a);
+    if (!indeks.length) throw new Error(T('Data tidak ditemukan. Mungkin sudah diubah atau dihapus orang lain — coba muat ulang.'));
+    const baris = await Promise.all(indeks.map(i => bacaBarisTransaksi_(id, i + 2)));
+    // Dari bawah ke atas, supaya nomor baris yang belum dihapus tidak bergeser.
+    await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', {
+      method: 'POST',
+      json: { requests: indeks.map(i => ({ deleteDimension: { range: { sheetId: idSheet[TABEL.transaksi.nama], dimension: 'ROWS', startIndex: i + 1, endIndex: i + 2 } } })) },
+    });
+    await Promise.all(baris.map(b => buangLampiran_(b[11])));
+    await catatLog_(id, 'hapus', baris.length + ' transaksi: ' + baris.slice(0, 3).map(ringkasBaris_).join('; ') + (baris.length > 3 ? '; …' : ''));
+    return baris;
+  }
+
+  async function kembalikanBanyak(daftarBaris) {
+    const id = await db_();
+    const ada = await daftarId_(id);
+    const baru = (daftarBaris || []).filter(b => Array.isArray(b) && b[0] && !ada.includes(String(b[0])));
+    if (!baru.length) return true;
+    await tambahBaris_(id, TABEL.transaksi, baru.map(b => b.slice(0, TABEL.transaksi.kolom.length)));
+    await Promise.all(baru.map(b => buangLampiran_(b[11], false)));
+    await catatLog_(id, 'kembalikan', baru.length + ' transaksi');
+    return true;
+  }
+
+  // ---------- Label / acara (#lebaran di catatan) ----------
+
+  function anggaranLabel_(set) {
+    try { return JSON.parse(pengaturan_(set).ANGGARAN_LABEL || '{}') || {}; } catch (e) { return {}; }
+  }
+
+  /** Anggaran untuk satu label (huruf kecil, tanpa #); 0 = hapus anggarannya. */
+  async function simpanAnggaranLabel(label, jumlah) {
+    const id = await db_();
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    const semua = anggaranLabel_(set);
+    const k = teks_(label).replace(/^#/, '').toLowerCase();
+    if (!k) throw new Error(T('Label tidak valid.'));
+    if (Number(jumlah) > 0) semua[k] = Math.round(Number(jumlah)); else delete semua[k];
+    await simpanPengaturan_(id, set, 'ANGGARAN_LABEL', JSON.stringify(semua));
+    return true;
+  }
+
+  /**
+   * Pengeluaran periode berjalan sampai hari ini vs periode lalu sampai hari ke-N yang sama.
+   * Hanya untuk periode berjalan; null kalau periode lalu belum ada pengeluaran.
+   */
+  function pembanding_(semua, bulan, mulai) {
+    const kini = tanggalLokal_();
+    if (periodeDari_(kini, mulai) !== bulan) return null;
+    const ms = s => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
+    const iso = t => new Date(t).toISOString().slice(0, 10);
+    const r = rentangPeriode_(bulan, mulai);
+    const hari = Math.round((ms(kini) - ms(r.awal)) / 864e5);
+    const [y, m] = bulan.split('-').map(Number);
+    const d = new Date(Date.UTC(y, m - 2, 1));
+    const lalu = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+    const rl = rentangPeriode_(lalu, mulai);
+    const batas = iso(Math.min(ms(rl.awal) + hari * 864e5, ms(rl.akhir)));
+    let ini = 0, sebelum = 0, sebelumPenuh = 0;
+    semua.forEach(t => {
+      if (t.tipe !== TIPE.KELUAR) return;
+      if (t.tanggal >= r.awal && t.tanggal <= kini) ini += t.jumlah;
+      if (t.tanggal >= rl.awal && t.tanggal <= rl.akhir) { sebelumPenuh += t.jumlah; if (t.tanggal <= batas) sebelum += t.jumlah; }
+    });
+    if (!sebelumPenuh) return null;
+    return { hariKe: hari + 1, ini, lalu: sebelum, bulanLalu: lalu };
   }
 
   /** baris: hasil hapusTransaksi. Ditambah lagi apa adanya (pencatat & waktu asli tetap), foto diambil dari Sampah. */
@@ -1128,7 +1229,7 @@ const SERVER = (() => {
     if (!Array.isArray(baris) || !baris[0]) throw new Error(T('Data transaksi tidak lengkap.'));
     if ((await daftarId_(id)).includes(String(baris[0]))) return true;
     await tambahBaris_(id, TABEL.transaksi, [baris.slice(0, TABEL.transaksi.kolom.length)]);
-    await catatLog_(id, 'kembalikan', ringkasBaris_(baris));
+    await catatLog_(id, 'kembalikan', ringkasBaris_(baris), baris[0]);
     await buangLampiran_(baris[11], false);
     return true;
   }
@@ -1717,7 +1818,7 @@ const SERVER = (() => {
 
   return {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
-    simpanTransaksi, hapusTransaksi, kembalikanTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
+    simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ambilLampiran, buatKodeTelegram, putuskanTelegram,
