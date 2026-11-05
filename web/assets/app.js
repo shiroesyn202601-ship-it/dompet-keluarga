@@ -618,11 +618,12 @@ function viewBeranda() {
           ${(d.buku || []).length > 1 ? `<button type="button" class="chip-buku" data-aksi="buku">📒 ${esc(d.namaBuku)} ▾</button>` : ''}</div>
       </div>
       <div class="kepala-kanan">
-        ${pemilihBulan()}
         <button class="tombol-ikon" data-aksi="samar" aria-label="${modeSamar() ? 'Tampilkan nominal' : 'Sembunyikan nominal'}" aria-pressed="${modeSamar()}">${modeSamar() ? '🙈' : '👁'}</button>
         <button class="tombol-ikon" data-aksi="tab" data-tab="lainnya" aria-label="Pengaturan">${svg('gear')}</button>
       </div>
     </div>
+
+    <div class="periode-beranda">${pemilihBulan()}</div>
 
     <section class="kartu kartu-saldo">
       <small>Total saldo dompet</small>

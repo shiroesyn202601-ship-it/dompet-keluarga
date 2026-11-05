@@ -498,6 +498,11 @@ select.field, select.field:focus { appearance: none; -webkit-appearance: none; c
 .grid-tanggal button { padding: 10px 0; border-radius: 12px; background: var(--card-2); font-weight: 700; font-variant-numeric: tabular-nums; }
 .grid-tanggal button.aktif { background: var(--primary); color: var(--on-primary); }
 .pemilih-bulan span { white-space: nowrap; }
+/* Beranda: pemilih periode di baris sendiri (di bawah sapaan), supaya nama & buku di header tidak terpotong */
+.periode-beranda { margin: -6px 0 14px; }
+.periode-beranda .pemilih-bulan { width: 100%; justify-content: space-between; }
+.periode-beranda .pemilih-bulan span { flex: 1; }
+.periode-beranda .pemilih-bulan button { width: 40px; height: 40px; }
 /* Tagihan rutin */
 .info-rutin { display: flex; gap: 8px; padding: 12px 14px; margin: 0 0 16px; border-radius: 16px; background: var(--primary-soft); font-size: 14px; }
 .info-rutin button { display: block; margin-top: 6px; font-size: 13px; font-weight: 800; color: var(--primary); }
