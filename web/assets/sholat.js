@@ -91,7 +91,7 @@ const SHOLAT = (() => {
 
   /** 295 → "barat laut". */
   function namaArah(derajat) {
-    const n = ['utara', 'timur laut', 'timur', 'tenggara', 'selatan', 'barat daya', 'barat', 'barat laut'];
+    const n = [T('utara'), T('timur laut'), T('timur'), T('tenggara'), T('selatan'), T('barat daya'), T('barat'), T('barat laut')];
     return n[Math.round(putar(derajat, 360) / 45) % 8];
   }
 

@@ -34,10 +34,10 @@ const STRUK = (() => {
    * OCR langsung dimulai tanpa menunggu opsi.
    */
   async function baca(base64, mime, opsiAtauJanji, tambahan) {
-    if (!/^image\/(jpeg|png|webp)$/.test(String(mime))) throw new Error('Format gambar tidak didukung.');
+    if (!/^image\/(jpeg|png|webp)$/.test(String(mime))) throw new Error(T('Format gambar tidak didukung.'));
     const { base64Ai = base64, kabar = () => {} } = tambahan || {};
     const henti = new AbortController(); // permintaan Gemini yang terlambat dihentikan supaya tidak memakan sinyal
-    kabar('Mengunggah foto…');
+    kabar(T('Mengunggah foto…'));
     const teksOcr = ocrDrive(base64, mime);
     teksOcr.catch(() => {}); // ditangani di bawah; cegah "unhandled rejection" kalau opsi gagal dibaca
     const opsi = await opsiAtauJanji;
@@ -49,7 +49,7 @@ const STRUK = (() => {
     console.log('bacaStruk: model ' + model + ', ' + kunci.length + ' kunci, gambar ' + Math.round(base64.length * 0.75 / 1024) + ' KB');
 
     const hasil = []; // { sumber, jumlah, tanggal, kategori, catatan }
-    const gagal = []; // pesan error per lapis, untuk pesan akhir
+    const gagal = []; // error per lapis, untuk pesan akhir
 
     const dariAi = sumber => h => {
       console.log('bacaStruk: ' + sumber + ' →', h);
@@ -67,16 +67,16 @@ const STRUK = (() => {
     };
     const catatGagal = sumber => e => {
       console.error('bacaStruk: ' + sumber + ' gagal:', e);
-      gagal.push(e.message);
+      gagal.push(e);
     };
 
-    const kabarUnggah = persen => kabar(persen < 100 ? 'Mengunggah foto… ' + persen + '%' : 'AI membaca struk…');
+    const kabarUnggah = persen => kabar(persen < 100 ? T('Mengunggah foto… {persen}%', { persen }) : T('AI membaca struk…'));
     const tugasFoto = kunci.length
       ? jalankanGemini(kunci, mulai, model, [{ inlineData: { mimeType: mime, data: base64Ai } }, { text: petunjukStruk('gambar', hariIni) }], skema,
         { signal: henti.signal, unggah: kabarUnggah })
         .then(dariAi('AI foto'), catatGagal('AI foto'))
       : null;
-    if (!tugasFoto) kabar('Membaca teks struk…');
+    if (!tugasFoto) kabar(T('Membaca teks struk…'));
 
     const tugasOcr = teksOcr.then(async teks => {
       console.log('bacaStruk: teks OCR\n' + teks.slice(0, 3000));
@@ -106,14 +106,16 @@ const STRUK = (() => {
     henti.abort();
     const terkumpul = hasil.slice(); // lapis yang terlambat tidak lagi dipakai
     if (!terkumpul.length && habis) {
-      const e = new Error('Pembacaan terlalu lama (lebih dari ' + BATAS_TOTAL_MS / 1000 + ' detik). Periksa sinyal, lalu ketuk Ulangi.');
+      const e = new Error(T('Pembacaan terlalu lama (lebih dari {detik} detik). Periksa sinyal, lalu ketuk Ulangi.', { detik: BATAS_TOTAL_MS / 1000 }));
       e.jaringan = !navigator.onLine;
       throw e;
     }
     if (!terkumpul.length) {
-      const alasan = gagal.filter(g => /Kunci API|Kuota|login/i.test(g))[0];
-      throw new Error(alasan || ('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus'
-        + (kunci.length ? '.' : ', atau aktifkan "Baca struk lebih akurat" (AI Gemini) di menu Lainnya.')));
+      // Kunci Gemini salah/ditolak/kuota habis, atau sesi login habis (pesannya bisa sudah diterjemahkan).
+      const alasan = (gagal.filter(g => g && (g.gantiKunci || g instanceof GOOGLE.PerluMasuk))[0] || {}).message;
+      throw new Error(alasan || (kunci.length
+        ? T('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus.')
+        : T('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus, atau aktifkan "Baca struk lebih akurat" (AI Gemini) di menu Lainnya.')));
     }
     return gabungHasil(terkumpul);
   }
@@ -270,7 +272,7 @@ const STRUK = (() => {
         unggah,
       });
     } catch (e) {
-      throw new Error(e.name === 'AbortError' ? 'Dihentikan (sudah ada hasil lain).' : 'Gemini tidak bisa dihubungi. Periksa koneksi internet.');
+      throw new Error(e.name === 'AbortError' ? T('Dihentikan (sudah ada hasil lain).') : T('Gemini tidak bisa dihubungi. Periksa koneksi internet.'));
     }
     const teks = res.text;
     if (!res.ok) {
@@ -279,11 +281,11 @@ const STRUK = (() => {
       try { pesan = JSON.parse(teks).error.message; } catch (e) { pesan = teks.slice(0, 200); }
       const kunciSalah = res.status === 400 && /API key/i.test(pesan);
       let err;
-      if (kunciSalah) err = new Error('Kunci API Gemini tidak valid. Periksa lagi di menu Lainnya.');
-      else if (res.status === 429) err = new Error('Kuota semua kunci Gemini sedang habis. Coba lagi nanti, atau tambah kunci lain di menu Lainnya.');
-      else if (res.status === 403) err = new Error('Kunci API Gemini ditolak (403). Periksa lagi di menu Lainnya.');
-      else if (res.status >= 500) err = new Error('Gemini sedang sibuk (' + res.status + '), coba lagi sebentar lagi');
-      else if (res.status === 404) err = new Error('Model Gemini tidak ditemukan (404)');
+      if (kunciSalah) err = new Error(T('Kunci API Gemini tidak valid. Periksa lagi di menu Lainnya.'));
+      else if (res.status === 429) err = new Error(T('Kuota semua kunci Gemini sedang habis. Coba lagi nanti, atau tambah kunci lain di menu Lainnya.'));
+      else if (res.status === 403) err = new Error(T('Kunci API Gemini ditolak (403). Periksa lagi di menu Lainnya.'));
+      else if (res.status >= 500) err = new Error(T('Gemini sedang sibuk ({kode}), coba lagi sebentar lagi', { kode: res.status }));
+      else if (res.status === 404) err = new Error(T('Model Gemini tidak ditemukan (404)'));
       else err = new Error('Gemini error ' + res.status + ': ' + pesan);
       err.gantiKunci = kunciSalah || res.status === 429 || res.status === 403;
       err.gantiModel = res.status >= 500 || res.status === 404;
@@ -293,7 +295,7 @@ const STRUK = (() => {
       return JSON.parse(JSON.parse(teks).candidates[0].content.parts.map(p => p.text || '').join(''));
     } catch (e) {
       console.error('Jawaban Gemini tidak bisa dibaca: ' + teks.slice(0, 2000));
-      throw new Error('Jawaban Gemini tidak bisa dibaca.');
+      throw new Error(T('Jawaban Gemini tidak bisa dibaca.'));
     }
   }
 
@@ -434,7 +436,7 @@ const STRUK = (() => {
 
   /** Pertanyaan umum ke Gemini (mis. memahami kalimat suara), memakai rotasi kunci & model cadangan yang sama. */
   function tanyaAI(parts, skema, kunci, model) {
-    if (!kunci || !kunci.length) return Promise.reject(new Error('Belum ada kunci Gemini.'));
+    if (!kunci || !kunci.length) return Promise.reject(new Error(T('Belum ada kunci Gemini.')));
     return jalankanGemini(kunci, giliranBerikut(kunci.length), model || MODEL, parts, skema);
   }
 
