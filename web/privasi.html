@@ -3,69 +3,188 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#f4f5f8">
+    <meta name="theme-color" content="#f4f5f8" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
+    <meta name="description" content="Kebijakan privasi Dompet Keluarga: tanpa server, semua data tersimpan di Google Drive Anda sendiri.">
     <title>Kebijakan Privasi · Dompet Keluarga</title>
     <link rel="icon" type="image/png" sizes="32x32" href="ikon/favicon-32.png">
-    <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+    <script>
+      // Ikuti tema yang dipilih di aplikasi (Lainnya → Tema).
+      try { var t = localStorage.getItem('dk_tema'); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch (e) { /* mode privat */ }
+    </script>
     <link rel="stylesheet" href="assets/styles.css">
     <style>
-      .privasi { padding: 20px 16px 48px; }
-      .privasi h1 { font-size: 26px; margin: 8px 0 4px; }
-      .privasi h2 { font-size: 17px; margin: 28px 0 8px; }
-      .privasi p, .privasi li { color: var(--text); }
-      .privasi ul { padding-left: 20px; }
-      .privasi li { margin-bottom: 6px; }
-      .privasi .kecil { color: var(--muted); font-size: 13px; }
-      .privasi a { color: var(--primary); }
+      body { max-width: none; }
+      .hal { max-width: 720px; margin: 0 auto; padding: 0 16px calc(40px + env(safe-area-inset-bottom)); }
+
+      /* Bilah atas menempel */
+      .bilah { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 -16px; padding: 12px 16px;
+        padding-top: max(12px, env(safe-area-inset-top));
+        background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+      .bilah a.kembali { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--card);
+        border: 1px solid var(--line); color: var(--text); }
+      .bilah b { font-size: 16px; font-weight: 800; }
+      .bilah .ke-app { margin-left: auto; padding: 8px 14px; border-radius: 999px; background: var(--primary); color: var(--on-primary);
+        font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+
+      /* Hero */
+      .hero { position: relative; overflow: hidden; margin: 6px 0 16px; padding: 26px 22px 24px; border-radius: 26px; color: #fff;
+        background: linear-gradient(140deg, var(--hero-1), var(--hero-2)); box-shadow: var(--shadow); }
+      .hero::after { content: ''; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%;
+        border: 34px solid rgba(255, 255, 255, .07); }
+      .hero .perisai { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 16px; background: rgba(255, 255, 255, .16); margin-bottom: 14px; }
+      .hero h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
+      .hero p { margin: 8px 0 0; font-size: 14.5px; line-height: 1.55; opacity: .88; max-width: 52ch; }
+      .hero .tanggal { display: inline-block; margin-top: 14px; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .14); font-size: 12px; font-weight: 700; }
+
+      /* Tiga janji utama */
+      .janji { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 26px; }
+      .janji div { padding: 14px 12px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); }
+      .janji .ik-bulat { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; margin-bottom: 10px; font-size: 19px; }
+      .janji b { display: block; font-size: 13.5px; font-weight: 800; line-height: 1.25; }
+      .janji small { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+      @media (max-width: 480px) { .janji { grid-template-columns: 1fr; } .janji div { display: grid; grid-template-columns: 38px 1fr; column-gap: 12px; align-items: center; }
+        .janji .ik-bulat { margin: 0; grid-row: span 2; } .janji small { margin-top: 1px; } }
+
+      /* Bagian */
+      .bagian { margin-bottom: 22px; }
+      .bagian h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 10px 2px; font-size: 17px; font-weight: 800; }
+      .bagian h2 span { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 10px; background: var(--primary-soft); font-size: 15px; }
+      .kotak { border-radius: 20px; background: var(--card); border: 1px solid var(--line); padding: 4px 16px; }
+      .butir { display: flex; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+      .butir:last-child { border-bottom: 0; }
+      .butir > i { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; background: var(--card-2); font-style: normal; font-size: 17px; }
+      .butir div { min-width: 0; }
+      .butir b { display: block; font-size: 14.5px; font-weight: 700; }
+      .butir p { margin: 3px 0 0; font-size: 13.5px; line-height: 1.55; color: var(--muted); }
+      .butir code, .izin code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; padding: 2px 7px; border-radius: 7px;
+        background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+      .opsional { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; vertical-align: 1px;
+        background: var(--card-2); color: var(--muted); }
+
+      /* Izin Google */
+      .izin { display: grid; gap: 8px; }
+      .izin div { display: flex; align-items: flex-start; gap: 12px; padding: 13px 14px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+      .izin code { flex: none; margin-top: 1px; }
+      .izin p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text); }
+
+      .catatan-google { margin-top: 10px; padding: 14px 16px; border-radius: 16px; background: var(--card-2); font-size: 13px; line-height: 1.55; color: var(--muted); }
+      .catatan-google p { margin: 0 0 8px; } .catatan-google p:last-child { margin: 0; }
+      a { color: var(--primary); font-weight: 600; }
+
+      .kontak { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 20px; background: var(--primary-soft); text-decoration: none; color: var(--text); }
+      .kontak i { flex: none; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 14px; background: var(--card); font-style: normal; font-size: 20px; }
+      .kontak b { display: block; font-size: 15px; } .kontak small { color: var(--muted); font-size: 12.5px; font-weight: 500; }
+      .kontak .panah { margin-left: auto; color: var(--primary); font-size: 20px; }
+      .kaki { margin: 26px 0 0; text-align: center; font-size: 12px; color: var(--muted); }
     </style>
   </head>
   <body>
-    <main class="privasi">
-      <a href="./">‹ Kembali ke aplikasi</a>
-      <h1>Kebijakan Privasi</h1>
-      <p class="kecil">Dompet Keluarga · berlaku sejak 1 November 2026</p>
+    <div class="hal">
+      <header class="bilah">
+        <a class="kembali" href="./" id="kembali" aria-label="Kembali ke aplikasi">
+          <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a>
+        <b>Kebijakan Privasi</b>
+        <a class="ke-app" href="./">Buka aplikasi</a>
+      </header>
 
-      <p><b>Singkatnya:</b> Dompet Keluarga tidak punya server dan tidak menyimpan data Anda.
-        Semua catatan keuangan tersimpan di Google Spreadsheet di Google Drive Anda sendiri,
-        dan hanya Anda serta orang yang Anda undang yang bisa membukanya.</p>
+      <section class="hero">
+        <div class="perisai" aria-hidden="true">
+          <svg class="ik" viewBox="0 0 24 24" style="width:28px;height:28px"><path d="M12 3 5 6v6c0 4.5 3 7.7 7 9 4-1.3 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/></svg>
+        </div>
+        <h1>Data Anda tetap milik Anda</h1>
+        <p>Dompet Keluarga tidak punya server dan tidak menyimpan data Anda. Semua catatan keuangan ada di Google Spreadsheet
+          di Google Drive Anda sendiri, dan hanya Anda serta orang yang Anda undang yang bisa membukanya.</p>
+        <span class="tanggal">Berlaku sejak 1 November 2026</span>
+      </section>
 
-      <h2>Data yang dipakai</h2>
-      <ul>
-        <li><b>Alamat email Google</b> — untuk menampilkan siapa yang sedang masuk dan mencatat siapa yang membuat transaksi.</li>
-        <li><b>Spreadsheet "Dompet Keluarga"</b> — dibuat oleh aplikasi di Drive Anda, atau Anda pilih sendiri lewat pemilih file Google. Aplikasi tidak bisa melihat file lain di Drive Anda.</li>
-        <li><b>Folder data aplikasi</b> (tersembunyi di Drive Anda) — hanya menyimpan alamat spreadsheet dan folder struk yang Anda pakai, supaya tetap ketemu saat ganti HP.</li>
-        <li><b>Foto struk</b> (kalau Anda memakai fitur baca struk) — dikirim sementara ke Google Drive untuk dibaca teksnya (OCR); salinan sementara itu langsung dihapus. Kalau Anda mengisi kunci API Gemini, foto juga dikirim ke Google Gemini untuk dibaca.</li>
-        <li><b>Lampiran foto</b> — foto struk atau bukti transfer yang dilampirkan ke transaksi disimpan di folder <i>"Dompet Keluarga - Struk"</i> di Google Drive Anda, dan dibagikan (hanya lihat, tanpa email pemberitahuan) ke akun yang punya akses ke spreadsheet keluarga. Bisa dihapus kapan saja dari Google Drive.</li>
-        <li><b>Bot Telegram</b> (opsional) — kalau Anda menghubungkannya, pesan dan foto yang Anda kirim ke bot diproses lewat Telegram dan Google Apps Script milik pengelola bot. Untuk itu spreadsheet buku yang Anda hubungkan dibagikan (bisa mengubah) ke akun bot, sehingga pengelola bot secara teknis bisa membuka isinya. Aplikasi meminta persetujuan Anda lebih dulu, dan akses bot dicabut otomatis saat semua akun Telegram di buku itu diputus. Foto struk dibaca lewat file sementara di Google Drive pengelola bot yang langsung dihapus.</li>
-      </ul>
+      <div class="janji">
+        <div><span class="ik-bulat" style="background:color-mix(in srgb,#22C55E 18%,var(--card))">🗄️</span><b>Tanpa server</b><small>Browser Anda bicara langsung dengan Google.</small></div>
+        <div><span class="ik-bulat" style="background:color-mix(in srgb,#3B82F6 18%,var(--card))">📁</span><b>Di Drive Anda</b><small>Aplikasi hanya melihat file yang dibuatnya sendiri.</small></div>
+        <div><span class="ik-bulat" style="background:color-mix(in srgb,#EF4444 18%,var(--card))">🚫</span><b>Tidak dijual</b><small>Tanpa iklan, tanpa dibagikan ke pihak lain.</small></div>
+      </div>
 
-      <h2>Izin Google yang diminta</h2>
-      <ul>
-        <li><code>drive.file</code> — membuat, membaca, dan membagikan hanya file yang dibuat atau dipilih lewat aplikasi ini.</li>
-        <li><code>drive.appdata</code> — menyimpan pengaturan kecil di folder tersembunyi khusus aplikasi ini.</li>
-        <li><code>email</code> — mengetahui alamat email akun yang masuk.</li>
-      </ul>
+      <section class="bagian">
+        <h2><span aria-hidden="true">📋</span>Data yang dipakai</h2>
+        <div class="kotak">
+          <div class="butir"><i aria-hidden="true">✉️</i><div><b>Alamat email Google</b>
+            <p>Untuk menampilkan siapa yang sedang masuk dan mencatat siapa yang membuat transaksi.</p></div></div>
+          <div class="butir"><i aria-hidden="true">📊</i><div><b>Spreadsheet "Dompet Keluarga"</b>
+            <p>Dibuat oleh aplikasi di Drive Anda, atau Anda pilih sendiri lewat pemilih file Google. Aplikasi tidak bisa melihat file lain di Drive Anda.</p></div></div>
+          <div class="butir"><i aria-hidden="true">🗂️</i><div><b>Folder data aplikasi</b>
+            <p>Tersembunyi di Drive Anda. Hanya menyimpan alamat spreadsheet dan folder struk yang Anda pakai, supaya tetap ketemu saat ganti HP.</p></div></div>
+          <div class="butir"><i aria-hidden="true">🧾</i><div><b>Foto struk <span class="opsional">opsional</span></b>
+            <p>Dikirim sementara ke Google Drive untuk dibaca teksnya (OCR); salinan sementara itu langsung dihapus. Kalau Anda mengisi kunci API Gemini, foto juga dikirim ke Google Gemini untuk dibaca.</p></div></div>
+          <div class="butir"><i aria-hidden="true">📎</i><div><b>Lampiran foto</b>
+            <p>Foto struk atau bukti transfer yang dilampirkan ke transaksi disimpan di folder <i>"Dompet Keluarga - Struk"</i> di Google Drive Anda,
+              dan dibagikan (hanya lihat, tanpa email pemberitahuan) ke akun yang punya akses ke spreadsheet keluarga. Bisa dihapus kapan saja dari Google Drive.</p></div></div>
+          <div class="butir"><i aria-hidden="true">🤖</i><div><b>Bot Telegram <span class="opsional">opsional</span></b>
+            <p>Kalau Anda menghubungkannya, pesan dan foto yang Anda kirim ke bot diproses lewat Telegram dan Google Apps Script milik pengelola bot.
+              Untuk itu spreadsheet buku yang Anda hubungkan dibagikan (bisa mengubah) ke akun bot, sehingga pengelola bot secara teknis bisa membuka isinya.
+              Aplikasi meminta persetujuan Anda lebih dulu, dan akses bot dicabut otomatis saat semua akun Telegram di buku itu diputus.
+              Foto struk dibaca lewat file sementara di Google Drive pengelola bot yang langsung dihapus.</p></div></div>
+          <div class="butir"><i aria-hidden="true">📱</i><div><b>Disimpan di HP saja</b>
+            <p>Pilihan tema, PIN kunci aplikasi, lokasi jadwal sholat, dan status pengingat yang sudah ditutup disimpan di browser HP Anda, tidak dikirim ke mana pun.</p></div></div>
+        </div>
+      </section>
 
-      <h2>Penyimpanan & pembagian</h2>
-      <ul>
-        <li>Semua permintaan dikirim langsung dari browser Anda ke Google. Tidak ada server perantara milik pembuat aplikasi.</li>
-        <li>Tanda masuk (token) disimpan di browser Anda dan habis sekitar 1 jam. Menekan "Keluar" mencabutnya.</li>
-        <li>Data tidak dijual, tidak dipakai untuk iklan, dan tidak dibagikan ke pihak lain. Spreadsheet hanya dibagikan ke email yang Anda undang sendiri.</li>
-        <li>Untuk menghapus semua data, hapus spreadsheet "Dompet Keluarga" dari Google Drive Anda. Akses aplikasi bisa dicabut di <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</li>
-      </ul>
+      <section class="bagian">
+        <h2><span aria-hidden="true">🔑</span>Izin Google yang diminta</h2>
+        <div class="izin">
+          <div><code>drive.file</code><p>Membuat, membaca, dan membagikan <b>hanya</b> file yang dibuat atau dipilih lewat aplikasi ini.</p></div>
+          <div><code>drive.appdata</code><p>Menyimpan pengaturan kecil di folder tersembunyi khusus aplikasi ini.</p></div>
+          <div><code>email</code><p>Mengetahui alamat email akun yang masuk.</p></div>
+        </div>
+      </section>
 
-      <h2>Penggunaan data Google</h2>
-      <p>Penggunaan dan pemindahan informasi yang diterima dari Google API oleh Dompet Keluarga mematuhi
-        <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>,
-        termasuk ketentuan Limited Use.</p>
-      <p class="kecil" lang="en">Dompet Keluarga's use and transfer of information received from Google APIs to any other app will adhere to the
-        Google API Services User Data Policy, including the Limited Use requirements. The app has no server: all data stays in the
-        user's own Google Drive and is never sold, used for advertising, or shared with third parties.</p>
+      <section class="bagian">
+        <h2><span aria-hidden="true">🛡️</span>Penyimpanan & pembagian</h2>
+        <div class="kotak">
+          <div class="butir"><i aria-hidden="true">🔗</i><div><b>Langsung ke Google</b>
+            <p>Semua permintaan dikirim langsung dari browser Anda ke Google. Tidak ada server perantara milik pembuat aplikasi.</p></div></div>
+          <div class="butir"><i aria-hidden="true">⏱️</i><div><b>Tanda masuk berumur pendek</b>
+            <p>Token disimpan di browser Anda dan habis sekitar 1 jam. Menekan "Keluar" mencabutnya.</p></div></div>
+          <div class="butir"><i aria-hidden="true">👥</i><div><b>Hanya untuk yang Anda undang</b>
+            <p>Data tidak dijual, tidak dipakai untuk iklan, dan tidak dibagikan ke pihak lain. Spreadsheet hanya dibagikan ke email yang Anda undang sendiri.</p></div></div>
+          <div class="butir"><i aria-hidden="true">🗑️</i><div><b>Menghapus data</b>
+            <p>Hapus spreadsheet "Dompet Keluarga" dari Google Drive Anda. Akses aplikasi bisa dicabut di
+              <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</p></div></div>
+        </div>
+      </section>
 
-      <h2>Kontak</h2>
-      <p>Pertanyaan atau laporan masalah: buka
-        <a href="https://github.com/shiroesyn202601-ship-it/dompet-keluarga/issues" target="_blank" rel="noopener">halaman Issues di GitHub</a>.</p>
-    </main>
+      <section class="bagian">
+        <h2><span aria-hidden="true">📜</span>Penggunaan data Google</h2>
+        <div class="catatan-google">
+          <p>Penggunaan dan pemindahan informasi yang diterima dari Google API oleh Dompet Keluarga mematuhi
+            <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>,
+            termasuk ketentuan Limited Use.</p>
+          <p lang="en">Dompet Keluarga's use and transfer of information received from Google APIs to any other app will adhere to the
+            Google API Services User Data Policy, including the Limited Use requirements. The app has no server: all data stays in the
+            user's own Google Drive and is never sold, used for advertising, or shared with third parties.</p>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <h2><span aria-hidden="true">💬</span>Kontak</h2>
+        <a class="kontak" href="https://github.com/shiroesyn202601-ship-it/dompet-keluarga/issues" target="_blank" rel="noopener">
+          <i aria-hidden="true">🐞</i>
+          <span><b>Pertanyaan atau laporan masalah</b><small>Buka halaman Issues di GitHub</small></span>
+          <span class="panah" aria-hidden="true">›</span>
+        </a>
+      </section>
+
+      <p class="kaki">Dompet Keluarga · catatan keuangan keluarga di Google Drive Anda sendiri</p>
+    </div>
+    <script>
+      // Dibuka dari dalam aplikasi: tombol kembali = kembali ke halaman sebelumnya (posisi aplikasi tidak hilang).
+      document.getElementById('kembali').addEventListener('click', function (e) {
+        try {
+          if (document.referrer && new URL(document.referrer).origin === location.origin && history.length > 1) { e.preventDefault(); history.back(); }
+        } catch (err) { /* buka seperti tautan biasa */ }
+      });
+    </script>
   </body>
 </html>

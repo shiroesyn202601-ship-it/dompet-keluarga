@@ -1,10 +1,10 @@
 // Service worker: membuat aplikasi bisa dipasang & tetap terbuka saat sinyal jelek.
 // Strategi "jaringan dulu": selalu ambil versi terbaru dari GitHub Pages, cache hanya cadangan.
 // Jadi setiap update di GitHub langsung terpakai tanpa pasang ulang.
-const CACHE = 'dompet-keluarga-v2';
+const CACHE = 'dompet-keluarga-v4';
 const INTI = [
   'index.html', 'manifest.webmanifest',
-  'assets/styles.css', 'assets/config.js', 'assets/google.js', 'assets/struk.js', 'assets/sholat.js', 'assets/db.js', 'assets/app.js',
+  'assets/styles.css', 'assets/config.js', 'assets/google.js', 'assets/struk.js', 'assets/sholat.js', 'assets/ilustrasi.js', 'assets/db.js', 'assets/app.js',
   'ikon/ikon-192.png', 'ikon/apple-touch-icon.png', 'ikon/favicon-32.png',
 ];
 const BATAS_TUNGGU_MS = 5000; // sinyal lambat → pakai cache dulu, versi baru tetap disimpan untuk berikutnya
@@ -54,6 +54,9 @@ async function jaringanDulu(req, url) {
   const cache = await caches.open(CACHE);
   const kunci = req.mode === 'navigate' ? new Request(url.origin + url.pathname) : req;
   const dariJaringan = fetch(url.href, { cache: 'no-cache', credentials: 'same-origin' }).then(res => {
+    // Server mengalihkan (mis. privasi.html → /privasi): halaman navigasi tidak boleh menerima jawaban
+    // "redirected" dari service worker, jadi browser diminta pindah ke alamat barunya.
+    if (res.redirected && req.mode === 'navigate') return Response.redirect(res.url, 302);
     if (res.ok) cache.put(kunci, res.clone());
     return res;
   });
