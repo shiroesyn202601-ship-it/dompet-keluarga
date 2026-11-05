@@ -3420,8 +3420,8 @@ function simpanDiLatar(t, pesan) {
       const idTrx = await api('simpanTransaksi', t);
       FOTO_TRX[idTrx || t.id] = 'data:image/jpeg;base64,' + t.lampiranData;
       hapusJob(job.id);
-      toast(pesan);
-      await muat();
+      await muat(); // data baru dulu, supaya pesan sisa anggaran menghitung transaksi ini
+      if (typeof pesan === 'function') pesan(idTrx); else toast(pesan);
     } catch (e) {
       if (!ANTRIAN.includes(job)) return;
       // Sinyal putus saat mencatat transaksi baru: masuk antrean tertunda seperti biasa (tanpa foto).
