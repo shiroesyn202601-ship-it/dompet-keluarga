@@ -4142,19 +4142,9 @@ function viewFormCatatan() {
     <div class="kepala kepala-kembali kepala-form-catatan">
       <button class="tombol-ikon" data-aksi="kalender" aria-label="Kembali">${svg('kembali')}</button>
       <h1>${f.id ? 'Ubah catatan' : 'Catatan baru'}</h1>
-      <button type="button" class="btn btn-utama btn-kecil" data-aksi="simpan-catatan">Simpan</button>
     </div>
     <div class="form-catatan" style="--w:${warnaCatatan(f.warna)}">
       <input class="judul-catatan" id="c-judul" maxlength="80" enterkeyhint="next" placeholder="Judul" value="${esc(f.judul)}" aria-label="Judul">
-
-      <div class="opsi-catatan">
-        <label class="chip-opsi">📅 <span id="c-tanggal-label">${esc(labelHariPendek(f.tanggal))}</span>
-          <input type="date" id="c-tanggal" value="${f.tanggal}" aria-label="Tanggal"></label>
-        <button type="button" class="chip-opsi ${f.pengingat ? 'nyala' : ''}" data-aksi="c-pengingat" role="switch" aria-checked="${f.pengingat}">${f.pengingat ? '🔔 Ingatkan' : '🔕 Ingatkan'}</button>
-        <label class="chip-opsi ${f.ulang ? 'nyala' : ''}">🔁 <span id="c-ulang-label">${LABEL_ULANG.find(u => u[0] === f.ulang)[1]}</span>
-          <select id="c-ulang" aria-label="Ulangi">${LABEL_ULANG.map(([v, , l]) => `<option value="${v}" ${f.ulang === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-        <button type="button" class="chip-opsi" data-aksi="c-warna" aria-label="Ganti warna (sekarang ${esc(f.warna)})"><i class="titik-warna"></i></button>
-      </div>
 
       <div class="segmen segmen-jenis" id="c-jenis">
         <button type="button" class="${tugas ? '' : 'aktif'}" data-aksi="c-jenis" data-v="teks">📝 Teks</button>
@@ -4169,9 +4159,22 @@ function viewFormCatatan() {
         <button type="button" class="tombol-tambah-tugas" data-aksi="c-tugas-tambah">＋ Tambah item</button>
       </div>
 
-      <div class="kaki-form-catatan">
-        ${f.oleh ? `<small>Dibuat oleh ${esc(namaPendek(f.oleh))}</small>` : '<span></span>'}
-        ${f.id ? '<button type="button" class="tombol-teks bahaya" data-aksi="hapus-catatan">🗑 Hapus</button>' : ''}
+      ${f.oleh ? `<p class="oleh-catatan">Dibuat oleh ${esc(namaPendek(f.oleh))}</p>` : ''}
+
+      <!-- Bilah bawah menempel (ikut naik di atas keyboard): opsi ringkas + Hapus/Simpan, mudah dijangkau jempol. -->
+      <div class="bilah-catatan">
+        <div class="opsi-catatan">
+          <label class="chip-opsi">📅 <span id="c-tanggal-label">${esc(labelHariPendek(f.tanggal))}</span>
+            <input type="date" id="c-tanggal" value="${f.tanggal}" aria-label="Tanggal"></label>
+          <button type="button" class="chip-opsi ${f.pengingat ? 'nyala' : ''}" data-aksi="c-pengingat" role="switch" aria-checked="${f.pengingat}">${f.pengingat ? '🔔 Ingatkan' : '🔕 Ingatkan'}</button>
+          <label class="chip-opsi ${f.ulang ? 'nyala' : ''}">🔁 <span id="c-ulang-label">${LABEL_ULANG.find(u => u[0] === f.ulang)[1]}</span>
+            <select id="c-ulang" aria-label="Ulangi">${LABEL_ULANG.map(([v, , l]) => `<option value="${v}" ${f.ulang === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <button type="button" class="chip-opsi" data-aksi="c-warna" aria-label="Ganti warna (sekarang ${esc(f.warna)})"><i class="titik-warna"></i></button>
+        </div>
+        <div class="aksi-catatan">
+          ${f.id ? `<button type="button" class="btn btn-hapus btn-hapus-catatan" data-aksi="hapus-catatan">🗑 Hapus</button>` : ''}
+          <button type="button" class="btn btn-utama" data-aksi="simpan-catatan">Simpan</button>
+        </div>
       </div>
     </div>`;
 }
