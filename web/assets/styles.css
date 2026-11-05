@@ -985,3 +985,11 @@ body.tanpa-nav #view:has(.bilah-catatan) { padding-bottom: calc(165px + env(safe
 .pola-pekan .puncak .nilai-pekan { color: var(--primary); }
 .pola-pekan small { font-size: 11px; font-weight: 700; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .busur-donat, .batang-pekan i { animation: none; } }
+
+/* Panah ‹ › sebagai ikon SVG (karakter teks duduk di garis dasar font, jadi tidak pas di tengah). */
+.panah { display: inline-grid; place-items: center; flex: none; }
+.panah svg.ik { width: 18px; height: 18px; color: var(--muted); }
+.panah-kecil { display: inline-grid; place-items: center; vertical-align: middle; }
+.panah-kecil svg.ik { width: 13px; height: 13px; }
+.pemilih-bulan button svg.ik { width: 18px; height: 18px; }
+.kal-kepala .tombol-ikon svg.ik, .geser-tanggal svg.ik { width: 20px; height: 20px; }

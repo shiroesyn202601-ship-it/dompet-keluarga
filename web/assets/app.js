@@ -71,6 +71,7 @@ const IKON = {
   masjid: '<path d="M12 3c2.5 2 4.5 3.6 4.5 6.5V11h-9V9.5C7.5 6.6 9.5 5 12 3z"/><path d="M4 21V11h16v10"/><path d="M2 21h20"/><path d="M10 21v-4a2 2 0 0 1 4 0v4"/><path d="M4 11V8M20 11V8"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   kembali: '<path d="m15 18-6-6 6-6"/>',
+  maju: '<path d="m9 18 6-6-6-6"/>',
 };
 const svg = nama => `<svg class="ik" viewBox="0 0 24 24" aria-hidden="true">${IKON[nama]}</svg>`;
 
@@ -451,9 +452,9 @@ function pemilihBulan(ringkas) {
     ? keTanggal(S.bulan).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' })
     : namaBulan(S.bulan);
   return `<div class="pemilih-bulan ${ringkas ? 'mini' : ''}">
-    <button data-aksi="bulan" data-geser="-1" aria-label="Periode sebelumnya">‹</button>
+    <button data-aksi="bulan" data-geser="-1" aria-label="Periode sebelumnya">${svg('kembali')}</button>
     <span title="${esc(namaBulan(S.bulan))}">${esc(label)}</span>
-    <button data-aksi="bulan" data-geser="1" aria-label="Periode berikutnya">›</button>
+    <button data-aksi="bulan" data-geser="1" aria-label="Periode berikutnya">${svg('maju')}</button>
   </div>`;
 }
 
@@ -562,7 +563,7 @@ function tileAnggaran(per) {
   const persen = batas ? Math.round(pakai / batas * 100) : 100;
   const lewat = daftar.filter(k => (per[k.nama] || 0) > k.batas).length;
   return `<button data-aksi="rincian-anggaran">
-    <small>Anggaran <span>›</span></small>
+    <small>Anggaran <span class="panah-kecil">${svg('maju')}</span></small>
     <b>${persen}% <span style="font-size:13px;font-weight:600;color:var(--muted)">terpakai</span></b>
     <span class="meter ${s.kelas}" role="meter" aria-label="Total anggaran" aria-valuemin="0" aria-valuemax="${batas}" aria-valuenow="${pakai}"><i style="width:${Math.min(100, persen)}%"></i></span>
     <span class="ket">${lewat ? `⛔ ${lewat} kategori lewat batas` : esc(s.teks)}</span>
@@ -580,7 +581,7 @@ function tileTabungan() {
   const terkumpul = bertarget.reduce((a, w) => a + Math.min(w.saldo, w.target), 0);
   const persen = target ? Math.floor(terkumpul / target * 100) : null;
   return `<button data-aksi="tab" data-tab="dompet">
-    <small>Tabungan <span>›</span></small>
+    <small>Tabungan <span class="panah-kecil">${svg('maju')}</span></small>
     <b>Rp${rpPendek(total)}</b>
     ${persen !== null ? `<span class="meter" role="meter" aria-label="Progres target tabungan" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${persen}"><i style="width:${persen}%"></i></span>` : ''}
     <span class="ket">${daftar.length} tabungan${persen !== null ? ` · ${persen}% dari target` : ''}</span>
@@ -618,7 +619,7 @@ function kartuMulai() {
         <button class="baris ${selesai ? 'selesai' : ''}" data-aksi="${aksi}"${tab ? ` data-tab="${tab}"` : ''}>
           <span class="ikon-bulat">${selesai ? '✅' : '⬜'}</span>
           <span class="isi"><b>${judul}</b><small>${ket}</small></span>
-          <span class="panah">›</span>
+          <span class="panah">${svg('maju')}</span>
         </button>`).join('')}
     </section>`;
 }
@@ -1082,7 +1083,7 @@ function tombolCekUndangan() {
   return `<button type="button" class="kartu-undangan" data-aksi="cek-undangan">
       <span class="ikon-bulat">📩</span>
       <span class="isi"><b>Diundang ke buku orang lain?</b><small>Cek undangan, lalu pilih satu atau beberapa buku</small></span>
-      <span class="panah">›</span>
+      <span class="panah">${svg('maju')}</span>
     </button>`;
 }
 
@@ -1125,7 +1126,7 @@ function bukaPilihBukuUndangan(buku) {
       <button type="button" class="baris" data-aksi="buka-undangan" data-id="${esc(b.id)}" data-nama="${esc(b.nama)}">
         <span class="ikon-bulat">📒</span>
         <span class="isi"><b>${esc(b.nama)}</b><small>Ketuk untuk membuka</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>`).join('')}`);
 }
 
@@ -1266,9 +1267,9 @@ function inputTanggal(id, nilai) {
   const tombol = (geser, label, ikon) =>
     `<button type="button" class="geser-tanggal" data-aksi="geser-tanggal" data-untuk="${id}" data-geser="${geser}" aria-label="${label}">${ikon}</button>`;
   return `<div class="input-tanggal">
-      ${tombol(-1, 'Hari sebelumnya', '‹')}
+      ${tombol(-1, 'Hari sebelumnya', svg('kembali'))}
       <input class="field" id="${id}" type="date" value="${esc(nilai)}" aria-describedby="${id}-hari">
-      ${tombol(1, 'Hari berikutnya', '›')}
+      ${tombol(1, 'Hari berikutnya', svg('maju'))}
     </div>
     <p class="hari-tanggal" id="${id}-hari">${esc(keteranganHari(nilai))}</p>`;
 }
@@ -1339,9 +1340,9 @@ function viewLaporan() {
     <div class="kepala">
       <h1>Laporan</h1>
       <div class="pemilih-bulan">
-        <button data-aksi="tahun" data-geser="-1" aria-label="Tahun sebelumnya">‹</button>
+        <button data-aksi="tahun" data-geser="-1" aria-label="Tahun sebelumnya">${svg('kembali')}</button>
         <span>${th}</span>
-        <button data-aksi="tahun" data-geser="1" aria-label="Tahun berikutnya">›</button>
+        <button data-aksi="tahun" data-geser="1" aria-label="Tahun berikutnya">${svg('maju')}</button>
       </div>
     </div>
 
@@ -1929,32 +1930,32 @@ function viewLainnya() {
       <button class="baris" data-aksi="atur-anggaran">
         <span class="ikon-bulat">🎯</span>
         <span class="isi"><b>Anggaran bulanan</b><small>Batas belanja per kategori</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>
       <button class="baris" data-aksi="kelola-rutin">
         <span class="ikon-bulat">🔁</span>
         <span class="isi"><b>Tagihan & transaksi rutin</b><small>${daftarRutin().length ? `${daftarRutin().length} rutin · berikutnya ${esc(daftarRutin()[0].nama)}, ${esc(tanggalPendek(daftarRutin()[0].berikutnya))}` : 'Listrik, internet, cicilan, SPP, gaji…'}</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>
       <button class="baris" data-aksi="buku">
         <span class="ikon-bulat">📒</span>
         <span class="isi"><b>Buku keuangan</b><small>${esc(d.namaBuku || 'Keluarga')}${(d.buku || []).length > 1 ? ` · ${d.buku.length} buku` : ' · pisahkan pribadi, keluarga, usaha'}</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>
       <button class="baris" data-aksi="atur-periode">
         <span class="ikon-bulat">📅</span>
         <span class="isi"><b>Periode gajian</b><small>${(d.mulaiPeriode || 1) > 1 ? `Mulai tanggal ${d.mulaiPeriode} tiap bulan` : 'Bulan kalender (tanggal 1)'}</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>
       <button class="baris" data-aksi="kelola-kategori">
         <span class="ikon-bulat">🏷️</span>
         <span class="isi"><b>Kelola kategori</b><small>Tambah, ubah nama, atau hapus kategori</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>
       <button class="baris" data-aksi="undang">
         <span class="ikon-bulat">👨‍👩‍👧</span>
         <span class="isi"><b>Anggota keluarga</b><small>Undang atau keluarkan akun Google lain</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>
     </section>
 
@@ -1963,27 +1964,27 @@ function viewLainnya() {
       <button class="baris" data-aksi="gemini">
         <span class="ikon-bulat">🤖</span>
         <span class="isi"><b>Baca struk lebih akurat</b><small>${d.kunciGemini.length ? 'Aktif · memakai AI Gemini' : 'Opsional · pakai kunci Gemini gratis dari Google'}</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>
       ${d.telegram.bot || d.telegram.pengguna.length ? `<button class="baris" data-aksi="telegram">
         <span class="ikon-bulat">💬</span>
         <span class="isi"><b>Bot Telegram</b><small>${d.telegram.bot ? '@' + esc(d.telegram.bot) + ' · ' : ''}${d.telegram.pengguna.length} akun terhubung</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>` : ''}
       <a class="baris" href="${esc(d.urlSpreadsheet)}" target="_blank" style="color:inherit;text-decoration:none">
         <span class="ikon-bulat">📊</span>
         <span class="isi"><b>Buka spreadsheet</b><small>Lihat semua data di Google Sheets</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </a>
       <button class="baris" data-aksi="cadangan">
         <span class="ikon-bulat">💾</span>
         <span class="isi"><b>Unduh & cadangan data</b><small>Simpan semua transaksi sebagai file Excel/CSV</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>
       <a class="baris" href="privasi.html" style="color:inherit;text-decoration:none">
         <span class="ikon-bulat">🔒</span>
         <span class="isi"><b>Kebijakan privasi</b><small>Data apa yang dipakai aplikasi ini</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </a>
     </section>
 
@@ -2005,7 +2006,7 @@ function viewLainnya() {
       <button class="baris" data-aksi="atur-kunci">
         <span class="ikon-bulat">🔒</span>
         <span class="isi"><b>Kunci aplikasi</b><small>${kunciTersimpan() ? 'Aktif · PIN' + (kunciTersimpan().bio ? ' + sidik jari/wajah' : '') : 'Minta PIN saat aplikasi dibuka'}</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>
     </section>
     ${kartuPasang()}
@@ -3062,7 +3063,7 @@ function bukaFormTelegram(kode, muatan = kode) {
     ${t.bot ? `<a class="baris" href="https://t.me/${esc(t.bot)}" target="_blank" rel="noopener">
       <span class="ikon-bulat">🤖</span>
       <span class="isi"><b>@${esc(t.bot)}</b><small>Buka di Telegram</small></span>
-      <span class="panah">›</span>
+      <span class="panah">${svg('maju')}</span>
     </a>` : ''}
     ${kode ? `
       <div class="kartu" style="margin:14px 0;text-align:center;background:var(--primary-soft);border:0">
@@ -3245,7 +3246,7 @@ function bukaDaftarKategori(tipe) {
       <button class="baris" data-aksi="edit-kategori" data-nama="${esc(k.nama)}" data-tipe="${esc(k.tipe)}">
         <span class="ikon-bulat">${ilus(k.ikon)}</span>
         <span class="isi"><b>${esc(k.nama)}</b></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>`).join('')}
     <button class="tombol-tambah" data-aksi="tambah-kategori" data-tipe="${tipe}">＋ Tambah kategori ${tipe.toLowerCase()}</button>`);
 }
@@ -4168,9 +4169,9 @@ function htmlKalender() {
   const tagihanDipilih = tagihanPada(S.kal.pilih);
   return `
     <div class="kal-kepala">
-      <button type="button" class="tombol-ikon" data-aksi="kal-bulan" data-geser="-1" aria-label="Bulan sebelumnya">‹</button>
+      <button type="button" class="tombol-ikon" data-aksi="kal-bulan" data-geser="-1" aria-label="Bulan sebelumnya">${svg('kembali')}</button>
       <b>${awal.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</b>
-      <button type="button" class="tombol-ikon" data-aksi="kal-bulan" data-geser="1" aria-label="Bulan berikutnya">›</button>
+      <button type="button" class="tombol-ikon" data-aksi="kal-bulan" data-geser="1" aria-label="Bulan berikutnya">${svg('maju')}</button>
       ${S.kal.bulan !== hari.slice(0, 7) || S.kal.pilih !== hari ? '<button type="button" class="chip" data-aksi="kal-tgl" data-tgl="' + hari + '">Hari ini</button>' : ''}
     </div>
     <div class="kal-hari">${NAMA_HARI_PENDEK.map(h => `<span>${h}</span>`).join('')}</div>
@@ -4180,7 +4181,7 @@ function htmlKalender() {
     ${tagihanDipilih.map(r => `
       <button type="button" class="kal-item tagihan" data-aksi="kelola-rutin">
         <span class="isi"><b>💡 ${esc(r.nama)}</b><small>Tagihan rutin · ${rp(r.jumlah)}</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>`).join('')}
     ${dipilih.length || tagihanDipilih.length ? '' : '<p class="info-kecil" style="text-align:left;margin-top:0">Belum ada catatan di tanggal ini.</p>'}
     ${S.data.bisaCatatan === false ? '<p class="info-kecil" style="text-align:left">⚠️ Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).</p>' : ''}
@@ -4237,7 +4238,7 @@ function itemCatatan(c) {
     return `
       <button type="button" class="kal-item" data-aksi="ubah-catatan" data-id="${esc(c.id)}" style="--w:${warnaCatatan(c.warna)}">
         <span class="isi"><b>${esc(c.judul)}</b>${c.isi ? `<small>${esc(c.isi)}</small>` : ''}<small class="kal-meta">${meta}</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>`;
   }
   const selesai = tugas.filter(t => t.selesai).length;
@@ -4245,7 +4246,7 @@ function itemCatatan(c) {
     <div class="kal-item kal-tugas ${selesai === tugas.length ? 'tuntas' : ''}" style="--w:${warnaCatatan(c.warna)}">
       <button type="button" class="kal-tugas-kepala" data-aksi="ubah-catatan" data-id="${esc(c.id)}">
         <span class="isi"><b>${esc(c.judul)}</b><small class="kal-meta">☑️ ${selesai}/${tugas.length} selesai · ${meta}</small></span>
-        <span class="panah">›</span>
+        <span class="panah">${svg('maju')}</span>
       </button>
       <div class="progres-tugas"><i style="width:${Math.round(selesai / tugas.length * 100)}%"></i></div>
       ${daftarCentang(c)}
