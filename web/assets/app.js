@@ -701,9 +701,9 @@ function viewBeranda() {
     <section class="kartu kartu-saldo">
       <div class="atas-saldo">
         <small>${T('Total saldo dompet')}</small>
-        <button type="button" class="chip-buku-saldo" data-aksi="buku" aria-label="${T('Buku keuangan: {nama}. Ketuk untuk ganti buku', { nama: esc(d.namaBuku || T('Buku')) })}">
+        <button type="button" class="chip-buku-saldo" data-aksi="buku" aria-label="${T('Buku keuangan: {nama}. Ketuk untuk ganti buku', { nama: esc(namaT(d.namaBuku) || T('Buku')) })}">
           <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>
-          <span>${esc(d.namaBuku || T('Buku'))}</span>
+          <span>${esc(namaT(d.namaBuku) || T('Buku'))}</span>
           <svg class="ik panah-buku" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
         </button>
       </div>
@@ -1111,7 +1111,7 @@ function bukaDaftarBuku() {
         <div class="baris">
           <button type="button" class="isi tombol-buku" data-aksi="pindah-buku" data-id="${esc(b.id)}" ${b.aktif ? 'disabled' : ''}>
             <span class="ikon-bulat">${/(^| - )deleted$/i.test(b.nama) ? '🗑️' : '📒'}</span>
-            <span><b>${esc(b.nama)}</b><small>${b.aktif ? T('✅ Sedang dibuka') : /(^| - )deleted$/i.test(b.nama) ? T('Sudah dihapus pemiliknya') : T('Ketuk untuk membuka')}</small></span>
+            <span><b>${esc(namaT(b.nama))}</b><small>${b.aktif ? T('✅ Sedang dibuka') : /(^| - )deleted$/i.test(b.nama) ? T('Sudah dihapus pemiliknya') : T('Ketuk untuk membuka')}</small></span>
           </button>
           <span class="slot-hapus" data-buku-hapus="${esc(b.id)}"></span>
         </div>
@@ -2052,7 +2052,7 @@ function viewLainnya() {
     <section class="kartu" style="padding:4px 16px">
       <label class="baris baris-pilih">
         <span class="ikon-bulat">🌐</span>
-        <span class="isi"><b>${T('Bahasa')} · Language</b><small>${T('Bahasa tampilan aplikasi di HP ini')}</small></span>
+        <span class="isi"><b>${BAHASA === 'en' ? 'Language · Bahasa' : 'Bahasa · Language'}</b><small>${T('Bahasa tampilan aplikasi di HP ini')}</small></span>
         <span class="pilih-kecil">${pilihBahasa()}</span>
       </label>
       <label class="baris baris-pilih">
@@ -2128,7 +2128,7 @@ const PERAN_ANGGOTA = { owner: T('Pemilik'), writer: T('Bisa mencatat'), reader:
 async function bukaAnggota(idBuku) {
   const buku = idBuku ? (S.data.buku || []).find(b => b.id === idBuku) : null;
   if (!buku || buku.aktif) return bukaAnggotaAktif();
-  bukaSheet(T('Anggota · {buku}', { buku: buku.nama }), `
+  bukaSheet(T('Anggota · {buku}', { buku: namaT(buku.nama) }), `
     <div id="daftar-anggota" data-buku="${esc(buku.id)}"><p class="info-kecil">${T('Memuat anggota…')}</p></div>
     ${formUndangan(buku.id, buku.linkUndangan || linkUndanganBuku(buku.id))}`);
   isiDaftarAnggota(buku.id);
@@ -4000,7 +4000,7 @@ const AKSI = {
     // Bot bersama: buku ini akan dibagikan ke akun robot bot → minta persetujuan dulu.
     if (t.bersama && !t.pengguna.length && !await tanya(
       S.data.namaBuku
-        ? T('Supaya bisa mencatat lewat Telegram, spreadsheet buku "{buku}" dibagikan (bisa mengubah) ke akun bot Dompet Keluarga. Pengelola bot secara teknis bisa membuka isinya. Akses bot dicabut otomatis saat semua akun Telegram diputus.', { buku: S.data.namaBuku })
+        ? T('Supaya bisa mencatat lewat Telegram, spreadsheet buku "{buku}" dibagikan (bisa mengubah) ke akun bot Dompet Keluarga. Pengelola bot secara teknis bisa membuka isinya. Akses bot dicabut otomatis saat semua akun Telegram diputus.', { buku: namaT(S.data.namaBuku) })
         : T('Supaya bisa mencatat lewat Telegram, spreadsheet buku "ini" dibagikan (bisa mengubah) ke akun bot Dompet Keluarga. Pengelola bot secara teknis bisa membuka isinya. Akses bot dicabut otomatis saat semua akun Telegram diputus.'),
       T('Setuju & lanjut'), true)) return;
     el.disabled = true;

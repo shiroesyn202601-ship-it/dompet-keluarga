@@ -46,7 +46,6 @@ Object.assign(KAMUS, {
   'Pengaturan': 'Settings',
   'Tutup': 'Close',
   'Aplikasi terkunci': 'App locked',
-  'Bahasa': 'Language',
   'Bahasa tampilan aplikasi di HP ini': 'App language on this phone',
 
   // ---------- app.js: Beranda, Riwayat, Dompet, aset, zakat, utang & piutang ----------
