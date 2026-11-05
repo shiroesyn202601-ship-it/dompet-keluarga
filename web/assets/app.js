@@ -412,6 +412,7 @@ function render() {
   if (S.tab !== 'laporan') kunciAnimasiGrafik = ''; // kembali ke Laporan nanti: animasi diputar lagi
   pasangGeserGrafik();
   if (S.tab === 'catatan') pasangGeserKalender();
+  if (S.tab !== 'sholat' && statusKompas !== 'mati') matikanKompas(); // hemat baterai
   if (luncurTertunda) setTimeout(jalankanLuncur); // pintasan ikon / berbagi: tunggu data pertama tampil
 }
 
@@ -4153,20 +4154,21 @@ function viewSholat() {
     </div>
     <div class="jadwal-sholat">${WAKTU_SHOLAT.map(k => `
       <div class="${k === s.kunci ? 'berikut' : ''}"><span>${NAMA_WAKTU.find(n => n[0] === k)[1]}</span><b>${jamMenit(j[k])}</b></div>`).join('')}</div>
-    <p class="sholat-pelengkap">Imsak <b>${jamMenit(j.imsak)}</b> · Terbit <b>${jamMenit(j.terbit)}</b> · Metode Kemenag RI</p>
+    <p class="sholat-pelengkap">Imsak <b>${jamMenit(j.imsak)}</b> · Terbit <b>${jamMenit(j.terbit)}</b></p>
+    <p class="sholat-pelengkap">Metode Kemenag RI (Subuh 20°, Isya 18°, Ashar Syafi'i, ihtiyat 2 menit). Bisa berbeda 1–3 menit dengan jadwal masjid setempat.</p>
 
     <div class="area-kompas">
-      <div class="kompas" id="kompas" style="--kiblat:${kiblat.toFixed(1)}deg">
+      <div class="kompas ${statusKompas === 'aktif' ? 'hidup' : ''}" id="kompas" style="--kiblat:${kiblat.toFixed(1)}deg">
         <div class="kompas-piringan" id="kompas-piringan">
           <span class="mata-angin u">U</span><span class="mata-angin t">T</span><span class="mata-angin s">S</span><span class="mata-angin b">B</span>
           <div class="jarum-kiblat"><span>🕋</span></div>
         </div>
         <div class="penanda-atas" aria-hidden="true"></div>
       </div>
+      ${tombolKompas()}
     </div>
     <p class="teks-kiblat" id="teks-kiblat"><b>Kiblat ${Math.round(kiblat)}°</b> dari utara · ${SHOLAT.namaArah(kiblat)}</p>
-    <button type="button" class="tombol-tambah tombol-kompas" data-aksi="kompas">🧭 Aktifkan kompas</button>
-    <p class="sholat-pelengkap">HP mendatar, jauhkan dari logam. Putar badan sampai 🕋 di garis atas.</p>
+    <p class="sholat-pelengkap">Letakkan HP mendatar dan jauhkan dari benda logam/magnet. Putar badan sampai 🕋 tepat di garis atas.</p>
   </div>`;
 }
 
@@ -4186,12 +4188,34 @@ function simpanLokasi(lok) {
 }
 
 // Kompas: arah HP dari sensor. Android (Chrome): deviceorientationabsolute; iPhone: webkitCompassHeading (perlu izin).
-let kompasAktif = false;
+// Tombol melayang di atas kompas & hilang saat kompas menyala.
+// Status: 'mati' → 'menunggu' (izin diberikan, belum ada data sensor) → 'aktif'; 'tidak-ada' kalau sensor tak pernah mengirim data.
+let statusKompas = 'mati';
+let jenisKompas = '';
 let sudahPas = false;
+const LABEL_KOMPAS = {
+  mati: '🧭 Aktifkan kompas',
+  menunggu: '⏳ Menunggu sensor kompas…',
+  aktif: '🧭 Kompas aktif',
+  'tidak-ada': '⚠️ HP ini tidak punya sensor kompas',
+};
+function tombolKompas() {
+  return `<button type="button" class="tombol-kompas ${statusKompas}" data-aksi="kompas" id="tombol-kompas"
+    ${statusKompas === 'aktif' ? 'hidden' : ''}>${LABEL_KOMPAS[statusKompas]}</button>`;
+}
+function aturStatusKompas(st) {
+  statusKompas = st;
+  const t = $('#tombol-kompas');
+  if (t) t.outerHTML = tombolKompas();
+  const k = $('#kompas');
+  if (k) k.classList.toggle('hidup', st === 'aktif');
+}
 function aturArahHp(arah) {
   const piringan = $('#kompas-piringan');
   const kompas = $('#kompas');
   if (!piringan || !kompas) return;
+  if (statusKompas === 'menunggu') aturStatusKompas('aktif');
+  if (statusKompas !== 'aktif') return;
   piringan.style.transform = `rotate(${-arah}deg)`;
   const kiblat = parseFloat(getComputedStyle(kompas).getPropertyValue('--kiblat')) || 0;
   const selisih = ((kiblat - arah + 540) % 360) - 180;
@@ -4208,19 +4232,36 @@ function saatOrientasi(e) {
   if (e.absolute && typeof e.alpha === 'number') aturArahHp(360 - e.alpha);
 }
 async function nyalakanKompas() {
-  if (kompasAktif) return toast('Kompas sudah aktif. Putar HP perlahan.');
+  if (statusKompas === 'aktif' || statusKompas === 'menunggu') return matikanKompas();
   try {
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
       if (await DeviceOrientationEvent.requestPermission() !== 'granted') return toast('Izin sensor arah ditolak.', true);
     }
   } catch (e) { return toast('Sensor arah tidak bisa diakses.', true); }
-  const jenis = 'ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation';
-  window.addEventListener(jenis, saatOrientasi);
-  kompasAktif = true;
+  jenisKompas = 'ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation';
+  window.addEventListener(jenisKompas, saatOrientasi);
+  aturStatusKompas('menunggu');
   setTimeout(() => {
-    const p = $('#kompas-piringan');
-    if (p && !p.style.transform) toast('HP ini tidak punya sensor kompas. Pakai derajat di bawah dengan kompas biasa.', true);
-  }, 2500);
+    if (statusKompas !== 'menunggu') return;
+    window.removeEventListener(jenisKompas, saatOrientasi);
+    aturStatusKompas('tidak-ada');
+    toast('Sensor kompas tidak terbaca. Pakai derajat di atas dengan kompas biasa.', true);
+  }, 3000);
+}
+
+/** Matikan kompas & kembalikan tampilan ke arah utara di atas (dipanggil juga saat meninggalkan halaman). */
+function matikanKompas() {
+  if (jenisKompas) window.removeEventListener(jenisKompas, saatOrientasi);
+  jenisKompas = '';
+  sudahPas = false;
+  const p = $('#kompas-piringan'), k = $('#kompas'), t = $('#teks-kiblat');
+  if (p) p.style.transform = '';
+  if (k) {
+    k.classList.remove('pas');
+    const kiblat = parseFloat(getComputedStyle(k).getPropertyValue('--kiblat')) || 0;
+    if (t) t.innerHTML = `<b>Kiblat ${Math.round(kiblat)}°</b> dari utara · ${SHOLAT.namaArah(kiblat)}`;
+  }
+  aturStatusKompas('mati');
 }
 
 // Hitung mundur sholat di halaman jadwal, tiap 30 detik.

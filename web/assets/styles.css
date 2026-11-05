@@ -651,7 +651,7 @@ textarea.field { resize: vertical; min-height: 84px; line-height: 1.45; }
 .jadwal-sholat b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .jadwal-sholat .berikut { background: var(--primary-soft); border-color: var(--primary); }
 .jadwal-sholat .berikut span, .jadwal-sholat .berikut b { color: var(--primary); }
-.sholat-pelengkap { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.4; }
+.sholat-pelengkap { margin: 6px 0 0; font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.4; }
 .sholat-pelengkap b { color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* Halaman sholat pas satu layar: kepala & jadwal tetap, kompas mengisi sisa tinggi (min. 150px, lalu baru scroll). */
@@ -681,7 +681,19 @@ textarea.field { resize: vertical; min-height: 84px; line-height: 1.45; }
 .penanda-atas { position: absolute; left: 50%; top: -8px; width: 0; height: 0; transform: translateX(-50%); border: 8px solid transparent; border-top: 12px solid var(--text); border-bottom: 0; }
 .kompas.pas .kompas-piringan { border-color: var(--masuk); box-shadow: 0 0 0 4px color-mix(in srgb, var(--masuk) 25%, transparent); }
 .teks-kiblat { text-align: center; margin: 0 0 8px; font-size: 14px; }
-.tombol-kompas { margin: 0; padding: 11px; }
+.area-kompas { position: relative; }
+.tombol-kompas {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; max-width: calc(100% - 24px);
+  padding: 12px 18px; border-radius: 999px; font-weight: 800; font-size: 14px; white-space: nowrap;
+  background: var(--primary); color: #fff; box-shadow: 0 8px 24px color-mix(in srgb, var(--primary) 40%, transparent);
+}
+.tombol-kompas[hidden] { display: none; }
+.area-kompas:has(.tombol-kompas:not([hidden])) .kompas { opacity: .6; }
+.tombol-kompas.menunggu { background: var(--card); color: var(--muted); box-shadow: var(--shadow); animation: kedip-kompas 1.2s ease-in-out infinite; }
+.tombol-kompas.tidak-ada { background: var(--card); color: var(--keluar); box-shadow: var(--shadow); white-space: normal; text-align: center; }
+@keyframes kedip-kompas { 50% { opacity: .55; } }
+.kompas.hidup .kompas-piringan { border-color: var(--primary); }
+
 
 /* Halaman penuh Catatan & Sholat */
 .halaman-kalender { padding: 14px 12px; }
