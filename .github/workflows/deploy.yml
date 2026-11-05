@@ -29,6 +29,8 @@ jobs:
       # Penanda versi "1.<jumlah commit>" (tampil sebagai v1.66 di menu Lainnya). Aplikasi yang sudah
       # terpasang di HP membandingkan ini untuk memuat ulang otomatis.
       - run: echo "1.$(git rev-list --count HEAD)" > web/versi.txt
+      # Log update "Apa yang baru" di aplikasi (Lainnya), diambil dari judul pesan commit.
+      - run: node .github/changelog.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

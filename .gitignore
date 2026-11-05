@@ -7,3 +7,7 @@ Thumbs.db
 # Kunci service account bot (RAHASIA) - jangan pernah di-commit
 bot/*.json
 !bot/appsscript.json
+
+# Dibuat otomatis saat deploy (.github/changelog.js, workflows/deploy.yml)
+web/changelog.json
+web/versi.txt

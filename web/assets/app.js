@@ -2056,6 +2056,13 @@ function viewLainnya() {
         <span class="panah">${svg('maju')}</span>
       </button>
     </section>
+    <section class="kartu" style="padding:4px 16px">
+      <button class="baris" data-aksi="log-update">
+        <span class="ikon-bulat">🆕</span>
+        <span class="isi"><b>Apa yang baru</b><small>Riwayat pembaruan aplikasi${labelVersi() ? ' · sekarang ' + labelVersi() : ''}</small></span>
+        <span class="panah">${svg('maju')}</span>
+      </button>
+    </section>
     ${kartuPasang()}
     ${!MODE_APLIKASI && labelVersi() ? `<p class="catatan-versi">Dompet Keluarga ${labelVersi()}</p>` : ''}`;
 }
@@ -3557,6 +3564,7 @@ const AKSI = {
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
   'telegram': () => bukaFormTelegram(),
+  'log-update': () => { $('#toast').hidden = true; bukaLogUpdate(); },
   'aktivitas': () => bukaAktivitas(),
   'saran-rutin': el => {
     const x = (S.data.saranRutin || []).find(s => s.kunci === el.dataset.kunci);
@@ -4268,10 +4276,55 @@ async function versiServer() {
 }
 const sedangSibuk = () => !$('#sheet').hidden || ANTRIAN.length > 0 || !$('#loading').hidden || ($('#sesi') && !$('#sesi').hidden);
 
+// ---------- Log update (Apa yang baru) ----------
+// web/changelog.json dibuat saat deploy dari judul pesan commit (.github/changelog.js).
+
+/** Setelah aplikasi diperbarui: sekali tampilkan toast "Diperbarui ke v1.xx" dengan tombol ke log update. */
+function umumkanVersi(v) {
+  if (!/^\d+\.\d+$/.test(v)) return;
+  const lama = bacaHp('dk_versi_lihat');
+  tulisHp('dk_versi_lihat', v);
+  if (!lama || lama === v) return; // pertama kali dipakai: tidak perlu diumumkan
+  setTimeout(() => toast('✨ Diperbarui ke v' + v, false, { label: 'Lihat yang baru', aksi: 'log-update' }), 2500);
+}
+
+/** Judul commit → poin-poin: dipecah di "; " dan huruf pertama dibesarkan. */
+function poinLog(judul) {
+  return String(judul).split(/;\s+/).map(x => x.trim()).filter(Boolean).map(x => x.charAt(0).toUpperCase() + x.slice(1));
+}
+
+async function bukaLogUpdate() {
+  bukaSheet('Apa yang baru', '<div class="kerangka k-daftar" style="margin-top:8px">' + '<div><i class="k-bulat kecil"></i><i class="k-garis"></i></div>'.repeat(5) + '</div>');
+  let log = [];
+  try {
+    const r = await fetch('changelog.json', { cache: 'no-store' });
+    if (r.ok) log = await r.json();
+  } catch (e) { /* offline */ }
+  if ($('#sheet-judul').textContent !== 'Apa yang baru') return; // sudah ditutup / ganti lembar
+  if (!log.length) {
+    $('#sheet-isi').innerHTML = kosong('🆕', navigator.onLine ? 'Log update belum tersedia. Muncul setelah versi berikutnya ter-deploy.' : 'Butuh internet untuk memuat log update.');
+    return;
+  }
+  const sekarang = versiAwal || log[0].v;
+  const tgl = t => keTanggal(t).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  let tanggalSebelum = '';
+  $('#sheet-isi').innerHTML = `
+    <p class="info-kecil" style="text-align:left;margin-top:0">Aplikasi diperbarui otomatis. Versi Anda: <b>${esc(labelVersi() || 'v' + sekarang)}</b></p>
+    <div class="daftar-log">${log.slice(0, 60).map(x => {
+      const kepala = x.tanggal !== tanggalSebelum ? `<h4 class="tanggal-log">${esc(tgl(x.tanggal))}</h4>` : '';
+      tanggalSebelum = x.tanggal;
+      return kepala + `<div class="item-log ${x.v === sekarang ? 'ini' : ''}">
+        <span class="versi-log">v${esc(x.v)}</span>
+        <ul>${poinLog(x.judul).map(p => `<li>${esc(p)}</li>`).join('')}</ul>
+        ${x.v === sekarang ? '<span class="lencana-log">Versi Anda</span>' : ''}
+      </div>`;
+    }).join('')}</div>`;
+}
+
 async function cekPembaruan() {
   const v = await versiServer();
   if (!v) return;
-  if (!versiAwal) { versiAwal = v; return; }
+  if (!versiAwal) { versiAwal = v; umumkanVersi(v); return; }
   if (v === versiAwal) return;
   if (!sedangSibuk()) return location.reload();
   if (!pembaruanDitunda) toast('Versi baru tersedia, dipasang setelah Anda selesai');
