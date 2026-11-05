@@ -787,3 +787,8 @@ body.tanpa-nav #view { padding-bottom: calc(24px + env(safe-area-inset-bottom));
 .centang-lagi { padding: 2px 4px 0 34px; font-size: 12px; color: var(--muted); }
 .kal-tugas.tuntas .kal-tugas-kepala b { text-decoration: line-through; color: var(--muted); }
 .ingat-isi .daftar-centang { padding: 0; }
+/* Form catatan: judul, isi & item tugas tanpa kotak fokus (kursor sudah cukup), chip tanggal/ulang tetap pakai cincin di chip. */
+.form-catatan .judul-catatan:focus-visible, .form-catatan .isi-catatan:focus-visible, .baris-tugas input:focus-visible,
+.chip-opsi input:focus-visible, .chip-opsi select:focus-visible { outline: none; }
+.chip-opsi:focus-within { box-shadow: 0 0 0 2px var(--primary); }
+.baris-tugas:focus-within { border-bottom-color: var(--w, var(--primary)); }
