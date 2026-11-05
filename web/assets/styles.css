@@ -94,8 +94,8 @@ h1, h2, h3 { margin: 0; letter-spacing: -.01em; }
 .besar, .nominal, .nilai, .tile b, .ringkas b, .input-jumlah input { font-variant-numeric: tabular-nums; }
 svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
-/* Ruang bawah: navigasi + tombol ＋ yang melayang di atasnya, supaya isi terakhir tidak tertutup. */
-#view { padding: 14px 16px calc(var(--nav-h) + 96px + env(safe-area-inset-bottom)); }
+/* Ruang bawah untuk navigasi mengambang, supaya isi terakhir tidak tertutup. */
+#view { padding: 14px 16px calc(var(--nav-h) + 40px + env(safe-area-inset-bottom)); }
 
 /* ---------- Header ---------- */
 .kepala { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 18px; }
@@ -152,9 +152,9 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .tautan-putih { display: inline-flex; align-items: center; gap: 4px; color: inherit; text-align: left; background: rgba(255, 255, 255, .1); border-radius: 999px; padding: 6px 12px; opacity: 1; }
 
 /* ---------- Aksi cepat ---------- */
-.aksi-cepat { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 4px 0 18px; }
-.aksi-cepat button { display: flex; flex-direction: column; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--text); }
-.aksi-cepat .kotak { width: 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); color: var(--primary); }
+.aksi-cepat { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 4px 0 18px; }
+.aksi-cepat button { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11.5px; min-width: 0; text-align: center; line-height: 1.2; font-weight: 600; color: var(--text); }
+.aksi-cepat .kotak { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); color: var(--primary); }
 .aksi-cepat button:active .kotak { transform: scale(.94); }
 
 /* ---------- Bento ---------- */
@@ -291,8 +291,8 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 10;
   bottom: calc(12px + env(safe-area-inset-bottom));
   width: calc(100% - 24px); max-width: 496px; height: var(--nav-h);
-  /* 5 tab sama lebar; tombol ＋ melayang di kanan atas navigasi (lihat .fab) */
-  display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; padding: 0 4px;
+  /* Beranda · Riwayat · [＋] · Laporan · Lainnya (Dompet ada di tombol pintasan Beranda) */
+  display: grid; grid-template-columns: 1fr 1fr 70px 1fr 1fr; align-items: center; padding: 0 4px;
   background: color-mix(in srgb, var(--card) 86%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);
   border: 1px solid var(--line); border-radius: 26px; box-shadow: var(--shadow-up);
@@ -302,10 +302,9 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .bottomnav button:not(.fab) svg.ik { box-sizing: content-box; padding: 4px 16px; border-radius: 99px; transition: background .2s; }
 .bottomnav button.aktif { color: var(--primary); font-weight: 700; }
 .bottomnav button.aktif svg.ik { background: var(--primary-soft); }
-/* Tombol catat: melayang di atas navigasi, kanan bawah (mudah dijangkau jempol kanan) */
+/* Tombol catat di tengah navigasi, sedikit menonjol ke atas supaya jadi aksi utama */
 .bottomnav .fab {
-  position: absolute; right: 2px; bottom: calc(100% + 14px);
-  width: 58px; height: 58px; border-radius: 20px;
+  justify-self: center; height: 56px; width: 56px; margin-top: -18px; border-radius: 20px;
   background: var(--primary); color: var(--on-primary);
   box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 45%, transparent);
 }
@@ -441,7 +440,7 @@ body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b
 /* ---------- Antrian struk (dibaca di latar belakang) ---------- */
 .antrian {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 15;
-  bottom: calc(var(--nav-h) + 22px + 72px + env(safe-area-inset-bottom)); /* di atas tombol ＋ */
+  bottom: calc(var(--nav-h) + 22px + env(safe-area-inset-bottom));
   width: calc(100% - 24px); max-width: 496px; display: flex; flex-direction: column; gap: 8px;
 }
 .antrian-item {
@@ -457,7 +456,7 @@ body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b
 .antrian-tutup { width: 40px; height: 40px; margin: -6px -4px -6px -6px; border-radius: 50%; color: var(--muted); flex: none; }
 .btn.kecil { flex: none; padding: 9px 14px; font-size: 13px; border-radius: 12px; box-shadow: none; }
 .spinner.kecil { width: 22px; height: 22px; border-width: 2.5px; flex: none; margin: 0 6px; }
-body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 190px + env(safe-area-inset-bottom)); }
+body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-area-inset-bottom)); }
 .struk-proses { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 0 0 16px; border-radius: 16px; background: var(--primary-soft); }
 /* Beberapa buku keuangan */
 .chip-buku { display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 12px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
