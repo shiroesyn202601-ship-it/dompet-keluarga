@@ -3755,7 +3755,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'contoh-suara', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
 ]);
 
 /**
@@ -4816,16 +4816,47 @@ function panelSuara(tahap, teks) {
   let panel = document.getElementById('panel-suara');
   if (!tahap) { if (panel) panel.remove(); return; }
   if (!panel) {
-    kotak.insertAdjacentHTML('afterend', `<div class="panel-suara" id="panel-suara" role="status" aria-live="polite">
-        <div class="gelombang-suara" aria-hidden="true">${'<i></i>'.repeat(7)}</div>
-        <div class="teks-suara"><b></b><span></span></div>
-        <button type="button" class="tombol-teks" data-aksi="suara">Selesai</button>
+    kotak.insertAdjacentHTML('afterend', `<div class="panel-suara" id="panel-suara">
+        <div class="kepala-panel-suara" role="status" aria-live="polite">
+          <div class="gelombang-suara" aria-hidden="true">${'<i></i>'.repeat(7)}</div>
+          <div class="teks-suara"><b></b><span></span></div>
+          <button type="button" class="tombol-teks" data-aksi="suara">Selesai</button>
+        </div>
+        <div class="contoh-suara">
+          <small>Contoh yang bisa diucapkan <i>(ketuk untuk mencoba)</i></small>
+          <ul>${contohSuara().map(([kal, ket]) =>
+            `<li><button type="button" data-aksi="contoh-suara" data-teks="${esc(kal)}"><span>“${esc(kal)}”</span><em>${esc(ket)}</em></button></li>`).join('')}</ul>
+          <p>Sebut <b>untuk apa</b>, <b>berapa</b>, dan <b>pakai dompet apa</b>. Tanggal & transfer diatur di form.</p>
+        </div>
       </div>`);
     panel = document.getElementById('panel-suara');
   }
   panel.dataset.tahap = tahap;
   panel.querySelector('b').textContent = tahap === 'siap' ? 'Menyalakan mikrofon…' : tahap === 'dengar' ? 'Mic menyala, silakan bicara' : 'Mendengarkan…';
-  panel.querySelector('span').textContent = teks || (tahap === 'siap' ? '' : 'mis. "bakso dua puluh lima ribu pakai gopay"');
+  panel.querySelector('.teks-suara span').textContent = teks || (tahap === 'bicara' ? '' : 'Ucapkan transaksinya seperti mengobrol');
+}
+
+/**
+ * Contoh kalimat untuk input suara, memakai nama dompet milik pengguna supaya bisa langsung dicoba.
+ * Hanya pola yang memang dikenali bacaKetikCepat: nominal angka/kata/rb/jt/slang, nama dompet, kata pemasukan.
+ */
+function contohSuara() {
+  const dompet = dompetBiasa().map(w => w.nama);
+  const nonTunai = dompet.filter(n => !/tunai|cash|dompet/i.test(n));
+  const d1 = nonTunai[0] || dompet[0] || 'GoPay';
+  const d2 = nonTunai[1] || dompet[1] || d1;
+  const tunai = dompet.find(n => /tunai|cash/i.test(n)) || dompet[0] || 'tunai';
+  return [
+    [`Bakso dua puluh lima ribu pakai ${d1}`, 'Pengeluaran · Makan & Minum'],
+    [`Bensin motor 30 ribu ${tunai}`, 'Pengeluaran · Transportasi'],
+    [`Belanja sayur di pasar 75rb`, 'Pengeluaran · dompet yang terpilih di form'],
+    [`Bayar listrik tiga ratus lima puluh ribu ${d2}`, 'Pengeluaran · Tagihan'],
+    [`Beli obat 45 ribu pakai ${d1}`, 'Pengeluaran · Kesehatan'],
+    [`Parkir goceng`, 'Bahasa gaul: gopek, seceng, goceng, ceban, gocap, cepek'],
+    [`Gaji lima juta masuk ${d2}`, 'Pemasukan · Gaji'],
+    [`Dapat bonus satu setengah juta`, 'Pemasukan · Bonus'],
+    [`Nasi padang 2 bungkus 40 ribu`, 'Angka kecil (2 bungkus) tidak dianggap nominal'],
+  ];
 }
 
 // ---------- Ringkasan hasil suara ----------
@@ -4896,6 +4927,13 @@ function tutupRingkasanSuara() {
 }
 
 Object.assign(AKSI, {
+  // Mengetuk contoh = seolah diucapkan: mic berhenti, kartu ringkasan muncul.
+  'contoh-suara': el => {
+    if (suaraAktif) { suaraAktif.onresult = null; try { suaraAktif.stop(); } catch (e) { /* sudah berhenti */ } }
+    const input = $('#f-cepat');
+    if (input) input.value = el.dataset.teks;
+    tampilRingkasanSuara(el.dataset.teks);
+  },
   'ringkas-simpan': () => {
     if (!hasilSuara || !F) return tutupRingkasanSuara();
     tutupRingkasanSuara();
