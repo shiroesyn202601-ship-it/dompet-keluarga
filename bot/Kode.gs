@@ -38,6 +38,7 @@ const BATAS_AI_MS = 35000;
  */
 const PIKIR_PERINTAH = 0;
 const PIKIR_TANYA = 1024;
+const PIKIR_STRUK = 1024; // cukup untuk menjumlah barang di nota, tanpa berpikir panjang yang lambat
 let mulaiProses_ = Date.now();
 const KOLOM_TRANSAKSI = 11;
 const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -1390,9 +1391,9 @@ function bacaStruk_(base64, mime, kategori, daftarKunci, model) {
   // Lapis AI: foto langsung dan teks OCR dikirim bersamaan.
   if (daftarKunci.length) {
     const skema = skemaStruk_(kategori);
-    const permintaan = [{ sumber: 'AI foto', parts: [{ inlineData: { mimeType: mime, data: base64 } }, { text: petunjukStruk_('gambar', hariIni) }] }];
+    const permintaan = [{ sumber: 'AI foto', pikir: PIKIR_STRUK, parts: [{ inlineData: { mimeType: mime, data: base64 } }, { text: petunjukStruk_('gambar', hariIni) }] }];
     if (teksOcr.trim()) {
-      permintaan.push({ sumber: 'OCR + AI', parts: [{ text: petunjukStruk_('teks', hariIni) + '\n\nTeks OCR:\n"""\n' + teksOcr.slice(0, 8000) + '\n"""' }] });
+      permintaan.push({ sumber: 'OCR + AI', pikir: PIKIR_STRUK, parts: [{ text: petunjukStruk_('teks', hariIni) + '\n\nTeks OCR:\n"""\n' + teksOcr.slice(0, 8000) + '\n"""' }] });
     }
     jalankanGemini_(daftarKunci, model, permintaan, skema).forEach(function (h, i) {
       try {
@@ -1417,14 +1418,20 @@ function bacaStruk_(base64, mime, kategori, daftarKunci, model) {
 
   if (!hasil.length) {
     const alasan = gagal.filter(function (g) { return /Kunci API|Kuota/.test(g); })[0];
-    throw new Error(alasan || 'Total belanja tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus.');
+    throw new Error(alasan || ('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus'
+      + (daftarKunci.length ? '.' : ', atau aktifkan "Baca struk lebih akurat" (AI Gemini) di aplikasi.')));
   }
   return gabungHasilStruk_(hasil);
 }
 
-/** Mencocokkan hasil semua lapis: total yang paling banyak disepakati menang. */
+/**
+ * Mencocokkan hasil semua lapis: total dengan suara (berbobot) terbanyak menang.
+ * "OCR + AI" dan "OCR" membaca teks OCR yang sama (salah baca OCR membuat keduanya salah),
+ * jadi "AI foto" diberi bobot 2 supaya tidak kalah suara oleh mereka.
+ */
 function gabungHasilStruk_(hasil) {
   const URUTAN = ['AI foto', 'OCR + AI', 'OCR'];
+  const BOBOT = { 'AI foto': 2, 'OCR + AI': 1, 'OCR': 1 };
   hasil.sort(function (a, b) { return URUTAN.indexOf(a.sumber) - URUTAN.indexOf(b.sumber); });
 
   const grup = [];
@@ -1433,8 +1440,9 @@ function gabungHasilStruk_(hasil) {
     if (g) g.sumber.push(h.sumber);
     else grup.push({ jumlah: h.jumlah, sumber: [h.sumber] });
   });
-  // Paling banyak suara dulu; kalau seri, urutan prioritas lapis (sudah terurut) dipertahankan.
-  grup.sort(function (a, b) { return b.sumber.length - a.sumber.length; });
+  // Suara terbanyak dulu; kalau seri, urutan prioritas lapis (sudah terurut) dipertahankan.
+  const skor = function (g) { return g.sumber.reduce(function (n, s) { return n + (BOBOT[s] || 1); }, 0); };
+  grup.sort(function (a, b) { return skor(b) - skor(a); });
 
   // Field lain diambil dari lapis yang totalnya menang dulu, baru dari lapis lain.
   const menang = grup[0].sumber;
@@ -1458,15 +1466,18 @@ function gabungHasilStruk_(hasil) {
 function petunjukStruk_(bentuk, hariIni) {
   return [
     bentuk === 'gambar'
-      ? 'Ini gambar bukti belanja dari Indonesia: bisa struk cetak yang difoto (mungkin miring, buram, atau ada bayangan), nota tulisan tangan, atau screenshot pembelian online.'
-      : 'Ini teks hasil OCR dari bukti belanja di Indonesia. Teksnya bisa berantakan dan ada salah baca, misalnya O/0, l/1, S/5, B/8.',
+      ? 'Ini gambar bukti belanja atau bukti pembayaran dari Indonesia: bisa struk cetak yang difoto (mungkin miring, buram, atau ada bayangan), nota tulisan tangan, screenshot pembelian online, atau bukti transfer / QRIS / e-wallet / m-banking / pembayaran tagihan.'
+      : 'Ini teks hasil OCR dari bukti belanja atau bukti pembayaran di Indonesia (struk, nota, transfer, QRIS, e-wallet, tagihan). Teksnya bisa berantakan dan ada salah baca, misalnya O/0, l/1, S/5, B/8.',
     'Isi:',
-    '- jumlah: total akhir yang dibayar dalam rupiah, bilangan bulat tanpa titik/koma (setelah diskon dan pajak, bukan uang tunai yang diberikan atau kembalian).',
-    '  Jika tidak ada tulisan total, jumlahkan harga semua barang. Isi 0 hanya jika ini sama sekali bukan bukti belanja.',
-    '  Di Indonesia titik adalah pemisah ribuan, jadi "25.000" = 25000. Tulisan tangan "25" atau "25rb" pada nota biasanya berarti 25000.',
+    '- jumlah: uang yang dibayar / keluar dalam rupiah, bilangan bulat tanpa titik/koma.',
+    '  Struk belanja: total akhir setelah diskon dan pajak (bukan uang tunai yang diberikan, bukan kembalian).',
+    '  Tidak semua bukti punya tulisan "Total". Bukti transfer, QRIS, e-wallet, dan m-banking sering hanya menampilkan satu nominal besar (mis. "Rp25.000", "IDR 25,000.00", "- Rp 25.000"): itulah jumlahnya. Kalau ada biaya admin dan tertera total yang sudah termasuk biaya, pakai total itu.',
+    '  Jangan pakai saldo, sisa saldo, limit, poin, cashback, nomor rekening, nomor referensi, atau nomor telepon.',
+    '  Nota tanpa total: jumlahkan harga semua barang. Isi 0 hanya jika sama sekali tidak ada nominal uang yang dibayar.',
+    '  Di Indonesia titik adalah pemisah ribuan, jadi "25.000" = 25000; "25.000,00" juga 25000. Tulisan tangan "25" atau "25rb" pada nota biasanya berarti 25000.',
     '- tanggal: tanggal transaksi format yyyy-mm-dd. Kosongkan jika tidak ada. Hari ini ' + hariIni + '.',
     '- kategori: pilih satu yang paling cocok dari daftar.',
-    '- catatan: nama toko lalu ringkasan barang, maksimal 80 karakter. Contoh: "Indomaret - susu, roti, sabun".',
+    '- catatan: nama toko / penerima lalu ringkasan barang atau keperluan, maksimal 80 karakter. Contoh: "Indomaret - susu, roti, sabun" atau "Transfer ke Budi".',
   ].join('\n');
 }
 
@@ -1543,19 +1554,29 @@ function ocrDrive_(base64, mime) {
   }
 }
 
-/** Membaca total & tanggal dari teks OCR dengan aturan biasa (tanpa AI). */
+/**
+ * Membaca total & tanggal dari teks OCR dengan aturan biasa (tanpa AI), berjenjang (sama dengan aplikasi):
+ *   1. baris berlabel total / bayar / nominal / transfer (nominal di baris itu atau baris berikutnya);
+ *   2. tanpa label (bukti transfer, QRIS, e-wallet): nominal terbesar yang diawali "Rp"/"IDR";
+ *   3. masih kosong: nominal terbesar yang berpemisah ribuan (mis. 25.000).
+ * Baris saldo, kembalian, uang tunai, pajak, nomor rekening/referensi selalu dilewati.
+ */
 function tebakDariTeks_(teks, hariIni) {
   const baris = teks.split(/\r?\n/).map(function (b) { return b.trim(); }).filter(Boolean);
-  const TOTAL = /(grand\s*total|total|jumlah|tagihan|harus\s*dibayar|amount\s*due)/i;
-  const BUKAN = /(sub\s*-?\s*total|total\s*(item|qty|diskon|hemat|potongan)|kembali|change|tunai|cash|ppn|pajak|tax|disc)/i;
+  const TOTAL = /(grand\s*total|total|jumlah|tagihan|harus\s*dibayar|dibayar|bayar|pembayaran|nominal|transfer|amount|nilai)/i;
+  const BUKAN = /(sub\s*-?\s*total|total\s*(item|qty|diskon|hemat|potongan)|kembali|change|tunai|cash|ppn|pajak|tax|disc|saldo|sisa|limit|poin|point|cashback|rekening|no\.?\s*rek|referensi|\bref\b|telp|hp\b)/i;
+  const boleh = baris.map(function (b) { return BUKAN.test(b) ? '' : b; });
+  const maks = function (daftar) { return daftar.reduce(function (a, n) { return n > a ? n : a; }, 0); };
 
   let jumlah = 0;
-  baris.forEach(function (b, i) {
-    if (!TOTAL.test(b) || BUKAN.test(b)) return;
+  boleh.forEach(function (b, i) {
+    if (!b || !TOTAL.test(b)) return;
     // Nominal bisa di baris yang sama, atau di baris berikutnya kalau OCR memisahkannya.
-    const n = nominalTerbesar_(b) || nominalTerbesar_(baris[i + 1] || '');
+    const n = nominalTerbesar_(b) || nominalTerbesar_(boleh[i + 1] || '');
     if (n > jumlah) jumlah = n;
   });
+  if (!jumlah) jumlah = maks(boleh.map(nominalRupiah_));
+  if (!jumlah) jumlah = maks(boleh.map(nominalBerpemisah_));
 
   let tanggal = '';
   baris.some(function (b) {
@@ -1565,12 +1586,37 @@ function tebakDariTeks_(teks, hariIni) {
   return { jumlah: jumlah, tanggal: tanggal, kategori: '', catatan: '' };
 }
 
-function nominalTerbesar_(s) {
-  const cocok = String(s).match(/\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?/g) || [];
-  return cocok.reduce(function (maks, angka) {
-    const n = Number(angka.replace(/[.,]\d{2}$/, '').replace(/\D/g, '')) || 0;
-    return n >= 100 && n < 1e10 && n > maks ? n : maks;
+/** "25.000" / "25,000.00" / "25.000,00" / "25000" → 25000. */
+function keAngka_(angka) {
+  return Number(angka.replace(/[.,]\d{2}$/, '').replace(/\D/g, '')) || 0;
+}
+function terbesar_(cocok, syarat) {
+  return (cocok || []).reduce(function (maks, angka) {
+    const n = keAngka_(angka);
+    return n >= 100 && n < 1e10 && n > maks && syarat(angka) ? n : maks;
   }, 0);
+}
+/** Angka polos (tanpa pemisah ribuan) hanya wajar sebagai nominal kalau < 100 juta dan tidak diawali 0. */
+function nominalWajar_(a, adaTanggal) {
+  return /\d[.,]\d{3}/.test(a) || (!adaTanggal && !/^0\d/.test(a) && keAngka_(a) < 1e8);
+}
+
+/** Nominal terbesar di satu baris; nomor rekening / telepon / referensi / tahun tidak ikut. */
+function nominalTerbesar_(s) {
+  const adaTanggal = !!cariTanggal_(String(s));
+  return terbesar_(String(s).match(/\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?/g),
+    function (a) { return nominalWajar_(a, adaTanggal); });
+}
+/** Nominal yang diawali Rp / IDR, mis. "Rp25.000", "IDR 25,000.00", "-Rp 25.000". */
+function nominalRupiah_(s) {
+  const cocok = (String(s).match(/(?:rp|idr)\.?\s*\d[\d.,]*/gi) || [])
+    .map(function (x) { return x.replace(/^\D+/, '').replace(/[.,]$/, ''); });
+  return terbesar_(cocok, function (a) { return nominalWajar_(a, false); });
+}
+/** Nominal berpemisah ribuan saja, mis. "25.000" (bukan tanggal, jam, atau nomor panjang). */
+function nominalBerpemisah_(s) {
+  const token = (String(s).match(/[\d.,]+/g) || []).map(function (t) { return t.replace(/[.,]+$/, ''); });
+  return terbesar_(token, function (a) { return /^\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?$/.test(a); });
 }
 
 function cariTanggal_(s) {

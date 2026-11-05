@@ -4,6 +4,8 @@
  *   2. "OCR + AI" : gambar → teks (OCR Google Drive) → teks disimpulkan Gemini.
  *   3. "OCR"      : teks OCR yang sama dibaca dengan aturan biasa (tanpa AI).
  * Lapis 1 berjalan bersamaan dengan OCR; lapis 2 dan 3 menunggu teks OCR.
+ * Begitu "AI foto" berhasil, lapis lain hanya ditunggu sebentar (TUNGGU_KONFIRMASI_MS) untuk konfirmasi,
+ * supaya pengguna tidak menunggu OCR Drive yang lambat.
  */
 const STRUK = (() => {
   const MODEL = 'gemini-3.8-flash';
@@ -12,10 +14,24 @@ const STRUK = (() => {
   const DRIVE = 'https://www.googleapis.com/drive/v3';
   const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
   const URUTAN = ['AI foto', 'OCR + AI', 'OCR'];
+  /**
+   * Bobot suara. "OCR + AI" dan "OCR" membaca teks OCR yang sama, jadi kalau OCR salah baca keduanya ikut
+   * salah; tanpa bobot, dua suara itu bisa mengalahkan AI yang membaca fotonya langsung.
+   */
+  const BOBOT = { 'AI foto': 2, 'OCR + AI': 1, 'OCR': 1 };
+  const TUNGGU_KONFIRMASI_MS = 2500;
+  /** Anggaran thinking Gemini (token): cukup untuk menjumlah barang, tanpa berpikir panjang yang lambat. */
+  const PIKIR_STRUK = 1024;
 
-  /** opsi: { kategori: [nama kategori pengeluaran], kunci: [kunci API Gemini], model } */
-  async function baca(base64, mime, opsi) {
+  /**
+   * opsi (boleh berupa Promise): { kategori: [nama kategori pengeluaran], kunci: [kunci API Gemini], model }.
+   * OCR langsung dimulai tanpa menunggu opsi.
+   */
+  async function baca(base64, mime, opsiAtauJanji) {
     if (!/^image\/(jpeg|png|webp)$/.test(String(mime))) throw new Error('Format gambar tidak didukung.');
+    const teksOcr = ocrDrive(base64, mime);
+    teksOcr.catch(() => {}); // ditangani di bawah; cegah "unhandled rejection" kalau opsi gagal dibaca
+    const opsi = await opsiAtauJanji;
     const { kategori, kunci } = opsi;
     const model = opsi.model || MODEL;
     const hariIni = tanggalHariIni();
@@ -49,7 +65,7 @@ const STRUK = (() => {
         .then(dariAi('AI foto'), catatGagal('AI foto'))
       : null;
 
-    const tugasOcr = ocrDrive(base64, mime).then(async teks => {
+    const tugasOcr = teksOcr.then(async teks => {
       console.log('bacaStruk: teks OCR\n' + teks.slice(0, 3000));
       const aturan = tebakDariTeks(teks, hariIni);
       if (aturan.jumlah) hasil.push(Object.assign({ sumber: 'OCR' }, aturan));
@@ -59,16 +75,26 @@ const STRUK = (() => {
       }
     }, catatGagal('OCR'));
 
-    await Promise.all([tugasFoto, tugasOcr]);
-
-    if (!hasil.length) {
-      const alasan = gagal.filter(g => /Kunci API|Kuota|login/i.test(g))[0];
-      throw new Error(alasan || 'Total belanja tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus.');
+    const semua = Promise.all([tugasFoto, tugasOcr]);
+    if (tugasFoto) {
+      // AI foto berhasil → tunggu lapis lain sebentar saja; AI foto gagal → tunggu semuanya.
+      await Promise.race([semua, tugasFoto.then(() => (hasil.some(h => h.sumber === 'AI foto')
+        ? new Promise(ok => setTimeout(ok, TUNGGU_KONFIRMASI_MS))
+        : semua))]);
+    } else {
+      await semua;
     }
-    return gabungHasil(hasil);
+    const terkumpul = hasil.slice(); // lapis yang terlambat tidak lagi dipakai
+
+    if (!terkumpul.length) {
+      const alasan = gagal.filter(g => /Kunci API|Kuota|login/i.test(g))[0];
+      throw new Error(alasan || ('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus'
+        + (kunci.length ? '.' : ', atau aktifkan "Baca struk lebih akurat" (AI Gemini) di menu Lainnya.')));
+    }
+    return gabungHasil(terkumpul);
   }
 
-  /** Total yang paling banyak disepakati menang. */
+  /** Total dengan suara (berbobot) terbanyak menang. */
   function gabungHasil(hasil) {
     hasil.sort((a, b) => URUTAN.indexOf(a.sumber) - URUTAN.indexOf(b.sumber));
 
@@ -78,8 +104,9 @@ const STRUK = (() => {
       if (g) g.sumber.push(h.sumber);
       else grup.push({ jumlah: h.jumlah, sumber: [h.sumber] });
     });
-    // Paling banyak suara dulu; kalau seri, urutan prioritas lapis (sudah terurut) dipertahankan.
-    grup.sort((a, b) => b.sumber.length - a.sumber.length);
+    // Suara terbanyak dulu; kalau seri, urutan prioritas lapis (sudah terurut) dipertahankan.
+    const skor = g => g.sumber.reduce((n, s) => n + (BOBOT[s] || 1), 0);
+    grup.sort((a, b) => skor(b) - skor(a));
 
     // Field lain diambil dari lapis yang totalnya menang dulu, baru dari lapis lain.
     const menang = grup[0].sumber;
@@ -101,15 +128,18 @@ const STRUK = (() => {
   function petunjukStruk(bentuk, hariIni) {
     return [
       bentuk === 'gambar'
-        ? 'Ini gambar bukti belanja dari Indonesia: bisa struk cetak yang difoto (mungkin miring, buram, atau ada bayangan), nota tulisan tangan, atau screenshot pembelian online.'
-        : 'Ini teks hasil OCR dari bukti belanja di Indonesia. Teksnya bisa berantakan dan ada salah baca, misalnya O/0, l/1, S/5, B/8.',
+        ? 'Ini gambar bukti belanja atau bukti pembayaran dari Indonesia: bisa struk cetak yang difoto (mungkin miring, buram, atau ada bayangan), nota tulisan tangan, screenshot pembelian online, atau bukti transfer / QRIS / e-wallet / m-banking / pembayaran tagihan.'
+        : 'Ini teks hasil OCR dari bukti belanja atau bukti pembayaran di Indonesia (struk, nota, transfer, QRIS, e-wallet, tagihan). Teksnya bisa berantakan dan ada salah baca, misalnya O/0, l/1, S/5, B/8.',
       'Isi:',
-      '- jumlah: total akhir yang dibayar dalam rupiah, bilangan bulat tanpa titik/koma (setelah diskon dan pajak, bukan uang tunai yang diberikan atau kembalian).',
-      '  Jika tidak ada tulisan total, jumlahkan harga semua barang. Isi 0 hanya jika ini sama sekali bukan bukti belanja.',
-      '  Di Indonesia titik adalah pemisah ribuan, jadi "25.000" = 25000. Tulisan tangan "25" atau "25rb" pada nota biasanya berarti 25000.',
+      '- jumlah: uang yang dibayar / keluar dalam rupiah, bilangan bulat tanpa titik/koma.',
+      '  Struk belanja: total akhir setelah diskon dan pajak (bukan uang tunai yang diberikan, bukan kembalian).',
+      '  Tidak semua bukti punya tulisan "Total". Bukti transfer, QRIS, e-wallet, dan m-banking sering hanya menampilkan satu nominal besar (mis. "Rp25.000", "IDR 25,000.00", "- Rp 25.000"): itulah jumlahnya. Kalau ada biaya admin dan tertera total yang sudah termasuk biaya, pakai total itu.',
+      '  Jangan pakai saldo, sisa saldo, limit, poin, cashback, nomor rekening, nomor referensi, atau nomor telepon.',
+      '  Nota tanpa total: jumlahkan harga semua barang. Isi 0 hanya jika sama sekali tidak ada nominal uang yang dibayar.',
+      '  Di Indonesia titik adalah pemisah ribuan, jadi "25.000" = 25000; "25.000,00" juga 25000. Tulisan tangan "25" atau "25rb" pada nota biasanya berarti 25000.',
       '- tanggal: tanggal transaksi format yyyy-mm-dd. Kosongkan jika tidak ada. Hari ini ' + hariIni + '.',
       '- kategori: pilih satu yang paling cocok dari daftar.',
-      '- catatan: nama toko lalu ringkasan barang, maksimal 80 karakter. Contoh: "Indomaret - susu, roti, sabun".',
+      '- catatan: nama toko / penerima lalu ringkasan barang atau keperluan, maksimal 80 karakter. Contoh: "Indomaret - susu, roti, sabun" atau "Transfer ke Budi".',
     ].join('\n');
   }
 
@@ -166,15 +196,15 @@ const STRUK = (() => {
   }
 
   async function mintaGemini(kunci, model, parts, skema) {
+    const config = { responseMimeType: 'application/json', responseSchema: skema };
+    // Sama seperti bot: model seri Pro tidak bisa membatasi thinking (ditolak 400), jadi dibiarkan bawaan.
+    if (!/pro/i.test(model)) config.thinkingConfig = { thinkingBudget: PIKIR_STRUK };
     let res;
     try {
       res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': kunci },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: { responseMimeType: 'application/json', responseSchema: skema },
-        }),
+        body: JSON.stringify({ contents: [{ parts }], generationConfig: config }),
       });
     } catch (e) {
       throw new Error('Gemini tidak bisa dihubungi. Periksa koneksi internet.');
@@ -224,19 +254,29 @@ const STRUK = (() => {
     }
   }
 
-  /** Membaca total & tanggal dari teks OCR dengan aturan biasa (tanpa AI). */
+  /**
+   * Membaca total & tanggal dari teks OCR dengan aturan biasa (tanpa AI), berjenjang:
+   *   1. baris berlabel total / bayar / nominal / transfer (nominal di baris itu atau baris berikutnya);
+   *   2. tanpa label (bukti transfer, QRIS, e-wallet): nominal terbesar yang diawali "Rp"/"IDR";
+   *   3. masih kosong: nominal terbesar yang berpemisah ribuan (mis. 25.000).
+   * Baris saldo, kembalian, uang tunai, pajak, nomor rekening/referensi selalu dilewati.
+   */
   function tebakDariTeks(teks, hariIni) {
     const baris = teks.split(/\r?\n/).map(b => b.trim()).filter(Boolean);
-    const TOTAL = /(grand\s*total|total|jumlah|tagihan|harus\s*dibayar|amount\s*due)/i;
-    const BUKAN = /(sub\s*-?\s*total|total\s*(item|qty|diskon|hemat|potongan)|kembali|change|tunai|cash|ppn|pajak|tax|disc)/i;
+    const TOTAL = /(grand\s*total|total|jumlah|tagihan|harus\s*dibayar|dibayar|bayar|pembayaran|nominal|transfer|amount|nilai)/i;
+    const BUKAN = /(sub\s*-?\s*total|total\s*(item|qty|diskon|hemat|potongan)|kembali|change|tunai|cash|ppn|pajak|tax|disc|saldo|sisa|limit|poin|point|cashback|rekening|no\.?\s*rek|referensi|\bref\b|telp|hp\b)/i;
+    const boleh = baris.map(b => (BUKAN.test(b) ? '' : b));
+    const maks = daftar => daftar.reduce((a, n) => (n > a ? n : a), 0);
 
     let jumlah = 0;
-    baris.forEach((b, i) => {
-      if (!TOTAL.test(b) || BUKAN.test(b)) return;
+    boleh.forEach((b, i) => {
+      if (!b || !TOTAL.test(b)) return;
       // Nominal bisa di baris yang sama, atau di baris berikutnya kalau OCR memisahkannya.
-      const n = nominalTerbesar(b) || nominalTerbesar(baris[i + 1] || '');
+      const n = nominalTerbesar(b) || nominalTerbesar(boleh[i + 1] || '');
       if (n > jumlah) jumlah = n;
     });
+    if (!jumlah) jumlah = maks(boleh.map(nominalRupiah));
+    if (!jumlah) jumlah = maks(boleh.map(nominalBerpemisah));
 
     let tanggal = '';
     baris.some(b => {
@@ -246,12 +286,31 @@ const STRUK = (() => {
     return { jumlah, tanggal, kategori: '', catatan: '' };
   }
 
+  /** "25.000" / "25,000.00" / "25.000,00" / "25000" → 25000. */
+  const keAngka = angka => Number(angka.replace(/[.,]\d{2}$/, '').replace(/\D/g, '')) || 0;
+  const terbesar = (cocok, syarat) => (cocok || []).reduce((maks, angka) => {
+    const n = keAngka(angka);
+    return n >= 100 && n < 1e10 && n > maks && syarat(angka) ? n : maks;
+  }, 0);
+
+  /**
+   * Nominal terbesar di satu baris. Angka polos tanpa pemisah ribuan hanya dipakai kalau < 100 juta dan
+   * tidak diawali 0, supaya nomor rekening / telepon / referensi tidak terbaca sebagai nominal.
+   */
   function nominalTerbesar(s) {
-    const cocok = String(s).match(/\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?/g) || [];
-    return cocok.reduce((maks, angka) => {
-      const n = Number(angka.replace(/[.,]\d{2}$/, '').replace(/\D/g, '')) || 0;
-      return n >= 100 && n < 1e10 && n > maks ? n : maks;
-    }, 0);
+    const adaTanggal = !!cariTanggal(String(s)); // "05 Nov 2026": tahunnya bukan nominal
+    return terbesar(String(s).match(/\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?/g),
+      a => /\d[.,]\d{3}/.test(a) || (!adaTanggal && !/^0\d/.test(a) && keAngka(a) < 1e8));
+  }
+  /** Nominal yang diawali Rp / IDR, mis. "Rp25.000", "IDR 25,000.00", "-Rp 25.000". */
+  function nominalRupiah(s) {
+    const cocok = (String(s).match(/(?:rp|idr)\.?\s*\d[\d.,]*/gi) || []).map(x => x.replace(/^\D+/, '').replace(/[.,]$/, ''));
+    return terbesar(cocok, a => /\d[.,]\d{3}/.test(a) || (!/^0\d/.test(a) && keAngka(a) < 1e8));
+  }
+  /** Nominal berpemisah ribuan saja, mis. "25.000" (bukan tanggal, jam, atau nomor panjang). */
+  function nominalBerpemisah(s) {
+    const token = (String(s).match(/[\d.,]+/g) || []).map(t => t.replace(/[.,]+$/, ''));
+    return terbesar(token, a => /^\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{2})?$/.test(a));
   }
 
   function cariTanggal(s) {
@@ -281,5 +340,5 @@ const STRUK = (() => {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
-  return { baca, MODEL, uji: { tebakDariTeks, gabungHasil, cariTanggal, nominalTerbesar, tanggalWajar } };
+  return { baca, MODEL, uji: { tebakDariTeks, gabungHasil, cariTanggal, nominalTerbesar, nominalRupiah, nominalBerpemisah, tanggalWajar } };
 })();
