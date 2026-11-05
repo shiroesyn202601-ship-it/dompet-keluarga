@@ -2310,7 +2310,9 @@ function renderFormTrx() {
 
     ${F.strukJob ? `
       <div class="struk-proses" role="status"><span class="spinner kecil"></span>
-        <span><b>Membaca struk… <span class="detik" data-detik="${F.strukJob}"></span></b><small>Isi lain boleh diisi dulu, atau tutup form ini. Hasilnya tetap muncul di bawah layar.</small></span></div>`
+        <span><b>Membaca struk… <span class="detik" data-detik="${F.strukJob}"></span></b>
+          <small class="tahap-struk" data-tahap="${F.strukJob}">${esc((ANTRIAN.find(j => j.id === F.strukJob) || {}).tahap || '')}</small>
+          <small>Isi lain boleh diisi dulu, atau tutup form ini. Hasilnya tetap muncul di bawah layar.</small></span></div>`
     : !F.id && !rutin && F.tipe === TIPE.KELUAR ? `
       <p class="label" style="margin:0 0 6px">Isi otomatis dari foto struk</p>
       <div style="display:flex;gap:8px;margin:0 0 16px">
@@ -3243,11 +3245,13 @@ async function jalankanStruk(job) {
   renderAntrian();
   try {
     if (!navigator.onLine) throw new Error('Tidak ada sinyal.');
+    tulisTahap(job, 'Menyiapkan foto…');
     const g = await kecilkanGambar(job.file);
     job.thumb = g.thumb;
     job.base64 = g.arsip; // versi lebih kecil yang disimpan sebagai lampiran transaksi
     renderAntrian();
-    job.hasil = await api('bacaStruk', g.base64, 'image/jpeg');
+    // AI cukup versi ~2 MP (sama dengan lampiran) supaya unggahan dari HP kecil; OCR Drive tetap memakai versi tajam.
+    job.hasil = await api('bacaStruk', g.base64, 'image/jpeg', { base64Ai: g.arsip, kabar: t => tulisTahap(job, t) });
     if (!ANTRIAN.includes(job)) return; // sudah dibuang pengguna
     job.status = 'siap';
     const kartuBebas = !$('#ringkas-suara') || $('#ringkas-suara').hidden;
@@ -3284,6 +3288,12 @@ async function jalankanStruk(job) {
 }
 
 const formMenungguStruk = job => !!(F && F.strukJob === job.id && $('#form-trx'));
+
+/** Tahap baca struk ("Mengunggah foto… 40%", "AI membaca struk…") di antrian & form, tanpa menggambar ulang form. */
+function tulisTahap(job, teks) {
+  job.tahap = teks;
+  document.querySelectorAll(`[data-tahap="${job.id}"]`).forEach(el => { el.textContent = teks; });
+}
 
 /**
  * Menyimpan transaksi berfoto di latar belakang (unggah foto ke Drive bisa lama). Form langsung ditutup,
@@ -3386,7 +3396,7 @@ function renderAntrian() {
         aksi = `<button type="button" class="btn btn-utama kecil" data-aksi="buka-simpan" data-id="${j.id}">Buka</button>`;
       }
     } else if (j.status === 'proses') {
-      isi = `<b>Membaca struk… <span class="detik" data-detik="${j.id}"></span></b><small>Boleh lanjut pakai aplikasi</small>`;
+      isi = `<b>Membaca struk… <span class="detik" data-detik="${j.id}"></span></b><small><span data-tahap="${j.id}">${esc(j.tahap || '')}</span> · boleh lanjut pakai aplikasi</small>`;
       aksi = '<span class="spinner kecil" aria-label="Sedang memproses"></span>';
     } else if (j.status === 'siap') {
       isi = `<b>✅ Struk siap · ${rp(j.hasil.jumlah)}</b><small>${esc(j.hasil.catatan || j.hasil.kategori || 'Ketuk Tinjau untuk menyimpan')}</small>`;

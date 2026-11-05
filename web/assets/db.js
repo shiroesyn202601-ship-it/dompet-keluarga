@@ -1475,14 +1475,15 @@ const SERVER = (() => {
 
   // ---------- Baca struk ----------
 
-  async function bacaStruk(base64, mime) {
+  /** tambahan (opsional): { base64Ai, kabar } — lihat STRUK.baca. */
+  async function bacaStruk(base64, mime, tambahan) {
     // Pengaturan dibaca bersamaan dengan OCR (STRUK.baca langsung mulai OCR), tidak bergantian.
     const opsi = db_().then(id => bacaTabel_(id, ['kategori', 'pengaturan'])).then(([kat, set]) => ({
       kategori: kat.filter(r => r[0] !== '' && String(r[1]) === TIPE.KELUAR).map(r => String(r[0])),
       kunci: kunciGemini_(set),
       model: pengaturan_(set).GEMINI_MODEL,
     }));
-    return STRUK.baca(base64, mime, opsi);
+    return STRUK.baca(base64, mime, opsi, tambahan);
   }
 
   // ---------- Helper Sheets ----------

@@ -20,15 +20,24 @@ const STRUK = (() => {
    */
   const BOBOT = { 'AI foto': 2, 'OCR + AI': 1, 'OCR': 1 };
   const TUNGGU_KONFIRMASI_MS = 2500;
+  /** Gemini belum menjawab setelah ini → hasil yang sudah ada (mis. OCR) langsung dipakai. */
+  const BATAS_AI_MS = 60000;
+  /** Belum ada hasil sama sekali setelah ini → berhenti dengan pesan "terlalu lama". */
+  const BATAS_TOTAL_MS = 90000;
   /** Anggaran thinking Gemini (token): cukup untuk menjumlah barang, tanpa berpikir panjang yang lambat. */
   const PIKIR_STRUK = 1024;
 
   /**
    * opsi (boleh berupa Promise): { kategori: [nama kategori pengeluaran], kunci: [kunci API Gemini], model }.
+   * tambahan (opsional): { base64Ai: foto lebih kecil khusus untuk AI (hemat unggahan dari HP),
+   *   kabar: fungsi(teks) untuk menampilkan tahap, mis. "Mengunggah foto… 40%" }.
    * OCR langsung dimulai tanpa menunggu opsi.
    */
-  async function baca(base64, mime, opsiAtauJanji) {
+  async function baca(base64, mime, opsiAtauJanji, tambahan) {
     if (!/^image\/(jpeg|png|webp)$/.test(String(mime))) throw new Error('Format gambar tidak didukung.');
+    const { base64Ai = base64, kabar = () => {} } = tambahan || {};
+    const henti = new AbortController(); // permintaan Gemini yang terlambat dihentikan supaya tidak memakan sinyal
+    kabar('Mengunggah foto…');
     const teksOcr = ocrDrive(base64, mime);
     teksOcr.catch(() => {}); // ditangani di bawah; cegah "unhandled rejection" kalau opsi gagal dibaca
     const opsi = await opsiAtauJanji;
@@ -61,10 +70,13 @@ const STRUK = (() => {
       gagal.push(e.message);
     };
 
+    const kabarUnggah = persen => kabar(persen < 100 ? 'Mengunggah foto… ' + persen + '%' : 'AI membaca struk…');
     const tugasFoto = kunci.length
-      ? jalankanGemini(kunci, mulai, model, [{ inlineData: { mimeType: mime, data: base64 } }, { text: petunjukStruk('gambar', hariIni) }], skema)
+      ? jalankanGemini(kunci, mulai, model, [{ inlineData: { mimeType: mime, data: base64Ai } }, { text: petunjukStruk('gambar', hariIni) }], skema,
+        { signal: henti.signal, unggah: kabarUnggah })
         .then(dariAi('AI foto'), catatGagal('AI foto'))
       : null;
+    if (!tugasFoto) kabar('Membaca teks struk…');
 
     const tugasOcr = teksOcr.then(async teks => {
       console.log('bacaStruk: teks OCR\n' + teks.slice(0, 3000));
@@ -72,21 +84,32 @@ const STRUK = (() => {
       if (aturan.jumlah) hasil.push(Object.assign({ sumber: 'OCR' }, aturan));
       if (kunci.length && teks.trim()) {
         const parts = [{ text: petunjukStruk('teks', hariIni) + '\n\nTeks OCR:\n"""\n' + teks.slice(0, 8000) + '\n"""' }];
-        await jalankanGemini(kunci, mulai, model, parts, skema).then(dariAi('OCR + AI'), catatGagal('OCR + AI'));
+        await jalankanGemini(kunci, mulai, model, parts, skema, { signal: henti.signal }).then(dariAi('OCR + AI'), catatGagal('OCR + AI'));
       }
     }, catatGagal('OCR'));
 
     const semua = Promise.all([tugasFoto, tugasOcr]);
+    const tunda = ms => new Promise(ok => setTimeout(ok, ms));
+    // Gemini lambat: setelah BATAS_AI_MS, hasil yang sudah ada (mis. OCR) langsung dipakai.
+    // Belum ada hasil sama sekali → tunggu terus, paling lama BATAS_TOTAL_MS.
+    let habis = false;
+    const batas = tunda(BATAS_AI_MS).then(() => (hasil.length ? null
+      : Promise.race([semua, tunda(BATAS_TOTAL_MS - BATAS_AI_MS).then(() => { habis = true; })])));
     if (tugasFoto) {
       // AI foto berhasil → tunggu lapis lain sebentar saja; AI foto gagal → tunggu semuanya.
-      await Promise.race([semua, tugasFoto.then(() => (hasil.some(h => h.sumber === 'AI foto')
-        ? new Promise(ok => setTimeout(ok, TUNGGU_KONFIRMASI_MS))
+      await Promise.race([semua, batas, tugasFoto.then(() => (hasil.some(h => h.sumber === 'AI foto')
+        ? tunda(TUNGGU_KONFIRMASI_MS)
         : semua))]);
     } else {
-      await semua;
+      await Promise.race([semua, batas]);
     }
+    henti.abort();
     const terkumpul = hasil.slice(); // lapis yang terlambat tidak lagi dipakai
-
+    if (!terkumpul.length && habis) {
+      const e = new Error('Pembacaan terlalu lama (lebih dari ' + BATAS_TOTAL_MS / 1000 + ' detik). Periksa sinyal, lalu ketuk Ulangi.');
+      e.jaringan = !navigator.onLine;
+      throw e;
+    }
     if (!terkumpul.length) {
       const alasan = gagal.filter(g => /Kunci API|Kuota|login/i.test(g))[0];
       throw new Error(alasan || ('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus'
@@ -206,7 +229,7 @@ const STRUK = (() => {
    * Coba kunci mulai dari giliran; pindah ke kunci berikutnya kalau kena kuota/ditolak,
    * dan ke model cadangan kalau model sedang sibuk/tidak tersedia.
    */
-  async function jalankanGemini(daftar, mulai, model, parts, skema) {
+  async function jalankanGemini(daftar, mulai, model, parts, skema, opsiMinta) {
     const model2 = [model].concat(MODEL_CADANGAN.filter(m => m !== model));
     let terakhir;
     for (let mi = 0; mi < model2.length; mi++) {
@@ -215,7 +238,7 @@ const STRUK = (() => {
       for (let n = 0; n < daftar.length; n++) {
         const kunci = daftar[(mulai + n) % daftar.length];
         try {
-          return await mintaGemini(kunci, model2[mi], parts, skema);
+          return await mintaGemini(kunci, model2[mi], parts, skema, opsiMinta);
         } catch (e) {
           terakhir = e;
           if (e.gantiModel) {
@@ -232,21 +255,24 @@ const STRUK = (() => {
     throw terakhir;
   }
 
-  async function mintaGemini(kunci, model, parts, skema) {
+  /** opsiMinta: { signal: AbortSignal, unggah: fungsi(persen) untuk kemajuan unggahan (100 = selesai, AI mulai membaca) }. */
+  async function mintaGemini(kunci, model, parts, skema, opsiMinta) {
+    const { signal, unggah } = opsiMinta || {};
     const config = { responseMimeType: 'application/json', responseSchema: skema };
     // Sama seperti bot: model seri Pro tidak bisa membatasi thinking (ditolak 400), jadi dibiarkan bawaan.
     if (!/pro/i.test(model)) config.thinkingConfig = { thinkingBudget: PIKIR_STRUK };
     let res;
     try {
-      res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
-        method: 'POST',
+      res = await kirimXhr('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': kunci },
         body: JSON.stringify({ contents: [{ parts }], generationConfig: config }),
+        signal,
+        unggah,
       });
     } catch (e) {
-      throw new Error('Gemini tidak bisa dihubungi. Periksa koneksi internet.');
+      throw new Error(e.name === 'AbortError' ? 'Dihentikan (sudah ada hasil lain).' : 'Gemini tidak bisa dihubungi. Periksa koneksi internet.');
     }
-    const teks = await res.text();
+    const teks = res.text;
     if (!res.ok) {
       console.error('Gemini HTTP ' + res.status + ' ' + teks.slice(0, 1000));
       let pesan = '';
@@ -269,6 +295,35 @@ const STRUK = (() => {
       console.error('Jawaban Gemini tidak bisa dibaca: ' + teks.slice(0, 2000));
       throw new Error('Jawaban Gemini tidak bisa dibaca.');
     }
+  }
+
+  /**
+   * POST lewat XMLHttpRequest (bukan fetch) supaya kemajuan unggahan bisa dilaporkan: di sinyal lambat,
+   * pengguna bisa melihat bahwa yang lama adalah mengunggah, bukan AI-nya. Hasil: { ok, status, text }.
+   */
+  function kirimXhr(url, { headers, body, signal, unggah }) {
+    return new Promise((ok, gagal) => {
+      const x = new XMLHttpRequest();
+      x.open('POST', url);
+      Object.keys(headers || {}).forEach(k => x.setRequestHeader(k, headers[k]));
+      let terakhir = -1;
+      if (unggah && x.upload) {
+        x.upload.onprogress = e => {
+          if (!e.lengthComputable) return;
+          const p = Math.min(99, Math.floor(e.loaded / e.total * 10) * 10); // per 10% supaya tidak terlalu sering
+          if (p !== terakhir) { terakhir = p; unggah(p); }
+        };
+        x.upload.onload = () => unggah(100);
+      }
+      x.onload = () => ok({ ok: x.status >= 200 && x.status < 300, status: x.status, text: x.responseText || '' });
+      x.onerror = () => gagal(new Error('jaringan'));
+      x.onabort = () => { const e = new Error('dihentikan'); e.name = 'AbortError'; gagal(e); };
+      if (signal) {
+        if (signal.aborted) return x.onabort();
+        signal.addEventListener('abort', () => x.abort(), { once: true });
+      }
+      x.send(body);
+    });
   }
 
   // ---------- OCR ----------

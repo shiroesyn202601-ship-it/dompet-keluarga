@@ -908,6 +908,7 @@ body.tanpa-nav #view:has(.bilah-catatan) { padding-bottom: calc(165px + env(safe
 .pilih-total-ringkas .chips { margin: 0; }
 .status-ringkas { margin: -4px 0 0 !important; font-size: 13px !important; color: var(--muted); }
 .kartu-ringkas .tombol-pecah { margin: 0; }
+.struk-proses .tahap-struk { font-weight: 700; color: var(--primary); }
 
 /* Panel suara: baris status + daftar contoh kalimat (disembunyikan saat sudah bicara). */
 .kepala-panel-suara { display: flex; align-items: center; gap: 12px; }
