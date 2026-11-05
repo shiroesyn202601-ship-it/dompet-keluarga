@@ -13,6 +13,7 @@ const S = {
   lapKategori: 'bulan',            // Laporan → pengeluaran per kategori: 'bulan' | 'tahun'
   setup: { pilih: ['Tunai'], saldo: {}, lain: [], email: '' }, // isian layar setup pertama kali
   offline: false, // true = tanpa sinyal, menampilkan data terakhir yang tersimpan di HP
+  sesiHabis: false, // true = dibuka dengan token Google kedaluwarsa, menampilkan data terakhir sampai tersambung lagi
   filter: { rentang: 'periode', dari: '', sampai: '', kategori: '', dompet: '', oleh: '' }, // filter Riwayat (lihat FILTER_KOSONG)
   cariData: null,     // transaksi lintas bulan untuk Riwayat: { kunci, transaksi, memuat? }
   batasRiwayat: 200,  // jumlah transaksi yang ditampilkan sebelum "Tampilkan lebih banyak"
@@ -177,6 +178,9 @@ async function mulai() {
   pulihkanPosisi();
   if (GOOGLE.sudahMasuk()) muat();
   else if (!navigator.onLine && pakaiDataTerakhir()) { /* tanpa sinyal: tetap bisa mencatat, login menyusul saat online */ }
+  // Token habis (dibuka lagi > 1 jam kemudian): tampilkan data terakhir di HP, jangan lempar ke layar login.
+  // Ketukan pertama di mana saja menyambung ulang diam-diam (lihat GOOGLE.segarkanKalauPerlu).
+  else if (GOOGLE.email() && pakaiDataTerakhir(false)) S.sesiHabis = true;
   else tampilMasuk();
 }
 
@@ -190,6 +194,7 @@ async function muat() {
     }
     S.data = await api('getData', S.bulan);
     S.offline = false;
+    S.sesiHabis = false;
     $('#nav').hidden = !!S.data.perluSetup;
     if (S.data.perluSetup) $('#view').innerHTML = viewSetup();
     else {
@@ -233,15 +238,18 @@ function tulisTertunda(daftar) {
   tulisLokal('tertunda', bacaLokal('tertunda', []).filter(x => !bukuIni(x)).concat(daftar));
 }
 
-/** Tanpa sinyal: pakai data terakhir yang tersimpan di HP. false kalau belum pernah ada. */
-function pakaiDataTerakhir() {
+/**
+ * Pakai data terakhir yang tersimpan di HP (tanpa sinyal, atau sesi login habis saat aplikasi dibuka).
+ * false kalau belum pernah ada.
+ */
+function pakaiDataTerakhir(offline = true) {
   if (!S.data || S.data.perluSetup) {
     const d = bacaLokal('data', null);
     if (!d) return false;
     S.data = d;
   }
   S.bulan = S.data.bulan;
-  S.offline = true;
+  S.offline = offline;
   $('#nav').hidden = false;
   render();
   return true;
@@ -300,6 +308,7 @@ function bannerStatus() {
   const gagal = daftar.filter(t => t.gagal);
   const menunggu = daftar.length - gagal.length;
   return (S.offline ? '<div class="status-bar">📴 Offline · menampilkan data terakhir. Transaksi baru tetap bisa dicatat.</div>' : '') +
+    (!S.offline && S.sesiHabis ? '<div class="status-bar">🔄 Menampilkan data terakhir · tersambung lagi begitu Anda mengetuk layar</div>' : '') +
     (menunggu ? `<div class="status-bar">📤 ${menunggu} transaksi menunggu dikirim${S.offline ? '' : ' <button type="button" data-aksi="kirim-tertunda">Kirim sekarang</button>'}</div>` : '') +
     gagal.map(t => `<div class="status-bar gagal">⚠️ ${rp(t.jumlah)} ${esc(t.kategori || 'Transfer')} tidak bisa dikirim: ${esc(t.gagal)}
       <button type="button" data-aksi="ulang-tertunda" data-id="${esc(t.idBaru)}">Catat ulang</button></div>`).join('');
@@ -393,15 +402,18 @@ function render() {
   simpanPosisi();
 }
 
-// Halaman & bulan yang sedang dilihat diingat selama aplikasi terbuka, supaya refresh / update otomatis
-// tidak melempar kembali ke Beranda.
+// Halaman & bulan yang sedang dilihat diingat, supaya refresh / update otomatis / membuka lagi dari ikon
+// di layar utama (Android sering memuat ulang aplikasi) tidak melempar kembali ke Beranda.
+// Disimpan di localStorage (sessionStorage hilang saat aplikasi dibuka ulang), berlaku POSISI_BERLAKU_MS.
+const POSISI_BERLAKU_MS = 60 * 60 * 1000;
 function simpanPosisi() {
-  try { sessionStorage.setItem('dk_posisi', JSON.stringify({ tab: S.tab, bulan: S.bulan, tahun: S.tahun })); } catch (e) { /* mode privat */ }
+  try { localStorage.setItem('dk_posisi', JSON.stringify({ tab: S.tab, bulan: S.bulan, tahun: S.tahun, waktu: Date.now() })); } catch (e) { /* mode privat */ }
 }
 function pulihkanPosisi() {
   try {
-    const p = JSON.parse(sessionStorage.getItem('dk_posisi'));
-    if (!p || !['beranda', 'riwayat', 'dompet', 'laporan', 'lainnya'].includes(p.tab)) return;
+    const p = JSON.parse(localStorage.getItem('dk_posisi'));
+    if (!p || !(Date.now() - p.waktu < POSISI_BERLAKU_MS)) return;
+    if (!['beranda', 'riwayat', 'dompet', 'laporan', 'lainnya'].includes(p.tab)) return;
     S.tab = p.tab;
     S.bulan = p.bulan || '';
     S.tahun = p.tahun || S.tahun;
@@ -966,7 +978,7 @@ function renderFormUtang() {
     </div>
     <div class="grup-form">
       <label class="label" for="u-tanggal">Tanggal</label>
-      <input class="field" id="u-tanggal" type="date" value="${esc(F.tanggal)}">
+      ${inputTanggal('u-tanggal', F.tanggal)}
     </div>
     <div class="grup-form">
       <label class="label" for="u-tenggat">Jatuh tempo (opsional)</label>
@@ -1102,7 +1114,7 @@ function renderFormPatungan() {
     </div>
     <div class="grup-form">
       <label class="label" for="p-tanggal">Tanggal</label>
-      <input class="field" id="p-tanggal" type="date" value="${esc(F.tanggal)}">
+      ${inputTanggal('p-tanggal', F.tanggal)}
     </div>
     <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-patungan">Simpan patungan</button></div>`;
 }
@@ -1139,6 +1151,31 @@ function bukaUtang(w) {
 
 function tanggalPendek(s) {
   return keTanggal(s).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** "Hari ini · Kamis, 5 November 2026" (juga Kemarin / Besok) untuk keterangan di bawah isian tanggal. */
+function keteranganHari(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s || '')) return '';
+  const selisih = Math.round((keTanggal(s) - keTanggal(hariIni())) / 864e5);
+  const dekat = { '-1': 'Kemarin', 0: 'Hari ini', 1: 'Besok' }[selisih];
+  const lengkap = keTanggal(s).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return (dekat ? dekat + ' · ' : '') + lengkap;
+}
+
+/** Isian tanggal dengan tombol ‹ › (hari sebelumnya / berikutnya) dan nama hari di bawahnya. */
+function inputTanggal(id, nilai) {
+  const tombol = (geser, label, ikon) =>
+    `<button type="button" class="geser-tanggal" data-aksi="geser-tanggal" data-untuk="${id}" data-geser="${geser}" aria-label="${label}">${ikon}</button>`;
+  return `<div class="input-tanggal">
+      ${tombol(-1, 'Hari sebelumnya', '‹')}
+      <input class="field" id="${id}" type="date" value="${esc(nilai)}" aria-describedby="${id}-hari">
+      ${tombol(1, 'Hari berikutnya', '›')}
+    </div>
+    <p class="hari-tanggal" id="${id}-hari">${esc(keteranganHari(nilai))}</p>`;
+}
+function perbaruiHari(input) {
+  const ket = document.getElementById(input.id + '-hari');
+  if (ket) ket.textContent = keteranganHari(input.value);
 }
 
 /** Progres tabungan: { persen, teks }. Tanpa target → persen null. */
@@ -1792,7 +1829,7 @@ function renderFormTrx() {
 
     <div class="grup-form">
       <label class="label" for="f-tanggal">${rutin ? 'Jatuh tempo berikutnya' : 'Tanggal'}</label>
-      <input class="field" id="f-tanggal" type="date" value="${esc(F.tanggal)}">
+      ${inputTanggal('f-tanggal', F.tanggal)}
     </div>
 
     ${bolehUlang ? `
@@ -3140,6 +3177,14 @@ const AKSI = {
       loading(false);
     }
   },
+  'geser-tanggal': el => {
+    const input = document.getElementById(el.dataset.untuk);
+    if (!input) return;
+    const d = keTanggal(input.value || hariIni());
+    d.setDate(d.getDate() + Number(el.dataset.geser));
+    input.value = tanggalIso(d);
+    perbaruiHari(input);
+  },
   'coba-lagi': async () => { loading(true); await muat(); loading(false); },
   'masuk': async el => {
     el.disabled = true;
@@ -3155,17 +3200,7 @@ const AKSI = {
   'lanjut-sesi': async el => {
     el.disabled = true;
     try {
-      const email = await GOOGLE.masuk();
-      if (email !== S.data.user) return await muatDariAwal(); // ternyata akun lain
-      $('#sesi').hidden = true;
-      if ($('#sheet').hidden) {
-        loading(true);
-        await muat();
-        loading(false);
-        toast('Tersambung lagi ✔');
-      } else {
-        toast('Tersambung lagi ✔ Silakan ulangi, isian Anda masih ada.');
-      }
+      await setelahTersambung(await GOOGLE.masuk(), true);
     } catch (e) {
       loading(false);
       toast(pesanError(e), true);
@@ -3229,11 +3264,37 @@ const AKSI_TANPA_SEGARKAN = new Set([
   'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi',
 ]);
 
+/**
+ * Sesi login tersambung lagi (lewat tombol "Lanjutkan sebagai …" atau diam-diam saat mengetuk layar):
+ * tutup kartu sesi lalu baca ulang data, kecuali sedang mengisi form.
+ */
+async function setelahTersambung(email, dariTombol) {
+  if (!S.data || S.data.perluSetup) return muatDariAwal();
+  if (email !== S.data.user) return muatDariAwal(); // ternyata akun lain
+  const kartuTampil = !$('#sesi').hidden;
+  $('#sesi').hidden = true;
+  if ($('#sheet').hidden) {
+    if (dariTombol) loading(true);
+    await muat();
+    loading(false);
+    if (dariTombol || kartuTampil) toast('Tersambung lagi ✔');
+  } else if (dariTombol || kartuTampil) {
+    toast('Tersambung lagi ✔ Silakan ulangi, isian Anda masih ada.');
+  }
+}
+
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-aksi]');
+  // Sesi habis saat aplikasi dibuka lagi: ketukan apa pun (termasuk di luar tombol) dipakai untuk menyambung ulang.
+  const segarkan = $('#kunci').hidden && (!el || !AKSI_TANPA_SEGARKAN.has(el.dataset.aksi))
+    && (el || S.sesiHabis);
+  if (segarkan) {
+    const habis = !GOOGLE.sudahMasuk();
+    const p = GOOGLE.segarkanKalauPerlu();
+    if (p && habis) p.then(email => { if (email) setelahTersambung(email, false).catch(() => {}); });
+  }
   if (!el || !AKSI[el.dataset.aksi]) return;
   e.preventDefault();
-  if (!AKSI_TANPA_SEGARKAN.has(el.dataset.aksi) && $('#kunci').hidden) GOOGLE.segarkanKalauPerlu();
   AKSI[el.dataset.aksi](el, e);
 });
 
@@ -3246,6 +3307,7 @@ document.addEventListener('click', e => {
 
 // Format ribuan saat mengetik nominal.
 document.addEventListener('input', e => {
+  if (e.target.type === 'date') perbaruiHari(e.target);
   if (['f-jumlah', 'd-saldo', 'd-target'].includes(e.target.id) || e.target.classList.contains('input-rp')) {
     e.target.value = formatAngka(angka(e.target.value));
     if (e.target.classList.contains('input-anggaran')) hitungTotalAnggaran();
@@ -3260,6 +3322,7 @@ document.addEventListener('input', e => {
 
 // Input cepat: "change" = Enter/selesai mengetik, atau memilih saran dari daftar.
 document.addEventListener('change', e => {
+  if (e.target.type === 'date') perbaruiHari(e.target); // sebagian pemilih tanggal hanya memicu "change"
   if (!F) return;
   if (F.patungan && e.target.id === 'p-total') { bacaFormPatungan(); renderFormPatungan(); return; }
   if (e.target.id === 'f-cepat' && e.target.value.trim()) {
@@ -3324,7 +3387,10 @@ async function cekPembaruan() {
 document.body.classList.toggle('samar', modeSamar());
 kunciLayar();
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') waktuDisembunyikan = Date.now();
+  if (document.visibilityState === 'hidden') {
+    waktuDisembunyikan = Date.now();
+    if (S.data && !S.data.perluSetup) simpanPosisi(); // waktu posisi dihitung dari saat ditinggal
+  }
   else if (waktuDisembunyikan && Date.now() - waktuDisembunyikan > KUNCI_SETELAH_MS && $('#kunci').hidden) kunciLayar();
 });
 

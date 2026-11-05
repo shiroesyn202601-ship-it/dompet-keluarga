@@ -87,16 +87,20 @@ const GOOGLE = (() => {
   }
 
   /**
-   * Token tinggal < 10 menit → minta token baru diam-diam (jendela Google hanya berkedip), supaya sesi
-   * tidak habis di tengah mengisi form. Harus dipanggil dari ketukan pengguna (syarat popup browser).
+   * Token tinggal < 20 menit, atau sudah habis tapi akunnya masih diingat → minta token baru diam-diam
+   * (jendela Google hanya berkedip), supaya pengguna tidak perlu menekan "Lanjutkan sebagai …".
+   * Harus dipanggil dari ketukan pengguna (syarat popup browser).
+   * Hasil: Promise berisi email kalau berhasil (null kalau gagal), atau undefined kalau tidak perlu.
    */
-  const SEGARKAN_MS = 10 * 60 * 1000;
+  const SEGARKAN_MS = 20 * 60 * 1000;
   let sedangSegarkan = false;
   function segarkanKalauPerlu() {
-    if (sedangSegarkan || !sudahMasuk() || sesi.kadaluarsa - Date.now() > SEGARKAN_MS || !navigator.onLine) return;
+    if (sedangSegarkan || !navigator.onLine || !(sesi && sesi.email)) return;
+    if (sudahMasuk() && sesi.kadaluarsa - Date.now() > SEGARKAN_MS) return;
     sedangSegarkan = true;
-    masuk().catch(() => { /* gagal: nanti tetap muncul kartu "Sesi login berakhir" seperti biasa */ })
-      .then(() => { sedangSegarkan = false; });
+    return masuk()
+      .catch(() => null) // gagal: nanti tetap muncul kartu "Sesi login berakhir" seperti biasa
+      .finally(() => { sedangSegarkan = false; });
   }
 
   /**

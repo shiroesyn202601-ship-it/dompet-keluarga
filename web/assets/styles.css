@@ -308,6 +308,14 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 @supports (-webkit-touch-callout: none) { .field, .salin .field, .cari { font-size: 16px; } }
 .field:focus { border-color: var(--primary); background: var(--card); }
 
+/* Isian tanggal di form: ‹ [tanggal] › + nama hari di bawahnya */
+.input-tanggal { display: flex; align-items: stretch; gap: 8px; }
+.input-tanggal .field { flex: 1; min-width: 0; text-align: center; }
+.geser-tanggal { flex: none; width: 48px; border-radius: 14px; background: var(--card-2); font-size: 24px; font-weight: 600; color: var(--text); display: grid; place-items: center; }
+.geser-tanggal:active { background: var(--primary-soft); }
+.hari-tanggal { margin: 6px 0 0; font-size: 12.5px; font-weight: 600; color: var(--muted); text-align: center; }
+.hari-tanggal:empty { display: none; }
+
 .grid-pilih { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
 .pilihan { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 4px; border-radius: 16px; border: 1.5px solid transparent; background: var(--card-2); font-size: 12px; font-weight: 600; text-align: center; line-height: 1.2; }
 .pilihan span { font-size: 22px; }
