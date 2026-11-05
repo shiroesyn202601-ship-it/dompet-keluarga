@@ -6312,11 +6312,11 @@ function lihatFoto(src) {
     el.className = 'lihat-foto';
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-modal', 'true');
-    el.setAttribute('aria-label', T('Foto struk'));
+    el.setAttribute('aria-label', T('Foto struk||gambar'));
     el.dataset.aksi = 'tutup-foto';
     document.body.appendChild(el);
   }
-  el.innerHTML = `<img src="${src}" alt="${T('Foto struk')}"><button type="button" class="tutup-foto" data-aksi="tutup-foto" aria-label="${T('Tutup')}">✕</button>`;
+  el.innerHTML = `<img src="${src}" alt="${T('Foto struk||gambar')}"><button type="button" class="tutup-foto" data-aksi="tutup-foto" aria-label="${T('Tutup')}">✕</button>`;
   el.hidden = false;
   setTimeout(() => el.querySelector('.tutup-foto').focus(), 50);
 }

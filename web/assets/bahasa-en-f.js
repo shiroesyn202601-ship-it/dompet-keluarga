@@ -82,7 +82,7 @@ Object.assign(KAMUS, {
   '{n} tersimpan, sisanya gagal: {pesan}': '{n} saved, the rest failed: {pesan}',
   '{n} transaksi tersimpan ✔': ['{n} transaction saved ✔', '{n} transactions saved ✔'],
   // Foto & kartu struk
-  'Foto struk': 'Receipt photo',
+  'Foto struk||gambar': 'Receipt photo',
   '🧾 Struk terbaca · yang akan dicatat': '🧾 Receipt read · to be recorded',
   'Lihat foto struk': 'View receipt photo',
   'Total terbaca berbeda-beda, ketuk yang sesuai struk:': 'Different totals were found, tap the one on the receipt:',

@@ -51,6 +51,17 @@ for (const [k, v] of Object.entries(KAMUS)) {
   }
 }
 if (!process.argv.slice(2).length) {
+  // Teks statis index.html (data-t / data-t-label, lihat terjemahkanHalaman di bahasa.js)
+  const html = fs.readFileSync(path.join(folder, '..', 'index.html'), 'utf8');
+  for (const m of html.matchAll(/<[^>]*\bdata-t(-label)?\b[^>]*>/g)) {
+    const label = m[0].match(/aria-label="([^"]*)"/);
+    if (label) dipakai.add(label[1]);
+    if (/\bdata-t\b(?!-)/.test(m[0])) {
+      const tag = m[0].match(/^<(\w+)/)[1];
+      const teks = html.slice(m.index + m[0].length).split('</' + tag)[0].replace(/<[^>]*>/g, '').trim();
+      if (teks) dipakai.add(teks);
+    }
+  }
   const takDipakai = Object.keys(KAMUS).filter(k => !dipakai.has(k));
   if (takDipakai.length) console.log(`(peringatan) ${takDipakai.length} entri kamus tidak dipakai: ` + takDipakai.slice(0, 20).map(k => JSON.stringify(k)).join(', '));
 }
