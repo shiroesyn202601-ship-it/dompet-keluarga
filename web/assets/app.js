@@ -404,7 +404,8 @@ async function pilihDanHubungkan(idFile) {
 }
 
 function render() {
-  const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, laporan: viewLaporan, lainnya: viewLainnya, catatan: viewCatatan, sholat: viewSholat }[S.tab] || viewBeranda;
+  const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, laporan: viewLaporan, lainnya: viewLainnya, catatan: viewCatatan, sholat: viewSholat, 'catatan-edit': viewFormCatatan }[S.tab] || viewBeranda;
+  if (S.tab === 'catatan-edit') simpanDraftCatatan();
   $('#view').innerHTML = bannerStatus() + view();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
   simpanPosisi();
@@ -412,6 +413,11 @@ function render() {
   if (S.tab !== 'laporan') kunciAnimasiGrafik = ''; // kembali ke Laporan nanti: animasi diputar lagi
   pasangGeserGrafik();
   if (S.tab === 'catatan') pasangGeserKalender();
+  document.body.classList.toggle('tanpa-nav', S.tab === 'catatan-edit'); // fokus menulis
+  if (S.tab === 'catatan-edit') {
+    tinggiIsiCatatan();
+    if (S.formCatatan.fokus) { S.formCatatan.fokus = false; setTimeout(() => $('#c-judul') && $('#c-judul').focus(), 200); }
+  }
   if (S.tab !== 'sholat' && statusKompas !== 'mati') matikanKompas(); // hemat baterai
   if (luncurTertunda) setTimeout(jalankanLuncur); // pintasan ikon / berbagi: tunggu data pertama tampil
 }
@@ -427,8 +433,8 @@ function pulihkanPosisi() {
   try {
     const p = JSON.parse(localStorage.getItem('dk_posisi'));
     if (!p || !(Date.now() - p.waktu < POSISI_BERLAKU_MS)) return;
-    if (!['beranda', 'riwayat', 'dompet', 'laporan', 'lainnya', 'catatan', 'sholat'].includes(p.tab)) return;
-    S.tab = p.tab;
+    if (!['beranda', 'riwayat', 'dompet', 'laporan', 'lainnya', 'catatan', 'sholat', 'catatan-edit'].includes(p.tab)) return;
+    S.tab = p.tab === 'catatan-edit' ? 'catatan' : p.tab;
     S.bulan = p.bulan || '';
     S.tahun = p.tahun || S.tahun;
   } catch (e) { /* abaikan */ }
@@ -3929,12 +3935,7 @@ function htmlKalender() {
     <div class="kal-hari">${NAMA_HARI_PENDEK.map(h => `<span>${h}</span>`).join('')}</div>
     <div class="kal-grid" id="kal-grid">${sel.join('')}</div>
     <h3 class="kal-judul-hari">${esc(keteranganHari(S.kal.pilih))}</h3>
-    ${dipilih.map(c => `
-      <button type="button" class="kal-item" data-aksi="ubah-catatan" data-id="${esc(c.id)}" style="--w:${warnaCatatan(c.warna)}">
-        <span class="isi"><b>${esc(c.judul)}</b>${c.isi ? `<small>${esc(c.isi)}</small>` : ''}
-          <small class="kal-meta">${c.pengingat ? '🔔 Pengingat' : '📝 Catatan'}${c.ulang ? ' · 🔁 ' + c.ulang.toLowerCase() : ''}${c.oleh ? ' · ' + esc(namaPendek(c.oleh)) : ''}</small></span>
-        <span class="panah">›</span>
-      </button>`).join('')}
+    ${dipilih.map(itemCatatan).join('')}
     ${tagihanDipilih.map(r => `
       <button type="button" class="kal-item tagihan" data-aksi="kelola-rutin">
         <span class="isi"><b>💡 ${esc(r.nama)}</b><small>Tagihan rutin · ${rp(r.jumlah)}</small></span>
@@ -3968,45 +3969,233 @@ function gantiBulanKalender(n) {
   renderKalender();
 }
 
-/** Form catatan. c: catatan yang diubah (null = baru); tanggal: tanggal awal untuk catatan baru. */
+// ---------- Daftar tugas (to-do) di catatan ----------
+// Disimpan di kolom Isi sebagai baris "[ ] item" / "[x] item", jadi tetap terbaca di spreadsheet & tanpa kolom baru.
+const POLA_TUGAS = /^\[( |x)\] ?(.*)$/i;
+function bacaTugas(isi) {
+  const baris = String(isi || '').split('\n').map(b => b.trim()).filter(Boolean);
+  if (!baris.length || !baris.every(b => POLA_TUGAS.test(b))) return null;
+  return baris.map(b => { const m = b.match(POLA_TUGAS); return { teks: m[2], selesai: m[1].toLowerCase() === 'x' }; });
+}
+const tulisTugas = daftar => daftar.filter(t => t.teks.trim()).map(t => (t.selesai ? '[x] ' : '[ ] ') + t.teks.trim()).join('\n');
+
+/** Checklist yang bisa dicentang langsung (kalender & overlay pengingat). */
+function daftarCentang(c, semua) {
+  const tugas = bacaTugas(c.isi) || [];
+  const tampil = semua ? tugas : tugas.slice(0, 6);
+  return `<div class="daftar-centang">${tampil.map((t, i) => `
+      <button type="button" class="centang ${t.selesai ? 'selesai' : ''}" role="checkbox" aria-checked="${t.selesai}"
+        data-aksi="centang-tugas" data-id="${esc(c.id)}" data-i="${i}"><span class="kotak-centang" aria-hidden="true"></span><span>${esc(t.teks)}</span></button>`).join('')}
+      ${tugas.length > tampil.length ? `<small class="centang-lagi">+${tugas.length - tampil.length} item lagi</small>` : ''}</div>`;
+}
+
+function itemCatatan(c) {
+  const meta = `${c.pengingat ? '🔔 Pengingat' : '📝 Catatan'}${c.ulang ? ' · 🔁 ' + c.ulang.toLowerCase() : ''}${c.oleh ? ' · ' + esc(namaPendek(c.oleh)) : ''}`;
+  const tugas = bacaTugas(c.isi);
+  if (!tugas) {
+    return `
+      <button type="button" class="kal-item" data-aksi="ubah-catatan" data-id="${esc(c.id)}" style="--w:${warnaCatatan(c.warna)}">
+        <span class="isi"><b>${esc(c.judul)}</b>${c.isi ? `<small>${esc(c.isi)}</small>` : ''}<small class="kal-meta">${meta}</small></span>
+        <span class="panah">›</span>
+      </button>`;
+  }
+  const selesai = tugas.filter(t => t.selesai).length;
+  return `
+    <div class="kal-item kal-tugas ${selesai === tugas.length ? 'tuntas' : ''}" style="--w:${warnaCatatan(c.warna)}">
+      <button type="button" class="kal-tugas-kepala" data-aksi="ubah-catatan" data-id="${esc(c.id)}">
+        <span class="isi"><b>${esc(c.judul)}</b><small class="kal-meta">☑️ ${selesai}/${tugas.length} selesai · ${meta}</small></span>
+        <span class="panah">›</span>
+      </button>
+      <div class="progres-tugas"><i style="width:${Math.round(selesai / tugas.length * 100)}%"></i></div>
+      ${daftarCentang(c)}
+    </div>`;
+}
+
+function barisTugasForm(t) {
+  return `<div class="baris-tugas ${t.selesai ? 'selesai' : ''}">
+      <button type="button" class="kotak-centang" data-aksi="c-tugas-centang" role="checkbox" aria-checked="${t.selesai}" aria-label="Tandai selesai"></button>
+      <input class="field" maxlength="200" enterkeyhint="next" placeholder="Tulis item…" value="${esc(t.teks)}">
+      <button type="button" class="tombol-hapus-tugas" data-aksi="c-tugas-hapus" aria-label="Hapus item">✕</button>
+    </div>`;
+}
+const tugasDariForm = () => [...document.querySelectorAll('#c-tugas .baris-tugas')].map(r => ({
+  teks: r.querySelector('input').value, selesai: r.classList.contains('selesai'),
+}));
+function tambahBarisTugas(setelah, teks) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = barisTugasForm({ teks: teks || '', selesai: false });
+  const baris = tmp.firstElementChild;
+  if (setelah) setelah.after(baris); else $('#c-tugas').appendChild(baris);
+  baris.querySelector('input').focus();
+}
+
+// Centang dari kalender/overlay: tampilan langsung berubah, simpan di latar (berurutan supaya tidak saling timpa).
+let antrianTugas = Promise.resolve();
+function centangTugas(id, i) {
+  const c = daftarCatatan().find(x => x.id === id);
+  const tugas = c && bacaTugas(c.isi);
+  if (!tugas || !tugas[i]) return;
+  const isiLama = c.isi;
+  tugas[i].selesai = !tugas[i].selesai;
+  c.isi = tulisTugas(tugas);
+  getar();
+  segarkanCentang(c);
+  const kirimIsi = c.isi;
+  antrianTugas = antrianTugas.then(() => api('simpanCatatan', {
+    id: c.id, tanggal: c.tanggal, judul: c.judul, isi: kirimIsi, pengingat: c.pengingat, ulang: c.ulang, warna: c.warna,
+  })).catch(e => {
+    c.isi = isiLama;
+    segarkanCentang(c);
+    if (!(e instanceof GOOGLE.PerluMasuk)) toast('Centang belum tersimpan: ' + pesanError(e), true);
+  });
+}
+function segarkanCentang(c) {
+  if ($('#kalender')) renderKalender();
+  const overlay = document.querySelector('#ingat .ingat-isi');
+  if (overlay && overlay.querySelector(`[data-id="${CSS.escape(c.id)}"]`)) overlay.innerHTML = daftarCentang(c, true);
+}
+
+Object.assign(AKSI, {
+  'centang-tugas': el => centangTugas(el.dataset.id, Number(el.dataset.i)),
+  'c-jenis': el => {
+    const jenis = el.dataset.v;
+    if (jenis === S.formCatatan.jenis) return;
+    simpanDraftCatatan();
+    S.formCatatan.jenis = jenis;
+    document.querySelectorAll('#c-jenis button').forEach(b => b.classList.toggle('aktif', b === el));
+    if (jenis === 'tugas') {
+      // Teks yang sudah ditulis jadi item per baris.
+      const baris = $('#c-isi').value.split('\n').map(b => b.replace(/^\s*([-*•]|\d+[.)])\s*/, '').trim()).filter(Boolean);
+      if (baris.length) $('#c-tugas').innerHTML = baris.map(t => barisTugasForm({ teks: t, selesai: false })).join('');
+    } else {
+      const isi = tugasDariForm().filter(t => t.teks.trim()).map(t => '- ' + t.teks.trim()).join('\n');
+      if (isi && !$('#c-isi').value.trim()) $('#c-isi').value = isi;
+    }
+    $('#c-isi-teks').hidden = jenis === 'tugas';
+    $('#c-isi-tugas').hidden = jenis !== 'tugas';
+    tinggiIsiCatatan();
+    if (jenis === 'tugas') { const kosong = [...document.querySelectorAll('#c-tugas input')].find(x => !x.value); if (kosong) kosong.focus(); }
+  },
+  'c-tugas-tambah': () => tambahBarisTugas(),
+  'c-tugas-centang': el => {
+    const baris = el.closest('.baris-tugas');
+    baris.classList.toggle('selesai');
+    el.setAttribute('aria-checked', baris.classList.contains('selesai'));
+  },
+  'c-tugas-hapus': el => {
+    const baris = el.closest('.baris-tugas');
+    if (document.querySelectorAll('#c-tugas .baris-tugas').length > 1) baris.remove();
+    else { baris.querySelector('input').value = ''; baris.classList.remove('selesai'); }
+  },
+});
+
+// Enter di item = item baru di bawahnya; Backspace di item kosong = hapus & pindah ke item sebelumnya.
+document.addEventListener('keydown', e => {
+  const input = e.target.closest && e.target.closest('#c-tugas .baris-tugas input');
+  if (!input) return;
+  const baris = input.closest('.baris-tugas');
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    tambahBarisTugas(baris);
+  } else if (e.key === 'Backspace' && !input.value && document.querySelectorAll('#c-tugas .baris-tugas').length > 1) {
+    e.preventDefault();
+    const sebelum = baris.previousElementSibling || baris.nextElementSibling;
+    baris.remove();
+    const x = sebelum && sebelum.querySelector('input');
+    if (x) { x.focus(); x.setSelectionRange(x.value.length, x.value.length); }
+  }
+});
+
+/**
+ * Form catatan sebagai halaman penuh (tab 'catatan-edit'). c: catatan yang diubah (null = baru); tanggal: untuk catatan baru.
+ * Isian disimpan di S.formCatatan & dibaca ulang dari layar sebelum render, supaya muat ulang data di latar tidak menghapus ketikan.
+ */
 function bukaFormCatatan(c, tanggal) {
   const x = c || { judul: '', isi: '', tanggal: tanggal || hariIni(), pengingat: true, ulang: '', warna: 'biru' };
-  S.formCatatan = { id: c ? c.id : '', pengingat: x.pengingat, ulang: x.ulang, warna: x.warna || 'biru' };
-  bukaSheet(c ? 'Ubah catatan' : 'Catatan baru', `
-    <div class="grup-form">
-      <label class="label" for="c-judul">Judul</label>
-      <input class="field" id="c-judul" maxlength="80" enterkeyhint="next" placeholder="mis. Bayar kos, Arisan, Ulang tahun Ibu" value="${esc(x.judul)}">
-    </div>
-    <div class="grup-form">
-      <label class="label" for="c-isi">Isi catatan <small style="font-weight:600">(opsional)</small></label>
-      <textarea class="field" id="c-isi" rows="3" maxlength="2000" placeholder="Detail yang perlu diingat">${esc(x.isi)}</textarea>
-    </div>
-    <div class="grup-form">
-      <label class="label" for="c-tanggal">Tanggal</label>
-      ${inputTanggal('c-tanggal', x.tanggal)}
-    </div>
-    <button type="button" class="baris" data-aksi="c-pengingat" role="switch" aria-checked="${S.formCatatan.pengingat}" id="c-pengingat">
-      <span class="ikon-bulat">🔔</span>
-      <span class="isi"><b>Jadikan pengingat</b><small>Muncul saat aplikasi dibuka di tanggal ini</small></span>
-      <span class="saklar ${S.formCatatan.pengingat ? 'nyala' : ''}" aria-hidden="true"></span>
-    </button>
-    <div class="grup-form" style="margin-top:14px">
-      <span class="label">Ulangi</span>
-      <div class="segmen" id="c-ulang">${[['', 'Tidak'], ['Mingguan', 'Mingguan'], ['Bulanan', 'Bulanan'], ['Tahunan', 'Tahunan']].map(([v, l]) =>
-        `<button type="button" class="${S.formCatatan.ulang === v ? 'aktif' : ''}" data-aksi="c-ulang" data-v="${v}">${l}</button>`).join('')}</div>
-    </div>
-    <div class="grup-form">
-      <span class="label">Warna</span>
-      <div class="pilih-warna" id="c-warna">${WARNA_CATATAN.map(([k, w]) =>
-        `<button type="button" class="${S.formCatatan.warna === k ? 'aktif' : ''}" style="--w:${w}" data-aksi="c-warna" data-v="${k}" aria-label="Warna ${k}"></button>`).join('')}</div>
-    </div>
-    ${c && c.oleh ? `<p class="info-kecil">Dibuat oleh ${esc(namaPendek(c.oleh))}</p>` : ''}
-    <div class="aksi-form">
-      ${c ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-catatan">Hapus</button>' : '<button type="button" class="btn btn-hapus" data-aksi="kalender">Batal</button>'}
-      <button type="button" class="btn btn-utama" data-aksi="simpan-catatan">Simpan</button>
-    </div>`);
-  if (!c) setTimeout(() => $('#c-judul') && $('#c-judul').focus(), 250);
+  const tugas = bacaTugas(x.isi);
+  S.formCatatan = {
+    id: c ? c.id : '', oleh: c ? c.oleh : '', judul: x.judul, tanggal: x.tanggal, pengingat: x.pengingat, ulang: x.ulang,
+    warna: x.warna || 'biru', jenis: tugas ? 'tugas' : 'teks', isi: tugas ? '' : x.isi, tugas: tugas || [{ teks: '', selesai: false }],
+    fokus: !c,
+  };
+  bukaHalaman('catatan-edit');
 }
+
+/** Ambil isian form yang sedang tampil ke S.formCatatan (dipanggil sebelum render ulang & saat ganti jenis). */
+function simpanDraftCatatan() {
+  const f = S.formCatatan;
+  if (!f || !$('#c-judul')) return;
+  f.judul = $('#c-judul').value;
+  f.tanggal = $('#c-tanggal').value || f.tanggal;
+  f.isi = $('#c-isi').value;
+  f.tugas = tugasDariForm();
+}
+
+// [nilai, label pendek di chip, teks pilihan]
+const LABEL_ULANG = [['', 'Sekali', 'Tidak berulang'], ['Mingguan', 'Mingguan', 'Tiap minggu'], ['Bulanan', 'Bulanan', 'Tiap bulan'], ['Tahunan', 'Tahunan', 'Tiap tahun']];
+
+function viewFormCatatan() {
+  const f = S.formCatatan;
+  if (!f) { S.tab = 'catatan'; return viewCatatan(); }
+  const tugas = f.jenis === 'tugas';
+  return `
+    <div class="kepala kepala-kembali kepala-form-catatan">
+      <button class="tombol-ikon" data-aksi="kalender" aria-label="Kembali">${svg('kembali')}</button>
+      <h1>${f.id ? 'Ubah catatan' : 'Catatan baru'}</h1>
+      <button type="button" class="btn btn-utama btn-kecil" data-aksi="simpan-catatan">Simpan</button>
+    </div>
+    <div class="form-catatan" style="--w:${warnaCatatan(f.warna)}">
+      <input class="judul-catatan" id="c-judul" maxlength="80" enterkeyhint="next" placeholder="Judul" value="${esc(f.judul)}" aria-label="Judul">
+
+      <div class="opsi-catatan">
+        <label class="chip-opsi">📅 <span id="c-tanggal-label">${esc(labelHariPendek(f.tanggal))}</span>
+          <input type="date" id="c-tanggal" value="${f.tanggal}" aria-label="Tanggal"></label>
+        <button type="button" class="chip-opsi ${f.pengingat ? 'nyala' : ''}" data-aksi="c-pengingat" role="switch" aria-checked="${f.pengingat}">${f.pengingat ? '🔔 Ingatkan' : '🔕 Ingatkan'}</button>
+        <label class="chip-opsi ${f.ulang ? 'nyala' : ''}">🔁 <span id="c-ulang-label">${LABEL_ULANG.find(u => u[0] === f.ulang)[1]}</span>
+          <select id="c-ulang" aria-label="Ulangi">${LABEL_ULANG.map(([v, , l]) => `<option value="${v}" ${f.ulang === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <button type="button" class="chip-opsi" data-aksi="c-warna" aria-label="Ganti warna (sekarang ${esc(f.warna)})"><i class="titik-warna"></i></button>
+      </div>
+
+      <div class="segmen segmen-jenis" id="c-jenis">
+        <button type="button" class="${tugas ? '' : 'aktif'}" data-aksi="c-jenis" data-v="teks">📝 Teks</button>
+        <button type="button" class="${tugas ? 'aktif' : ''}" data-aksi="c-jenis" data-v="tugas">☑️ Daftar tugas</button>
+      </div>
+
+      <div id="c-isi-teks" ${tugas ? 'hidden' : ''}>
+        <textarea class="isi-catatan" id="c-isi" maxlength="2000" placeholder="Tulis catatan…" aria-label="Isi catatan">${esc(f.isi)}</textarea>
+      </div>
+      <div id="c-isi-tugas" ${tugas ? '' : 'hidden'}>
+        <div id="c-tugas">${f.tugas.map(barisTugasForm).join('')}</div>
+        <button type="button" class="tombol-tambah-tugas" data-aksi="c-tugas-tambah">＋ Tambah item</button>
+      </div>
+
+      <div class="kaki-form-catatan">
+        ${f.oleh ? `<small>Dibuat oleh ${esc(namaPendek(f.oleh))}</small>` : '<span></span>'}
+        ${f.id ? '<button type="button" class="tombol-teks bahaya" data-aksi="hapus-catatan">🗑 Hapus</button>' : ''}
+      </div>
+    </div>`;
+}
+
+/** Textarea isi catatan ikut memanjang sesuai isi (halaman yang scroll, bukan kotaknya). */
+function tinggiIsiCatatan() {
+  const t = $('#c-isi');
+  if (!t) return;
+  t.style.height = 'auto';
+  t.style.height = Math.max(t.scrollHeight, 180) + 'px';
+}
+document.addEventListener('input', e => { if (e.target.id === 'c-isi') tinggiIsiCatatan(); });
+document.addEventListener('change', e => {
+  if (!S.formCatatan) return;
+  if (e.target.id === 'c-tanggal' && e.target.value) {
+    S.formCatatan.tanggal = e.target.value;
+    $('#c-tanggal-label').textContent = labelHariPendek(e.target.value);
+  }
+  if (e.target.id === 'c-ulang') {
+    S.formCatatan.ulang = e.target.value;
+    $('#c-ulang-label').textContent = LABEL_ULANG.find(u => u[0] === e.target.value)[1];
+    e.target.closest('.chip-opsi').classList.toggle('nyala', !!e.target.value);
+  }
+});
 
 // ---------- Overlay pengingat ----------
 
@@ -4057,7 +4246,7 @@ function tampilPengingat(daftar) {
     <div class="sesi-kartu ingat-kartu" style="--w:${warnaCatatan(c.warna)}">
       <span class="ingat-label">🔔 Pengingat · ${esc(labelHariPendek(tgl))}${daftar.length > 1 ? ` · 1 dari ${daftar.length}` : ''}</span>
       <b id="ingat-judul">${esc(c.judul)}</b>
-      ${c.isi ? `<p class="ingat-isi">${esc(c.isi)}</p>` : ''}
+      ${bacaTugas(c.isi) ? `<div class="ingat-isi">${daftarCentang(c, true)}</div>` : c.isi ? `<p class="ingat-isi">${esc(c.isi)}</p>` : ''}
       ${c.oleh ? `<small class="ingat-oleh">Dari ${esc(namaPendek(c.oleh))}${c.ulang ? ' · berulang ' + c.ulang.toLowerCase() : ''}</small>` : ''}
       <button type="button" class="btn btn-utama" data-aksi="ingat-ok" data-id="${esc(c.id)}" data-tgl="${tgl}">Oke, sudah</button>
       <div class="ingat-aksi">
@@ -4157,16 +4346,7 @@ function viewSholat() {
     <p class="sholat-pelengkap">Imsak <b>${jamMenit(j.imsak)}</b> · Terbit <b>${jamMenit(j.terbit)}</b></p>
     <p class="sholat-pelengkap">Metode Kemenag RI (Subuh 20°, Isya 18°, Ashar Syafi'i, ihtiyat 2 menit). Bisa berbeda 1–3 menit dengan jadwal masjid setempat.</p>
 
-    <div class="area-kompas">
-      <div class="kompas ${statusKompas === 'aktif' ? 'hidup' : ''}" id="kompas" style="--kiblat:${kiblat.toFixed(1)}deg">
-        <div class="kompas-piringan" id="kompas-piringan">
-          <span class="mata-angin u">U</span><span class="mata-angin t">T</span><span class="mata-angin s">S</span><span class="mata-angin b">B</span>
-          <div class="jarum-kiblat"><span>🕋</span></div>
-        </div>
-        <div class="penanda-atas" aria-hidden="true"></div>
-      </div>
-      ${tombolKompas()}
-    </div>
+    <div class="area-kompas">${htmlKompas(kiblat)}${tombolKompas()}</div>
     <p class="teks-kiblat" id="teks-kiblat"><b>Kiblat ${Math.round(kiblat)}°</b> dari utara · ${SHOLAT.namaArah(kiblat)}</p>
     <p class="sholat-pelengkap">Letakkan HP mendatar dan jauhkan dari benda logam/magnet. Putar badan sampai 🕋 tepat di garis atas.</p>
   </div>`;
@@ -4188,11 +4368,42 @@ function simpanLokasi(lok) {
 }
 
 // Kompas: arah HP dari sensor. Android (Chrome): deviceorientationabsolute; iPhone: webkitCompassHeading (perlu izin).
+/**
+ * Kompas kiblat. Piringan (skala, U/T/S/B, penanda 🕋) berputar mengikuti arah HP; huruf & 🕋 diputar balik supaya
+ * tetap tegak. Segitiga di atas = arah depan HP. Busur di tepi = sisa putaran menuju kiblat.
+ * Nilai sensor dihaluskan & dianimasikan per frame, dan tidak melompat saat melewati 359° → 0°.
+ */
+function htmlKompas(kiblat) {
+  const huruf = [['U', 0, 'u'], ['T', 90, ''], ['S', 180, ''], ['B', 270, '']];
+  return `<div class="kompas ${statusKompas === 'aktif' ? 'hidup' : ''}" id="kompas" style="--kiblat:${kiblat.toFixed(1)}deg;--hp:${tampilHp.toFixed(1)}deg">
+      <div class="kompas-riak" aria-hidden="true"><i></i><i></i></div>
+      <div class="kompas-piringan" id="kompas-piringan">
+        <div class="kompas-skala"></div>
+        ${huruf.map(([h, d, c]) => `<div class="kompas-sudut" style="--a:${d}deg"><span class="mata-angin ${c}">${h}</span></div>`).join('')}
+        <div class="kompas-sudut kompas-kiblat" style="--a:var(--kiblat)"><i class="garis-kiblat"></i><span class="ikon-kabah">🕋</span></div>
+      </div>
+      <div class="kompas-busur" aria-hidden="true"></div>
+      <div class="penanda-atas" aria-hidden="true"></div>
+      <div class="kompas-tengah" id="kompas-tengah" aria-live="polite">${isiTengahKompas(kiblat, null)}</div>
+    </div>`;
+}
+
+function isiTengahKompas(kiblat, selisih) {
+  if (selisih == null) return `<b>${Math.round(kiblat)}°</b><small>${SHOLAT.namaArah(kiblat)}</small>`;
+  if (statusPas) return '<b class="cek">✓</b><small>Menghadap kiblat</small>';
+  return `<b>${Math.round(Math.abs(selisih))}°</b><small>putar ${selisih > 0 ? 'ke kanan ↻' : 'ke kiri ↺'}</small>`;
+}
+
 // Tombol melayang di atas kompas & hilang saat kompas menyala.
 // Status: 'mati' → 'menunggu' (izin diberikan, belum ada data sensor) → 'aktif'; 'tidak-ada' kalau sensor tak pernah mengirim data.
 let statusKompas = 'mati';
 let jenisKompas = '';
-let sudahPas = false;
+let statusPas = false;
+let targetHp = 0;   // arah HP dari sensor, tidak "dibungkus" ke 0–360 supaya animasi tidak berputar balik
+let tampilHp = 0;   // arah yang sedang digambar (mengejar targetHp)
+let adaDataHp = false;
+let frameKompas = 0;
+let teksTengahTerakhir = '';
 const LABEL_KOMPAS = {
   mati: '🧭 Aktifkan kompas',
   menunggu: '⏳ Menunggu sensor kompas…',
@@ -4210,27 +4421,45 @@ function aturStatusKompas(st) {
   const k = $('#kompas');
   if (k) k.classList.toggle('hidup', st === 'aktif');
 }
-function aturArahHp(arah) {
-  const piringan = $('#kompas-piringan');
-  const kompas = $('#kompas');
-  if (!piringan || !kompas) return;
+
+function terimaArahHp(arah) {
   if (statusKompas === 'menunggu') aturStatusKompas('aktif');
   if (statusKompas !== 'aktif') return;
-  piringan.style.transform = `rotate(${-arah}deg)`;
-  const kiblat = parseFloat(getComputedStyle(kompas).getPropertyValue('--kiblat')) || 0;
-  const selisih = ((kiblat - arah + 540) % 360) - 180;
-  const pas = Math.abs(selisih) < 5;
+  if (!adaDataHp) { targetHp = tampilHp = arah; adaDataHp = true; }
+  targetHp += ((arah - targetHp) % 360 + 540) % 360 - 180; // jalur terpendek ke arah baru
+  if (!frameKompas) frameKompas = requestAnimationFrame(gambarKompas);
+}
+
+function gambarKompas() {
+  frameKompas = 0;
+  const kompas = $('#kompas');
+  if (!kompas || statusKompas !== 'aktif') return;
+  const sisa = targetHp - tampilHp;
+  tampilHp = Math.abs(sisa) < 0.05 ? targetHp : tampilHp + sisa * 0.2; // pelembut gerak
+  kompas.style.setProperty('--hp', tampilHp.toFixed(2) + 'deg');
+
+  const kiblat = parseFloat(kompas.style.getPropertyValue('--kiblat')) || 0;
+  const selisih = ((kiblat - tampilHp) % 360 + 540) % 360 - 180; // + = putar ke kanan
+  const jarak = Math.abs(selisih);
+  // Histeresis: masuk "pas" di bawah 3°, keluar baru di atas 6°, supaya tidak berkedip saat tangan bergetar.
+  const pas = statusPas ? jarak < 6 : jarak < 3;
+  if (pas && !statusPas && navigator.vibrate) navigator.vibrate([40, 60, 40]);
+  statusPas = pas;
   kompas.classList.toggle('pas', pas);
-  const teks = $('#teks-kiblat');
-  if (teks) teks.innerHTML = pas ? '<b>✅ Sudah menghadap kiblat</b>'
-    : `<b>${Math.round(kiblat)}°</b> · putar ${selisih > 0 ? 'ke kanan' : 'ke kiri'} ${Math.round(Math.abs(selisih))}°`;
-  if (pas && !sudahPas) getar();
-  sudahPas = pas;
+  kompas.classList.toggle('dekat', !pas && jarak < 20);
+  kompas.style.setProperty('--busur-mulai', (selisih < 0 ? selisih : 0).toFixed(2) + 'deg');
+  kompas.style.setProperty('--busur', jarak.toFixed(2) + 'deg');
+  const tengah = $('#kompas-tengah');
+  const teks = isiTengahKompas(kiblat, selisih);
+  if (tengah && teks !== teksTengahTerakhir) { tengah.innerHTML = teks; teksTengahTerakhir = teks; }
+  if (tampilHp !== targetHp) frameKompas = requestAnimationFrame(gambarKompas);
 }
+
 function saatOrientasi(e) {
-  if (typeof e.webkitCompassHeading === 'number') return aturArahHp(e.webkitCompassHeading);
-  if (e.absolute && typeof e.alpha === 'number') aturArahHp(360 - e.alpha);
+  if (typeof e.webkitCompassHeading === 'number') return terimaArahHp(e.webkitCompassHeading);
+  if (e.absolute && typeof e.alpha === 'number') terimaArahHp(360 - e.alpha);
 }
+
 async function nyalakanKompas() {
   if (statusKompas === 'aktif' || statusKompas === 'menunggu') return matikanKompas();
   try {
@@ -4239,6 +4468,7 @@ async function nyalakanKompas() {
     }
   } catch (e) { return toast('Sensor arah tidak bisa diakses.', true); }
   jenisKompas = 'ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation';
+  adaDataHp = false;
   window.addEventListener(jenisKompas, saatOrientasi);
   aturStatusKompas('menunggu');
   setTimeout(() => {
@@ -4253,13 +4483,20 @@ async function nyalakanKompas() {
 function matikanKompas() {
   if (jenisKompas) window.removeEventListener(jenisKompas, saatOrientasi);
   jenisKompas = '';
-  sudahPas = false;
-  const p = $('#kompas-piringan'), k = $('#kompas'), t = $('#teks-kiblat');
-  if (p) p.style.transform = '';
+  statusPas = false;
+  adaDataHp = false;
+  targetHp = tampilHp = 0;
+  teksTengahTerakhir = '';
+  if (frameKompas) cancelAnimationFrame(frameKompas);
+  frameKompas = 0;
+  const k = $('#kompas');
   if (k) {
-    k.classList.remove('pas');
-    const kiblat = parseFloat(getComputedStyle(k).getPropertyValue('--kiblat')) || 0;
-    if (t) t.innerHTML = `<b>Kiblat ${Math.round(kiblat)}°</b> dari utara · ${SHOLAT.namaArah(kiblat)}`;
+    k.classList.remove('pas', 'dekat');
+    k.style.setProperty('--hp', '0deg');
+    k.style.setProperty('--busur', '0deg');
+    const kiblat = parseFloat(k.style.getPropertyValue('--kiblat')) || 0;
+    const tengah = $('#kompas-tengah');
+    if (tengah) tengah.innerHTML = isiTengahKompas(kiblat, null);
   }
   aturStatusKompas('mati');
 }
@@ -4293,28 +4530,31 @@ Object.assign(AKSI, {
     if (c) bukaFormCatatan(c);
   },
   'c-pengingat': el => {
-    S.formCatatan.pengingat = !S.formCatatan.pengingat;
-    el.setAttribute('aria-checked', S.formCatatan.pengingat);
-    el.querySelector('.saklar').classList.toggle('nyala', S.formCatatan.pengingat);
+    const on = S.formCatatan.pengingat = !S.formCatatan.pengingat;
+    el.setAttribute('aria-checked', on);
+    el.classList.toggle('nyala', on);
+    el.textContent = on ? '🔔 Ingatkan' : '🔕 Ingatkan';
   },
-  'c-ulang': el => {
-    S.formCatatan.ulang = el.dataset.v;
-    document.querySelectorAll('#c-ulang button').forEach(b => b.classList.toggle('aktif', b === el));
-  },
-  'c-warna': el => {
-    S.formCatatan.warna = el.dataset.v;
-    document.querySelectorAll('#c-warna button').forEach(b => b.classList.toggle('aktif', b === el));
+  'c-warna': el => { // ketuk = warna berikutnya
+    const i = WARNA_CATATAN.findIndex(w => w[0] === S.formCatatan.warna);
+    S.formCatatan.warna = WARNA_CATATAN[(i + 1) % WARNA_CATATAN.length][0];
+    el.setAttribute('aria-label', 'Ganti warna (sekarang ' + S.formCatatan.warna + ')');
+    const f = $('.form-catatan');
+    if (f) f.style.setProperty('--w', warnaCatatan(S.formCatatan.warna));
   },
   'simpan-catatan': async el => {
-    const input = Object.assign({}, S.formCatatan, {
-      judul: $('#c-judul').value, isi: $('#c-isi').value, tanggal: $('#c-tanggal').value,
-    });
+    simpanDraftCatatan();
+    const f = S.formCatatan;
+    const input = {
+      id: f.id, judul: f.judul, tanggal: f.tanggal, pengingat: f.pengingat, ulang: f.ulang, warna: f.warna,
+      isi: f.jenis === 'tugas' ? tulisTugas(f.tugas) : f.isi,
+    };
     if (!input.judul.trim()) return toast('Isi judul catatannya dulu.', true);
     if (await kirim(el, 'simpanCatatan', [input], input.pengingat ? 'Pengingat tersimpan 🔔' : 'Catatan tersimpan ✔')) bukaKalender(input.tanggal);
   },
   'hapus-catatan': async el => {
     if (!await tanya('Hapus catatan ini untuk semua anggota buku?', 'Hapus')) return;
-    const tgl = $('#c-tanggal').value;
+    const tgl = S.formCatatan.tanggal;
     if (await kirim(el, 'hapusCatatan', [S.formCatatan.id], 'Catatan dihapus')) bukaKalender(tgl);
   },
   'ingat-ok': el => { tutupPengingat(el.dataset.id, el.dataset.tgl, 'ok'); setTimeout(cekPengingat, 300); },
@@ -4390,6 +4630,7 @@ window.addEventListener('popstate', e => {
   if (e.state && e.state.dkJaga) { adaPenjaga = true; return; } // maju lagi ke entri penjaga
   adaPenjaga = false;
   if (tutupLapisanAtas()) return pasangPenjaga();
+  if (S.tab === 'catatan-edit') { bukaKalender(S.formCatatan && S.formCatatan.tanggal); return pasangPenjaga(); }
   const bisaKeBeranda = S.data && !S.data.perluSetup && $('#kunci').hidden && $('#sesi').hidden && S.tab !== 'beranda';
   if (bisaKeBeranda) {
     S.tab = 'beranda';
