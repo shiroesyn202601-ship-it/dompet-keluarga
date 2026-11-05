@@ -42,7 +42,7 @@ const GOOGLE = (() => {
       const mulai = Date.now();
       (function cek() {
         if (window.google && google.accounts && google.accounts.oauth2) ok();
-        else if (Date.now() - mulai > 15000) gagal(new Error('Layanan login Google tidak bisa dimuat. Periksa koneksi internet.'));
+        else if (Date.now() - mulai > 15000) gagal(new Error(T('Layanan login Google tidak bisa dimuat. Periksa koneksi internet.')));
         else setTimeout(cek, 100);
       })();
     });
@@ -53,7 +53,7 @@ const GOOGLE = (() => {
    * Akun yang pernah masuk langsung dipakai lagi (jendela hanya berkedip); pilihAkun: true untuk ganti akun.
    */
   async function masuk(pilihAkun) {
-    if (!KONFIG.clientId || /^ISI_/.test(KONFIG.clientId)) throw new Error('Client ID Google belum diisi di web/assets/config.js.');
+    if (!KONFIG.clientId || /^ISI_/.test(KONFIG.clientId)) throw new Error(T('Client ID Google belum diisi di web/assets/config.js.'));
     await tungguGis();
     const resp = await new Promise((ok, gagal) => {
       google.accounts.oauth2.initTokenClient({
@@ -62,11 +62,11 @@ const GOOGLE = (() => {
         // Hanya izin di atas; izin lama (mis. scope spreadsheets versi sebelumnya) tidak ikut terbawa.
         include_granted_scopes: false,
         callback: r => (r.error ? gagal(new Error(r.error_description || r.error)) : ok(r)),
-        error_callback: e => gagal(new Error(e.type === 'popup_closed' ? 'Login dibatalkan.' : 'Login gagal: ' + (e.message || e.type))),
+        error_callback: e => gagal(new Error(e.type === 'popup_closed' ? T('Login dibatalkan.') : T('Login gagal: {pesan}', { pesan: e.message || e.type }))),
       }).requestAccessToken(pilihAkun ? { prompt: 'select_account' } : { prompt: '', hint: sesi && sesi.email });
     });
     if (!google.accounts.oauth2.hasGrantedAllScopes(resp, ...IZIN)) {
-      throw new Error('Izin belum lengkap. Masuk lagi dan centang semua akses yang diminta.');
+      throw new Error(T('Izin belum lengkap. Masuk lagi dan centang semua akses yang diminta.'));
     }
     const info = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: 'Bearer ' + resp.access_token },
@@ -109,7 +109,7 @@ const GOOGLE = (() => {
    *   teks: true untuk mengembalikan teks, bukan JSON
    */
   async function api(url, opsi = {}) {
-    if (!sudahMasuk()) throw new PerluMasuk('Sesi login sudah habis. Silakan masuk lagi.');
+    if (!sudahMasuk()) throw new PerluMasuk(T('Sesi login sudah habis. Silakan masuk lagi.'));
     const headers = Object.assign({ Authorization: 'Bearer ' + sesi.token }, opsi.headers);
     let body = opsi.body;
     if (opsi.json !== undefined) {
@@ -120,14 +120,14 @@ const GOOGLE = (() => {
     try {
       res = await fetch(url, { method: opsi.method || 'GET', headers, body });
     } catch (e) {
-      const err = new Error('Tidak bisa terhubung ke Google. Periksa koneksi internet.');
+      const err = new Error(T('Tidak bisa terhubung ke Google. Periksa koneksi internet.'));
       err.jaringan = true; // dipakai app.js untuk mode offline & antrean transaksi
       throw err;
     }
     if (res.status === 401) {
       sesi.kadaluarsa = 0;
       tulisSesi(sesi);
-      throw new PerluMasuk('Sesi login sudah habis. Silakan masuk lagi.');
+      throw new PerluMasuk(T('Sesi login sudah habis. Silakan masuk lagi.'));
     }
     if (!res.ok) {
       let pesan = '';
@@ -144,19 +144,19 @@ const GOOGLE = (() => {
 
   /** Pesan kesalahan Google yang umum → bahasa Indonesia; selain itu pesan aslinya dipakai. */
   const TERJEMAHAN = [
-    [/storage quota|storageQuotaExceeded/i, 'Penyimpanan Google Drive Anda penuh. Kosongkan sebagian di drive.google.com lalu coba lagi.'],
-    [/above the limit|cells in the workbook/i, 'Spreadsheet sudah mencapai batas ukuran Google. Buat buku baru di ⚙️ → Buku keuangan.'],
-    [/insufficient (permission|authentication)/i, 'Izin Google belum lengkap. Keluar, lalu masuk lagi dan centang semua akses yang diminta.'],
-    [/unable to parse range/i, 'Susunan spreadsheet berubah (mungkin nama sheet diganti). Kembalikan nama sheet aslinya, lalu coba lagi.'],
+    [/storage quota|storageQuotaExceeded/i, T('Penyimpanan Google Drive Anda penuh. Kosongkan sebagian di drive.google.com lalu coba lagi.')],
+    [/above the limit|cells in the workbook/i, T('Spreadsheet sudah mencapai batas ukuran Google. Buat buku baru di ⚙️ → Buku keuangan.')],
+    [/insufficient (permission|authentication)/i, T('Izin Google belum lengkap. Keluar, lalu masuk lagi dan centang semua akses yang diminta.')],
+    [/unable to parse range/i, T('Susunan spreadsheet berubah (mungkin nama sheet diganti). Kembalikan nama sheet aslinya, lalu coba lagi.')],
   ];
   function terjemahkan(status, pesan) {
     const cocok = TERJEMAHAN.find(([pola]) => pola.test(pesan));
     if (cocok) return cocok[1];
-    if (status === 429 || /rate ?limit|quota/i.test(pesan)) return 'Terlalu banyak permintaan ke Google dalam waktu singkat. Tunggu sebentar, lalu coba lagi.';
-    if (status >= 500) return 'Layanan Google sedang gangguan. Coba lagi beberapa saat lagi.';
-    if (status === 403) return 'Anda tidak punya akses untuk tindakan ini. Minta pemilik spreadsheet memberi akses Editor.';
-    if (status === 404) return 'File tidak ditemukan di Google Drive. Mungkin sudah dihapus atau dipindahkan.';
-    return pesan || 'Terjadi kesalahan di Google (kode ' + status + '). Coba lagi.';
+    if (status === 429 || /rate ?limit|quota/i.test(pesan)) return T('Terlalu banyak permintaan ke Google dalam waktu singkat. Tunggu sebentar, lalu coba lagi.');
+    if (status >= 500) return T('Layanan Google sedang gangguan. Coba lagi beberapa saat lagi.');
+    if (status === 403) return T('Anda tidak punya akses untuk tindakan ini. Minta pemilik spreadsheet memberi akses Editor.');
+    if (status === 404) return T('File tidak ditemukan di Google Drive. Mungkin sudah dihapus atau dipindahkan.');
+    return pesan || T('Terjadi kesalahan di Google (kode {kode}). Coba lagi.', { kode: status });
   }
 
   /** Body multipart/related untuk upload Drive: metadata JSON + isi file. */
@@ -187,7 +187,7 @@ const GOOGLE = (() => {
         document.head.appendChild(s);
       }).catch(() => {
         pickerSiap = null;
-        throw new Error('Pemilih file Google tidak bisa dimuat. Periksa koneksi internet.');
+        throw new Error(T('Pemilih file Google tidak bisa dimuat. Periksa koneksi internet.'));
       });
     }
     return pickerSiap;
@@ -201,20 +201,20 @@ const GOOGLE = (() => {
    * Tanpa opsi.banyak: ID file, atau null kalau dibatalkan.
    */
   async function pilihSpreadsheet(idFile, opsi = {}) {
-    if (!sudahMasuk()) throw new PerluMasuk('Sesi login sudah habis. Silakan masuk lagi.');
+    if (!sudahMasuk()) throw new PerluMasuk(T('Sesi login sudah habis. Silakan masuk lagi.'));
     await muatPicker();
     const P = google.picker;
     const view = new P.DocsView(P.ViewId.SPREADSHEETS).setMode(P.DocsViewMode.LIST);
     if (idFile) view.setFileIds(idFile);
     else if (opsi.undangan) view.setOwnedByMe(false);
-    const judul = idFile ? 'Ketuk spreadsheet Dompet Keluarga, lalu Pilih'
-      : opsi.undangan ? (opsi.banyak ? 'Buku yang dibagikan ke Anda · pilih satu atau beberapa' : 'Buku yang dibagikan ke Anda')
-      : 'Pilih spreadsheet Dompet Keluarga';
+    const judul = idFile ? T('Ketuk spreadsheet Dompet Keluarga, lalu Pilih')
+      : opsi.undangan ? (opsi.banyak ? T('Buku yang dibagikan ke Anda · pilih satu atau beberapa') : T('Buku yang dibagikan ke Anda'))
+      : T('Pilih spreadsheet Dompet Keluarga');
     return new Promise(ok => {
       const b = new P.PickerBuilder()
         .setOAuthToken(sesi.token)
         .setAppId(KONFIG.clientId.split('-')[0]) // nomor project Google Cloud
-        .setLocale('id')
+        .setLocale(BAHASA)
         .setTitle(judul)
         .addView(view)
         .setCallback(d => {

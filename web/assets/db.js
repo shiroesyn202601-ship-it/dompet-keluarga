@@ -153,7 +153,7 @@ const SERVER = (() => {
     idSheet = await bacaIdSheet_(id);
     ['transaksi', 'kategori', 'dompet'].forEach(k => {
       if (!(TABEL[k].nama in idSheet)) {
-        throw new Error('Spreadsheet ini bukan database Dompet Keluarga (sheet "' + TABEL[k].nama + '" tidak ada).');
+        throw new Error(T('Spreadsheet ini bukan database Dompet Keluarga (sheet "{sheet}" tidak ada).', { sheet: TABEL[k].nama }));
       }
     });
     await pastikanStruktur_(id);
@@ -178,8 +178,8 @@ const SERVER = (() => {
     } catch (e) {
       // Dengan scope drive.file, spreadsheet yang dibagikan orang lain baru bisa dibuka setelah dipilih lewat Google Picker.
       if (e.status === 403 || e.status === 404) {
-        const err = new Error('Aplikasi belum diizinkan membuka spreadsheet Dompet Keluarga dengan akun ' + GOOGLE.email() +
-          '. Ketuk "Pilih spreadsheet", lalu pilih file Dompet Keluarga. Kalau file-nya tidak muncul, berarti akun ini belum diundang: minta pemilik mengundang dari ⚙️ → Undang anggota keluarga.');
+        const err = new Error(T('Aplikasi belum diizinkan membuka spreadsheet Dompet Keluarga dengan akun {email}. Ketuk "Pilih spreadsheet", lalu pilih file Dompet Keluarga. Kalau file-nya tidak muncul, berarti akun ini belum diundang: minta pemilik mengundang dari ⚙️ → Undang anggota keluarga.',
+          { email: GOOGLE.email() }));
         err.tanpaAkses = true;
         err.idDb = id;
         throw err;
@@ -300,7 +300,7 @@ const SERVER = (() => {
 
   async function db_() {
     const id = await cariIdDb_();
-    if (!id) throw new Error('Spreadsheet belum dipilih. Muat ulang aplikasi.');
+    if (!id) throw new Error(T('Spreadsheet belum dipilih. Muat ulang aplikasi.'));
     if (!idSheet) {
       idSheet = await bacaIdSheet_(id);
       await pastikanStruktur_(id);
@@ -319,12 +319,12 @@ const SERVER = (() => {
    */
   async function buatDatabase(emailAnggota, dompet, namaBuku) {
     const anggota = teks_(emailAnggota);
-    if (anggota && !POLA_EMAIL.test(anggota)) throw new Error('Format email anggota keluarga tidak valid.');
+    if (anggota && !POLA_EMAIL.test(anggota)) throw new Error(T('Format email anggota keluarga tidak valid.'));
     const barisDompet = [];
     (dompet || []).forEach(w => {
       const nama = teks_(w.nama).slice(0, 40);
       if (!nama) return;
-      if (barisDompet.some(r => r[0].toLowerCase() === nama.toLowerCase())) throw new Error('Dompet "' + nama + '" dobel.');
+      if (barisDompet.some(r => r[0].toLowerCase() === nama.toLowerCase())) throw new Error(T('Dompet "{nama}" dobel.', { nama }));
       barisDompet.push([nama, teks_(w.ikon) || '👛', Math.round(Number(w.saldoAwal) || 0), JENIS.DOMPET]);
     });
 
@@ -382,7 +382,7 @@ const SERVER = (() => {
   async function hubungkanDatabase(linkAtauId) {
     const s = teks_(linkAtauId);
     const m = s.match(/\/d\/([\w-]{20,})/) || s.match(/^([\w-]{20,})$/);
-    if (!m) throw new Error('Link spreadsheet tidak dikenali. Salin link dari address bar saat spreadsheet terbuka.');
+    if (!m) throw new Error(T('Link spreadsheet tidak dikenali. Salin link dari address bar saat spreadsheet terbuka.'));
     await pakaiDb_(m[1]);
     return true;
   }
@@ -403,20 +403,20 @@ const SERVER = (() => {
   async function idBuku_(idBuku) {
     if (!idBuku) return db_();
     const c = (await bacaConfig_()) || {};
-    if (!(c.buku || []).some(b => b.id === idBuku)) throw new Error('Buku ini tidak ada di daftar buku Anda.');
+    if (!(c.buku || []).some(b => b.id === idBuku)) throw new Error(T('Buku ini tidak ada di daftar buku Anda.'));
     return idBuku;
   }
 
   /** Memberi akses Editor ke anggota keluarga, lalu Google mengirim email berisi link undangan. idBuku kosong = buku aktif. */
   async function bagikanKe(email, idBuku) {
     email = teks_(email);
-    if (!POLA_EMAIL.test(email)) throw new Error('Format email tidak valid.');
+    if (!POLA_EMAIL.test(email)) throw new Error(T('Format email tidak valid.'));
     await bagikan_(await idBuku_(idBuku), email);
     return true;
   }
 
   async function bagikan_(id, email) {
-    const pesan = 'Ayo catat keuangan keluarga bareng di Dompet Keluarga. Buka link ini dan masuk dengan akun Google ini: ' + linkUndangan_(id);
+    const pesan = T('Ayo catat keuangan keluarga bareng di Dompet Keluarga. Buka link ini dan masuk dengan akun Google ini: {link}', { link: linkUndangan_(id) });
     try {
       await GOOGLE.api(DRIVE + '/files/' + id + '/permissions?sendNotificationEmail=true&emailMessage=' + encodeURIComponent(pesan), {
         method: 'POST',
@@ -424,7 +424,7 @@ const SERVER = (() => {
       });
     } catch (e) {
       if (e.status === 403 || e.status === 404) {
-        throw new Error('Spreadsheet ini tidak bisa dibagikan dari aplikasi (mungkin dibuat di luar aplikasi, atau Anda bukan pemiliknya). Bagikan manual: buka spreadsheet → Bagikan → isi email → Editor. Lalu kirim link undangan dari menu ini.');
+        throw new Error(T('Spreadsheet ini tidak bisa dibagikan dari aplikasi (mungkin dibuat di luar aplikasi, atau Anda bukan pemiliknya). Bagikan manual: buka spreadsheet → Bagikan → isi email → Editor. Lalu kirim link undangan dari menu ini.'));
       }
       throw e;
     }
@@ -444,12 +444,12 @@ const SERVER = (() => {
   async function keluarkanAnggota(idIzin, email, idBuku) {
     const id = await idBuku_(idBuku);
     email = teks_(email).toLowerCase();
-    if (email && email === String(GOOGLE.email() || '').toLowerCase()) throw new Error('Tidak bisa mengeluarkan akun sendiri.');
+    if (email && email === String(GOOGLE.email() || '').toLowerCase()) throw new Error(T('Tidak bisa mengeluarkan akun sendiri.'));
     try {
       await GOOGLE.api(DRIVE + '/files/' + id + '/permissions/' + encodeURIComponent(idIzin), { method: 'DELETE' });
     } catch (e) {
       if (e.status === 403 || e.status === 404) {
-        throw new Error('Akses anggota ini tidak bisa dicabut dari akun Anda (biasanya hanya pemilik spreadsheet yang bisa). Minta pemiliknya, atau buka spreadsheet → Bagikan.');
+        throw new Error(T('Akses anggota ini tidak bisa dicabut dari akun Anda (biasanya hanya pemilik spreadsheet yang bisa). Minta pemiliknya, atau buka spreadsheet → Bagikan.'));
       }
       throw e;
     }
@@ -695,7 +695,7 @@ const SERVER = (() => {
 
   async function simpanMulaiPeriode(n) {
     n = Math.round(Number(n));
-    if (!(n >= 1 && n <= 28)) throw new Error('Pilih tanggal 1 sampai 28.');
+    if (!(n >= 1 && n <= 28)) throw new Error(T('Pilih tanggal 1 sampai 28.'));
     const id = await db_();
     const [set] = await bacaTabel_(id, ['pengaturan']);
     await simpanPengaturan_(id, set, 'MULAI_PERIODE', String(n));
@@ -722,12 +722,12 @@ const SERVER = (() => {
   /** input: { id?, tanggal 'yyyy-mm-dd', judul, isi, pengingat (bool), ulang, warna }. */
   async function simpanCatatan(input) {
     const judul = teks_(input.judul).slice(0, 80);
-    if (!judul) throw new Error('Isi judul catatannya dulu.');
+    if (!judul) throw new Error(T('Isi judul catatannya dulu.'));
     const tanggal = teks_(input.tanggal);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) throw new Error('Pilih tanggalnya dulu.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) throw new Error(T('Pilih tanggalnya dulu.'));
     const ulang = ULANG_CATATAN.includes(String(input.ulang || '')) ? String(input.ulang || '') : '';
     const id = await db_();
-    if (!(TABEL.catatan.nama in idSheet)) throw new Error('Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).');
+    if (!(TABEL.catatan.nama in idSheet)) throw new Error(T('Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).'));
     const idCatatan = teks_(input.id) || crypto.randomUUID();
     const baris = [idCatatan, serialTanggal_(tanggal), judul, teks_(input.isi).slice(0, 2000), input.pengingat ? 'Ya' : '', ulang,
       teks_(input.warna).slice(0, 12), GOOGLE.email(), serialSekarang_()];
@@ -755,7 +755,7 @@ const SERVER = (() => {
 
   async function kembalikanCatatan(baris) {
     const id = await db_();
-    if (!Array.isArray(baris) || !baris[0]) throw new Error('Data catatan tidak lengkap.');
+    if (!Array.isArray(baris) || !baris[0]) throw new Error(T('Data catatan tidak lengkap.'));
     const [rows] = await bacaTabel_(id, ['catatan']);
     if (rows.some(r => String(r[0]) === String(baris[0]))) return true;
     await tambahBaris_(id, TABEL.catatan, [baris.slice(0, TABEL.catatan.kolom.length)]);
@@ -808,7 +808,7 @@ const SERVER = (() => {
     const t = validasiTransaksi_(Object.assign({}, input, { tanggal: input.berikutnya }));
     const nama = teks_(input.nama).slice(0, 60) || t.catatan || t.kategori || 'Transfer';
     const ulang = String(input.ulang);
-    if (!ULANG.includes(ulang)) throw new Error('Pilih jarak pengulangan.');
+    if (!ULANG.includes(ulang)) throw new Error(T('Pilih jarak pengulangan.'));
     const id = await db_();
     const baris = [t.id || crypto.randomUUID(), nama, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, ulang, t.tanggal, t.tanggal];
     if (t.id) {
@@ -924,14 +924,14 @@ const SERVER = (() => {
   /** Buku baru (spreadsheet baru) dengan satu dompet Tunai, langsung jadi buku aktif. */
   async function buatBuku(nama) {
     nama = teks_(nama);
-    if (!nama) throw new Error('Isi nama bukunya, mis. Usaha atau Pribadi.');
+    if (!nama) throw new Error(T('Isi nama bukunya, mis. Usaha atau Pribadi.'));
     await buatDatabase('', [{ nama: 'Tunai', ikon: '💵', saldoAwal: 0 }], nama);
     return true;
   }
 
   /** Menghapus buku dari daftar di akun ini (spreadsheet-nya sendiri tidak dihapus). */
   async function lupakanBuku(id) {
-    if (id === dbId) throw new Error('Buku yang sedang dibuka tidak bisa dilupakan. Pindah ke buku lain dulu.');
+    if (id === dbId) throw new Error(T('Buku yang sedang dibuka tidak bisa dilupakan. Pindah ke buku lain dulu.'));
     const c = await bacaConfig_();
     c.buku = (c.buku || []).filter(b => b.id !== id);
     await tulisConfig_(c);
@@ -947,10 +947,10 @@ const SERVER = (() => {
    * akhiran " - deleted" (data tetap bisa dipulihkan dari Drive).
    */
   async function hapusBuku(id) {
-    if (id === dbId) throw new Error('Buku yang sedang dibuka tidak bisa dihapus. Pindah ke buku lain dulu.');
+    if (id === dbId) throw new Error(T('Buku yang sedang dibuka tidak bisa dihapus. Pindah ke buku lain dulu.'));
     await idBuku_(id);
     const f = await GOOGLE.api(DRIVE + '/files/' + encodeURIComponent(id) + '?fields=name,ownedByMe');
-    if (!f.ownedByMe) throw new Error('Hanya pemilik buku yang bisa menghapusnya.');
+    if (!f.ownedByMe) throw new Error(T('Hanya pemilik buku yang bisa menghapusnya.'));
     if (!sudahDihapus_(f.name)) {
       await GOOGLE.api(DRIVE + '/files/' + encodeURIComponent(id) + '?fields=id', { method: 'PATCH', json: { name: f.name + AKHIRAN_DIHAPUS } });
     }
@@ -970,8 +970,8 @@ const SERVER = (() => {
         const r = await GOOGLE.api(SHEETS + '/' + encodeURIComponent(id) + '?fields=properties.title,sheets.properties.title');
         const judul = (r.properties && r.properties.title) || '';
         const ada = new Set((r.sheets || []).map(s => s.properties.title));
-        if (!['transaksi', 'kategori', 'dompet'].every(k => ada.has(TABEL[k].nama))) throw new Error('"' + judul + '" bukan buku Dompet Keluarga');
-        if (sudahDihapus_(judul)) throw new Error('"' + judul + '" sudah dihapus pemiliknya');
+        if (!['transaksi', 'kategori', 'dompet'].every(k => ada.has(TABEL[k].nama))) throw new Error(T('"{judul}" bukan buku Dompet Keluarga', { judul }));
+        if (sudahDihapus_(judul)) throw new Error(T('"{judul}" sudah dihapus pemiliknya', { judul }));
         const nama = namaBuku_(judul);
         if (!c.buku.some(b => b.id === id)) c.buku.push({ id, nama });
         hasil.push({ id, nama });
@@ -1058,7 +1058,7 @@ const SERVER = (() => {
   /** baris: hasil hapusTransaksi. Ditambah lagi apa adanya (pencatat & waktu asli tetap), foto diambil dari Sampah. */
   async function kembalikanTransaksi(baris) {
     const id = await db_();
-    if (!Array.isArray(baris) || !baris[0]) throw new Error('Data transaksi tidak lengkap.');
+    if (!Array.isArray(baris) || !baris[0]) throw new Error(T('Data transaksi tidak lengkap.'));
     if ((await daftarId_(id)).includes(String(baris[0]))) return true;
     await tambahBaris_(id, TABEL.transaksi, [baris.slice(0, TABEL.transaksi.kolom.length)]);
     await catatLog_(id, 'kembalikan', ringkasBaris_(baris));
@@ -1097,8 +1097,8 @@ const SERVER = (() => {
   async function simpanKategori(input) {
     const nama = teks_(input.nama);
     const tipe = String(input.tipe);
-    if (!nama) throw new Error('Nama kategori wajib diisi.');
-    if (tipe !== TIPE.MASUK && tipe !== TIPE.KELUAR) throw new Error('Tipe kategori tidak valid.');
+    if (!nama) throw new Error(T('Nama kategori wajib diisi.'));
+    if (tipe !== TIPE.MASUK && tipe !== TIPE.KELUAR) throw new Error(T('Tipe kategori tidak valid.'));
     const ikon = teks_(input.ikon) || '🏷️';
     const anggaran = tipe === TIPE.KELUAR ? Math.max(0, Math.round(Number(input.anggaran) || 0)) || '' : '';
     const namaLama = teks_(input.namaLama);
@@ -1111,7 +1111,7 @@ const SERVER = (() => {
 
     if (namaLama) {
       const i = cariBaris_(kat, sama(namaLama, tipeLama));
-      if (bentrok >= 0 && bentrok !== i) throw new Error('Kategori "' + nama + '" sudah ada.');
+      if (bentrok >= 0 && bentrok !== i) throw new Error(T('Kategori "{nama}" sudah ada.', { nama }));
       // Form yang tidak mengirim anggaran tidak boleh menghapus anggaran yang sudah ada.
       const anggaranTetap = 'anggaran' in input ? anggaran : (tipe === TIPE.KELUAR ? kat[i][3] : '');
       await tulis_(id, rangeBaris_(TABEL.kategori, i), [[nama, tipe, ikon, anggaranTetap]]);
@@ -1124,7 +1124,7 @@ const SERVER = (() => {
         await gantiDiRutin_(id, ganti);
       }
     } else {
-      if (bentrok >= 0) throw new Error('Kategori "' + nama + '" sudah ada.');
+      if (bentrok >= 0) throw new Error(T('Kategori "{nama}" sudah ada.', { nama }));
       await tambahBaris_(id, TABEL.kategori, [[nama, tipe, ikon, anggaran]]);
     }
     return true;
@@ -1152,9 +1152,9 @@ const SERVER = (() => {
     const id = await db_();
     const [kat, trx, rut] = await bacaTabel_(id, ['kategori', 'transaksi', 'rutin']);
     const dipakai = trx.filter(r => String(r[4]) === nama && String(r[2]) === tipe).length;
-    if (dipakai) throw new Error('Kategori ini dipakai di ' + dipakai + ' transaksi. Ubah dulu kategori transaksinya, atau ganti nama kategorinya saja.');
+    if (dipakai) throw new Error(T('Kategori ini dipakai di {n} transaksi. Ubah dulu kategori transaksinya, atau ganti nama kategorinya saja.', { n: dipakai }));
     const rutin = rut.filter(r => String(r[4]) === nama && String(r[2]) === tipe).length;
-    if (rutin) throw new Error('Kategori ini dipakai di ' + rutin + ' tagihan rutin. Ubah atau hapus dulu tagihan rutinnya.');
+    if (rutin) throw new Error(T('Kategori ini dipakai di {n} tagihan rutin. Ubah atau hapus dulu tagihan rutinnya.', { n: rutin }));
     await hapusBaris_(id, TABEL.kategori, cariBaris_(kat, r => String(r[0]) === nama && String(r[1]) === tipe));
     return true;
   }
@@ -1163,7 +1163,8 @@ const SERVER = (() => {
   async function simpanDompet(input) {
     const nama = teks_(input.nama);
     const jenis = JENIS_KHUSUS.includes(input.jenis) ? input.jenis : JENIS.DOMPET;
-    if (!nama) throw new Error('Nama ' + (jenis === JENIS.UTANG ? 'orang' : jenis.toLowerCase()) + ' wajib diisi.');
+    if (!nama) throw new Error(jenis === JENIS.UTANG ? T('Nama orang wajib diisi.') : jenis === JENIS.TABUNGAN ? T('Nama tabungan wajib diisi.')
+      : jenis === JENIS.ASET ? T('Nama aset wajib diisi.') : T('Nama dompet wajib diisi.'));
     const ikon = teks_(input.ikon) || { [JENIS.TABUNGAN]: '🐷', [JENIS.UTANG]: '🤝', [JENIS.ASET]: '💎' }[jenis] || '👛';
     const saldoAwal = Math.round(Number(input.saldoAwal) || 0);
     const namaLama = teks_(input.namaLama);
@@ -1172,7 +1173,7 @@ const SERVER = (() => {
     if (jenis === JENIS.TABUNGAN || jenis === JENIS.UTANG) {
       if (jenis === JENIS.TABUNGAN) target = Math.max(0, Math.round(Number(input.target) || 0)) || '';
       const m = teks_(input.tenggat).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (teks_(input.tenggat) && !m) throw new Error('Tanggal target tidak valid.');
+      if (teks_(input.tenggat) && !m) throw new Error(T('Tanggal target tidak valid.'));
       if (m) tenggat = keSerial_(Number(m[1]), Number(m[2]), Number(m[3]));
     }
     const baris = [nama, ikon, saldoAwal, jenis, target, tenggat];
@@ -1183,7 +1184,7 @@ const SERVER = (() => {
 
     if (namaLama) {
       const i = cariBaris_(dom, r => String(r[0]) === namaLama);
-      if (bentrok >= 0 && bentrok !== i) throw new Error('Dompet "' + nama + '" sudah ada.');
+      if (bentrok >= 0 && bentrok !== i) throw new Error(T('Dompet "{nama}" sudah ada.', { nama }));
       await tulis_(id, rangeBaris_(TABEL.dompet, i), [baris]);
       if (namaLama !== nama) {
         const ganti = r => {
@@ -1196,7 +1197,7 @@ const SERVER = (() => {
         await gantiDiRutin_(id, ganti);
       }
     } else {
-      if (bentrok >= 0) throw new Error('Dompet "' + nama + '" sudah ada.');
+      if (bentrok >= 0) throw new Error(T('Dompet "{nama}" sudah ada.', { nama }));
       await tambahBaris_(id, TABEL.dompet, [baris]);
     }
     return true;
@@ -1206,9 +1207,9 @@ const SERVER = (() => {
     const id = await db_();
     const [dom, trx, rut] = await bacaTabel_(id, ['dompet', 'transaksi', 'rutin']);
     const dipakai = trx.filter(r => String(r[5]) === nama || String(r[6]) === nama).length;
-    if (dipakai) throw new Error('Dompet ini dipakai di ' + dipakai + ' transaksi, jadi tidak bisa dihapus.');
+    if (dipakai) throw new Error(T('Dompet ini dipakai di {n} transaksi, jadi tidak bisa dihapus.', { n: dipakai }));
     const rutin = rut.filter(r => String(r[5]) === nama || String(r[6]) === nama).length;
-    if (rutin) throw new Error('Dompet ini dipakai di ' + rutin + ' tagihan rutin. Ubah atau hapus dulu tagihan rutinnya.');
+    if (rutin) throw new Error(T('Dompet ini dipakai di {n} tagihan rutin. Ubah atau hapus dulu tagihan rutinnya.', { n: rutin }));
     await hapusBaris_(id, TABEL.dompet, cariBaris_(dom, r => String(r[0]) === nama));
     return true;
   }
@@ -1224,18 +1225,18 @@ const SERVER = (() => {
     const peserta = (input.peserta || []).map(p => ({ nama: teks_(p.nama), jumlah: Math.round(Number(p.jumlah) || 0) }))
       .filter(p => p.nama && p.jumlah > 0);
     const bagianSaya = Math.max(0, Math.round(Number(input.bagianSaya) || 0));
-    if (!peserta.length) throw new Error('Tambahkan minimal satu orang yang ikut patungan.');
+    if (!peserta.length) throw new Error(T('Tambahkan minimal satu orang yang ikut patungan.'));
     const nama = peserta.map(p => p.nama.toLowerCase());
-    if (new Set(nama).size !== nama.length) throw new Error('Ada nama yang dobel.');
+    if (new Set(nama).size !== nama.length) throw new Error(T('Ada nama yang dobel.'));
     if (peserta.reduce((a, p) => a + p.jumlah, 0) + bagianSaya !== Math.round(Number(input.total) || 0)) {
-      throw new Error('Jumlah semua bagian belum sama dengan total.');
+      throw new Error(T('Jumlah semua bagian belum sama dengan total.'));
     }
     // Periksa semuanya dulu, supaya tidak ada yang tercatat setengah jalan.
     validasiTransaksi_({ tipe: TIPE.TRANSFER, jumlah: 1, dompet: input.dompet, dompetTujuan: '_', tanggal: input.tanggal });
     if (bagianSaya) validasiTransaksi_({ tipe: TIPE.KELUAR, jumlah: bagianSaya, kategori: input.kategori, dompet: input.dompet, tanggal: input.tanggal });
     const [dom] = await bacaTabel_(await db_(), ['dompet']);
     const bentrok = peserta.find(p => dom.some(r => String(r[0]).toLowerCase() === p.nama.toLowerCase() && String(r[3]) !== JENIS.UTANG));
-    if (bentrok) throw new Error('Nama "' + bentrok.nama + '" sudah dipakai dompet/tabungan. Pakai nama lain, mis. "' + bentrok.nama + ' (teman)".');
+    if (bentrok) throw new Error(T('Nama "{nama}" sudah dipakai dompet/tabungan. Pakai nama lain, mis. "{nama} (teman)".', { nama: bentrok.nama }));
 
     const catatan = teks_(input.catatan);
     if (bagianSaya) {
@@ -1258,13 +1259,13 @@ const SERVER = (() => {
    */
   async function catatUtang(input) {
     const nama = teks_(input.nama).slice(0, 40);
-    if (!nama) throw new Error('Isi nama orangnya.');
-    if (!['piutang', 'utang'].includes(input.arah)) throw new Error('Pilih: meminjamkan atau meminjam.');
+    if (!nama) throw new Error(T('Isi nama orangnya.'));
+    if (!['piutang', 'utang'].includes(input.arah)) throw new Error(T('Pilih: meminjamkan atau meminjam.'));
     const id = await db_();
     const [dom] = await bacaTabel_(id, ['dompet']);
     const ada = dom.find(r => String(r[0]).toLowerCase() === nama.toLowerCase());
     if (ada && String(ada[3]) !== JENIS.UTANG) {
-      throw new Error('Nama "' + ada[0] + '" sudah dipakai dompet/tabungan. Pakai nama lain, mis. "' + nama + ' (teman)".');
+      throw new Error(T('Nama "{lama}" sudah dipakai dompet/tabungan. Pakai nama lain, mis. "{nama} (teman)".', { lama: ada[0], nama }));
     }
     const orang = ada ? String(ada[0]) : nama;
     const keOrang = input.arah === 'piutang';
@@ -1285,11 +1286,11 @@ const SERVER = (() => {
 
   async function tambahKunciGemini(kunci) {
     kunci = teks_(kunci);
-    if (!/^[\w-]{20,}$/.test(kunci)) throw new Error('Format kunci API tidak valid.');
+    if (!/^[\w-]{20,}$/.test(kunci)) throw new Error(T('Format kunci API tidak valid.'));
     const id = await db_();
     const [set] = await bacaTabel_(id, ['pengaturan']);
     const daftar = kunciGemini_(set);
-    if (daftar.includes(kunci)) throw new Error('Kunci API ini sudah ada.');
+    if (daftar.includes(kunci)) throw new Error(T('Kunci API ini sudah ada.'));
     daftar.push(kunci);
     await simpanPengaturan_(id, set, 'GEMINI_API_KEYS', JSON.stringify(daftar));
     return true;
@@ -1301,7 +1302,7 @@ const SERVER = (() => {
     const [set] = await bacaTabel_(id, ['pengaturan']);
     const daftar = kunciGemini_(set);
     const i = daftar.map(samarkanKunci_).indexOf(samaran);
-    if (i < 0) throw new Error('Kunci API tidak ditemukan. Coba muat ulang.');
+    if (i < 0) throw new Error(T('Kunci API tidak ditemukan. Coba muat ulang.'));
     daftar.splice(i, 1);
     await simpanPengaturan_(id, set, 'GEMINI_API_KEYS', JSON.stringify(daftar));
     return true;
@@ -1372,7 +1373,7 @@ const SERVER = (() => {
       });
     } catch (e) {
       if (e.status === 403 || e.status === 404) {
-        throw new Error('Spreadsheet ini tidak bisa dibagikan ke bot dari akun Anda. Minta pemilik spreadsheet menghubungkan bot lebih dulu.');
+        throw new Error(T('Spreadsheet ini tidak bisa dibagikan ke bot dari akun Anda. Minta pemilik spreadsheet menghubungkan bot lebih dulu.'));
       }
       throw e;
     }
@@ -1609,17 +1610,17 @@ const SERVER = (() => {
   function validasiTransaksi_(x) {
     x = x || {};
     const tipe = String(x.tipe);
-    if (![TIPE.MASUK, TIPE.KELUAR, TIPE.TRANSFER].includes(tipe)) throw new Error('Tipe transaksi tidak valid.');
+    if (![TIPE.MASUK, TIPE.KELUAR, TIPE.TRANSFER].includes(tipe)) throw new Error(T('Tipe transaksi tidak valid.'));
     const jumlah = Math.round(Number(x.jumlah));
-    if (!(jumlah > 0)) throw new Error('Jumlah harus lebih dari 0.');
+    if (!(jumlah > 0)) throw new Error(T('Jumlah harus lebih dari 0.'));
     const m = String(x.tanggal || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!m) throw new Error('Tanggal tidak valid.');
+    if (!m) throw new Error(T('Tanggal tidak valid.'));
     const dompet = teks_(x.dompet);
-    if (!dompet) throw new Error('Pilih dompet.');
+    if (!dompet) throw new Error(T('Pilih dompet.'));
     const dompetTujuan = tipe === TIPE.TRANSFER ? teks_(x.dompetTujuan) : '';
-    if (tipe === TIPE.TRANSFER && (!dompetTujuan || dompetTujuan === dompet)) throw new Error('Pilih dompet tujuan yang berbeda.');
+    if (tipe === TIPE.TRANSFER && (!dompetTujuan || dompetTujuan === dompet)) throw new Error(T('Pilih dompet tujuan yang berbeda.'));
     const kategori = tipe === TIPE.TRANSFER ? '' : teks_(x.kategori);
-    if (tipe !== TIPE.TRANSFER && !kategori) throw new Error('Pilih kategori.');
+    if (tipe !== TIPE.TRANSFER && !kategori) throw new Error(T('Pilih kategori.'));
 
     return {
       id: teks_(x.id),
@@ -1635,7 +1636,7 @@ const SERVER = (() => {
 
   function cariBaris_(rows, cocok) {
     const i = rows.findIndex(cocok);
-    if (i < 0) throw new Error('Data tidak ditemukan. Mungkin sudah diubah atau dihapus orang lain — coba muat ulang.');
+    if (i < 0) throw new Error(T('Data tidak ditemukan. Mungkin sudah diubah atau dihapus orang lain — coba muat ulang.'));
     return i;
   }
 
