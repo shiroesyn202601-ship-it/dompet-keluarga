@@ -2267,7 +2267,8 @@ function bukaFormTrx(t, preset, judul) {
   }, preset);
   bukaSheet(t ? 'Ubah Transaksi' : judul || 'Catat Transaksi', '<div id="form-trx"></div>');
   renderFormTrx();
-  if (!t) setTimeout(() => $('#f-jumlah') && $('#f-jumlah').focus(), 250);
+  // Tidak fokus kalau form langsung diisi hasil struk (kartu konfirmasi muncul di atasnya, keyboard jangan terbuka).
+  if (!t) setTimeout(() => F && !F.struk && $('#f-jumlah') && $('#f-jumlah').focus(), 250);
 }
 
 function renderFormTrx() {
@@ -3220,8 +3221,9 @@ function kecilkanGambar(file) {
   });
 }
 
-function mulaiStruk(file, dariForm) {
-  const job = { id: ++nomorStruk, file, status: 'proses', thumb: '', hasil: null, pesan: '' };
+/** otomatis: begitu terbaca, kartu konfirmasi langsung muncul (kalau pengguna tidak sedang membuka form lain). */
+function mulaiStruk(file, dariForm, otomatis) {
+  const job = { id: ++nomorStruk, file, status: 'proses', thumb: '', hasil: null, pesan: '', otomatis: !!otomatis };
   ANTRIAN.push(job);
   if (dariForm && F && $('#form-trx')) {
     bacaFieldTrx();
@@ -3248,10 +3250,18 @@ async function jalankanStruk(job) {
     job.hasil = await api('bacaStruk', g.base64, 'image/jpeg');
     if (!ANTRIAN.includes(job)) return; // sudah dibuang pengguna
     job.status = 'siap';
+    const kartuBebas = !$('#ringkas-suara') || $('#ringkas-suara').hidden;
     if (formMenungguStruk(job)) {
       terapkanStruk(job);
       hapusJob(job.id);
-      toast(job.hasil.pilihanJumlah.length > 1 ? 'Struk terbaca, tapi totalnya beda-beda. Pilih yang sesuai.' : 'Struk terbaca ✔ Cek sekilas sebelum disimpan.');
+      if (kartuBebas) { tampilRingkasanStruk(); getar(); }
+      else toast('Struk terbaca ✔ Cek sekilas sebelum disimpan.');
+    } else if (job.otomatis && kartuBebas && $('#sheet').hidden && $('#kunci').hidden && !kilas) {
+      // Foto dari Beranda dan pengguna tidak sedang membuka apa-apa: langsung tampilkan konfirmasinya.
+      bukaFormTrx(null, null, 'Tinjau Struk');
+      terapkanStruk(job);
+      tampilRingkasanStruk();
+      getar();
     } else {
       getar();
       toast('🧾 Struk siap ditinjau: ' + rp(job.hasil.jumlah));
@@ -3396,22 +3406,33 @@ function infoStruk(h) {
     <p class="label" style="margin:0 0 6px">Ketuk total yang sesuai struk:</p>
     <div class="chips" style="margin-bottom:6px">${h.pilihanJumlah.map(p =>
       `<button type="button" class="chip ${p.jumlah === F.jumlah ? 'aktif' : ''}" data-aksi="f-pilih-jumlah" data-jumlah="${p.jumlah}">${rp(p.jumlah)}</button>`).join('')}</div>` : '';
-  const status = h.yakin ? '✅ Yakin, totalnya terbaca sama beberapa kali.'
+  const kembar = teksStrukKembar();
+  const peringatan = kembar ? `<p class="info-kecil peringatan-kembar">${kembar}</p>` : '';
+  return `<div style="margin:-8px 0 16px">${pilihan}<p class="info-kecil" style="text-align:left;margin-top:0">${statusStruk(h)}</p>${peringatan}${tombolPecahStruk(h)}</div>`;
+}
+
+function statusStruk(h) {
+  return h.yakin ? '✅ Yakin, totalnya terbaca sama beberapa kali.'
     : h.pilihanJumlah.length > 1 ? '⚠️ Hasil baca berbeda-beda. Cocokkan dengan struk.'
     : '🔍 Cocokkan sekilas totalnya dengan struk.';
+}
+
+/** Peringatan kalau sudah ada pengeluaran dengan nominal & tanggal yang sama (struk mungkin sudah pernah dicatat). */
+function teksStrukKembar() {
   const kembar = !F.id && S.data && (S.data.transaksi || []).find(t =>
     t.tipe === TIPE.KELUAR && t.jumlah === F.jumlah && t.tanggal === F.tanggal);
-  const peringatan = kembar
-    ? `<p class="info-kecil peringatan-kembar">⚠️ Sudah ada ${esc(kembar.kategori)} ${rp(kembar.jumlah)} di tanggal yang sama${kembar.catatan ? ' (' + esc(kembar.catatan) + ')' : ''}. Pastikan struk ini belum pernah dicatat.</p>`
-    : '';
-  const rincian = (h.rincian || []).length >= 2 && h.rincian.reduce((a, x) => a + x.jumlah, 0) === F.jumlah && !F.id ? `
+  return kembar ? `⚠️ Sudah ada ${esc(kembar.kategori)} ${rp(kembar.jumlah)} di tanggal yang sama${kembar.catatan ? ' (' + esc(kembar.catatan) + ')' : ''}. Pastikan struk ini belum pernah dicatat.` : '';
+}
+
+/** Tombol "Pecah jadi N transaksi" kalau struk berisi beberapa kategori yang jumlahnya pas dengan total. */
+function tombolPecahStruk(h) {
+  return (h.rincian || []).length >= 2 && h.rincian.reduce((a, x) => a + x.jumlah, 0) === F.jumlah && !F.id ? `
     <button type="button" class="tombol-pecah" data-aksi="pecah-struk">
       <span class="ikon-pecah">🧩</span>
       <span class="isi"><b>Pecah jadi ${h.rincian.length} transaksi per kategori</b>
         <small>${h.rincian.map(x => esc(x.kategori) + ' ' + rpPendek(x.jumlah)).join(' · ')}</small></span>
       <span class="panah">${svg('maju')}</span>
     </button>` : '';
-  return `<div style="margin:-8px 0 16px">${pilihan}<p class="info-kecil" style="text-align:left;margin-top:0">${status}</p>${peringatan}${rincian}</div>`;
 }
 
 /**
@@ -3787,6 +3808,7 @@ const AKSI = {
     if (!job || job.status !== 'siap') return;
     bukaFormTrx(null, null, 'Tinjau Struk');
     terapkanStruk(job);
+    tampilRingkasanStruk();
   },
   'ulangi-struk': el => {
     const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
@@ -4470,7 +4492,7 @@ document.addEventListener('click', e => {
 ['#input-struk', '#input-struk-kamera'].forEach(sel => $(sel).addEventListener('change', e => {
   const file = e.target.files[0];
   e.target.value = '';
-  if (file) mulaiStruk(file, sumberStruk === 'form');
+  if (file) mulaiStruk(file, sumberStruk === 'form', sumberStruk === 'cepat');
   sumberStruk = 'cepat';
 }));
 
@@ -6176,6 +6198,86 @@ function tutupRingkasanSuara() {
   if (el) el.hidden = true;
 }
 
+/**
+ * Kartu konfirmasi hasil foto struk (sama seperti hasil suara): Simpan langsung, Koreksi di form, atau Foto ulang.
+ * Form transaksi sudah diisi terapkanStruk(); kartu ini hanya menampilkan isian F.
+ */
+function tampilRingkasanStruk() {
+  if (!F || !F.struk) return;
+  const h = F.struk;
+  const dompet = S.data.dompet.find(w => w.nama === F.dompet);
+  const kembar = teksStrukKembar();
+  const kurang = [];
+  if (!F.jumlah) kurang.push('Nominal belum terbaca');
+  if (!F.kategori) kurang.push('Kategori belum dipilih');
+  const baris = (ikon, label, nilai, kosong) => `
+      <div class="baris-ringkas ${kosong ? 'belum' : ''}"><span class="ikon-ringkas">${ikon}</span>
+        <span class="isi"><small>${label}</small><b>${nilai}</b></span></div>`;
+
+  const el = kartuRingkasSuara();
+  el.innerHTML = `
+    <div class="sesi-kartu kartu-ringkas">
+      <span class="label-ringkas" id="ringkas-judul">🧾 Struk terbaca · yang akan dicatat</span>
+      <div class="kepala-ringkas-struk">
+        <div class="nominal-ringkas keluar ${F.jumlah ? '' : 'belum'}"><small>${esc(F.tipe)}</small>${F.jumlah ? '−' + rp(F.jumlah) : 'Rp —'}</div>
+        ${F.lampiranThumb ? `<img class="thumb-ringkas" src="${F.lampiranThumb}" alt="Foto struk">` : ''}
+      </div>
+      ${h.pilihanJumlah.length > 1 ? `
+        <div class="pilih-total-ringkas"><small>Total terbaca berbeda-beda, ketuk yang sesuai struk:</small>
+          <div class="chips">${h.pilihanJumlah.map(p =>
+            `<button type="button" class="chip ${p.jumlah === F.jumlah ? 'aktif' : ''}" data-aksi="ringkas-struk-jumlah" data-jumlah="${p.jumlah}">${rp(p.jumlah)}</button>`).join('')}</div>
+        </div>` : ''}
+      <p class="status-ringkas">${statusStruk(h)}</p>
+      <div class="daftar-ringkas">
+        ${baris(ilus(F.kategori ? ikonKategori(F.kategori, F.tipe) : '🏷️'), 'Kategori', F.kategori ? esc(F.kategori) : 'Belum dipilih', !F.kategori)}
+        ${baris(ilus(dompet ? dompet.ikon : '👛'), 'Dompet', F.dompet ? esc(F.dompet) : 'Belum dipilih', !F.dompet)}
+        ${F.catatan ? baris('📝', 'Catatan', esc(F.catatan)) : ''}
+        ${baris('📅', 'Tanggal', esc(labelHariPendek(F.tanggal || hariIni())))}
+      </div>
+      ${kembar ? `<p class="peringatan-ringkas">${kembar}</p>` : ''}
+      ${kurang.length ? `<p class="peringatan-ringkas">⚠️ ${kurang.join(' · ')}</p>` : ''}
+      ${tombolPecahStruk(h)}
+      <div class="aksi-ringkas">
+        <button type="button" class="btn btn-hapus" data-aksi="ringkas-struk-koreksi">✏️ Koreksi</button>
+        <button type="button" class="btn btn-utama" data-aksi="ringkas-struk-simpan" ${kurang.length ? 'disabled' : ''}>✔ Simpan</button>
+      </div>
+      <button type="button" class="tombol-teks" data-aksi="ringkas-struk-ulang">📷 Foto ulang</button>
+    </div>`;
+  el.hidden = false;
+  setTimeout(() => { const b = el.querySelector('[data-aksi="ringkas-struk-simpan"]:not([disabled])') || el.querySelector('[data-aksi="ringkas-struk-koreksi"]'); if (b) b.focus(); }, 50);
+}
+
+Object.assign(AKSI, {
+  'ringkas-struk-jumlah': el => {
+    if (!F) return;
+    bacaFieldTrx();
+    F.jumlah = Number(el.dataset.jumlah);
+    renderFormTrx();
+    tampilRingkasanStruk();
+  },
+  'ringkas-struk-simpan': () => {
+    tutupRingkasanSuara();
+    const tombol = document.querySelector('#form-trx [data-aksi="simpan-trx"], #sheet [data-aksi="simpan-trx"]');
+    if (F && tombol) AKSI['simpan-trx'](tombol);
+  },
+  // Form di belakang kartu sudah terisi: cukup tutup kartunya.
+  'ringkas-struk-koreksi': () => {
+    tutupRingkasanSuara();
+    setTimeout(() => $('#f-jumlah') && $('#f-jumlah').focus(), 50);
+  },
+  'ringkas-struk-ulang': () => {
+    tutupRingkasanSuara();
+    if (!F) return;
+    bacaFieldTrx();
+    // Hasil lama dibuang (juga dari antrian), supaya tidak bisa tercatat dobel.
+    if (F.dariJob) hapusJob(F.dariJob);
+    Object.assign(F, { jumlah: 0, kategori: '', catatan: '', struk: null, dariJob: null, lampiranData: '', lampiranThumb: '' });
+    renderFormTrx();
+    sumberStruk = 'form';
+    $('#input-struk-kamera').click();
+  },
+});
+
 let lewatiAi = false;
 let tungguLewati = () => {};
 
@@ -6344,7 +6446,8 @@ async function terimaBagikan() {
   }
   await caches.delete('dk-bagikan');
   if (gambar.length) {
-    gambar.slice(0, 5).forEach(f => mulaiStruk(f, false));
+    // Satu gambar: konfirmasi langsung muncul begitu terbaca; beberapa: ditinjau satu per satu dari antrian.
+    gambar.slice(0, 5).forEach(f => mulaiStruk(f, false, gambar.length === 1));
     toast(gambar.length > 1 ? `🧾 ${Math.min(5, gambar.length)} gambar sedang dibaca` : '🧾 Gambar sedang dibaca. Silakan lanjut pakai aplikasi.');
   } else if (teks.trim()) {
     // Teks bukti transfer dari aplikasi bank, mis. "Transfer Rp50.000 ke Budi berhasil".
