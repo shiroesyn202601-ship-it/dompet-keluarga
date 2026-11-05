@@ -525,7 +525,7 @@ const SERVER = (() => {
       user: GOOGLE.email(),
       urlSpreadsheet: urlDb_(id),
       linkUndangan: linkUndangan_(id),
-      kunciGemini: kunciGemini_(set).map(samarkanKunci_),
+      kunciGemini: (kunciAi = kunciGemini_(set), modelAi = pengaturan_(set).GEMINI_MODEL, kunciAi.map(samarkanKunci_)),
       namaBuku: namaBuku_(judulDb),
       buku: await daftarBuku_(id),
       spreadsheetId: id,
@@ -1306,6 +1306,61 @@ const SERVER = (() => {
     return true;
   }
 
+  // ---------- Memahami kalimat suara dengan Gemini ----------
+
+  let kunciAi = [];   // kunci Gemini asli, diingat saat getData (yang dikirim ke tampilan hanya versi samaran)
+  let modelAi = '';
+
+  /**
+   * Kalimat lisan → satu transaksi { tipe, jumlah, kategori, dompet, dompetTujuan, tanggal, catatan }.
+   * konteks: { hariIni 'yyyy-mm-dd', kategori: [{nama, tipe}], dompet: [nama], tabungan: [nama] }.
+   * null kalau belum ada kunci Gemini. Hasil tetap divalidasi lagi di aplikasi.
+   */
+  async function pahamiKalimat(teks, konteks) {
+    if (!kunciAi.length) {
+      const [set] = await bacaTabel_(await db_(), ['pengaturan']);
+      kunciAi = kunciGemini_(set);
+      modelAi = pengaturan_(set).GEMINI_MODEL;
+    }
+    if (!kunciAi.length) return null;
+    const hari = new Date(konteks.hariIni + 'T12:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const daftar = tipe => konteks.kategori.filter(k => k.tipe === tipe).map(k => k.nama).join(', ') || '-';
+    const prompt = [
+      'Kamu membantu mencatat keuangan keluarga Indonesia. Ubah kalimat lisan di bawah menjadi SATU transaksi.',
+      'Hari ini ' + hari + ' (' + konteks.hariIni + ').',
+      'Aturan:',
+      '- tipe: "Pengeluaran", "Pemasukan", atau "Transfer" (memindahkan uang antar dompet sendiri, termasuk setor/tarik tabungan, top up e-wallet, tarik tunai).',
+      '- jumlah: rupiah, bilangan bulat tanpa titik. "dua puluh lima ribu"=25000, "1,5 juta"/"satu setengah juta"=1500000, "sejuta"=1000000,',
+      '  gopek=500, seceng=1000, goceng=5000, ceban=10000, gocap=50000, cepek=100000. Isi 0 kalau tidak disebut.',
+      '- kategori: salin persis salah satu dari daftar sesuai tipe. Kosongkan untuk Transfer atau kalau tidak cocok.',
+      '- dompet: salin persis dari daftar dompet. Pengeluaran = dompet pembayar, Pemasukan = dompet penerima, Transfer = dompet asal. Kosongkan kalau tidak disebut.',
+      '- dompetTujuan: hanya untuk Transfer, salin persis dari daftar dompet atau tabungan. Selain itu kosong.',
+      '- tanggal: yyyy-mm-dd, hitung dari hari ini. "kemarin" = 1 hari lalu; "Sabtu minggu lalu" = hari Sabtu di minggu sebelumnya (minggu = Senin–Minggu);',
+      '  "Sabtu lalu" = Sabtu terakhir sebelum hari ini; "tanggal 1 bulan kemarin" = tanggal 1 bulan sebelumnya; "tanggal 3" = tanggal 3 bulan ini (atau bulan lalu kalau belum lewat).',
+      '  Kalau tidak disebut, pakai hari ini.',
+      '- catatan: deskripsi singkat 1–5 kata untuk apa (huruf besar di awal), tanpa nominal, nama dompet, atau kata waktu. Kosong kalau tidak ada.',
+      'Kategori Pengeluaran: ' + daftar('Pengeluaran'),
+      'Kategori Pemasukan: ' + daftar('Pemasukan'),
+      'Dompet: ' + (konteks.dompet.join(', ') || '-'),
+      'Tabungan: ' + (konteks.tabungan.join(', ') || '-'),
+      'Kalimat: "' + String(teks).slice(0, 400).replace(/"/g, "'") + '"',
+    ].join('\n');
+    const skema = {
+      type: 'OBJECT',
+      properties: {
+        tipe: { type: 'STRING', enum: ['Pengeluaran', 'Pemasukan', 'Transfer'] },
+        jumlah: { type: 'INTEGER' },
+        kategori: { type: 'STRING' },
+        dompet: { type: 'STRING' },
+        dompetTujuan: { type: 'STRING' },
+        tanggal: { type: 'STRING' },
+        catatan: { type: 'STRING' },
+      },
+      required: ['tipe', 'jumlah', 'kategori', 'dompet', 'dompetTujuan', 'tanggal', 'catatan'],
+    };
+    return STRUK.tanyaAI([{ text: prompt }], skema, kunciAi, modelAi);
+  }
+
   // ---------- Baca struk ----------
 
   async function bacaStruk(base64, mime) {
@@ -1484,7 +1539,7 @@ const SERVER = (() => {
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
-    tambahKunciGemini, hapusKunciGemini, bacaStruk, buatKodeTelegram, putuskanTelegram,
+    tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
   };
 })();

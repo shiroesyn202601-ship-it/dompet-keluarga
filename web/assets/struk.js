@@ -340,5 +340,11 @@ const STRUK = (() => {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
-  return { baca, MODEL, uji: { tebakDariTeks, gabungHasil, cariTanggal, nominalTerbesar, nominalRupiah, nominalBerpemisah, tanggalWajar } };
+  /** Pertanyaan umum ke Gemini (mis. memahami kalimat suara), memakai rotasi kunci & model cadangan yang sama. */
+  function tanyaAI(parts, skema, kunci, model) {
+    if (!kunci || !kunci.length) return Promise.reject(new Error('Belum ada kunci Gemini.'));
+    return jalankanGemini(kunci, giliranBerikut(kunci.length), model || MODEL, parts, skema);
+  }
+
+  return { baca, tanyaAI, MODEL, uji: { tebakDariTeks, gabungHasil, cariTanggal, nominalTerbesar, nominalRupiah, nominalBerpemisah, tanggalWajar } };
 })();

@@ -417,6 +417,7 @@ function render() {
   pasangGeserGrafik();
   if (S.tab === 'catatan') pasangGeserKalender();
   document.body.classList.toggle('tanpa-nav', S.tab === 'catatan-edit'); // fokus menulis
+  if (window.dikte && dikte.aktif) { if (S.tab !== 'catatan-edit') hentikanDikte(); else tampilDikte(); } // dikte dideklarasikan di bawah
   if (S.tab === 'catatan-edit') {
     tinggiIsiCatatan();
     if (S.formCatatan.fokus) { S.formCatatan.fokus = false; setTimeout(() => $('#c-judul') && $('#c-judul').focus(), 200); }
@@ -2556,8 +2557,71 @@ function angkaDariKata(teks) {
   return hasil.join(' ');
 }
 
+/**
+ * Tanggal dari ucapan/ketikan → { tanggal 'yyyy-mm-dd', sisa (kalimat tanpa kata tanggal) }. Contoh:
+ * "kemarin", "kemarin lusa", "3 hari lalu", "Sabtu minggu lalu" (minggu = Senin–Minggu sebelumnya),
+ * "Sabtu lalu" / "Sabtu kemarin" (Sabtu terakhir sebelum hari ini), "tanggal 1", "tanggal 1 bulan kemarin",
+ * "tanggal 17 Agustus". tanggal kosong kalau tidak ada kata tanggal.
+ */
+const NAMA_HARI_LISAN = ['senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu', 'minggu'];
+const NAMA_BULAN_LISAN = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 'agustus', 'september', 'oktober', 'november', 'desember'];
+function bacaTanggalLisan(teks) {
+  const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const kini = keTanggal(hariIni());
+  const geser = n => { const d = new Date(kini); d.setDate(d.getDate() + n); return iso(d); };
+  const idxHari = (kini.getDay() + 6) % 7; // Senin = 0
+  const HARI = "(senin|selasa|rabu|kamis|jum'?at|sabtu|minggu)";
+  let sisa = ' ' + String(teks).replace(/jum'at/gi, 'jumat') + ' ';
+  let tanggal = '';
+  const coba = (re, f) => {
+    if (tanggal) return;
+    const m = sisa.match(re);
+    if (!m) return;
+    const t = f(m);
+    if (!t) return;
+    tanggal = t;
+    sisa = sisa.replace(m[0], ' ');
+  };
+  // "Sabtu minggu lalu" / "Sabtu pekan kemarin": hari itu di minggu (Senin–Minggu) sebelumnya.
+  coba(new RegExp('\\b(hari\\s+)?' + HARI + '\\s+(minggu|pekan)\\s+(lalu|kemarin|kemaren)\\b', 'i'),
+    m => geser(-idxHari - 7 + NAMA_HARI_LISAN.indexOf(m[2].toLowerCase().replace("'", ''))));
+  // "tanggal 1 bulan kemarin" / "tgl 15 bulan lalu"
+  coba(/\b(tanggal|tgl)\s+(\d{1,2})\s+bulan\s+(lalu|kemarin|kemaren)\b/i, m => {
+    const d = new Date(kini.getFullYear(), kini.getMonth() - 1, Number(m[2]));
+    return d.getMonth() === (kini.getMonth() + 11) % 12 ? iso(d) : '';
+  });
+  // "tanggal 17 Agustus" (tahun ini; kalau masih di depan, tahun lalu)
+  coba(new RegExp('\\b(tanggal\\s+|tgl\\s+)?(\\d{1,2})\\s+(' + NAMA_BULAN_LISAN.join('|') + ')\\b', 'i'), m => {
+    const b = NAMA_BULAN_LISAN.indexOf(m[3].toLowerCase());
+    let d = new Date(kini.getFullYear(), b, Number(m[2]));
+    if (d.getMonth() !== b) return '';
+    if (d > kini) d = new Date(kini.getFullYear() - 1, b, Number(m[2]));
+    return iso(d);
+  });
+  // "tanggal 3" (bulan ini; kalau tanggalnya belum lewat, bulan lalu)
+  coba(/\b(tanggal|tgl)\s+(\d{1,2})\b/i, m => {
+    const n = Number(m[2]);
+    let d = new Date(kini.getFullYear(), kini.getMonth(), n);
+    if (d.getDate() !== n) return '';
+    if (d > kini) d = new Date(kini.getFullYear(), kini.getMonth() - 1, n);
+    return d.getDate() === n ? iso(d) : '';
+  });
+  coba(/\b(kemarin|kemaren)\s+lusa\b|\blusa\s+(kemarin|kemaren)\b/i, () => geser(-2));
+  coba(/\b(\d{1,2})\s+hari\s+(yang\s+)?(lalu|kemarin|sebelumnya)\b/i, m => (Number(m[1]) <= 60 ? geser(-Number(m[1])) : ''));
+  // "Sabtu lalu" / "Sabtu kemarin": Sabtu terakhir sebelum hari ini.
+  coba(new RegExp('\\b(hari\\s+)?' + HARI + '\\s+(lalu|kemarin|kemaren)\\b', 'i'), m => {
+    const target = NAMA_HARI_LISAN.indexOf(m[2].toLowerCase().replace("'", ''));
+    return geser(-(((idxHari - target + 7) % 7) || 7));
+  });
+  coba(/\b(kemarin|kemaren|kmrn|kmarin)\b/i, () => geser(-1));
+  coba(/\b(hari ini|tadi pagi|tadi siang|tadi sore|tadi malam|barusan)\b/i, () => hariIni());
+  return { tanggal, sisa: sisa.replace(/\s+/g, ' ').trim() };
+}
+
 function bacaKetikCepat(teks) {
   teks = angkaDariKata(teks);
+  const waktu = bacaTanggalLisan(teks);
+  teks = waktu.sisa;
   let sisa = ' ' + teks.toLowerCase() + ' ';
   let jumlah = 0;
   // Angka pertama yang bersatuan (rb/jt) atau ≥ 100; "nasi 2 bungkus 30rb" → 30.000, bukan 2.
@@ -2582,7 +2646,7 @@ function bacaKetikCepat(teks) {
   sisa = sisa.replace(/\b(pakai|pake|pk|via|dari|ke|lewat|bayar)\b/g, ' ').replace(/\s+/g, ' ').trim();
   const tipe = /\b(gaji|terima|dapat|bonus|thr|masuk|transferan)\b/.test(sisa) ? TIPE.MASUK : TIPE.KELUAR;
   const catatan = sisa ? sisa.charAt(0).toUpperCase() + sisa.slice(1) : '';
-  return { tipe, jumlah: Math.round(jumlah), kategori: tebakKategori(tipe, catatan), dompet: dompet ? dompet.nama : '', catatan };
+  return { tipe, jumlah: Math.round(jumlah), kategori: tebakKategori(tipe, catatan), dompet: dompet ? dompet.nama : '', catatan, tanggal: waktu.tanggal };
 }
 
 /** Kategori dari riwayat catatan yang sama, lalu dari nama kategori, lalu dari kata kunci. */
@@ -2618,11 +2682,13 @@ function bagianCepat() {
 /** Mengisi form dari hasil ketik cepat / favorit; field yang tidak dikenali tidak menimpa isian yang ada. */
 function isiFormCepat(h) {
   bacaFieldTrx();
-  const lama = { tipe: F.tipe, jumlah: F.jumlah, kategori: F.kategori, dompet: F.dompet, catatan: F.catatan };
+  const lama = { tipe: F.tipe, jumlah: F.jumlah, kategori: F.kategori, dompet: F.dompet, dompetTujuan: F.dompetTujuan, tanggal: F.tanggal, catatan: F.catatan };
   if (h.tipe && h.tipe !== F.tipe) { F.tipe = h.tipe; F.kategori = ''; }
   if (h.jumlah) F.jumlah = h.jumlah;
   if (h.kategori) F.kategori = h.kategori;
-  if (h.dompet && dompetBiasa().some(w => w.nama === h.dompet)) F.dompet = h.dompet;
+  if (h.dompet && (F.tipe === TIPE.TRANSFER ? S.data.dompet : dompetBiasa()).some(w => w.nama === h.dompet)) F.dompet = h.dompet;
+  if (h.dompetTujuan && F.tipe === TIPE.TRANSFER) F.dompetTujuan = h.dompetTujuan;
+  if (h.tanggal) F.tanggal = h.tanggal;
   if (h.catatan) F.catatan = h.catatan;
   renderFormTrx();
   sorotTerisi(lama);
@@ -2638,6 +2704,8 @@ function sorotTerisi(lama) {
   if (F.jumlah && F.jumlah !== lama.jumlah) { daftar.push(document.querySelector('#form-trx .input-jumlah')); hitungNaik($('#f-jumlah'), F.jumlah); }
   if (F.kategori && F.kategori !== lama.kategori) daftar.push(document.querySelector('#form-trx [data-aksi="f-kategori"].aktif'));
   if (F.dompet && F.dompet !== lama.dompet) daftar.push(document.querySelector('#form-trx [data-aksi="f-dompet"].aktif'));
+  if (F.dompetTujuan && F.dompetTujuan !== lama.dompetTujuan) daftar.push(document.querySelector('#form-trx [data-aksi="f-tujuan"].aktif'));
+  if (F.tanggal && F.tanggal !== lama.tanggal) daftar.push(document.querySelector('#form-trx .input-tanggal, #f-tanggal'));
   if (F.catatan && F.catatan !== lama.catatan) daftar.push($('#f-catatan'));
   const ada = daftar.filter(Boolean);
   ada.forEach((el, i) => {
@@ -3919,7 +3987,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'contoh-suara', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'contoh-suara', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
 ]);
 
 /**
@@ -4320,6 +4388,7 @@ Object.assign(AKSI, {
     if (jenis === 'tugas') { const kosong = [...document.querySelectorAll('#c-tugas input')].find(x => !x.value); if (kosong) kosong.focus(); }
   },
   'c-tugas-tambah': () => tambahBarisTugas(),
+  'suara-catatan': () => mulaiDikte(),
   'c-tugas-centang': el => {
     const baris = el.closest('.baris-tugas');
     baris.classList.toggle('selesai');
@@ -4397,7 +4466,7 @@ function viewFormCatatan() {
       </div>
 
       <div id="c-isi-teks" ${tugas ? 'hidden' : ''}>
-        <textarea class="isi-catatan" id="c-isi" maxlength="2000" placeholder="Tulis catatan…" aria-label="Isi catatan">${esc(f.isi)}</textarea>
+        <textarea class="isi-catatan" id="c-isi" maxlength="2000" placeholder="Tulis catatan… atau ketuk 🎤 untuk bicara" aria-label="Isi catatan">${esc(f.isi)}</textarea>
       </div>
       <div id="c-isi-tugas" ${tugas ? '' : 'hidden'}>
         <div id="c-tugas">${f.tugas.map(barisTugasForm).join('')}</div>
@@ -4408,6 +4477,7 @@ function viewFormCatatan() {
 
       <!-- Bilah bawah menempel (ikut naik di atas keyboard): opsi ringkas + Hapus/Simpan, mudah dijangkau jempol. -->
       <div class="bilah-catatan">
+        <div class="pratinjau-dikte" id="pratinjau-dikte" role="status" aria-live="polite" hidden></div>
         <div class="opsi-catatan">
           <label class="chip-opsi">📅 <span id="c-tanggal-label">${esc(labelHariPendek(f.tanggal))}</span>
             <input type="date" id="c-tanggal" value="${f.tanggal}" aria-label="Tanggal"></label>
@@ -4417,11 +4487,110 @@ function viewFormCatatan() {
           <button type="button" class="chip-opsi" data-aksi="c-warna" aria-label="Ganti warna (sekarang ${esc(f.warna)})"><i class="titik-warna"></i></button>
         </div>
         <div class="aksi-catatan">
+          ${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button type="button" class="tombol-dikte" id="tombol-dikte" data-aksi="suara-catatan" aria-label="Tulis dengan suara">
+            <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>` : ''}
           ${f.id ? `<button type="button" class="btn btn-hapus btn-hapus-catatan" data-aksi="hapus-catatan">🗑 Hapus</button>` : ''}
           <button type="button" class="btn btn-utama" data-aksi="simpan-catatan">Simpan</button>
         </div>
       </div>
     </div>`;
+}
+
+// ---------- Dikte suara di catatan ----------
+// Setiap kalimat yang selesai diucapkan DITAMBAHKAN ke isi catatan (tidak pernah menimpa). Satu kali tekan mic =
+// satu sesi: mulai di baris baru, kalimat berikutnya disambung dengan spasi. Mic tetap mendengar sampai ditekan lagi
+// (pengenal dimulai ulang otomatis setelah jeda). Di mode Daftar tugas, tiap kalimat jadi item baru.
+var dikte = { aktif: false, r: null, awalSesi: true, tahap: '', sementara: '', galat: false };
+
+function tampilDikte() {
+  const tombol = $('#tombol-dikte'), pratinjau = $('#pratinjau-dikte');
+  if (tombol) {
+    tombol.classList.toggle('dengar', dikte.aktif);
+    tombol.setAttribute('aria-label', dikte.aktif ? 'Berhenti merekam suara' : 'Tulis dengan suara');
+  }
+  if (!pratinjau) return;
+  pratinjau.hidden = !dikte.aktif;
+  if (!dikte.aktif) return;
+  pratinjau.innerHTML = `<span class="gelombang-suara kecil" aria-hidden="true">${'<i></i>'.repeat(5)}</span>
+    <span class="teks-dikte">${dikte.sementara ? '“' + esc(dikte.sementara) + '”'
+      : dikte.tahap === 'siap' ? 'Menyalakan mikrofon…' : '<b>Mic menyala</b> · bicara, teks ditambahkan ke catatan'}</span>
+    <button type="button" class="tombol-teks" data-aksi="suara-catatan">Selesai</button>`;
+  pratinjau.dataset.tahap = dikte.sementara ? 'bicara' : dikte.tahap;
+}
+
+const hurufBesarAwal = t => t.charAt(0).toUpperCase() + t.slice(1);
+
+function tambahTeksDikte(t) {
+  t = t.trim();
+  if (!t || !S.formCatatan) return;
+  if (S.formCatatan.jenis === 'tugas') {
+    const kosong = [...document.querySelectorAll('#c-tugas .baris-tugas input')].find(x => !x.value.trim());
+    if (kosong) kosong.value = hurufBesarAwal(t);
+    else {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = barisTugasForm({ teks: hurufBesarAwal(t), selesai: false });
+      $('#c-tugas').appendChild(tmp.firstElementChild);
+    }
+  } else {
+    const ta = $('#c-isi');
+    if (!ta) return;
+    const ada = ta.value.replace(/\s+$/, '');
+    const sambung = !ada ? '' : dikte.awalSesi ? '\n' : ' ';
+    ta.value = ada + sambung + (dikte.awalSesi || !ada || /[.!?]$/.test(ada) ? hurufBesarAwal(t) : t);
+    tinggiIsiCatatan();
+    ta.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  dikte.awalSesi = false;
+  simpanDraftCatatan();
+}
+
+function dengarLagi() {
+  const Pengenal = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const r = new Pengenal();
+  r.lang = 'id-ID';
+  r.interimResults = true;
+  r.maxAlternatives = 1;
+  dikte.r = r;
+  r.onaudiostart = () => { if (dikte.tahap === 'siap' && navigator.vibrate) navigator.vibrate(30); dikte.tahap = 'dengar'; tampilDikte(); };
+  r.onresult = ev => {
+    let sementara = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const t = ev.results[i][0].transcript;
+      if (ev.results[i].isFinal) tambahTeksDikte(t);
+      else sementara += t;
+    }
+    dikte.sementara = sementara.trim();
+    tampilDikte();
+  };
+  r.onerror = ev => {
+    if (ev.error === 'no-speech' || ev.error === 'aborted') return; // jeda biasa: dengar lagi
+    dikte.galat = true;
+    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') toast('Izinkan akses mikrofon untuk menulis dengan suara.', true);
+    else if (ev.error === 'network') toast('Menulis dengan suara butuh sinyal internet.', true);
+    else toast('Mikrofon berhenti (' + ev.error + ').', true);
+  };
+  r.onend = () => {
+    dikte.sementara = '';
+    if (dikte.aktif && !dikte.galat && S.tab === 'catatan-edit') {
+      try { dengarLagi(); return; } catch (e) { /* jatuh ke berhenti */ }
+    }
+    hentikanDikte();
+  };
+  r.start();
+}
+
+function mulaiDikte() {
+  if (dikte.aktif) return hentikanDikte();
+  Object.assign(dikte, { aktif: true, awalSesi: true, tahap: 'siap', sementara: '', galat: false });
+  tampilDikte();
+  try { dengarLagi(); } catch (e) { hentikanDikte(); toast('Mikrofon tidak bisa dipakai.', true); }
+}
+
+function hentikanDikte() {
+  const r = dikte.r;
+  Object.assign(dikte, { aktif: false, r: null, tahap: '', sementara: '' });
+  if (r) { r.onend = null; try { r.stop(); } catch (e) { /* sudah berhenti */ } }
+  tampilDikte();
 }
 
 /** Textarea isi catatan ikut memanjang sesuai isi (halaman yang scroll, bukan kotaknya). */
@@ -4791,6 +4960,7 @@ Object.assign(AKSI, {
     if (f) f.style.setProperty('--w', warnaCatatan(S.formCatatan.warna));
   },
   'simpan-catatan': async el => {
+    hentikanDikte();
     simpanDraftCatatan();
     const f = S.formCatatan;
     const input = {
@@ -5040,30 +5210,10 @@ function contohSuara() {
 // Setelah bicara, data yang terbaca ditampilkan dulu di kartu: Simpan langsung, Koreksi di form, atau Ulangi.
 
 let hasilSuara = null; // { teks, h }
+let urutanSuara = 0;   // hasil AI yang datang terlambat (sudah bicara lagi) diabaikan
 
-function tampilRingkasanSuara(teks) {
-  if (!F) return;
-  bacaFieldTrx();
-  const h = bacaKetikCepat(teks.slice(0, 300));
-  hasilSuara = { teks, h };
-  // Pratinjau = isian form setelah hasil ini diterapkan (aturan sama dengan isiFormCepat).
-  const x = Object.assign({}, F);
-  if (h.tipe && h.tipe !== x.tipe) { x.tipe = h.tipe; x.kategori = ''; }
-  if (h.jumlah) x.jumlah = h.jumlah;
-  if (h.kategori) x.kategori = h.kategori;
-  if (h.dompet && dompetBiasa().some(w => w.nama === h.dompet)) x.dompet = h.dompet;
-  if (h.catatan) x.catatan = h.catatan;
-
-  const kurang = [];
-  if (!x.jumlah) kurang.push('Nominal belum terbaca');
-  if (x.tipe !== TIPE.TRANSFER && !x.kategori) kurang.push('Kategori belum dipilih');
-  if (x.tipe === TIPE.TRANSFER) kurang.push('Transfer: pilih dompet tujuan di form');
-  const dompet = S.data.dompet.find(w => w.nama === x.dompet);
-  const masuk = x.tipe === TIPE.MASUK;
-  const baris = (ikon, label, nilai, kosong) => `
-      <div class="baris-ringkas ${kosong ? 'belum' : ''}"><span class="ikon-ringkas">${ikon}</span>
-        <span class="isi"><small>${label}</small><b>${nilai}</b></span></div>`;
-
+/** Wadah kartu ringkasan (dibuat sekali). */
+function kartuRingkasSuara() {
   let el = $('#ringkas-suara');
   if (!el) {
     el = document.createElement('div');
@@ -5074,15 +5224,85 @@ function tampilRingkasanSuara(teks) {
     el.setAttribute('aria-labelledby', 'ringkas-judul');
     document.body.appendChild(el);
   }
+  return el;
+}
+
+/**
+ * Hasil suara final → kartu ringkasan. Kalau ada kunci Gemini, kalimat dipahami AI dulu (bisa tanggal, transfer,
+ * kalimat bebas); gagal / offline / tanpa kunci → aturan biasa (bacaKetikCepat).
+ */
+async function tampilRingkasanSuara(teks) {
+  if (!F) return;
+  const urutan = ++urutanSuara;
+  let h = null;
+  if ((S.data.kunciGemini || []).length && navigator.onLine) {
+    const el = kartuRingkasSuara();
+    el.innerHTML = `
+      <div class="sesi-kartu kartu-ringkas memahami">
+        <span class="label-ringkas" id="ringkas-judul">🤖 Memahami kalimat…</span>
+        <p class="kutipan-suara">“${esc(teks)}”</p>
+        <div class="bilah-memahami"><i></i></div>
+        <button type="button" class="tombol-teks" data-aksi="ringkas-tanpa-ai">Lewati, baca tanpa AI</button>
+      </div>`;
+    el.hidden = false;
+    lewatiAi = false;
+    try {
+      const konteks = {
+        hariIni: hariIni(),
+        kategori: S.data.kategori.map(k => ({ nama: k.nama, tipe: k.tipe })),
+        dompet: dompetBiasa().map(w => w.nama),
+        tabungan: S.data.dompet.filter(w => !dompetBiasa().includes(w) && w.jenis !== JENIS.UTANG).map(w => w.nama),
+      };
+      const r = await Promise.race([
+        api('pahamiKalimat', teks, konteks),
+        new Promise((_, gagal) => setTimeout(() => gagal(new Error('lama')), 12000)),
+        new Promise((_, gagal) => { tungguLewati = () => gagal(new Error('dilewati')); }),
+      ]);
+      if (r) {
+        h = rapikanHasilAi(r);
+        const t = bacaTanggalLisan(angkaDariKata(teks)).tanggal;
+        if (t) h.tanggal = t;
+      }
+    } catch (e) {
+      if (e.message !== 'dilewati') console.warn('AI suara gagal, pakai aturan biasa:', e.message);
+    }
+    if (urutan !== urutanSuara || !F || $('#ringkas-suara').hidden) return; // sudah ditutup / bicara lagi
+  }
+  if (!h) h = Object.assign(bacaKetikCepat(teks.slice(0, 300)), { sumber: 'aturan' });
+  bacaFieldTrx();
+  hasilSuara = { teks, h };
+  // Pratinjau = isian form setelah hasil ini diterapkan (aturan sama dengan isiFormCepat).
+  const x = Object.assign({}, F);
+  if (h.tipe && h.tipe !== x.tipe) { x.tipe = h.tipe; x.kategori = ''; }
+  if (h.jumlah) x.jumlah = h.jumlah;
+  if (h.kategori) x.kategori = h.kategori;
+  if (h.dompet && (x.tipe === TIPE.TRANSFER ? S.data.dompet : dompetBiasa()).some(w => w.nama === h.dompet)) x.dompet = h.dompet;
+  if (h.dompetTujuan && x.tipe === TIPE.TRANSFER) x.dompetTujuan = h.dompetTujuan;
+  if (h.tanggal) x.tanggal = h.tanggal;
+  if (h.catatan) x.catatan = h.catatan;
+
+  const kurang = [];
+  if (!x.jumlah) kurang.push('Nominal belum terbaca');
+  if (x.tipe !== TIPE.TRANSFER && !x.kategori) kurang.push('Kategori belum dipilih');
+  if (x.tipe === TIPE.TRANSFER && (!x.dompetTujuan || x.dompetTujuan === x.dompet)) kurang.push('Pilih dompet tujuan di form');
+  const dompet = S.data.dompet.find(w => w.nama === x.dompet);
+  const tujuan = S.data.dompet.find(w => w.nama === x.dompetTujuan);
+  const masuk = x.tipe === TIPE.MASUK;
+  const baris = (ikon, label, nilai, kosong) => `
+      <div class="baris-ringkas ${kosong ? 'belum' : ''}"><span class="ikon-ringkas">${ikon}</span>
+        <span class="isi"><small>${label}</small><b>${nilai}</b></span></div>`;
+
+  const el = kartuRingkasSuara();
   el.innerHTML = `
     <div class="sesi-kartu kartu-ringkas">
-      <span class="label-ringkas" id="ringkas-judul">🎤 Yang akan dicatat</span>
+      <span class="label-ringkas" id="ringkas-judul">${h.sumber === 'ai' ? '🤖 Dipahami AI · yang akan dicatat' : '🎤 Yang akan dicatat'}</span>
       <p class="kutipan-suara">“${esc(teks)}”</p>
       <div class="nominal-ringkas ${masuk ? 'masuk' : x.tipe === TIPE.TRANSFER ? '' : 'keluar'} ${x.jumlah ? '' : 'belum'}">
         <small>${esc(x.tipe)}</small>${x.jumlah ? (masuk ? '+' : x.tipe === TIPE.TRANSFER ? '' : '−') + rp(x.jumlah) : 'Rp —'}</div>
       <div class="daftar-ringkas">
         ${x.tipe !== TIPE.TRANSFER ? baris(ilus(x.kategori ? ikonKategori(x.kategori, x.tipe) : '🏷️'), 'Kategori', x.kategori ? esc(x.kategori) : 'Belum dipilih', !x.kategori) : ''}
-        ${baris(ilus(dompet ? dompet.ikon : '👛'), 'Dompet', x.dompet ? esc(x.dompet) : 'Belum dipilih', !x.dompet)}
+        ${baris(ilus(dompet ? dompet.ikon : '👛'), x.tipe === TIPE.TRANSFER ? 'Dari dompet' : 'Dompet', x.dompet ? esc(x.dompet) : 'Belum dipilih', !x.dompet)}
+        ${x.tipe === TIPE.TRANSFER ? baris(ilus(tujuan ? tujuan.ikon : '👛'), 'Ke dompet', x.dompetTujuan ? esc(x.dompetTujuan) : 'Belum dipilih', !x.dompetTujuan || x.dompetTujuan === x.dompet) : ''}
         ${x.catatan ? baris('📝', 'Catatan', esc(x.catatan)) : ''}
         ${baris('📅', 'Tanggal', esc(labelHariPendek(x.tanggal || hariIni())))}
       </div>
@@ -5103,6 +5323,27 @@ function tutupRingkasanSuara() {
   if (el) el.hidden = true;
 }
 
+let lewatiAi = false;
+let tungguLewati = () => {};
+
+/** Hasil Gemini dicek ulang terhadap data buku: nama harus persis ada, tanggal wajar, nominal bulat positif. */
+function rapikanHasilAi(r) {
+  const tipe = [TIPE.KELUAR, TIPE.MASUK, TIPE.TRANSFER].includes(r.tipe) ? r.tipe : TIPE.KELUAR;
+  const ada = (daftar, n) => daftar.some(w => w.nama === n) ? n : '';
+  const tanggalOk = /^\d{4}-\d{2}-\d{2}$/.test(r.tanggal || '') && !isNaN(keTanggal(r.tanggal))
+    && r.tanggal <= geserHari(hariIni(), 1) && r.tanggal >= geserHari(hariIni(), -400);
+  return {
+    sumber: 'ai',
+    tipe,
+    jumlah: Math.max(0, Math.round(Number(r.jumlah) || 0)),
+    kategori: tipe === TIPE.TRANSFER ? '' : ada(S.data.kategori.filter(k => k.tipe === tipe), r.kategori),
+    dompet: ada(tipe === TIPE.TRANSFER ? S.data.dompet : dompetBiasa(), r.dompet),
+    dompetTujuan: tipe === TIPE.TRANSFER ? ada(S.data.dompet, r.dompetTujuan) : '',
+    tanggal: tanggalOk ? r.tanggal : '',
+    catatan: String(r.catatan || '').trim().slice(0, 100),
+  };
+}
+
 Object.assign(AKSI, {
   // Mengetuk contoh = seolah diucapkan: mic berhenti, kartu ringkasan muncul.
   'contoh-suara': el => {
@@ -5111,6 +5352,7 @@ Object.assign(AKSI, {
     if (input) input.value = el.dataset.teks;
     tampilRingkasanSuara(el.dataset.teks);
   },
+  'ringkas-tanpa-ai': () => { lewatiAi = true; tungguLewati(); },
   'ringkas-simpan': () => {
     if (!hasilSuara || !F) return tutupRingkasanSuara();
     tutupRingkasanSuara();
