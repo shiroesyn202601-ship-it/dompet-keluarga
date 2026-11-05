@@ -255,15 +255,18 @@ function pakaiDataTerakhir(offline = true) {
   return true;
 }
 
-/** Transaksi baru yang belum bisa dikirim disimpan di HP, lengkap dengan ID-nya supaya tidak dobel saat dikirim ulang. */
-function simpanTertunda(t) {
+/**
+ * Transaksi baru yang belum bisa dikirim disimpan di HP, lengkap dengan ID-nya supaya tidak dobel saat dikirim ulang.
+ * diLatar: dipanggil dari penyimpanan latar belakang; form lain yang mungkin sedang dibuka tidak ditutup.
+ */
+function simpanTertunda(t, diLatar) {
   tulisTertunda(tertunda().concat([{
     idBaru: t.idBaru || crypto.randomUUID(), tipe: t.tipe, jumlah: t.jumlah, kategori: t.kategori,
     dompet: t.dompet, dompetTujuan: t.dompetTujuan, tanggal: t.tanggal, catatan: t.catatan,
     dariRutin: t.dariRutin || '', ulang: t.ulang || '', buku: S.data.spreadsheetId,
   }]));
-  tutupSheet();
-  render();
+  if (!diLatar) tutupSheet();
+  if ($('#sheet').hidden) render();
   toast('📴 Tersimpan di HP. Dikirim otomatis begitu ada sinyal.' + (t.lampiranData ? ' Foto struk tidak ikut disimpan.' : ''));
   return true;
 }
@@ -1772,6 +1775,8 @@ function renderFormTrx() {
   const berikutUlang = F.ulang && !rutin ? SERVER.tanggalBerikut(F.tanggal || hariIni(), F.tanggal || hariIni(), F.ulang) : '';
 
   $('#form-trx').innerHTML = `
+    ${F.galatSimpan ? `<div class="status-bar gagal galat-simpan" role="alert">⚠️ <span><b>Gagal menyimpan.</b> ${esc(F.galatSimpan)}
+      Periksa isiannya, lalu ketuk Simpan lagi.</span></div>` : ''}
     ${F.dariRutin ? `
       <div class="info-rutin">🔁 <span>Setelah disimpan, jatuh tempo berikutnya <b>${esc(tanggalPendek(F.berikutRutin))}</b>.
         <button type="button" data-aksi="lewati-rutin">Lewati kali ini</button></span></div>` : ''}
@@ -2405,6 +2410,51 @@ async function jalankanStruk(job) {
 
 const formMenungguStruk = job => !!(F && F.strukJob === job.id && $('#form-trx'));
 
+/**
+ * Menyimpan transaksi berfoto di latar belakang (unggah foto ke Drive bisa lama). Form langsung ditutup,
+ * kemajuannya tampil di antrian bawah. Gagal → form dibuka lagi lengkap dengan isian & pesan errornya;
+ * kalau pengguna sedang membuka form lain, cukup tombol "Buka" di antrian supaya isiannya tidak tertimpa.
+ */
+function simpanDiLatar(t, pesan) {
+  const job = { id: ++nomorStruk, jenis: 'simpan', status: 'proses', t, thumb: t.lampiranThumb || '', pesan: '', mulai: Date.now() };
+  ANTRIAN.push(job);
+  // Hasil struk asalnya dibuang dari antrian (isinya sudah ada di t), supaya "Tinjau" tidak bisa mencatat dobel.
+  if (t.dariJob) hapusJob(t.dariJob);
+  tutupSheet();
+  renderAntrian();
+  toast('⏳ Menyimpan di latar belakang. Silakan lanjut pakai aplikasi.');
+  (async () => {
+    try {
+      await api('simpanTransaksi', t);
+      hapusJob(job.id);
+      toast(pesan);
+      await muat();
+    } catch (e) {
+      if (!ANTRIAN.includes(job)) return;
+      // Sinyal putus saat mencatat transaksi baru: masuk antrean tertunda seperti biasa (tanpa foto).
+      if (!t.id && e.jaringan) {
+        hapusJob(job.id);
+        simpanTertunda(t, true);
+        return;
+      }
+      job.status = 'gagal';
+      job.pesan = pesanError(e);
+      renderAntrian();
+      if ($('#sheet').hidden && $('#kunci').hidden) bukaLagiSimpan(job);
+      else toast('Gagal menyimpan ' + rp(t.jumlah) + ': ' + job.pesan + ' Ketuk "Buka" di bawah layar.', true);
+    }
+  })();
+}
+
+/** Membuka lagi form transaksi yang gagal disimpan di latar belakang, beserta pesan errornya. */
+function bukaLagiSimpan(job) {
+  hapusJob(job.id);
+  F = Object.assign(job.t, { galatSimpan: job.pesan });
+  bukaSheet(F.id ? 'Ubah Transaksi' : 'Catat Transaksi', '<div id="form-trx"></div>');
+  renderFormTrx();
+  toast('Gagal menyimpan: ' + job.pesan, true);
+}
+
 /** Struk yang gagal karena sesi login / sinyal dibaca ulang. jenis: 'sesi' | 'sinyal'. */
 function ulangiStrukTertunda(jenis) {
   ANTRIAN.filter(j => j.status === 'gagal' && j.ulangOtomatis === jenis).forEach(jalankanStruk);
@@ -2451,7 +2501,16 @@ function renderAntrian() {
   el.innerHTML = ANTRIAN.map(j => {
     const gambar = j.thumb ? `<img src="${j.thumb}" alt="">` : '<span class="antrian-ikon">🧾</span>';
     let isi, aksi;
-    if (j.status === 'proses') {
+    if (j.jenis === 'simpan') {
+      const judul = rp(j.t.jumlah) + (j.t.kategori ? ' · ' + esc(j.t.kategori) : '');
+      if (j.status === 'proses') {
+        isi = `<b>Menyimpan ${judul} <span class="detik" data-detik="${j.id}"></span></b><small>Foto sedang diunggah · boleh lanjut pakai aplikasi</small>`;
+        aksi = '<span class="spinner kecil" aria-label="Sedang menyimpan"></span>';
+      } else {
+        isi = `<b>❌ Gagal menyimpan ${judul}</b><small>${esc(j.pesan)}</small>`;
+        aksi = `<button type="button" class="btn btn-utama kecil" data-aksi="buka-simpan" data-id="${j.id}">Buka</button>`;
+      }
+    } else if (j.status === 'proses') {
       isi = `<b>Membaca struk… <span class="detik" data-detik="${j.id}"></span></b><small>Boleh lanjut pakai aplikasi</small>`;
       aksi = '<span class="spinner kecil" aria-label="Sedang memproses"></span>';
     } else if (j.status === 'siap') {
@@ -2761,8 +2820,18 @@ const AKSI = {
   },
   'buang-struk': async el => {
     const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
+    if (job && job.jenis === 'simpan' && !await tanya('Buang transaksi ' + rp(job.t.jumlah) + ' yang gagal disimpan ini?', 'Buang')) return;
     if (job && job.status === 'siap' && !await tanya('Buang hasil struk ini tanpa menyimpannya?', 'Buang')) return;
     hapusJob(el.dataset.id);
+  },
+  'buka-simpan': async el => {
+    const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
+    if (!job) return;
+    if (!$('#sheet').hidden) {
+      if (F && !await tanya('Tutup form yang sedang dibuka? Isiannya akan hilang.', 'Tutup')) return;
+      tutupSheet();
+    }
+    bukaLagiSimpan(job);
   },
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
@@ -2821,6 +2890,9 @@ const AKSI = {
     if (!t.id && !t.idBaru) t.idBaru = crypto.randomUUID();
     const tunda = () => { simpanTertunda(t); if (dariJob) hapusJob(dariJob); return true; };
     if (!t.id && (S.offline || !navigator.onLine)) return tunda();
+    t.galatSimpan = '';
+    // Ada foto baru: unggah ke Drive lama, jadi disimpan di latar belakang dan form langsung ditutup.
+    if (t.lampiranData) return simpanDiLatar(t, pesan);
     kirim(el, 'simpanTransaksi', [t], pesan, e => !t.id && e.jaringan && tunda())
       .then(ok => { if (ok && dariJob) hapusJob(dariJob); });
   },
