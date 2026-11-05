@@ -23,6 +23,17 @@ const DOMPET_UMUM = [['Tunai', '💵'], ['BCA', '🏦'], ['BRI', '🏦'], ['Mand
   ['Jago', '🏦'], ['SeaBank', '🏦'], ['GoPay', '📱'], ['OVO', '📱'], ['DANA', '📱'], ['ShopeePay', '📱']];
 let F = null; // state form yang sedang terbuka
 
+// Font dipasang di sini, bukan sebagai <link rel="stylesheet"> di index.html, supaya layar pertama
+// (dan splash screen Android) tidak menunggu Google Fonts. Teks tampil dulu dengan font sistem.
+(() => {
+  const p = document.getElementById('font-utama');
+  if (!p) return;
+  const l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = p.href;
+  document.head.appendChild(l);
+})();
+
 // ---------- Util ----------
 
 async function api(fungsi, ...args) {
@@ -4545,16 +4556,48 @@ document.addEventListener('change', e => {
 });
 
 // ---------- Aplikasi terpasang (PWA) & pembaruan otomatis ----------
-// Isi aplikasi selalu diambil dari GitHub Pages (lihat sw.js), jadi cukup pasang sekali.
-// Aplikasi yang lama terbuka di latar belakang dicek lewat versi.txt (dibuat saat deploy),
-// lalu dimuat ulang sendiri saat pengguna sedang tidak mengisi apa pun.
+// Isi aplikasi dibuka dari cache service worker supaya langsung tampil (lihat sw.js). Versi isi cache
+// dibandingkan dengan versi.txt di server (dibuat saat deploy); kalau server lebih baru, service worker
+// diminta mengunduh versi baru dulu, lalu aplikasi dimuat ulang sendiri saat pengguna tidak mengisi apa pun.
 
 const MODE_APLIKASI = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 let ajakanPasang = null;
-let versiAwal = null;
+let versiAwal = null;      // versi isi aplikasi yang sedang berjalan
 let pembaruanDitunda = false;
+let pembaruanSiap = '';    // versi baru yang sudah diunduh ke cache, tinggal dimuat ulang
+let sedangCekVersi = false;
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+/**
+ * Versi isi yang sedang berjalan, dibaca SEKARANG (saat app.js dimuat) sebelum ada pembaruan cache.
+ * null = halaman tidak dibuka dari cache service worker (mis. pertama kali), berarti sama dengan versi server.
+ */
+const versiDimuat = (async () => {
+  try {
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) return null;
+    const r = await caches.match('versi.txt');
+    return r ? (await r.text()).trim() : null;
+  } catch (e) {
+    return null;
+  }
+})();
+
+/** Minta service worker mengunduh versi `v` ke cache. true kalau cache sudah berisi versi itu. */
+function siapkanVersi(v) {
+  const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+  if (!sw) return Promise.resolve(true); // tanpa service worker: muat ulang langsung mengambil dari server
+  return new Promise(ok => {
+    const ch = new MessageChannel();
+    const batas = setTimeout(() => ok(false), 60000);
+    ch.port1.onmessage = e => {
+      clearTimeout(batas);
+      if (e.data && e.data.galat) console.warn('Pembaruan belum bisa diunduh:', e.data.galat);
+      ok(!!(e.data && e.data.v === v));
+    };
+    sw.postMessage({ perbarui: true }, [ch.port2]);
+  });
+}
 
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
@@ -4622,13 +4665,24 @@ async function bukaLogUpdate() {
 }
 
 async function cekPembaruan() {
-  const v = await versiServer();
-  if (!v) return;
-  if (!versiAwal) { versiAwal = v; umumkanVersi(v); return; }
-  if (v === versiAwal) return;
-  if (!sedangSibuk()) return location.reload();
-  if (!pembaruanDitunda) toast('Versi baru tersedia, dipasang setelah Anda selesai');
-  pembaruanDitunda = true;
+  if (sedangCekVersi) return;
+  sedangCekVersi = true;
+  try {
+    const v = await versiServer();
+    if (!v) return;
+    if (!versiAwal) { versiAwal = (await versiDimuat) || v; umumkanVersi(versiAwal); }
+    if (v === versiAwal) return;
+    // Versi baru diunduh utuh ke cache dulu; gagal (mis. sinyal putus) → dicoba lagi di pengecekan berikutnya.
+    if (pembaruanSiap !== v) {
+      if (!await siapkanVersi(v)) return;
+      pembaruanSiap = v;
+    }
+    if (!sedangSibuk()) return location.reload();
+    if (!pembaruanDitunda) toast('Versi baru tersedia, dipasang setelah Anda selesai');
+    pembaruanDitunda = true;
+  } finally {
+    sedangCekVersi = false;
+  }
 }
 
 // Mode samar & kunci aplikasi: dipasang saat dibuka, dan kunci lagi setelah ditinggal > 1 menit.

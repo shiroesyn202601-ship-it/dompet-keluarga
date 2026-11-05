@@ -1,16 +1,23 @@
-// Service worker: membuat aplikasi bisa dipasang & tetap terbuka saat sinyal jelek.
-// Strategi "jaringan dulu": selalu ambil versi terbaru dari GitHub Pages, cache hanya cadangan.
-// Jadi setiap update di GitHub langsung terpakai tanpa pasang ulang.
-const CACHE = 'dompet-keluarga-v4';
+// Service worker: membuat aplikasi bisa dipasang, terbuka seketika, dan tetap jalan saat sinyal jelek.
+//
+// Isi aplikasi (INTI) diambil dari CACHE DULU, jadi splash screen Android langsung hilang tanpa menunggu
+// internet. Pembaruannya diatur halaman (app.js → cekPembaruan): kalau versi.txt di server lebih baru dari
+// versi isi cache, halaman meminta "perbarui" ke service worker ini, yang mengunduh SEMUA file INTI versi
+// baru sekaligus lalu menggantinya di cache, baru kemudian halaman dimuat ulang. Dengan begitu isi cache
+// selalu satu versi utuh (tidak campur file lama & baru) dan tidak ada muat ulang berulang.
+// File lain (changelog.json, privasi.html, ikon besar, dll.) tetap "jaringan dulu".
+const CACHE = 'dompet-keluarga-v5';
 const INTI = [
   'index.html', 'manifest.webmanifest',
   'assets/styles.css', 'assets/config.js', 'assets/google.js', 'assets/struk.js', 'assets/sholat.js', 'assets/ilustrasi.js', 'assets/db.js', 'assets/app.js',
   'ikon/ikon-192.png', 'ikon/apple-touch-icon.png', 'ikon/favicon-32.png',
 ];
-const BATAS_TUNGGU_MS = 5000; // sinyal lambat → pakai cache dulu, versi baru tetap disimpan untuk berikutnya
+/** Versi isi cache disimpan di cache dengan kunci ini (dibaca app.js lewat caches.match('versi.txt')). */
+const KUNCI_VERSI = 'versi.txt';
+const BATAS_TUNGGU_MS = 5000; // file "jaringan dulu": sinyal lambat → pakai cache dulu
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(INTI.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
+  e.waitUntil(isiCache(true).catch(() => {}).then(() => self.skipWaiting()));
 });
 
 const CACHE_BAGIKAN = 'dk-bagikan'; // gambar/teks dari "Bagikan → Dompet", dibaca app.js (terimaBagikan)
@@ -20,6 +27,37 @@ self.addEventListener('activate', e => {
     .then(k => Promise.all(k.filter(n => n !== CACHE && n !== CACHE_BAGIKAN).map(n => caches.delete(n))))
     .then(() => self.clients.claim()));
 });
+
+/** Halaman meminta pembaruan: { perbarui: true } lewat MessageChannel → dibalas { v } atau { galat }. */
+self.addEventListener('message', e => {
+  if (!e.data || !e.data.perbarui || !e.ports[0]) return;
+  e.waitUntil(isiCache(false).then(
+    v => e.ports[0].postMessage({ v }),
+    err => e.ports[0].postMessage({ galat: String(err && err.message || err) }),
+  ));
+});
+
+/**
+ * Mengunduh semua file INTI versi server lalu menaruhnya di cache. Versi dibaca DULUAN, supaya kalau ada
+ * deploy di tengah jalan, label versi paling-paling lebih lama dari isinya (memicu satu pembaruan ekstra
+ * yang aman), bukan sebaliknya. `paksa` = tetap unduh walau versinya sama (saat pasang pertama kali).
+ */
+async function isiCache(paksa) {
+  const r = await fetch(KUNCI_VERSI, { cache: 'no-store' });
+  if (!r.ok) throw new Error('versi.txt HTTP ' + r.status);
+  const v = (await r.text()).trim();
+  const cache = await caches.open(CACHE);
+  const lama = await cache.match(KUNCI_VERSI);
+  if (!paksa && lama && (await lama.text()).trim() === v) return v;
+  // Semua diunduh dulu; cache baru diubah kalau semuanya berhasil.
+  const jawaban = await Promise.all(INTI.map(u => fetch(u, { cache: 'reload' }).then(res => {
+    if (!res.ok) throw new Error(u + ' HTTP ' + res.status);
+    return [u, res];
+  })));
+  await Promise.all(jawaban.map(([u, res]) => cache.put(u, res)));
+  await cache.put(KUNCI_VERSI, new Response(v));
+  return v;
+}
 
 self.addEventListener('fetch', e => {
   const req = e.request;
@@ -31,8 +69,24 @@ self.addEventListener('fetch', e => {
   }
   // Google API, font, dan versi.txt tidak disentuh.
   if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.endsWith('/versi.txt')) return;
-  e.respondWith(jaringanDulu(req, url));
+  const inti = fileInti(req, url);
+  e.respondWith(inti ? dariCache(req, url, inti) : jaringanDulu(req, url));
 });
+
+/** Nama file INTI untuk permintaan ini ('index.html' untuk membuka aplikasi), atau null. */
+function fileInti(req, url) {
+  const dasar = new URL(self.registration.scope).pathname;
+  if (!url.pathname.startsWith(dasar)) return null;
+  const jalur = url.pathname.slice(dasar.length);
+  if (req.mode === 'navigate') return jalur === '' || jalur === 'index.html' ? 'index.html' : null;
+  return INTI.includes(jalur) ? jalur : null;
+}
+
+async function dariCache(req, url, nama) {
+  const cache = await caches.open(CACHE);
+  const r = await cache.match(nama);
+  return r || jaringanDulu(req, url); // belum tersimpan (mis. pertama kali dibuka)
+}
 
 async function terimaBagikan(req) {
   try {

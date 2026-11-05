@@ -25,7 +25,8 @@
     <meta name="apple-mobile-web-app-title" content="Dompet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+    <!-- Font hanya di-preload (tidak menahan tampilan pertama); dipasang sebagai stylesheet oleh app.js. -->
+    <link rel="preload" as="style" id="font-utama" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
     <script>
       // Tema & mode samar dipasang sebelum CSS dimuat supaya layar tidak berkedip (lihat aturTema di app.js).
       try {
