@@ -426,11 +426,18 @@ function pulihkanPosisi() {
   } catch (e) { /* abaikan */ }
 }
 
-function pemilihBulan() {
-  return `<div class="pemilih-bulan">
-    <button data-aksi="bulan" data-geser="-1" aria-label="Bulan sebelumnya">‹</button>
-    <span>${esc(namaBulan(S.bulan))}</span>
-    <button data-aksi="bulan" data-geser="1" aria-label="Bulan berikutnya">›</button>
+/**
+ * ‹ periode ›. ringkas: versi kecil untuk pojok kanan atas Beranda ("Nov 2026"), supaya nama pengguna & buku
+ * di sebelahnya tidak tertutup; rentang tanggal lengkapnya tetap tertulis di kartu saldo.
+ */
+function pemilihBulan(ringkas) {
+  const label = ringkas
+    ? keTanggal(S.bulan).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' })
+    : namaBulan(S.bulan);
+  return `<div class="pemilih-bulan ${ringkas ? 'ringkas' : ''}">
+    <button data-aksi="bulan" data-geser="-1" aria-label="Periode sebelumnya">‹</button>
+    <span title="${esc(namaBulan(S.bulan))}">${esc(label)}</span>
+    <button data-aksi="bulan" data-geser="1" aria-label="Periode berikutnya">›</button>
   </div>`;
 }
 
@@ -617,17 +624,15 @@ function viewBeranda() {
         <div style="min-width:0"><small>Halo,</small><h1>${esc(nama)}</h1>
           ${(d.buku || []).length > 1 ? `<button type="button" class="chip-buku" data-aksi="buku">📒 ${esc(d.namaBuku)} ▾</button>` : ''}</div>
       </div>
-      <div class="kepala-kanan">
-        <button class="tombol-ikon" data-aksi="samar" aria-label="${modeSamar() ? 'Tampilkan nominal' : 'Sembunyikan nominal'}" aria-pressed="${modeSamar()}">${modeSamar() ? '🙈' : '👁'}</button>
-        <button class="tombol-ikon" data-aksi="tab" data-tab="lainnya" aria-label="Pengaturan">${svg('gear')}</button>
-      </div>
+      <div class="kepala-kanan">${pemilihBulan(true)}</div>
     </div>
-
-    <div class="periode-beranda">${pemilihBulan()}</div>
 
     <section class="kartu kartu-saldo">
       <small>Total saldo dompet</small>
-      <div class="besar">${rp(saldo)}</div>
+      <div class="baris-saldo">
+        <div class="besar">${rp(saldo)}</div>
+        <button type="button" class="tombol-mata" data-aksi="samar" aria-label="${modeSamar() ? 'Tampilkan nominal' : 'Sembunyikan nominal'}" aria-pressed="${modeSamar()}">${modeSamar() ? '🙈' : '👁'}</button>
+      </div>
       <div class="ringkas">
         <div><span class="panah-bulat masuk" aria-hidden="true">↓</span><span><small>Pemasukan</small><b>${rp(masuk)}</b></span></div>
         <div><span class="panah-bulat keluar" aria-hidden="true">↑</span><span><small>Pengeluaran</small><b>${rp(keluar)}</b></span></div>
