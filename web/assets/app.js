@@ -2289,7 +2289,7 @@ function bukaFormTrx(t, preset, judul) {
     tipe: TIPE.KELUAR, jumlah: 0, kategori: '', dompet: pertama ? pertama.nama : '', dompetTujuan: '',
     tanggal: hariIni(), catatan: '',
   }, preset);
-  bukaSheet(t ? 'Ubah Transaksi' : judul || 'Catat Transaksi', '<div id="form-trx"></div>');
+  bukaSheet(t ? T('Ubah Transaksi') : judul || T('Catat Transaksi'), '<div id="form-trx"></div>');
   renderFormTrx();
   // Tidak fokus kalau form langsung diisi hasil struk (kartu konfirmasi muncul di atasnya, keyboard jangan terbuka).
   if (!t) setTimeout(() => F && !F.struk && $('#f-jumlah') && $('#f-jumlah').focus(), 250);
@@ -2302,7 +2302,7 @@ function renderFormTrx() {
     // Orang (utang-piutang) hanya muncul kalau sedang terpilih, mis. saat mencatat pelunasan.
     .filter(w => w.jenis === JENIS.DOMPET || (termasukTabungan && (w.jenis === JENIS.TABUNGAN || w.jenis === JENIS.ASET)) || w.nama === terpilih).map(w =>
     `<button type="button" class="pilihan ${w.nama === terpilih ? 'aktif' : ''}" data-aksi="${aksi}" data-nama="${esc(w.nama)}">
-      <span>${ilus(w.ikon)}</span>${esc(w.nama)}</button>`).join('')}</div>`;
+      <span>${ilus(w.ikon)}</span>${esc(namaT(w.nama))}</button>`).join('')}</div>`;
 
   // Form yang sama dipakai untuk: transaksi baru/ubah, membayar tagihan rutin (F.dariRutin),
   // dan membuat/mengubah tagihan rutin itu sendiri (F.modeRutin).
@@ -2311,11 +2311,11 @@ function renderFormTrx() {
   const berikutUlang = F.ulang && !rutin ? SERVER.tanggalBerikut(F.tanggal || hariIni(), F.tanggal || hariIni(), F.ulang) : '';
 
   $('#form-trx').innerHTML = `
-    ${F.galatSimpan ? `<div class="status-bar gagal galat-simpan" role="alert">⚠️ <span><b>Gagal menyimpan.</b> ${esc(F.galatSimpan)}
-      Periksa isiannya, lalu ketuk Simpan lagi.</span></div>` : ''}
+    ${F.galatSimpan ? `<div class="status-bar gagal galat-simpan" role="alert">⚠️ <span><b>${T('Gagal menyimpan.')}</b> ${esc(F.galatSimpan)}
+      ${T('Periksa isiannya, lalu ketuk Simpan lagi.')}</span></div>` : ''}
     ${F.dariRutin ? `
-      <div class="info-rutin">🔁 <span>Setelah disimpan, jatuh tempo berikutnya <b>${esc(tanggalPendek(F.berikutRutin))}</b>.
-        <button type="button" data-aksi="lewati-rutin">Lewati kali ini</button></span></div>` : ''}
+      <div class="info-rutin">🔁 <span>${T('Setelah disimpan, jatuh tempo berikutnya <b>{tanggal}</b>.', { tanggal: esc(tanggalPendek(F.berikutRutin)) })}
+        <button type="button" data-aksi="lewati-rutin">${T('Lewati kali ini')}</button></span></div>` : ''}
 
     ${!rutin && !F.id && !F.dariRutin && !F.strukJob && !F.struk && F.tipe !== TIPE.TRANSFER ? bagianCepat() : ''}
 
@@ -2323,25 +2323,25 @@ function renderFormTrx() {
 
     ${rutin ? `
       <div class="grup-form">
-        <label class="label" for="f-nama">Nama tagihan</label>
-        <input class="field" id="f-nama" maxlength="60" placeholder="mis. Listrik PLN, Internet, Cicilan motor, Gaji" value="${esc(F.nama)}">
+        <label class="label" for="f-nama">${T('Nama tagihan')}</label>
+        <input class="field" id="f-nama" maxlength="60" placeholder="${T('mis. Listrik PLN, Internet, Cicilan motor, Gaji')}" value="${esc(F.nama)}">
       </div>` : ''}
 
     <div class="segmen">
       ${[TIPE.KELUAR, TIPE.MASUK, TIPE.TRANSFER].map(t =>
-        `<button type="button" class="${F.tipe === t ? 'aktif' : ''}" data-aksi="f-tipe" data-tipe="${t}">${t}</button>`).join('')}
+        `<button type="button" class="${F.tipe === t ? 'aktif' : ''}" data-aksi="f-tipe" data-tipe="${t}">${namaT(t)}</button>`).join('')}
     </div>
 
     ${F.strukJob ? `
       <div class="struk-proses" role="status"><span class="spinner kecil"></span>
-        <span><b>Membaca struk… <span class="detik" data-detik="${F.strukJob}"></span></b>
+        <span><b>${T('Membaca struk…')} <span class="detik" data-detik="${F.strukJob}"></span></b>
           <small class="tahap-struk" data-tahap="${F.strukJob}">${esc((ANTRIAN.find(j => j.id === F.strukJob) || {}).tahap || '')}</small>
-          <small>Isi lain boleh diisi dulu, atau tutup form ini. Hasilnya tetap muncul di bawah layar.</small></span></div>`
+          <small>${T('Isi lain boleh diisi dulu, atau tutup form ini. Hasilnya tetap muncul di bawah layar.')}</small></span></div>`
     : !F.id && !rutin && F.tipe === TIPE.KELUAR ? `
-      <p class="label" style="margin:0 0 6px">Isi otomatis dari foto struk</p>
+      <p class="label" style="margin:0 0 6px">${T('Isi otomatis dari foto struk')}</p>
       <div style="display:flex;gap:8px;margin:0 0 16px">
-        <button type="button" class="tombol-tambah" style="margin:0" data-aksi="foto-struk" data-kamera="1">📷 Kamera</button>
-        <button type="button" class="tombol-tambah" style="margin:0" data-aksi="foto-struk">🖼️ Galeri</button>
+        <button type="button" class="tombol-tambah" style="margin:0" data-aksi="foto-struk" data-kamera="1">📷 ${T('Kamera')}</button>
+        <button type="button" class="tombol-tambah" style="margin:0" data-aksi="foto-struk">🖼️ ${T('Galeri')}</button>
       </div>` : ''}
 
     <label class="input-jumlah">
@@ -2353,54 +2353,54 @@ function renderFormTrx() {
 
     ${F.tipe !== TIPE.TRANSFER ? `
       <div class="grup-form">
-        <span class="label">Kategori</span>
+        <span class="label">${T('Kategori')}</span>
         <div class="grid-pilih">${kategori.map(k =>
           `<button type="button" class="pilihan ${k.nama === F.kategori ? 'aktif' : ''}" data-aksi="f-kategori" data-nama="${esc(k.nama)}">
-            <span>${ilus(k.ikon)}</span>${esc(k.nama)}</button>`).join('')}</div>
+            <span>${ilus(k.ikon)}</span>${esc(namaT(k.nama))}</button>`).join('')}</div>
       </div>` : ''}
 
     <div class="grup-form">
-      <span class="label">${F.tipe === TIPE.TRANSFER ? 'Dari dompet' : 'Dompet'}</span>
+      <span class="label">${F.tipe === TIPE.TRANSFER ? T('Dari dompet') : T('Dompet')}</span>
       ${pilihDompet('f-dompet', F.dompet, F.tipe === TIPE.TRANSFER)}
     </div>
 
     ${F.tipe === TIPE.TRANSFER ? `
       <div class="grup-form">
-        <span class="label">Ke dompet</span>
+        <span class="label">${T('Ke dompet')}</span>
         ${pilihDompet('f-tujuan', F.dompetTujuan, true)}
       </div>` : ''}
 
     <div class="grup-form">
-      <label class="label" for="f-tanggal">${rutin ? 'Jatuh tempo berikutnya' : 'Tanggal'}</label>
+      <label class="label" for="f-tanggal">${rutin ? T('Jatuh tempo berikutnya') : T('Tanggal')}</label>
       ${inputTanggal('f-tanggal', F.tanggal)}
     </div>
 
     ${bolehUlang ? `
       <div class="grup-form">
-        <span class="label">🔁 ${rutin ? 'Berulang' : 'Ulangi (tagihan rutin)'}</span>
-        <div class="chips">${(rutin ? [] : [['', 'Tidak']]).concat([['Bulanan', 'Tiap bulan'], ['Mingguan', 'Tiap minggu'], ['Tahunan', 'Tiap tahun']]).map(([u, l]) =>
+        <span class="label">🔁 ${rutin ? T('Berulang') : T('Ulangi (tagihan rutin)')}</span>
+        <div class="chips">${(rutin ? [] : [['', T('Tidak||ulang')]]).concat([['Bulanan', T('Tiap bulan')], ['Mingguan', T('Tiap minggu')], ['Tahunan', T('Tiap tahun')]]).map(([u, l]) =>
           `<button type="button" class="chip ${(F.ulang || '') === u ? 'aktif' : ''}" data-aksi="f-ulang" data-ulang="${u}">${l}</button>`).join('')}</div>
-        ${berikutUlang ? `<p class="info-kecil" style="text-align:left">Muncul lagi di Beranda menjelang ${esc(tanggalPendek(berikutUlang))}, tinggal ketuk untuk mencatat.</p>` : ''}
+        ${berikutUlang ? `<p class="info-kecil" style="text-align:left">${T('Muncul lagi di Beranda menjelang {tanggal}, tinggal ketuk untuk mencatat.', { tanggal: esc(tanggalPendek(berikutUlang)) })}</p>` : ''}
       </div>` : ''}
 
     <div class="grup-form">
-      <label class="label" for="f-catatan">Catatan (opsional)</label>
-      <input class="field" id="f-catatan" maxlength="500" list="f-saran" autocomplete="off" placeholder="mis. Belanja bulanan di Indomaret" value="${esc(F.catatan)}">
+      <label class="label" for="f-catatan">${T('Catatan (opsional)')}</label>
+      <input class="field" id="f-catatan" maxlength="500" list="f-saran" autocomplete="off" placeholder="${T('mis. Belanja bulanan di Indomaret')}" value="${esc(F.catatan)}">
       <datalist id="f-saran">${kebiasaan().saran.filter(s => s.tipe === F.tipe).map(s => `<option value="${esc(s.catatan)}">`).join('')}</datalist>
     </div>
 
     ${rutin ? '' : bagianLampiran()}
 
     ${!F.id && !rutin && !F.dariRutin && F.tipe === TIPE.KELUAR
-      ? '<button type="button" class="tombol-teks" style="display:block;margin:-4px 0 8px;padding-left:0" data-aksi="buka-patungan">👥 Dibayar bareng teman? Bagi tagihan (patungan)</button>' : ''}
+      ? `<button type="button" class="tombol-teks" style="display:block;margin:-4px 0 8px;padding-left:0" data-aksi="buka-patungan">👥 ${T('Dibayar bareng teman? Bagi tagihan (patungan)')}</button>` : ''}
 
-    ${F.oleh ? `<p class="info-kecil">Dicatat oleh ${esc(namaPendek(F.oleh))}</p>` : ''}
+    ${F.oleh ? `<p class="info-kecil">${T('Dicatat oleh {nama}', { nama: esc(namaPendek(F.oleh)) })}</p>` : ''}
     <div class="aksi-form">
       ${rutin
-        ? `${F.idRutin ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-rutin">Hapus</button>' : ''}
-           <button type="button" class="btn btn-utama" data-aksi="simpan-rutin">Simpan</button>`
-        : `${F.id ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-trx">Hapus</button>' : ''}
-           <button type="button" class="btn btn-utama" data-aksi="simpan-trx">Simpan</button>`}
+        ? `${F.idRutin ? `<button type="button" class="btn btn-hapus" data-aksi="hapus-rutin">${T('Hapus')}</button>` : ''}
+           <button type="button" class="btn btn-utama" data-aksi="simpan-rutin">${T('Simpan')}</button>`
+        : `${F.id ? `<button type="button" class="btn btn-hapus" data-aksi="hapus-trx">${T('Hapus')}</button>` : ''}
+           <button type="button" class="btn btn-utama" data-aksi="simpan-trx">${T('Simpan')}</button>`}
     </div>`;
 }
 
@@ -2411,18 +2411,18 @@ function renderFormTrx() {
 function bagianLampiran() {
   if (F.lampiranData) {
     // Foto belum ada di Drive (diunggah saat Simpan), jadi dibuka dari data di HP.
-    return `<div class="lampiran"><button type="button" class="lampiran-buka" data-aksi="lihat-lampiran" aria-label="Lihat foto struk">
+    return `<div class="lampiran"><button type="button" class="lampiran-buka" data-aksi="lihat-lampiran" aria-label="${T('Lihat foto struk')}">
         ${F.lampiranThumb ? `<img src="${F.lampiranThumb}" alt="">` : '<span class="ikon-bulat">🧾</span>'}
-        <span class="isi"><b>📎 Lihat foto struk</b><small>Disimpan ke Google Drive saat transaksi disimpan</small></span></button>
-      <button type="button" class="tombol-ikon" data-aksi="lampiran-hapus" aria-label="Buang foto">✕</button></div>`;
+        <span class="isi"><b>📎 ${T('Lihat foto struk')}</b><small>${T('Disimpan ke Google Drive saat transaksi disimpan')}</small></span></button>
+      <button type="button" class="tombol-ikon" data-aksi="lampiran-hapus" aria-label="${T('Buang foto')}">✕</button></div>`;
   }
   if (F.lampiran) {
     return `<div class="lampiran"><span class="ikon-bulat">🧾</span>
-      <span class="isi"><b><a href="https://drive.google.com/file/d/${esc(F.lampiran)}/view" target="_blank" rel="noopener">📎 Lihat foto struk</a></b>
-        <small>Tersimpan di Google Drive</small></span>
-      <button type="button" class="tombol-ikon" data-aksi="lampiran-hapus" aria-label="Lepas lampiran">✕</button></div>`;
+      <span class="isi"><b><a href="https://drive.google.com/file/d/${esc(F.lampiran)}/view" target="_blank" rel="noopener">📎 ${T('Lihat foto struk')}</a></b>
+        <small>${T('Tersimpan di Google Drive')}</small></span>
+      <button type="button" class="tombol-ikon" data-aksi="lampiran-hapus" aria-label="${T('Lepas lampiran')}">✕</button></div>`;
   }
-  return '<button type="button" class="tombol-teks" style="display:block;margin:-4px 0 8px;padding-left:0" data-aksi="lampiran-pilih">📎 Lampirkan foto struk / bukti transfer</button>';
+  return `<button type="button" class="tombol-teks" style="display:block;margin:-4px 0 8px;padding-left:0" data-aksi="lampiran-pilih">📎 ${T('Lampirkan foto struk / bukti transfer')}</button>`;
 }
 
 /** Simpan isian field teks ke F sebelum form dirender ulang. */
@@ -2535,7 +2535,7 @@ function catatPinSalah() {
   s.n++;
   if (s.n >= SALAH_MAKS) {
     resetKunci();
-    toast(`PIN salah ${SALAH_MAKS} kali. Demi keamanan, silakan masuk lagi dengan akun Google.`, true);
+    toast(T('PIN salah {n} kali. Demi keamanan, silakan masuk lagi dengan akun Google.', { n: SALAH_MAKS }), true);
     return true;
   }
   if (s.n % SALAH_PER_JEDA === 0) s.sampai = Date.now() + JEDA_PIN_MS;
@@ -2575,46 +2575,46 @@ function renderKunci(salah) {
   $('#kunci').innerHTML = `
     <div class="kunci-isi">
       <div class="logo" aria-hidden="true">🔒</div>
-      <b>${jeda ? `Coba lagi dalam ${Math.ceil(jeda / 1000)} detik` : 'Masukkan PIN'}</b>
+      <b>${jeda ? T('Coba lagi dalam {n} detik', { n: Math.ceil(jeda / 1000) }) : T('Masukkan PIN')}</b>
       <div class="titik-pin ${salah ? 'salah' : ''}">${Array.from({ length: k.panjang || 4 }, (_, i) =>
         `<i class="${i < pinDiketik.length ? 'isi' : ''}"></i>`).join('')}</div>
       <div class="papan-pin">
         ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button type="button" data-aksi="pin" data-n="${n}">${n}</button>`).join('')}
-        ${k.bio ? '<button type="button" data-aksi="buka-bio" aria-label="Pakai sidik jari atau wajah">👆</button>' : '<span></span>'}
+        ${k.bio ? `<button type="button" data-aksi="buka-bio" aria-label="${T('Pakai sidik jari atau wajah')}">👆</button>` : '<span></span>'}
         <button type="button" data-aksi="pin" data-n="0">0</button>
-        <button type="button" data-aksi="pin-hapus" aria-label="Hapus satu angka">⌫</button>
+        <button type="button" data-aksi="pin-hapus" aria-label="${T('Hapus satu angka')}">⌫</button>
       </div>
-      <button type="button" class="tombol-teks" data-aksi="lupa-pin">Lupa PIN?</button>
+      <button type="button" class="tombol-teks" data-aksi="lupa-pin">${T('Lupa PIN?')}</button>
     </div>`;
 }
 
 async function bukaFormKunci() {
   const k = kunciTersimpan();
   if (k) {
-    return bukaSheet('Kunci Aplikasi', `
-      <p style="margin-top:0">Kunci aktif: PIN${k.bio ? ' + sidik jari/wajah' : ''}. Diminta saat aplikasi dibuka atau ditinggal lebih dari 1 menit.</p>
+    return bukaSheet(T('Kunci Aplikasi'), `
+      <p style="margin-top:0">${k.bio ? T('Kunci aktif: PIN + sidik jari/wajah. Diminta saat aplikasi dibuka atau ditinggal lebih dari 1 menit.') : T('Kunci aktif: PIN. Diminta saat aplikasi dibuka atau ditinggal lebih dari 1 menit.')}</p>
       <div class="grup-form">
-        <label class="label" for="k-pin">Masukkan PIN untuk mematikan kunci</label>
+        <label class="label" for="k-pin">${T('Masukkan PIN untuk mematikan kunci')}</label>
         <input class="field" id="k-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password">
       </div>
-      <div class="aksi-form"><button type="button" class="btn btn-hapus" style="flex:1" data-aksi="hapus-kunci">Matikan kunci</button></div>`);
+      <div class="aksi-form"><button type="button" class="btn btn-hapus" style="flex:1" data-aksi="hapus-kunci">${T('Matikan kunci')}</button></div>`);
   }
   const bio = await bioTersedia();
-  bukaSheet('Kunci Aplikasi', `
-    <p style="margin-top:0">PIN diminta setiap aplikasi dibuka, atau setelah ditinggal lebih dari 1 menit. Hanya berlaku di HP ini.</p>
+  bukaSheet(T('Kunci Aplikasi'), `
+    <p style="margin-top:0">${T('PIN diminta setiap aplikasi dibuka, atau setelah ditinggal lebih dari 1 menit. Hanya berlaku di HP ini.')}</p>
     <div class="grup-form">
-      <label class="label" for="k-pin">PIN baru (4–6 angka)</label>
+      <label class="label" for="k-pin">${T('PIN baru (4–6 angka)')}</label>
       <input class="field" id="k-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password">
     </div>
     <div class="grup-form">
-      <label class="label" for="k-pin2">Ulangi PIN</label>
+      <label class="label" for="k-pin2">${T('Ulangi PIN')}</label>
       <input class="field" id="k-pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password">
     </div>
     ${bio ? `<label class="baris" style="cursor:pointer"><input type="checkbox" id="k-bio" checked>
-      <span class="isi"><b>Juga pakai sidik jari / wajah</b><small>Lebih cepat dari mengetik PIN</small></span></label>` : ''}
-    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-kunci">Aktifkan</button></div>
-    <p class="info-kecil">Lupa PIN? Cukup keluar lalu masuk lagi dengan akun Google. Data tidak hilang.</p>
-    <p class="info-kecil">Kunci ini menjaga dari orang yang meminjam HP. Kalau HP hilang, segera ganti sandi Google Anda dan keluarkan HP itu dari akun Google.</p>`);
+      <span class="isi"><b>${T('Juga pakai sidik jari / wajah')}</b><small>${T('Lebih cepat dari mengetik PIN')}</small></span></label>` : ''}
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-kunci">${T('Aktifkan')}</button></div>
+    <p class="info-kecil">${T('Lupa PIN? Cukup keluar lalu masuk lagi dengan akun Google. Data tidak hilang.')}</p>
+    <p class="info-kecil">${T('Kunci ini menjaga dari orang yang meminjam HP. Kalau HP hilang, segera ganti sandi Google Anda dan keluarkan HP itu dari akun Google.')}</p>`);
 }
 
 // ---------- Input cepat ----------
@@ -2636,6 +2636,24 @@ const KATA_KATEGORI = [
   [/gaji|upah|honor/, ['gaji']],
   [/bonus|thr/, ['bonus']],
 ];
+/**
+ * Kata kunci bahasa Inggris (hanya dipakai saat BAHASA === 'en'), menunjuk ke nama kategori bawaan yang sama.
+ * Terpisah dari daftar Indonesia supaya kata seperti "gas" (elpiji) tidak salah terbaca untuk pengguna Indonesia.
+ */
+const KATA_KATEGORI_EN = [
+  [/\b(food|eat|meal|lunch|dinner|breakfast|brunch|coffee|tea|drinks?|snacks?|restaurant|cafe|takeaway|takeout)\b/, ['makan']],
+  [/\b(fuel|gas|petrol|gasoline|parking|taxi|cab|uber|bus|train|toll|fare|ride|transport)\b/, ['transport']],
+  [/\b(electricity|electric|water bill|internet|wifi|phone|credit|data plan|bills?|installment|rent)\b/, ['tagihan']],
+  [/\b(groceries|grocery|supermarket|market|vegetables|rice|soap|detergent|shopping)\b/, ['belanja', 'rumah']],
+  [/\b(medicine|doctor|pharmacy|clinic|hospital|vitamins?|medical)\b/, ['kesehatan']],
+  [/\b(school|tuition|books?|course|lessons?|college|university)\b/, ['pendidikan']],
+  [/\b(diapers?|baby|toys?|kids?)\b/, ['anak']],
+  [/\b(movies?|cinema|netflix|spotify|games?|holiday|vacation|trip)\b/, ['hiburan']],
+  [/\b(clothes|clothing|shirt|pants|shoes|jacket|dress)\b/, ['pakaian']],
+  [/\b(charity|donation|donate|zakat|gift|wedding)\b/, ['sosial']],
+  [/\b(salary|wages?|paycheck|payroll)\b/, ['gaji']],
+  [/\b(bonus)\b/, ['bonus']],
+];
 const NOMINAL_SLANG = { gopek: 500, seceng: 1000, goceng: 5000, ceban: 10000, gocap: 50000, cepek: 100000 };
 
 /**
@@ -2647,15 +2665,27 @@ const NOMINAL_SLANG = { gopek: 500, seceng: 1000, goceng: 5000, ceban: 10000, go
  * "seratus dua puluh ribu" → "120000". Kata lain dibiarkan apa adanya.
  */
 const KATA_ANGKA = { nol: 0, satu: 1, se: 1, dua: 2, tiga: 3, empat: 4, lima: 5, enam: 6, tujuh: 7, delapan: 8, sembilan: 9, sepuluh: 10, sebelas: 11 };
+/** Bilangan bahasa Inggris (hanya saat BAHASA === 'en'): "twenty five thousand" → "25000". */
+const KATA_ANGKA_EN = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19,
+  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+};
 function angkaDariKata(teks) {
   const kata = teks.split(/\s+/);
   const hasil = [];
+  const en = BAHASA === 'en';
   let total = 0, kelompok = 0, satuan = 0, aktif = false;
   const selesai = () => { if (aktif) hasil.push(String(Math.round(total + kelompok + satuan))); total = kelompok = satuan = 0; aktif = false; };
   for (const asli of kata) {
     const w = asli.toLowerCase();
     let m;
-    if (w in KATA_ANGKA && w !== 'se') { satuan += KATA_ANGKA[w]; aktif = true; }
+    if (en && Object.prototype.hasOwnProperty.call(KATA_ANGKA_EN, w)) { satuan += KATA_ANGKA_EN[w]; aktif = true; }
+    else if (en && w === 'hundred' && aktif) { kelompok += (satuan || 1) * 100; satuan = 0; }
+    else if (en && (m = w.match(/^(thousand|million|billion)$/)) && aktif) {
+      total += ((kelompok + satuan) || 1) * { thousand: 1e3, million: 1e6, billion: 1e9 }[m[1]]; kelompok = satuan = 0;
+    }
+    else if (w in KATA_ANGKA && w !== 'se') { satuan += KATA_ANGKA[w]; aktif = true; }
     else if (w === 'belas' && aktif) { satuan += 10; }
     else if (w === 'puluh' && aktif) { kelompok += (satuan || 1) * 10; satuan = 0; }
     else if ((m = w.match(/^(se)?ratus$/)) && (aktif || m[1])) { kelompok += (m[1] ? 1 : (satuan || 1)) * 100; satuan = 0; aktif = true; }
@@ -2729,7 +2759,47 @@ function bacaTanggalLisan(teks) {
   });
   coba(/\b(kemarin|kemaren|kmrn|kmarin)\b/i, () => geser(-1));
   coba(/\b(hari ini|tadi pagi|tadi siang|tadi sore|tadi malam|barusan)\b/i, () => hariIni());
+  if (BAHASA === 'en') bacaTanggalInggris(coba, { kini, iso, geser, idxHari });
   return { tanggal, sisa: sisa.replace(/\s+/g, ' ').trim() };
+}
+
+/**
+ * Tambahan untuk bahasa Inggris (hanya saat BAHASA === 'en'; pola Indonesia di atas tetap berlaku):
+ * "today", "yesterday", "tomorrow", "day before yesterday", "3 days ago", "last Saturday", "Saturday last week",
+ * "17 August" / "Aug 17" / "17th of Aug", "on the 3rd".
+ */
+const NAMA_HARI_EN = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const NAMA_BULAN_EN = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+function bacaTanggalInggris(coba, { kini, iso, geser, idxHari }) {
+  const HARI = '(' + NAMA_HARI_EN.join('|') + ')';
+  const BULAN = '(' + NAMA_BULAN_EN.join('|') + '|jan|feb|mar|apr|jun|jul|aug|sept|sep|oct|nov|dec)';
+  const keBulan = s => NAMA_BULAN_EN.findIndex(b => b.startsWith(s.toLowerCase().slice(0, 3)));
+  const tanggalBulan = (b, n) => {
+    let d = new Date(kini.getFullYear(), b, n);
+    if (d.getMonth() !== b) return '';
+    if (d > kini) d = new Date(kini.getFullYear() - 1, b, n);
+    return iso(d);
+  };
+  coba(new RegExp('\\b(on\\s+)?' + HARI + '\\s+last\\s+week\\b', 'i'), m => geser(-idxHari - 7 + NAMA_HARI_EN.indexOf(m[2].toLowerCase())));
+  coba(new RegExp('\\b(on\\s+)?(the\\s+)?(\\d{1,2})(st|nd|rd|th)?\\s+(of\\s+)?' + BULAN + '\\b', 'i'), m => tanggalBulan(keBulan(m[6]), Number(m[3])));
+  coba(new RegExp('\\b(on\\s+)?' + BULAN + '\\s+(\\d{1,2})(st|nd|rd|th)?\\b', 'i'), m => tanggalBulan(keBulan(m[2]), Number(m[3])));
+  // "on the 3rd" / "the 3rd" / "on the 3" (bulan ini; kalau belum lewat, bulan lalu)
+  coba(/\b(?:on\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b|\bon\s+the\s+(\d{1,2})\b/i, m => {
+    const n = Number(m[1] || m[2]);
+    let d = new Date(kini.getFullYear(), kini.getMonth(), n);
+    if (d.getDate() !== n) return '';
+    if (d > kini) d = new Date(kini.getFullYear(), kini.getMonth() - 1, n);
+    return d.getDate() === n ? iso(d) : '';
+  });
+  coba(/\b(the\s+)?day\s+before\s+yesterday\b/i, () => geser(-2));
+  coba(/\b(\d{1,2})\s+days?\s+ago\b/i, m => (Number(m[1]) <= 60 ? geser(-Number(m[1])) : ''));
+  coba(new RegExp('\\b(on\\s+)?last\\s+' + HARI + '\\b', 'i'), m => {
+    const target = NAMA_HARI_EN.indexOf(m[2].toLowerCase());
+    return geser(-(((idxHari - target + 7) % 7) || 7));
+  });
+  coba(/\byesterday\b/i, () => geser(-1));
+  coba(/\btomorrow\b/i, () => geser(1));
+  coba(/\b(today|this morning|this afternoon|this evening|tonight|just now)\b/i, () => hariIni());
 }
 
 function bacaKetikCepat(teks) {
@@ -2738,13 +2808,16 @@ function bacaKetikCepat(teks) {
   teks = waktu.sisa;
   let sisa = ' ' + teks.toLowerCase() + ' ';
   let jumlah = 0;
+  const en = BAHASA === 'en';
   // Angka pertama yang bersatuan (rb/jt) atau ≥ 100; "nasi 2 bungkus 30rb" → 30.000, bukan 2.
-  const re = /(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta)?(?=\s|$)/g;
+  // Bahasa Inggris menambah: 10m / 10 million (juta), 25 thousand (ribu). "M" tidak dipakai di bahasa Indonesia (= miliar).
+  const re = en ? /(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta|thousand|m|mn|mil|million)?(?=\s|$)/g
+    : /(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta)?(?=\s|$)/g;
   let m = null;
   for (let x; (x = re.exec(sisa));) {
     let n = Number(x[1].replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.'));
-    if (/^(rb|ribu|k)$/.test(x[2] || '')) n *= 1000;
-    if (/^(jt|juta)$/.test(x[2] || '')) n *= 1e6;
+    if (/^(rb|ribu|k|thousand)$/.test(x[2] || '')) n *= 1000;
+    if (/^(jt|juta|m|mn|mil|million)$/.test(x[2] || '')) n *= 1e6;
     if (x[2] || n >= 100) { m = x; jumlah = n; break; }
   }
   if (m) {
@@ -2754,11 +2827,19 @@ function bacaKetikCepat(teks) {
     if (slang) { jumlah = NOMINAL_SLANG[slang]; sisa = sisa.replace(' ' + slang + ' ', ' '); }
   }
   // Dompet: nama terpanjang dulu, supaya "BCA Syariah" tidak terbaca "BCA".
-  const dompet = dompetBiasa().slice().sort((a, b) => b.nama.length - a.nama.length)
-    .find(w => sisa.includes(' ' + w.nama.toLowerCase() + ' '));
-  if (dompet) sisa = sisa.replace(' ' + dompet.nama.toLowerCase() + ' ', ' ');
+  // Bahasa Inggris: nama tampilannya juga dikenali ("cash" → Tunai, "bank account" → Rekening Bank).
+  const sebutan = [];
+  dompetBiasa().forEach(w => {
+    sebutan.push({ w, s: w.nama.toLowerCase() });
+    if (en && namaT(w.nama) !== w.nama) sebutan.push({ w, s: namaT(w.nama).toLowerCase() });
+  });
+  const cocok = sebutan.sort((a, b) => b.s.length - a.s.length).find(x => sisa.includes(' ' + x.s + ' '));
+  const dompet = cocok ? cocok.w : null;
+  if (cocok) sisa = sisa.replace(' ' + cocok.s + ' ', ' ');
   sisa = sisa.replace(/\b(pakai|pake|pk|via|dari|ke|lewat|bayar)\b/g, ' ').replace(/\s+/g, ' ').trim();
-  const tipe = /\b(gaji|terima|dapat|bonus|thr|masuk|transferan)\b/.test(sisa) ? TIPE.MASUK : TIPE.KELUAR;
+  if (en) sisa = sisa.replace(/\b(with|using|paid|pay|by)\b/g, ' ').replace(/\s+/g, ' ').trim();
+  const tipe = /\b(gaji|terima|dapat|bonus|thr|masuk|transferan)\b/.test(sisa)
+    || (en && /\b(salary|wages?|paycheck|payroll|income|received|refund)\b/.test(sisa)) ? TIPE.MASUK : TIPE.KELUAR;
   const catatan = sisa ? sisa.charAt(0).toUpperCase() + sisa.slice(1) : '';
   return { tipe, jumlah: Math.round(jumlah), kategori: tebakKategori(tipe, catatan), dompet: dompet ? dompet.nama : '', catatan, tanggal: waktu.tanggal };
 }
@@ -2772,9 +2853,11 @@ function tebakKategori(tipe, catatan) {
   const dulu = kebiasaan().saran.find(s => s.tipe === tipe && s.catatan.toLowerCase() === c && ada(s.kategori));
   if (dulu) return dulu.kategori;
   const kata = c.split(/\s+/).filter(w => w.length > 3);
-  const namaCocok = daftar.find(k => k.nama !== 'Lainnya' && kata.some(w => k.nama.toLowerCase().includes(w)));
+  // Nama tampilan ikut dicocokkan (bahasa Inggris: "groceries" → Belanja Harian); namaT = nama asli di bahasa Indonesia.
+  const namaCocok = daftar.find(k => k.nama !== 'Lainnya'
+    && kata.some(w => k.nama.toLowerCase().includes(w) || namaT(k.nama).toLowerCase().includes(w)));
   if (namaCocok) return namaCocok.nama;
-  for (const [pola, petunjuk] of KATA_KATEGORI) {
+  for (const [pola, petunjuk] of BAHASA === 'en' ? KATA_KATEGORI.concat(KATA_KATEGORI_EN) : KATA_KATEGORI) {
     if (!pola.test(c)) continue;
     const k = daftar.find(k => petunjuk.some(p => k.nama.toLowerCase().includes(p)));
     if (k) return k.nama;
@@ -2787,10 +2870,10 @@ function bagianCepat() {
   const fav = kebiasaan().favorit;
   return `
     <div class="ketik-cepat">
-      <input class="field" id="f-cepat" enterkeyhint="done" autocomplete="off" placeholder="⚡ Ketik cepat, mis. bakso 25rb gopay">
+      <input class="field" id="f-cepat" enterkeyhint="done" autocomplete="off" placeholder="${T('⚡ Ketik cepat, mis. bakso 25rb gopay')}">
     </div>
-    ${fav.length ? `<div class="chips chips-geser" aria-label="Sering dicatat">${fav.map((f, i) =>
-      `<button type="button" class="chip" data-aksi="f-favorit" data-i="${i}">${ilus(ikonKategori(f.kategori, f.tipe))} ${esc(f.catatan || f.kategori)} <small>${rpPendek(f.jumlah)}</small></button>`).join('')}</div>` : ''}`;
+    ${fav.length ? `<div class="chips chips-geser" aria-label="${T('Sering dicatat')}">${fav.map((f, i) =>
+      `<button type="button" class="chip" data-aksi="f-favorit" data-i="${i}">${ilus(ikonKategori(f.kategori, f.tipe))} ${esc(f.catatan || namaT(f.kategori))} <small>${rpPendek(f.jumlah)}</small></button>`).join('')}</div>` : ''}`;
 }
 
 /** Mengisi form dari hasil ketik cepat / favorit; field yang tidak dikenali tidak menimpa isian yang ada. */
@@ -2882,25 +2965,25 @@ function barisSisaAman() {
   const a = hitungSisaAman();
   if (!a) return '';
   return `<button type="button" class="tautan-putih aman" data-aksi="rincian-aman">
-    ${a.sisa > 0 ? `🟢 Aman dibelanjakan <b>${rp(a.perHari)}/hari</b> · ${a.hari} hari lagi` : '⚠️ Batas periode ini sudah terlewati'} ›</button>`;
+    ${a.sisa > 0 ? `🟢 ${T('Aman dibelanjakan <b>{jumlah}/hari</b> · {n} hari lagi', { jumlah: rp(a.perHari), n: a.hari })}` : `⚠️ ${T('Batas periode ini sudah terlewati')}`} ›</button>`;
 }
 
 function bukaRincianAman() {
   const a = hitungSisaAman();
   if (!a) return;
   const baris = (label, nilai, tebal) => `<div class="baris-rincian"><span>${label}</span>${tebal ? `<b>${nilai}</b>` : `<span>${nilai}</span>`}</div>`;
-  bukaSheet('Aman Dibelanjakan', `
-    ${baris(a.pakaiAnggaran ? 'Total anggaran periode ini' : 'Pemasukan periode ini', rp(a.dasar))}
-    ${baris(a.pakaiAnggaran ? '− Terpakai (kategori beranggaran)' : '− Pengeluaran sejauh ini', rp(a.terpakai))}
-    ${a.tagihan ? baris('− Tagihan rutin sampai ' + tanggalPendek(a.akhir), rp(a.tagihan)) : ''}
-    ${baris('= Sisa', rp(a.sisa), true)}
-    ${baris('÷ ' + a.hari + ' hari (s.d. ' + tanggalPendek(a.akhir) + ')', a.sisa > 0 ? rp(a.perHari) + '/hari' : '—', true)}
+  bukaSheet(T('Aman Dibelanjakan'), `
+    ${baris(a.pakaiAnggaran ? T('Total anggaran periode ini') : T('Pemasukan periode ini'), rp(a.dasar))}
+    ${baris(a.pakaiAnggaran ? T('− Terpakai (kategori beranggaran)') : T('− Pengeluaran sejauh ini'), rp(a.terpakai))}
+    ${a.tagihan ? baris(T('− Tagihan rutin sampai {tanggal}', { tanggal: tanggalPendek(a.akhir) }), rp(a.tagihan)) : ''}
+    ${baris(T('= Sisa'), rp(a.sisa), true)}
+    ${baris(T('÷ {n} hari (s.d. {tanggal})', { n: a.hari, tanggal: tanggalPendek(a.akhir) }), a.sisa > 0 ? T('{jumlah}/hari', { jumlah: rp(a.perHari) }) : '—', true)}
     <p class="info-kecil" style="text-align:left">${a.pakaiAnggaran
-      ? 'Dihitung dari anggaran per kategori. Pengeluaran di kategori tanpa anggaran tidak ikut dihitung.'
-      : 'Belum ada anggaran, jadi dihitung dari pemasukan yang dicatat di periode ini. Atur anggaran supaya lebih tepat.'}</p>
+      ? T('Dihitung dari anggaran per kategori. Pengeluaran di kategori tanpa anggaran tidak ikut dihitung.')
+      : T('Belum ada anggaran, jadi dihitung dari pemasukan yang dicatat di periode ini. Atur anggaran supaya lebih tepat.')}</p>
     <div class="aksi-form">
-      <button type="button" class="btn btn-hapus" data-aksi="atur-periode">Periode gajian</button>
-      <button type="button" class="btn btn-utama" data-aksi="atur-anggaran">Atur anggaran</button>
+      <button type="button" class="btn btn-hapus" data-aksi="atur-periode">${T('Periode gajian')}</button>
+      <button type="button" class="btn btn-utama" data-aksi="atur-anggaran">${T('Atur anggaran')}</button>
     </div>`);
 }
 
@@ -2908,22 +2991,22 @@ function bukaFormPeriode() {
   const kini = S.data.mulaiPeriode || 1;
   F = { mulai: kini };
   const contoh = n => {
-    if (n === 1) return 'Periode = bulan kalender (1 – akhir bulan).';
+    if (n === 1) return T('Periode = bulan kalender (1 – akhir bulan).');
     const r = SERVER.rentangPeriode(SERVER.periodeDari(hariIni(), n), n);
-    return `Periode berjalan: ${tanggalPendek(r.awal)} – ${tanggalPendek(r.akhir)}.`;
+    return T('Periode berjalan: {awal} – {akhir}.', { awal: tanggalPendek(r.awal), akhir: tanggalPendek(r.akhir) });
   };
-  bukaSheet('Periode Gajian', `
-    <p style="margin-top:0">Tanggal berapa biasanya gajian? Ringkasan, anggaran, dan laporan dihitung dari tanggal itu sampai sehari sebelum gajian berikutnya.</p>
+  bukaSheet(T('Periode Gajian'), `
+    <p style="margin-top:0">${T('Tanggal berapa biasanya gajian? Ringkasan, anggaran, dan laporan dihitung dari tanggal itu sampai sehari sebelum gajian berikutnya.')}</p>
     <div class="grid-tanggal">${Array.from({ length: 28 }, (_, i) => i + 1).map(n =>
       `<button type="button" class="${n === kini ? 'aktif' : ''}" data-aksi="pilih-periode" data-n="${n}">${n}</button>`).join('')}</div>
     <p class="info-kecil" id="contoh-periode" style="text-align:left">${contoh(kini)}</p>
-    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-periode">Simpan</button></div>`);
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-periode">${T('Simpan')}</button></div>`);
   F.contoh = contoh;
 }
 
 // ---------- Tagihan & transaksi rutin ----------
 
-const SEBUTAN_ULANG = { Bulanan: 'Tiap bulan', Mingguan: 'Tiap minggu', Tahunan: 'Tiap tahun' };
+const SEBUTAN_ULANG = { Bulanan: T('Tiap bulan'), Mingguan: T('Tiap minggu'), Tahunan: T('Tiap tahun') };
 const daftarRutin = () => S.data.rutin || []; // data offline versi lama belum punya rutin
 
 function ikonRutin(r) {
@@ -2936,10 +3019,10 @@ function selisihHari(tgl) {
 
 function labelJatuhTempo(tgl) {
   const n = selisihHari(tgl);
-  if (n < 0) return `⛔ Terlambat ${-n} hari · ${tanggalPendek(tgl)}`;
-  if (n === 0) return '⚠️ Jatuh tempo hari ini';
-  if (n === 1) return 'Besok · ' + tanggalPendek(tgl);
-  return `${n} hari lagi · ${tanggalPendek(tgl)}`;
+  if (n < 0) return T('⛔ Terlambat {n} hari · {tanggal}', { n: -n, tanggal: tanggalPendek(tgl) });
+  if (n === 0) return T('⚠️ Jatuh tempo hari ini');
+  if (n === 1) return T('Besok · {tanggal}', { tanggal: tanggalPendek(tgl) });
+  return T('{n} hari lagi · {tanggal}', { n, tanggal: tanggalPendek(tgl) });
 }
 
 /** Kartu Beranda: rutin yang jatuh tempo dalam 7 hari atau sudah terlewat. */
@@ -2947,13 +3030,13 @@ function labelJatuhTempo(tgl) {
 
 const kunciAktivitas = () => 'dk_aktivitas_' + (S.data && S.data.spreadsheetId || '');
 const ikonAksi = { catat: '➕', ubah: '✏️', hapus: '🗑️', kembalikan: '↩️' };
-const kataAksi = { catat: 'mencatat', ubah: 'mengubah', hapus: 'menghapus', kembalikan: 'mengembalikan' };
+const kataAksi = { catat: T('mencatat'), ubah: T('mengubah'), hapus: T('menghapus'), kembalikan: T('mengembalikan') };
 
 /** Gabungan log perubahan + transaksi baru periode ini, terbaru dulu. */
 function daftarAktivitas() {
   const baru = (S.data.transaksi || []).filter(t => t.oleh && t.dibuat).map(t => ({
     waktu: t.dibuat, oleh: t.oleh, aksi: 'catat',
-    ringkasan: (t.tipe === TIPE.TRANSFER ? 'Transfer ' + t.dompet + ' → ' + t.dompetTujuan : t.kategori) + ' ' + rp(t.jumlah) + (t.catatan ? ' · ' + t.catatan : ''),
+    ringkasan: (t.tipe === TIPE.TRANSFER ? T('Transfer {dari} → {ke}', { dari: namaT(t.dompet), ke: namaT(t.dompetTujuan) }) : namaT(t.kategori)) + ' ' + rp(t.jumlah) + (t.catatan ? ' · ' + t.catatan : ''),
   }));
   return (S.data.log || []).concat(baru).sort((a, b) => String(b.waktu).localeCompare(String(a.waktu))).slice(0, 80);
 }
@@ -2962,11 +3045,11 @@ function waktuRelatif(w) {
   const d = new Date(String(w).replace(' ', 'T'));
   if (isNaN(d)) return '';
   const menit = Math.round((Date.now() - d) / 60000);
-  if (menit < 1) return 'baru saja';
-  if (menit < 60) return menit + ' mnt lalu';
-  if (menit < 24 * 60) return Math.round(menit / 60) + ' jam lalu';
-  if (menit < 7 * 24 * 60) return Math.round(menit / 1440) + ' hari lalu';
-  return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  if (menit < 1) return T('baru saja');
+  if (menit < 60) return T('{n} mnt lalu', { n: menit });
+  if (menit < 24 * 60) return T('{n} jam lalu', { n: Math.round(menit / 60) });
+  if (menit < 7 * 24 * 60) return T('{n} hari lalu', { n: Math.round(menit / 1440) });
+  return d.toLocaleDateString(LOKAL, { day: 'numeric', month: 'short' });
 }
 
 /** Beranda: perubahan oleh anggota LAIN sejak terakhir dilihat (ubah/hapus saja, supaya tidak ramai). */
@@ -2977,9 +3060,9 @@ function kartuAktivitasBaru() {
   const x = lain[0];
   return `<button type="button" class="kartu kartu-aktivitas" data-aksi="aktivitas">
     <span class="ikon-bulat">${ikonAksi[x.aksi] || '👥'}</span>
-    <span class="isi"><b>${esc(namaPendek(x.oleh))} ${kataAksi[x.aksi] || x.aksi} transaksi</b>
+    <span class="isi"><b>${T('{nama} {aksi} transaksi', { nama: esc(namaPendek(x.oleh)), aksi: kataAksi[x.aksi] || x.aksi })}</b>
       <small>${esc(x.ringkasan)}</small>
-      ${lain.length > 1 ? `<small class="lagi">+${lain.length - 1} perubahan lain · ${esc(waktuRelatif(x.waktu))}</small>` : `<small class="lagi">${esc(waktuRelatif(x.waktu))}</small>`}</span>
+      ${lain.length > 1 ? `<small class="lagi">${T('+{n} perubahan lain · {waktu}', { n: lain.length - 1, waktu: esc(waktuRelatif(x.waktu)) })}</small>` : `<small class="lagi">${esc(waktuRelatif(x.waktu))}</small>`}</span>
     <span class="panah">${svg('maju')}</span>
   </button>`;
 }
@@ -2987,15 +3070,15 @@ function kartuAktivitasBaru() {
 function bukaAktivitas() {
   const daftar = daftarAktivitas();
   if (daftar.length) tulisHp(kunciAktivitas(), String(daftar[0].waktu));
-  bukaSheet('Aktivitas keluarga', `
-    <p class="info-kecil" style="text-align:left;margin-top:0">Perubahan & penghapusan tercatat di sheet <b>Log</b> spreadsheet. Pencatatan baru dari periode ini.</p>
+  bukaSheet(T('Aktivitas keluarga'), `
+    <p class="info-kecil" style="text-align:left;margin-top:0">${T('Perubahan & penghapusan tercatat di sheet <b>Log</b> spreadsheet. Pencatatan baru dari periode ini.')}</p>
     <div class="daftar-aktivitas">${daftar.map(x => `
       <div class="baris-aktivitas ${x.aksi}">
         <span class="ikon-aksi">${ikonAksi[x.aksi] || '•'}</span>
-        <span class="isi"><b>${esc(x.oleh === S.data.user ? 'Anda' : namaPendek(x.oleh))}</b> ${kataAksi[x.aksi] || esc(x.aksi)}
+        <span class="isi"><b>${esc(x.oleh === S.data.user ? T('Anda') : namaPendek(x.oleh))}</b> ${kataAksi[x.aksi] || esc(x.aksi)}
           <small>${esc(x.ringkasan)}</small></span>
         <small class="waktu">${esc(waktuRelatif(x.waktu))}</small>
-      </div>`).join('') || kosong('👥', 'Belum ada aktivitas.')}</div>`);
+      </div>`).join('') || kosong('👥', T('Belum ada aktivitas.'))}</div>`);
   if (S.tab === 'beranda') render();
 }
 
@@ -3003,10 +3086,10 @@ function bukaAktivitas() {
 let semuaTrxCari = null; // dimuat sekali saat pencarian pertama
 function bukaCariGlobal() {
   S.hasilGlobal = [];
-  bukaSheet('Cari', `
+  bukaSheet(T('Cari'), `
     <div class="kotak-cari-global"><input class="field" id="cari-global" type="search" enterkeyhint="search" autocomplete="off"
-      placeholder="mis. arisan, bpjs, 25000, GoPay"></div>
-    <div id="hasil-global"><p class="info-kecil">Cari di semua transaksi (semua bulan) dan catatan.</p></div>`);
+      placeholder="${T('mis. arisan, bpjs, 25000, GoPay')}"></div>
+    <div id="hasil-global"><p class="info-kecil">${T('Cari di semua transaksi (semua bulan) dan catatan.')}</p></div>`);
   setTimeout(() => $('#cari-global') && $('#cari-global').focus(), 200);
 }
 let timerCari = 0;
@@ -3014,7 +3097,7 @@ async function jalankanCariGlobal(q) {
   const kotak = $('#hasil-global');
   if (!kotak) return;
   q = q.trim().toLowerCase();
-  if (q.length < 2) { kotak.innerHTML = '<p class="info-kecil">Ketik minimal 2 huruf.</p>'; return; }
+  if (q.length < 2) { kotak.innerHTML = `<p class="info-kecil">${T('Ketik minimal 2 huruf.')}</p>`; return; }
   const angkaQ = q.replace(/\D/g, '');
   const cocokTrx = t => [t.catatan, t.kategori, t.dompet, t.dompetTujuan].some(x => String(x || '').toLowerCase().includes(q))
     || (angkaQ.length >= 3 && String(t.jumlah).includes(angkaQ));
@@ -3027,16 +3110,16 @@ async function jalankanCariGlobal(q) {
   const sumber = semuaTrxCari || S.data.transaksi;
   const trx = sumber.filter(cocokTrx).slice(0, 40);
   S.hasilGlobal = trx;
-  $('#hasil-global').innerHTML = (catatan.length ? `<h4 class="sub-laporan">📝 Catatan (${catatan.length})</h4>` + catatan.map(c => `
+  $('#hasil-global').innerHTML = (catatan.length ? `<h4 class="sub-laporan">📝 ${T('Catatan ({n})', { n: catatan.length })}</h4>` + catatan.map(c => `
       <button type="button" class="kal-item" data-aksi="ubah-catatan" data-id="${esc(c.id)}" style="--w:${warnaCatatan(c.warna)}">
         <span class="isi"><b>${esc(c.judul)}</b><small>${esc(labelHariPendek(c.tanggal))}${c.isi ? ' · ' + esc(c.isi.replace(/\[( |x)\] ?/gi, '').slice(0, 80)) : ''}</small></span>
       </button>`).join('') : '')
-    + (trx.length ? `<h4 class="sub-laporan">💳 Transaksi (${trx.length}${trx.length === 40 ? '+' : ''})</h4>` + trx.map(t => {
+    + (trx.length ? `<h4 class="sub-laporan">💳 ${T('Transaksi ({n})', { n: trx.length + (trx.length === 40 ? '+' : '') })}</h4>` + trx.map(t => {
       const tgl = `<small class="tgl-cari">${esc(labelHariPendek(t.tanggal))}</small>`;
       return tgl + itemTrx(t);
     }).join('') : '')
-    + (!catatan.length && !trx.length ? kosong('🔍', 'Tidak ditemukan.') : '')
-    + (!semuaTrxCari ? '<p class="info-kecil">Offline: hanya mencari di periode ini.</p>' : '');
+    + (!catatan.length && !trx.length ? kosong('🔍', T('Tidak ditemukan.')) : '')
+    + (!semuaTrxCari ? `<p class="info-kecil">${T('Offline: hanya mencari di periode ini.')}</p>` : '');
 }
 document.addEventListener('input', e => {
   if (e.target.id !== 'cari-global') return;
@@ -3055,7 +3138,7 @@ function petunjukSekali(kunci, sasaran, teks) {
   const el = document.createElement('div');
   el.className = 'petunjuk';
   el.setAttribute('role', 'status');
-  el.innerHTML = `<span>${teks}</span><button type="button" aria-label="Tutup petunjuk">Oke</button>`;
+  el.innerHTML = `<span>${teks}</span><button type="button" aria-label="${T('Tutup petunjuk')}">${T('Oke')}</button>`;
   document.body.appendChild(el);
   const lebar = Math.min(300, innerWidth - 24);
   el.style.width = lebar + 'px';
@@ -3074,14 +3157,14 @@ function cekPetunjuk() {
   if (!S.data || $('#sheet').hidden === false && !$('.tombol-suara')) return;
   if (S.tab === 'riwayat') {
     const k = document.querySelector('#view .trx-geser');
-    if (k && petunjukSekali('geser', k, '👆 <b>Geser</b> transaksi: ← untuk <b>hapus</b>, → untuk <b>catat lagi</b>')) {
+    if (k && petunjukSekali('geser', k, T('👆 <b>Geser</b> transaksi: ← untuk <b>hapus</b>, → untuk <b>catat lagi</b>'))) {
       k.classList.add('contoh-geser');
       setTimeout(() => k.classList.remove('contoh-geser'), 2600);
     }
   } else if (S.tab === 'beranda' && $('#sheet').hidden) {
-    petunjukSekali('ketuk', document.querySelector('.sekali-ketuk'), '⚡ Ketuk sekali, langsung tercatat hari ini. Bisa diurungkan.');
+    petunjukSekali('ketuk', document.querySelector('.sekali-ketuk'), T('⚡ Ketuk sekali, langsung tercatat hari ini. Bisa diurungkan.'));
   } else if (S.tab === 'catatan-edit') {
-    petunjukSekali('dikte', $('#tombol-dikte'), '🎤 Ketuk untuk <b>menulis dengan suara</b>. Bisa berkali-kali, teks ditambahkan.');
+    petunjukSekali('dikte', $('#tombol-dikte'), T('🎤 Ketuk untuk <b>menulis dengan suara</b>. Bisa berkali-kali, teks ditambahkan.'));
   }
 }
 
@@ -3093,9 +3176,9 @@ function bagianSekaliKetuk() {
   const fav = daftarSekaliKetuk();
   if (!fav.length) return '';
   return `<div class="sekali-ketuk">
-      <small>⚡ Catat sekali ketuk</small>
+      <small>⚡ ${T('Catat sekali ketuk')}</small>
       <div class="chips chips-geser">${fav.map((f, i) => `<button type="button" class="chip chip-ketuk" data-aksi="ketuk-catat" data-i="${i}">
-        ${ilus(ikonKategori(f.kategori, f.tipe))} ${esc(f.catatan || f.kategori)} <b>${f.tipe === TIPE.MASUK ? '+' : ''}${rpPendek(f.jumlah)}</b></button>`).join('')}</div>
+        ${ilus(ikonKategori(f.kategori, f.tipe))} ${esc(f.catatan || namaT(f.kategori))} <b>${f.tipe === TIPE.MASUK ? '+' : ''}${rpPendek(f.jumlah)}</b></button>`).join('')}</div>
     </div>`;
 }
 
@@ -3107,14 +3190,14 @@ async function catatSekaliKetuk(el) {
   getar();
   el.disabled = true;
   el.classList.add('mengirim');
-  const nama = (f.catatan || f.kategori) + ' ' + rp(f.jumlah);
+  const nama = (f.catatan || namaT(f.kategori)) + ' ' + rp(f.jumlah);
   try {
     if (S.offline || !navigator.onLine) { simpanTertunda(t, true); return; }
     await api('simpanTransaksi', t);
     trxSekaliKetuk = t.idBaru;
     await muat();
     const a = pesanAnggaran(t);
-    toast('Tercatat ' + nama + ' ✔' + (a ? ' · ' + a.teks : ''), a && a.lewat, { label: 'Urungkan', aksi: 'urungkan-ketuk' });
+    toast(T('Tercatat {nama} ✔', { nama }) + (a ? ' · ' + a.teks : ''), a && a.lewat, { label: T('Urungkan'), aksi: 'urungkan-ketuk' });
   } catch (e) {
     if (e.jaringan) simpanTertunda(t, true);
     else if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
@@ -3133,12 +3216,12 @@ function kartuSaranRutin() {
   if (!x) return '';
   return `<section class="kartu kartu-saran">
     <span class="ikon-bulat">${ilus(ikonKategori(x.kategori, x.tipe))}</span>
-    <div class="isi"><small>💡 Sepertinya rutin</small>
-      <b>${esc(x.nama)} · ${rp(x.jumlah)}</b>
-      <span>Tercatat ${x.kali} bulan terakhir, sekitar tanggal ${x.hari}. Jadikan tagihan rutin supaya diingatkan?</span>
+    <div class="isi"><small>💡 ${T('Sepertinya rutin')}</small>
+      <b>${esc(namaT(x.nama))} · ${rp(x.jumlah)}</b>
+      <span>${T('Tercatat {n} bulan terakhir, sekitar tanggal {tanggal}. Jadikan tagihan rutin supaya diingatkan?', { n: x.kali, tanggal: x.hari })}</span>
       <div class="aksi-saran">
-        <button type="button" class="chip aktif" data-aksi="saran-rutin" data-kunci="${esc(x.kunci)}">Jadikan rutin</button>
-        <button type="button" class="chip" data-aksi="tolak-saran" data-kunci="${esc(x.kunci)}">Bukan</button>
+        <button type="button" class="chip aktif" data-aksi="saran-rutin" data-kunci="${esc(x.kunci)}">${T('Jadikan rutin')}</button>
+        <button type="button" class="chip" data-aksi="tolak-saran" data-kunci="${esc(x.kunci)}">${T('Bukan')}</button>
       </div>
     </div>
   </section>`;
@@ -3157,25 +3240,25 @@ function kartuTagihan() {
         <b class="nominal">${rp(nominal)}</b>
       </button>`;
   return `
-    <h2 class="judul-bagian">Tagihan mendatang <button data-aksi="kelola-rutin">Kelola</button></h2>
+    <h2 class="judul-bagian">${T('Tagihan mendatang')} <button data-aksi="kelola-rutin">${T('Kelola')}</button></h2>
     <section class="kartu" style="padding:4px 16px">
       ${daftar.map(r => baris('bayar-rutin', `data-id="${esc(r.id)}"`, ikonRutin(r), r.nama, r.berikutnya, r.jumlah)).join('')}
       ${pinjaman.map(w => baris('buka-utang', `data-nama="${esc(w.nama)}"`, w.ikon,
-        w.saldo > 0 ? w.nama + ' membayar utang' : 'Bayar utang ke ' + w.nama, w.tenggat, Math.abs(w.saldo))).join('')}
+        w.saldo > 0 ? T('{nama} membayar utang', { nama: w.nama }) : T('Bayar utang ke {nama}', { nama: w.nama }), w.tenggat, Math.abs(w.saldo))).join('')}
     </section>`;
 }
 
 function bukaDaftarRutin() {
   const daftar = daftarRutin();
-  bukaSheet('Tagihan & Transaksi Rutin', `
-    <p class="info-kecil" style="text-align:left;margin:0 0 8px">Muncul di Beranda 7 hari sebelum jatuh tempo. Ketuk di sana untuk mencatat, nominal bisa diubah saat itu.</p>
+  bukaSheet(T('Tagihan & Transaksi Rutin'), `
+    <p class="info-kecil" style="text-align:left;margin:0 0 8px">${T('Muncul di Beranda 7 hari sebelum jatuh tempo. Ketuk di sana untuk mencatat, nominal bisa diubah saat itu.')}</p>
     ${daftar.map(r => `
       <button class="baris" data-aksi="edit-rutin" data-id="${esc(r.id)}">
         <span class="ikon-bulat">${ilus(ikonRutin(r))}</span>
-        <span class="isi"><b>${esc(r.nama)}</b><small>${SEBUTAN_ULANG[r.ulang]} · berikutnya ${esc(tanggalPendek(r.berikutnya))}</small></span>
+        <span class="isi"><b>${esc(r.nama)}</b><small>${T('{ulang} · berikutnya {tanggal}', { ulang: SEBUTAN_ULANG[r.ulang], tanggal: esc(tanggalPendek(r.berikutnya)) })}</small></span>
         <b class="nominal">${rp(r.jumlah)}</b>
-      </button>`).join('') || kosong('🔁', 'Belum ada. Contoh: listrik, internet, cicilan, SPP, gaji.')}
-    <button class="tombol-tambah" data-aksi="tambah-rutin">＋ Tambah tagihan rutin</button>`);
+      </button>`).join('') || kosong('🔁', T('Belum ada. Contoh: listrik, internet, cicilan, SPP, gaji.'))}
+    <button class="tombol-tambah" data-aksi="tambah-rutin">＋ ${T('Tambah tagihan rutin')}</button>`);
 }
 
 function bukaFormRutin(r) {
@@ -3184,15 +3267,15 @@ function bukaFormRutin(r) {
     ? Object.assign({}, r, { modeRutin: true, idRutin: r.id, id: '', tanggal: r.berikutnya })
     : { modeRutin: true, idRutin: '', nama: '', tipe: TIPE.KELUAR, jumlah: 0, kategori: '', dompet: pertama ? pertama.nama : '',
         dompetTujuan: '', tanggal: hariIni(), catatan: '', ulang: 'Bulanan' };
-  bukaSheet(r ? 'Ubah Tagihan Rutin' : 'Tagihan Rutin Baru', '<div id="form-trx"></div>');
+  bukaSheet(r ? T('Ubah Tagihan Rutin') : T('Tagihan Rutin Baru'), '<div id="form-trx"></div>');
   renderFormTrx();
 }
 
 /** Validasi bersama form transaksi & rutin; mengembalikan pesan kesalahan atau ''. */
 function cekIsianTrx() {
-  if (!F.jumlah) return 'Isi jumlahnya dulu.';
-  if (F.tipe !== TIPE.TRANSFER && !F.kategori) return 'Pilih kategorinya dulu.';
-  if (F.tipe === TIPE.TRANSFER && (!F.dompetTujuan || F.dompetTujuan === F.dompet)) return 'Pilih dompet tujuan yang berbeda.';
+  if (!F.jumlah) return T('Isi jumlahnya dulu.');
+  if (F.tipe !== TIPE.TRANSFER && !F.kategori) return T('Pilih kategorinya dulu.');
+  if (F.tipe === TIPE.TRANSFER && (!F.dompetTujuan || F.dompetTujuan === F.dompet)) return T('Pilih dompet tujuan yang berbeda.');
   return '';
 }
 
@@ -3223,7 +3306,7 @@ function kecilkanGambar(file) {
     // Object URL: browser langsung membaca file, tanpa mengubah foto 5–10 MB menjadi teks base64 dulu.
     const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onerror = () => { URL.revokeObjectURL(url); gagal(new Error('Gambar tidak bisa dibuka. Coba foto lain (format JPG/PNG).')); };
+    img.onerror = () => { URL.revokeObjectURL(url); gagal(new Error(T('Gambar tidak bisa dibuka. Coba foto lain (format JPG/PNG).'))); };
     img.onload = () => {
       URL.revokeObjectURL(url);
       const w = img.naturalWidth, h = img.naturalHeight;
@@ -3258,7 +3341,7 @@ function mulaiStruk(file, dariForm, otomatis) {
     F.strukJob = job.id;
     renderFormTrx();
   } else {
-    toast('🧾 Struk sedang dibaca. Silakan lanjut pakai aplikasi.');
+    toast(T('🧾 Struk sedang dibaca. Silakan lanjut pakai aplikasi.'));
   }
   jalankanStruk(job);
 }
@@ -3270,8 +3353,8 @@ async function jalankanStruk(job) {
   job.mulai = Date.now();
   renderAntrian();
   try {
-    if (!navigator.onLine) throw new Error('Tidak ada sinyal.');
-    tulisTahap(job, 'Menyiapkan foto…');
+    if (!navigator.onLine) throw new Error(T('Tidak ada sinyal.'));
+    tulisTahap(job, T('Menyiapkan foto…'));
     const g = await kecilkanGambar(job.file);
     job.thumb = g.thumb;
     job.base64 = g.arsip; // versi lebih kecil yang disimpan sebagai lampiran transaksi
@@ -3285,16 +3368,16 @@ async function jalankanStruk(job) {
       terapkanStruk(job);
       hapusJob(job.id);
       if (kartuBebas) { tampilRingkasanStruk(); getar(); }
-      else toast('Struk terbaca ✔ Cek sekilas sebelum disimpan.');
+      else toast(T('Struk terbaca ✔ Cek sekilas sebelum disimpan.'));
     } else if (job.otomatis && kartuBebas && $('#sheet').hidden && $('#kunci').hidden && !kilas) {
       // Foto dari Beranda dan pengguna tidak sedang membuka apa-apa: langsung tampilkan konfirmasinya.
-      bukaFormTrx(null, null, 'Tinjau Struk');
+      bukaFormTrx(null, null, T('Tinjau Struk'));
       terapkanStruk(job);
       tampilRingkasanStruk();
       getar();
     } else {
       getar();
-      toast('🧾 Struk siap ditinjau: ' + rp(job.hasil.jumlah));
+      toast(T('🧾 Struk siap ditinjau: {jumlah}', { jumlah: rp(job.hasil.jumlah) }));
     }
   } catch (e) {
     if (!ANTRIAN.includes(job)) return;
@@ -3303,11 +3386,11 @@ async function jalankanStruk(job) {
     // Gagal karena sesi login / sinyal: dibaca ulang otomatis begitu tersambung (lihat ulangiStrukTertunda).
     if (e instanceof GOOGLE.PerluMasuk) job.ulangOtomatis = 'sesi';
     else if (e.jaringan || !navigator.onLine) job.ulangOtomatis = 'sinyal';
-    if (job.ulangOtomatis) job.pesan = job.ulangOtomatis === 'sesi' ? 'Sesi login berakhir. Dibaca ulang otomatis setelah tersambung.' : 'Tidak ada sinyal. Dibaca ulang otomatis begitu online.';
+    if (job.ulangOtomatis) job.pesan = job.ulangOtomatis === 'sesi' ? T('Sesi login berakhir. Dibaca ulang otomatis setelah tersambung.') : T('Tidak ada sinyal. Dibaca ulang otomatis begitu online.');
     if (formMenungguStruk(job)) {
       F.strukJob = null;
       renderFormTrx();
-      toast('Struk gagal dibaca: ' + job.pesan, true);
+      toast(T('Struk gagal dibaca: {pesan}', { pesan: job.pesan }), true);
     }
   }
   renderAntrian();
@@ -3333,7 +3416,7 @@ function simpanDiLatar(t, pesan) {
   if (t.dariJob) hapusJob(t.dariJob);
   tutupSheet();
   renderAntrian();
-  toast('⏳ Menyimpan di latar belakang. Silakan lanjut pakai aplikasi.');
+  toast(T('⏳ Menyimpan di latar belakang. Silakan lanjut pakai aplikasi.'));
   (async () => {
     try {
       await api('simpanTransaksi', t);
@@ -3352,7 +3435,7 @@ function simpanDiLatar(t, pesan) {
       job.pesan = pesanError(e);
       renderAntrian();
       if ($('#sheet').hidden && $('#kunci').hidden) bukaLagiSimpan(job);
-      else toast('Gagal menyimpan ' + rp(t.jumlah) + ': ' + job.pesan + ' Ketuk "Buka" di bawah layar.', true);
+      else toast(T('Gagal menyimpan {jumlah}: {pesan} Ketuk "Buka" di bawah layar.', { jumlah: rp(t.jumlah), pesan: job.pesan }), true);
     }
   })();
 }
@@ -3361,9 +3444,9 @@ function simpanDiLatar(t, pesan) {
 function bukaLagiSimpan(job) {
   hapusJob(job.id);
   F = Object.assign(job.t, { galatSimpan: job.pesan });
-  bukaSheet(F.id ? 'Ubah Transaksi' : 'Catat Transaksi', '<div id="form-trx"></div>');
+  bukaSheet(F.id ? T('Ubah Transaksi') : T('Catat Transaksi'), '<div id="form-trx"></div>');
   renderFormTrx();
-  toast('Gagal menyimpan: ' + job.pesan, true);
+  toast(T('Gagal menyimpan: {pesan}', { pesan: job.pesan }), true);
 }
 
 /** Struk yang gagal karena sesi login / sinyal dibaca ulang. jenis: 'sesi' | 'sinyal'. */
@@ -3375,7 +3458,7 @@ function ulangiStrukTertunda(jenis) {
 setInterval(() => {
   document.querySelectorAll('[data-detik]').forEach(el => {
     const job = ANTRIAN.find(j => j.id === Number(el.dataset.detik));
-    if (job && job.mulai) el.textContent = Math.round((Date.now() - job.mulai) / 1000) + ' dtk';
+    if (job && job.mulai) el.textContent = T('{n} dtk', { n: Math.round((Date.now() - job.mulai) / 1000) });
   });
 }, 1000);
 
@@ -3413,25 +3496,25 @@ function renderAntrian() {
     const gambar = j.thumb ? `<img src="${j.thumb}" alt="">` : '<span class="antrian-ikon">🧾</span>';
     let isi, aksi;
     if (j.jenis === 'simpan') {
-      const judul = rp(j.t.jumlah) + (j.t.kategori ? ' · ' + esc(j.t.kategori) : '');
+      const judul = rp(j.t.jumlah) + (j.t.kategori ? ' · ' + esc(namaT(j.t.kategori)) : '');
       if (j.status === 'proses') {
-        isi = `<b>Menyimpan ${judul} <span class="detik" data-detik="${j.id}"></span></b><small>Foto sedang diunggah · boleh lanjut pakai aplikasi</small>`;
-        aksi = '<span class="spinner kecil" aria-label="Sedang menyimpan"></span>';
+        isi = `<b>${T('Menyimpan {judul}', { judul })} <span class="detik" data-detik="${j.id}"></span></b><small>${T('Foto sedang diunggah · boleh lanjut pakai aplikasi')}</small>`;
+        aksi = `<span class="spinner kecil" aria-label="${T('Sedang menyimpan')}"></span>`;
       } else {
-        isi = `<b>❌ Gagal menyimpan ${judul}</b><small>${esc(j.pesan)}</small>`;
-        aksi = `<button type="button" class="btn btn-utama kecil" data-aksi="buka-simpan" data-id="${j.id}">Buka</button>`;
+        isi = `<b>❌ ${T('Gagal menyimpan {judul}', { judul })}</b><small>${esc(j.pesan)}</small>`;
+        aksi = `<button type="button" class="btn btn-utama kecil" data-aksi="buka-simpan" data-id="${j.id}">${T('Buka')}</button>`;
       }
     } else if (j.status === 'proses') {
-      isi = `<b>Membaca struk… <span class="detik" data-detik="${j.id}"></span></b><small><span data-tahap="${j.id}">${esc(j.tahap || '')}</span> · boleh lanjut pakai aplikasi</small>`;
-      aksi = '<span class="spinner kecil" aria-label="Sedang memproses"></span>';
+      isi = `<b>${T('Membaca struk…')} <span class="detik" data-detik="${j.id}"></span></b><small><span data-tahap="${j.id}">${esc(j.tahap || '')}</span> · ${T('boleh lanjut pakai aplikasi')}</small>`;
+      aksi = `<span class="spinner kecil" aria-label="${T('Sedang memproses')}"></span>`;
     } else if (j.status === 'siap') {
-      isi = `<b>✅ Struk siap · ${rp(j.hasil.jumlah)}</b><small>${esc(j.hasil.catatan || j.hasil.kategori || 'Ketuk Tinjau untuk menyimpan')}</small>`;
-      aksi = `<button type="button" class="btn btn-utama kecil" data-aksi="tinjau-struk" data-id="${j.id}">Tinjau</button>`;
+      isi = `<b>✅ ${T('Struk siap · {jumlah}', { jumlah: rp(j.hasil.jumlah) })}</b><small>${esc(j.hasil.catatan || namaT(j.hasil.kategori) || T('Ketuk Tinjau untuk menyimpan'))}</small>`;
+      aksi = `<button type="button" class="btn btn-utama kecil" data-aksi="tinjau-struk" data-id="${j.id}">${T('Tinjau')}</button>`;
     } else {
-      isi = `<b>❌ Gagal dibaca</b><small>${esc(j.pesan)}</small>`;
-      aksi = `<button type="button" class="btn btn-hapus kecil" data-aksi="ulangi-struk" data-id="${j.id}">Ulangi</button>`;
+      isi = `<b>❌ ${T('Gagal dibaca')}</b><small>${esc(j.pesan)}</small>`;
+      aksi = `<button type="button" class="btn btn-hapus kecil" data-aksi="ulangi-struk" data-id="${j.id}">${T('Ulangi')}</button>`;
     }
-    const tutup = j.status === 'proses' ? '' : `<button type="button" class="antrian-tutup" data-aksi="buang-struk" data-id="${j.id}" aria-label="Buang">✕</button>`;
+    const tutup = j.status === 'proses' ? '' : `<button type="button" class="antrian-tutup" data-aksi="buang-struk" data-id="${j.id}" aria-label="${T('Buang')}">✕</button>`;
     return `<div class="antrian-item ${j.status}" role="status">${gambar}<span class="isi">${isi}</span>${aksi}${tutup}</div>`;
   }).join('');
 }
@@ -3439,7 +3522,7 @@ function renderAntrian() {
 /** Ringkasan hasil baca struk tanpa istilah teknis; kalau totalnya beda-beda, tampilkan pilihan. */
 function infoStruk(h) {
   const pilihan = h.pilihanJumlah.length > 1 ? `
-    <p class="label" style="margin:0 0 6px">Ketuk total yang sesuai struk:</p>
+    <p class="label" style="margin:0 0 6px">${T('Ketuk total yang sesuai struk:')}</p>
     <div class="chips" style="margin-bottom:6px">${h.pilihanJumlah.map(p =>
       `<button type="button" class="chip ${p.jumlah === F.jumlah ? 'aktif' : ''}" data-aksi="f-pilih-jumlah" data-jumlah="${p.jumlah}">${rp(p.jumlah)}</button>`).join('')}</div>` : '';
   const kembar = teksStrukKembar();
@@ -3448,16 +3531,17 @@ function infoStruk(h) {
 }
 
 function statusStruk(h) {
-  return h.yakin ? '✅ Yakin, totalnya terbaca sama beberapa kali.'
-    : h.pilihanJumlah.length > 1 ? '⚠️ Hasil baca berbeda-beda. Cocokkan dengan struk.'
-    : '🔍 Cocokkan sekilas totalnya dengan struk.';
+  return h.yakin ? T('✅ Yakin, totalnya terbaca sama beberapa kali.')
+    : h.pilihanJumlah.length > 1 ? T('⚠️ Hasil baca berbeda-beda. Cocokkan dengan struk.')
+    : T('🔍 Cocokkan sekilas totalnya dengan struk.');
 }
 
 /** Peringatan kalau sudah ada pengeluaran dengan nominal & tanggal yang sama (struk mungkin sudah pernah dicatat). */
 function teksStrukKembar() {
   const kembar = !F.id && S.data && (S.data.transaksi || []).find(t =>
     t.tipe === TIPE.KELUAR && t.jumlah === F.jumlah && t.tanggal === F.tanggal);
-  return kembar ? `⚠️ Sudah ada ${esc(kembar.kategori)} ${rp(kembar.jumlah)} di tanggal yang sama${kembar.catatan ? ' (' + esc(kembar.catatan) + ')' : ''}. Pastikan struk ini belum pernah dicatat.` : '';
+  return kembar ? T('⚠️ Sudah ada {kategori} {jumlah} di tanggal yang sama{catatan}. Pastikan struk ini belum pernah dicatat.', {
+    kategori: esc(namaT(kembar.kategori)), jumlah: rp(kembar.jumlah), catatan: kembar.catatan ? ' (' + esc(kembar.catatan) + ')' : '' }) : '';
 }
 
 /** Tombol "Pecah jadi N transaksi" kalau struk berisi beberapa kategori yang jumlahnya pas dengan total. */
@@ -3465,8 +3549,8 @@ function tombolPecahStruk(h) {
   return (h.rincian || []).length >= 2 && h.rincian.reduce((a, x) => a + x.jumlah, 0) === F.jumlah && !F.id ? `
     <button type="button" class="tombol-pecah" data-aksi="pecah-struk">
       <span class="ikon-pecah">🧩</span>
-      <span class="isi"><b>Pecah jadi ${h.rincian.length} transaksi per kategori</b>
-        <small>${h.rincian.map(x => esc(x.kategori) + ' ' + rpPendek(x.jumlah)).join(' · ')}</small></span>
+      <span class="isi"><b>${T('Pecah jadi {n} transaksi per kategori', { n: h.rincian.length })}</b>
+        <small>${h.rincian.map(x => esc(namaT(x.kategori)) + ' ' + rpPendek(x.jumlah)).join(' · ')}</small></span>
       <span class="panah">${svg('maju')}</span>
     </button>` : '';
 }
@@ -3477,42 +3561,44 @@ function tombolPecahStruk(h) {
  */
 function bukaFormTelegram(kode, muatan = kode) {
   const t = S.data.telegram;
-  bukaSheet('Bot Telegram', `
+  bukaSheet(T('Bot Telegram'), `
     ${t.bot ? `<a class="baris" href="https://t.me/${esc(t.bot)}" target="_blank" rel="noopener">
       <span class="ikon-bulat">🤖</span>
-      <span class="isi"><b>@${esc(t.bot)}</b><small>Buka di Telegram</small></span>
+      <span class="isi"><b>@${esc(t.bot)}</b><small>${T('Buka di Telegram')}</small></span>
       <span class="panah">${svg('maju')}</span>
     </a>` : ''}
     ${kode ? `
       <div class="kartu" style="margin:14px 0;text-align:center;background:var(--primary-soft);border:0">
-        <small class="label" style="margin:0">Kode penautan · berlaku 15 menit</small>
+        <small class="label" style="margin:0">${T('Kode penautan · berlaku 15 menit')}</small>
         <div style="font-size:30px;font-weight:800;letter-spacing:.2em;margin:6px 0 12px">${esc(kode)}</div>
-        ${t.bot ? `<a class="btn btn-utama" style="display:block;text-decoration:none" href="https://t.me/${esc(t.bot)}?start=${esc(muatan)}" target="_blank" rel="noopener">Buka Telegram & hubungkan</a>` : ''}
-        <p class="info-kecil" style="margin-bottom:0;word-break:break-all">${t.bot ? 'Atau kirim' : 'Kirim'} <b>/hubungkan ${esc(muatan)}</b> ke bot.</p>
+        ${t.bot ? `<a class="btn btn-utama" style="display:block;text-decoration:none" href="https://t.me/${esc(t.bot)}?start=${esc(muatan)}" target="_blank" rel="noopener">${T('Buka Telegram & hubungkan')}</a>` : ''}
+        <p class="info-kecil" style="margin-bottom:0;word-break:break-all">${t.bot
+          ? T('Atau kirim <b>{perintah}</b> ke bot.', { perintah: '/hubungkan ' + esc(muatan) })
+          : T('Kirim <b>{perintah}</b> ke bot.', { perintah: '/hubungkan ' + esc(muatan) })}</p>
       </div>` : ''}
     ${t.pengguna.length ? `<button type="button" class="baris" data-aksi="pengingat-telegram" role="switch" aria-checked="${t.pengingat !== false}">
       <span class="ikon-bulat">🔔</span>
-      <span class="isi"><b>Pengingat harian</b><small>Tiap pagi ± jam 6: catatan berpengingat & tagihan yang jatuh tempo</small></span>
+      <span class="isi"><b>${T('Pengingat harian')}</b><small>${T('Tiap pagi ± jam 6: catatan berpengingat & tagihan yang jatuh tempo')}</small></span>
       <span class="saklar ${t.pengingat !== false ? 'nyala' : ''}" aria-hidden="true"></span>
     </button>
     <button type="button" class="baris" data-aksi="rekap-telegram" role="switch" aria-checked="${t.rekap !== false}">
       <span class="ikon-bulat">📊</span>
-      <span class="isi"><b>Rekap bulanan</b><small>Di awal periode: pemasukan, pengeluaran & kategori terbesar bulan lalu</small></span>
+      <span class="isi"><b>${T('Rekap bulanan')}</b><small>${T('Di awal periode: pemasukan, pengeluaran & kategori terbesar bulan lalu')}</small></span>
       <span class="saklar ${t.rekap !== false ? 'nyala' : ''}" aria-hidden="true"></span>
     </button>` : ''}
-    <span class="label" style="margin-top:14px">Akun terhubung (${t.pengguna.length})</span>
+    <span class="label" style="margin-top:14px">${T('Akun terhubung ({n})', { n: t.pengguna.length })}</span>
     ${t.pengguna.map(p => `
       <div class="baris">
         <span class="ikon-bulat">👤</span>
         <span class="isi"><b>${esc(p.nama)}</b><small>${esc(p.email)}${p.username ? ' · @' + esc(p.username) : ''}</small></span>
-        <button type="button" class="tombol-ikon" data-aksi="putus-telegram" data-id="${esc(p.id)}" aria-label="Putuskan ${esc(p.nama)}">✕</button>
-      </div>`).join('') || '<p class="info-kecil" style="text-align:left;margin-top:0">Belum ada.</p>'}
-    ${kode ? '' : '<div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="kode-telegram">Hubungkan akun Telegram saya</button></div>'}
+        <button type="button" class="tombol-ikon" data-aksi="putus-telegram" data-id="${esc(p.id)}" aria-label="${T('Putuskan {nama}', { nama: esc(p.nama) })}">✕</button>
+      </div>`).join('') || `<p class="info-kecil" style="text-align:left;margin-top:0">${T('Belum ada.')}</p>`}
+    ${kode ? '' : `<div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="kode-telegram">${T('Hubungkan akun Telegram saya')}</button></div>`}
     ${t.bersama ? `<p class="info-kecil" style="text-align:left">🔐 ${t.pengguna.length
-      ? 'Buku ini dibagikan ke akun bot selama masih ada akun Telegram yang terhubung. Putuskan semua akun untuk mencabutnya.'
-      : 'Saat menghubungkan, buku ini dibagikan ke akun bot supaya bot bisa mencatat.'}</p>` : ''}
+      ? T('Buku ini dibagikan ke akun bot selama masih ada akun Telegram yang terhubung. Putuskan semua akun untuk mencabutnya.')
+      : T('Saat menghubungkan, buku ini dibagikan ke akun bot supaya bot bisa mencatat.')}</p>` : ''}
     <details class="tabel-data">
-      <summary>Contoh pesan ke bot</summary>
+      <summary>${T('Contoh pesan ke bot')}</summary>
       <ul class="panduan" style="padding-left:20px">
         <li><i>makan bakso 25rb</i></li>
         <li><i>bensin 30rb pakai gopay, parkir 5rb</i></li>
@@ -3520,7 +3606,7 @@ function bukaFormTelegram(kode, muatan = kode) {
         <li><i>setor dana darurat 500rb</i></li>
         <li><i>yang terakhir ubah jadi 30rb</i></li>
         <li><i>pengeluaran bulan ini berapa?</i></li>
-        <li>kirim foto struk 📸</li>
+        <li>${T('kirim foto struk 📸')}</li>
       </ul>
     </details>`);
 }
@@ -3534,28 +3620,27 @@ function bukaFormGemini() {
       <input class="field" id="g-kunci" type="password" autocomplete="off" placeholder="AIza…">
     </div>
     <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-gemini">${tombol}</button></div>`;
-  bukaSheet('Baca Struk Lebih Akurat', `
-    <p style="margin-top:0">Foto struk <b>tetap bisa dibaca tanpa pengaturan apa pun</b>. Dengan kunci Gemini (AI dari Google, gratis),
-      hasilnya jauh lebih akurat, termasuk kategori dan catatan.</p>
+  bukaSheet(T('Baca Struk Lebih Akurat'), `
+    <p style="margin-top:0">${T('Foto struk <b>tetap bisa dibaca tanpa pengaturan apa pun</b>. Dengan kunci Gemini (AI dari Google, gratis), hasilnya jauh lebih akurat, termasuk kategori dan catatan.')}</p>
     ${daftar.length ? `
       <div style="margin-bottom:12px">${daftar.map((k, i) => `
         <div class="baris">
           <span class="ikon-bulat">🔑</span>
-          <span class="isi"><b>${i ? 'Kunci cadangan ' + i : '✅ Kunci aktif'}</b><small>${esc(k)}</small></span>
-          <button type="button" class="tombol-ikon" data-aksi="hapus-gemini" data-kunci="${esc(k)}" aria-label="Hapus kunci ${i + 1}">🗑️</button>
+          <span class="isi"><b>${i ? T('Kunci cadangan {n}', { n: i }) : T('✅ Kunci aktif')}</b><small>${esc(k)}</small></span>
+          <button type="button" class="tombol-ikon" data-aksi="hapus-gemini" data-kunci="${esc(k)}" aria-label="${T('Hapus kunci {n}', { n: i + 1 })}">🗑️</button>
         </div>`).join('')}</div>
       <details class="tabel-data">
-        <summary>Tambah kunci cadangan</summary>
-        <p class="info-kecil" style="text-align:left">Kalau kuota harian satu kunci habis, aplikasi otomatis memakai kunci berikutnya.</p>
-        ${isian('Kunci cadangan', 'Tambah')}
+        <summary>${T('Tambah kunci cadangan')}</summary>
+        <p class="info-kecil" style="text-align:left">${T('Kalau kuota harian satu kunci habis, aplikasi otomatis memakai kunci berikutnya.')}</p>
+        ${isian(T('Kunci cadangan'), T('Tambah'))}
       </details>` : `
       <ol class="panduan" style="padding-left:20px;margin-bottom:16px">
-        <li>Buka <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> dan masuk dengan akun Google.</li>
-        <li>Klik <b>Create API key</b>, lalu salin kuncinya.</li>
-        <li>Tempel di bawah, lalu ketuk Simpan.</li>
+        <li>${T('Buka <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> dan masuk dengan akun Google.')}</li>
+        <li>${T('Klik <b>Create API key</b>, lalu salin kuncinya.')}</li>
+        <li>${T('Tempel di bawah, lalu ketuk Simpan.')}</li>
       </ol>
-      ${isian('Kunci Gemini', 'Simpan')}`}
-    <p class="info-kecil" style="text-align:left">Kunci disimpan di spreadsheet keluarga, jadi otomatis dipakai semua anggota, dan <b>bisa dilihat semua anggota</b> yang membuka spreadsheet. Pakai kunci gratis khusus untuk aplikasi ini, jangan kunci yang terhubung ke penagihan (billing).</p>`);
+      ${isian(T('Kunci Gemini'), T('Simpan'))}`}
+    <p class="info-kecil" style="text-align:left">${T('Kunci disimpan di spreadsheet keluarga, jadi otomatis dipakai semua anggota, dan <b>bisa dilihat semua anggota</b> yang membuka spreadsheet. Pakai kunci gratis khusus untuk aplikasi ini, jangan kunci yang terhubung ke penagihan (billing).')}</p>`);
 }
 
 // ---------- Form dompet ----------
@@ -3566,59 +3651,63 @@ function bukaFormDompet(w, jenis) {
   if (jenis === JENIS.UTANG) {
     // Orang utang-piutang: jumlahnya hanya berubah lewat transaksi, jadi yang bisa diubah cuma nama & jatuh tempo.
     F = { namaLama: w.nama, ikon: w.ikon, jenis, saldoAwal: w.saldoAwal, mutasi: 0, saldoTampil: '' };
-    return bukaSheet('Ubah ' + w.nama, `
+    return bukaSheet(T('Ubah {nama}', { nama: w.nama }), `
       <div class="grup-form">
-        <label class="label" for="d-nama">Nama orang</label>
+        <label class="label" for="d-nama">${T('Nama orang')}</label>
         <input class="field" id="d-nama" maxlength="40" value="${esc(w.nama)}">
       </div>
       <div class="grup-form">
-        <label class="label" for="d-tenggat">Jatuh tempo (opsional)</label>
+        <label class="label" for="d-tenggat">${T('Jatuh tempo (opsional)')}</label>
         <input class="field" id="d-tenggat" type="date" value="${esc(w.tenggat)}">
       </div>
       <div class="aksi-form">
-        <button type="button" class="btn btn-hapus" data-aksi="hapus-dompet">Hapus</button>
-        <button type="button" class="btn btn-utama" data-aksi="simpan-dompet">Simpan</button>
+        <button type="button" class="btn btn-hapus" data-aksi="hapus-dompet">${T('Hapus')}</button>
+        <button type="button" class="btn btn-utama" data-aksi="simpan-dompet">${T('Simpan')}</button>
       </div>
-      <p class="info-kecil">Hanya bisa dihapus kalau belum ada transaksinya.</p>`);
+      <p class="info-kecil">${T('Hanya bisa dihapus kalau belum ada transaksinya.')}</p>`);
   }
   const tab = jenis === JENIS.TABUNGAN;
   const aset = jenis === JENIS.ASET;
-  const sebutan = tab ? 'tabungan' : aset ? 'aset' : 'dompet';
+  const labelNama = tab ? T('Nama tabungan') : aset ? T('Nama aset') : T('Nama dompet');
   const saldoTampil = formatAngka(w ? Math.max(0, w.saldo) : 0);
   F = {
     namaLama: w ? w.nama : '', ikon: w ? w.ikon : (tab ? '🐷' : aset ? '💎' : '👛'), jenis,
     saldoAwal: w ? w.saldoAwal : 0, mutasi: w ? w.saldo - w.saldoAwal : 0, saldoTampil,
   };
   const ket = aset
-    ? 'Perkiraan nilai jual saat ini. Perbarui sesekali (mis. ikuti harga emas atau nilai reksadana); riwayat transaksi tidak berubah.'
+    ? T('Perkiraan nilai jual saat ini. Perbarui sesekali (mis. ikuti harga emas atau nilai reksadana); riwayat transaksi tidak berubah.')
     : !w
-      ? (tab ? 'Jumlah yang sudah terkumpul sebelum dicatat di aplikasi ini.' : 'Saldo saat Anda mulai mencatat di aplikasi ini.')
-      : `Tidak sama dengan ${tab ? 'jumlah sebenarnya' : 'saldo di rekening/dompet asli'}? Ganti dengan angka sebenarnya, saldo akan disesuaikan tanpa mengubah riwayat transaksi.`;
-  bukaSheet((w ? 'Ubah ' : 'Tambah ') + (tab ? 'Tabungan' : aset ? 'Aset' : 'Dompet'), `
+      ? (tab ? T('Jumlah yang sudah terkumpul sebelum dicatat di aplikasi ini.') : T('Saldo saat Anda mulai mencatat di aplikasi ini.'))
+      : tab ? T('Tidak sama dengan jumlah sebenarnya? Ganti dengan angka sebenarnya, saldo akan disesuaikan tanpa mengubah riwayat transaksi.')
+        : T('Tidak sama dengan saldo di rekening/dompet asli? Ganti dengan angka sebenarnya, saldo akan disesuaikan tanpa mengubah riwayat transaksi.');
+  const judul = w
+    ? (tab ? T('Ubah Tabungan') : aset ? T('Ubah Aset') : T('Ubah Dompet'))
+    : (tab ? T('Tambah Tabungan') : aset ? T('Tambah Aset') : T('Tambah Dompet'));
+  bukaSheet(judul, `
     ${tab && !w ? chipTemplat(TEMPLAT_TABUNGAN, 'templat-tabungan') : ''}
     <div class="grup-form">
-      <label class="label" for="d-nama">Nama ${sebutan}</label>
-      <input class="field" id="d-nama" maxlength="40" placeholder="${tab ? 'mis. Dana Darurat, Liburan, Umroh' : aset ? 'mis. Emas 10 gram, Reksadana, Motor' : 'mis. BCA, GoPay, Celengan'}" value="${esc(w ? w.nama : '')}">
+      <label class="label" for="d-nama">${labelNama}</label>
+      <input class="field" id="d-nama" maxlength="40" placeholder="${tab ? T('mis. Dana Darurat, Liburan, Umroh') : aset ? T('mis. Emas 10 gram, Reksadana, Motor') : T('mis. BCA, GoPay, Celengan')}" value="${esc(w ? w.nama : '')}">
     </div>
     <div class="grup-form">
-      <label class="label" for="d-saldo">${tab ? 'Terkumpul sekarang' : aset ? 'Nilai sekarang' : 'Saldo sekarang'}</label>
+      <label class="label" for="d-saldo">${tab ? T('Terkumpul sekarang') : aset ? T('Nilai sekarang') : T('Saldo sekarang')}</label>
       <input class="field" id="d-saldo" inputmode="numeric" placeholder="0" value="${saldoTampil}">
       <p class="info-kecil" style="text-align:left">${ket}</p>
     </div>
     ${tab ? `
       <div class="grup-form">
-        <label class="label" for="d-target">Target (opsional)</label>
-        <input class="field" id="d-target" inputmode="numeric" placeholder="Tanpa batas" value="${formatAngka(w && w.target)}">
-        <p class="info-kecil" style="text-align:left">Kosongkan untuk tabungan tanpa batas.</p>
+        <label class="label" for="d-target">${T('Target (opsional)')}</label>
+        <input class="field" id="d-target" inputmode="numeric" placeholder="${T('Tanpa batas')}" value="${formatAngka(w && w.target)}">
+        <p class="info-kecil" style="text-align:left">${T('Kosongkan untuk tabungan tanpa batas.')}</p>
       </div>
       <div class="grup-form">
-        <label class="label" for="d-tenggat">Ingin tercapai pada (opsional)</label>
+        <label class="label" for="d-tenggat">${T('Ingin tercapai pada (opsional)')}</label>
         <input class="field" id="d-tenggat" type="date" value="${esc(w ? w.tenggat : '')}">
       </div>` : ''}
-    <div class="grup-form"><span class="label">Ikon</span>${gridIkon(F.ikon)}</div>
+    <div class="grup-form"><span class="label">${T('Ikon')}</span>${gridIkon(F.ikon)}</div>
     <div class="aksi-form">
-      ${w ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-dompet">Hapus</button>' : ''}
-      <button type="button" class="btn btn-utama" data-aksi="simpan-dompet">Simpan</button>
+      ${w ? `<button type="button" class="btn btn-hapus" data-aksi="hapus-dompet">${T('Hapus')}</button>` : ''}
+      <button type="button" class="btn btn-utama" data-aksi="simpan-dompet">${T('Simpan')}</button>
     </div>`);
 }
 
@@ -3627,13 +3716,13 @@ function perkiraanTabungan(w) {
   if (!w.target || w.saldo >= w.target) return '';
   const rata = (S.data.setoranTabungan || {})[w.nama] || 0;
   const sisa = w.target - w.saldo;
-  if (rata <= 0) return `<div class="perkiraan-tabungan">🔮 Belum ada setoran rutin 3 bulan terakhir. Setor sedikit tiap bulan supaya bisa diperkirakan.</div>`;
+  if (rata <= 0) return `<div class="perkiraan-tabungan">🔮 ${T('Belum ada setoran rutin 3 bulan terakhir. Setor sedikit tiap bulan supaya bisa diperkirakan.')}</div>`;
   const bulan = Math.ceil(sisa / rata);
   const d = new Date();
   d.setMonth(d.getMonth() + bulan);
-  const kapan = d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  const kapan = d.toLocaleDateString(LOKAL, { month: 'long', year: 'numeric' });
   const telat = w.tenggat && d.toISOString().slice(0, 10) > w.tenggat;
-  return `<div class="perkiraan-tabungan ${telat ? 'telat' : ''}">🔮 Dengan rata-rata setoran <b>${rp(rata)}/bulan</b>, target tercapai sekitar <b>${kapan}</b>${bulan <= 1 ? ' (bulan depan!)' : ` (${bulan} bulan lagi)`}.${telat ? ' ⚠️ Lewat tenggat, perlu setoran lebih besar.' : ''}</div>`;
+  return `<div class="perkiraan-tabungan ${telat ? 'telat' : ''}">🔮 ${T('Dengan rata-rata setoran <b>{jumlah}/bulan</b>, target tercapai sekitar <b>{kapan}</b>', { jumlah: rp(rata), kapan })} ${bulan <= 1 ? T('(bulan depan!)') : T('({n} bulan lagi)', { n: bulan })}.${telat ? ' ⚠️ ' + T('Lewat tenggat, perlu setoran lebih besar.') : ''}</div>`;
 }
 
 /** Sekali per tabungan: perayaan saat target tercapai. */
@@ -3648,25 +3737,25 @@ function rayakanTabungan(w) {
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3200);
   getar();
-  toast('🎉 Selamat! Target ' + w.nama + ' tercapai!');
+  toast(T('🎉 Selamat! Target {nama} tercapai!', { nama: namaT(w.nama) }));
 }
 
 function bukaTabungan(w) {
   const p = progresTabungan(w);
   setTimeout(() => rayakanTabungan(w), 400);
-  bukaSheet(w.nama, `
+  bukaSheet(namaT(w.nama), `
     <div class="ringkas-tabungan">
       <span class="ikon-bulat">${ilus(w.ikon)}</span>
-      <div><small>Terkumpul</small><b>${rp(w.saldo)}</b></div>
+      <div><small>${T('Terkumpul')}</small><b>${rp(w.saldo)}</b></div>
     </div>
     ${p.persen !== null ? `<span class="meter" role="meter" aria-label="${esc(w.nama)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.persen}"><i style="width:${p.persen}%"></i></span>` : ''}
     <p class="info-kecil" style="text-align:left;margin:8px 0 ${perkiraanTabungan(w) ? '8px' : '16px'}">${esc(p.teks)}</p>
     ${perkiraanTabungan(w)}
     <div class="aksi-form">
-      <button type="button" class="btn btn-hapus" data-aksi="tarik-tabungan" data-nama="${esc(w.nama)}">Tarik</button>
-      <button type="button" class="btn btn-utama" data-aksi="setor-tabungan" data-nama="${esc(w.nama)}">Setor</button>
+      <button type="button" class="btn btn-hapus" data-aksi="tarik-tabungan" data-nama="${esc(w.nama)}">${T('Tarik')}</button>
+      <button type="button" class="btn btn-utama" data-aksi="setor-tabungan" data-nama="${esc(w.nama)}">${T('Setor')}</button>
     </div>
-    <button type="button" class="tombol-tambah" style="margin-top:12px" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">✏️ Ubah tabungan</button>`);
+    <button type="button" class="tombol-tambah" style="margin-top:12px" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">✏️ ${T('Ubah tabungan')}</button>`);
 }
 
 /**
@@ -3692,28 +3781,28 @@ function saranAnggaran() {
 function bukaFormAnggaran() {
   const daftar = S.data.kategori.filter(k => k.tipe === TIPE.KELUAR);
   const saran = saranAnggaran();
-  bukaSheet('Anggaran Bulanan', `
-    <p class="info-kecil" style="text-align:left;margin:0 0 8px">Batas belanja per kategori setiap bulan. Kosongkan kategori yang tidak perlu dibatasi.
-      Centang <b>📨 Amplop</b> supaya sisa bulan ini menambah anggaran bulan depan (dan kelebihan menguranginya).</p>
+  bukaSheet(T('Anggaran Bulanan'), `
+    <p class="info-kecil" style="text-align:left;margin:0 0 8px">${T('Batas belanja per kategori setiap bulan. Kosongkan kategori yang tidak perlu dibatasi.')}
+      ${T('Centang <b>📨 Amplop</b> supaya sisa bulan ini menambah anggaran bulan depan (dan kelebihan menguranginya).')}</p>
     ${Object.keys(saran).length ? `<button type="button" class="tombol-pecah" data-aksi="isi-saran-anggaran" style="margin:0 0 12px">
-      <span class="ikon-pecah">✨</span><span class="isi"><b>Isi otomatis dari kebiasaan belanja</b>
-      <small>Berdasarkan rata-rata 3 bulan terakhir · ${Object.keys(saran).length} kategori</small></span></button>` : ''}
+      <span class="ikon-pecah">✨</span><span class="isi"><b>${T('Isi otomatis dari kebiasaan belanja')}</b>
+      <small>${T('Berdasarkan rata-rata 3 bulan terakhir · {n} kategori', { n: Object.keys(saran).length })}</small></span></button>` : ''}
     ${daftar.map(k => `
       <div class="baris baris-input">
         <span class="ikon-bulat">${ilus(k.ikon)}</span>
-        <span class="isi"><b>${esc(k.nama)}</b>
-          ${saran[k.nama] ? `<button type="button" class="saran-anggaran" data-aksi="pakai-saran-anggaran" data-nama="${esc(k.nama)}" data-n="${saran[k.nama].batas}" title="Rata-rata 3 bulan: ${rp(saran[k.nama].rata)}">💡 Saran ${rpPendek(saran[k.nama].batas)}</button>` : ''}
-          <label class="amplop"><input type="checkbox" class="input-amplop" data-nama="${esc(k.nama)}" ${k.bawaSisa ? 'checked' : ''}> 📨 Amplop</label></span>
-        <input class="field input-rp input-anggaran" data-nama="${esc(k.nama)}" inputmode="numeric" placeholder="Tanpa batas" aria-label="Anggaran ${esc(k.nama)}" value="${formatAngka(k.anggaran)}">
+        <span class="isi"><b>${esc(namaT(k.nama))}</b>
+          ${saran[k.nama] ? `<button type="button" class="saran-anggaran" data-aksi="pakai-saran-anggaran" data-nama="${esc(k.nama)}" data-n="${saran[k.nama].batas}" title="${T('Rata-rata 3 bulan: {jumlah}', { jumlah: rp(saran[k.nama].rata) })}">💡 ${T('Saran {jumlah}', { jumlah: rpPendek(saran[k.nama].batas) })}</button>` : ''}
+          <label class="amplop"><input type="checkbox" class="input-amplop" data-nama="${esc(k.nama)}" ${k.bawaSisa ? 'checked' : ''}> 📨 ${T('Amplop')}</label></span>
+        <input class="field input-rp input-anggaran" data-nama="${esc(k.nama)}" inputmode="numeric" placeholder="${T('Tanpa batas')}" aria-label="${T('Anggaran {nama}', { nama: esc(namaT(k.nama)) })}" value="${formatAngka(k.anggaran)}">
       </div>`).join('')}
     <p class="info-kecil" id="total-anggaran"></p>
-    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-anggaran">Simpan</button></div>`);
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-anggaran">${T('Simpan')}</button></div>`);
   hitungTotalAnggaran();
 }
 
 function hitungTotalAnggaran() {
   const total = Array.from(document.querySelectorAll('.input-anggaran')).reduce((a, el) => a + angka(el.value), 0);
-  $('#total-anggaran').textContent = 'Total anggaran per bulan: ' + rp(total);
+  $('#total-anggaran').textContent = T('Total anggaran per bulan: {jumlah}', { jumlah: rp(total) });
 }
 
 // ---------- Kelola kategori ----------
@@ -3721,32 +3810,32 @@ function hitungTotalAnggaran() {
 function bukaDaftarKategori(tipe) {
   tipe = tipe || TIPE.KELUAR;
   const daftar = S.data.kategori.filter(k => k.tipe === tipe);
-  bukaSheet('Kelola Kategori', `
+  bukaSheet(T('Kelola Kategori'), `
     <div class="segmen">
       ${[TIPE.KELUAR, TIPE.MASUK].map(t =>
-        `<button type="button" class="${t === tipe ? 'aktif' : ''}" data-aksi="daftar-kategori" data-tipe="${t}">${t}</button>`).join('')}
+        `<button type="button" class="${t === tipe ? 'aktif' : ''}" data-aksi="daftar-kategori" data-tipe="${t}">${namaT(t)}</button>`).join('')}
     </div>
     ${daftar.map(k => `
       <button class="baris" data-aksi="edit-kategori" data-nama="${esc(k.nama)}" data-tipe="${esc(k.tipe)}">
         <span class="ikon-bulat">${ilus(k.ikon)}</span>
-        <span class="isi"><b>${esc(k.nama)}</b></span>
+        <span class="isi"><b>${esc(namaT(k.nama))}</b></span>
         <span class="panah">${svg('maju')}</span>
       </button>`).join('')}
-    <button class="tombol-tambah" data-aksi="tambah-kategori" data-tipe="${tipe}">＋ Tambah kategori ${tipe.toLowerCase()}</button>`);
+    <button class="tombol-tambah" data-aksi="tambah-kategori" data-tipe="${tipe}">＋ ${tipe === TIPE.MASUK ? T('Tambah kategori pemasukan') : T('Tambah kategori pengeluaran')}</button>`);
 }
 
 function bukaFormKategori(k, tipe) {
   F = { namaLama: k ? k.nama : '', tipeLama: k ? k.tipe : tipe, tipe: k ? k.tipe : tipe, ikon: k ? k.ikon : '🏷️' };
-  bukaSheet(k ? 'Ubah Kategori' : 'Tambah Kategori', `
+  bukaSheet(k ? T('Ubah Kategori') : T('Tambah Kategori'), `
     <div class="grup-form">
-      <label class="label" for="k-nama">Nama kategori ${esc(F.tipe.toLowerCase())}</label>
-      <input class="field" id="k-nama" maxlength="40" placeholder="mis. Jajan Anak" value="${esc(k ? k.nama : '')}">
+      <label class="label" for="k-nama">${F.tipe === TIPE.MASUK ? T('Nama kategori pemasukan') : T('Nama kategori pengeluaran')}</label>
+      <input class="field" id="k-nama" maxlength="40" placeholder="${T('mis. Jajan Anak')}" value="${esc(k ? k.nama : '')}">
     </div>
-    <div class="grup-form"><span class="label">Ikon</span>${gridIkon(F.ikon)}</div>
+    <div class="grup-form"><span class="label">${T('Ikon')}</span>${gridIkon(F.ikon)}</div>
     <div class="aksi-form">
-      <button type="button" class="btn btn-hapus" data-aksi="daftar-kategori" data-tipe="${esc(F.tipe)}">Kembali</button>
-      ${k ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-kategori">Hapus</button>' : ''}
-      <button type="button" class="btn btn-utama" data-aksi="simpan-kategori">Simpan</button>
+      <button type="button" class="btn btn-hapus" data-aksi="daftar-kategori" data-tipe="${esc(F.tipe)}">${T('Kembali')}</button>
+      ${k ? `<button type="button" class="btn btn-hapus" data-aksi="hapus-kategori">${T('Hapus')}</button>` : ''}
+      <button type="button" class="btn btn-utama" data-aksi="simpan-kategori">${T('Simpan')}</button>
     </div>`);
 }
 
