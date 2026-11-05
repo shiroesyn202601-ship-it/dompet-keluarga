@@ -95,6 +95,8 @@ const SERVER = (() => {
     idSheet = null;
     config = null;
     idFolderStruk = null;
+    janjiInduk = null;
+    sudahRapi = {};
   }
 
   async function cariIdDb_() {
@@ -125,7 +127,7 @@ const SERVER = (() => {
   }
 
   /**
-   * config.json di appDataFolder: { spreadsheetId (buku aktif), buku: [{ id, nama }], folderStruk }.
+   * config.json di appDataFolder: { spreadsheetId (buku aktif), buku: [{ id, nama }], folderInduk, folderStruk }.
    * Disalin di memori (`config`); selalu mengembalikan salinan supaya aman diubah pemanggil.
    */
   let config = null;
@@ -305,6 +307,7 @@ const SERVER = (() => {
       idSheet = await bacaIdSheet_(id);
       await pastikanStruktur_(id);
     }
+    if (!sudahRapi[id]) { sudahRapi[id] = true; rapikanFolder_(id); }
     return id;
   }
 
@@ -337,6 +340,7 @@ const SERVER = (() => {
       },
     });
     const id = ss.spreadsheetId;
+    await masukkanKeInduk_(id);
 
     await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', {
       method: 'POST',
@@ -988,25 +992,75 @@ const SERVER = (() => {
     return hasil;
   }
 
-  // ---------- Lampiran foto struk (Google Drive) ----------
+  // ---------- Folder induk "Dompet Keluarga" di Google Drive ----------
+  // Semua file aplikasi milik akun ini dikumpulkan di satu folder:
+  //   Dompet Keluarga/
+  //     Dompet Keluarga (spreadsheet buku), Dompet Keluarga - Usaha, ...
+  //     Foto Struk/ (lampiran transaksi)
+  // Spreadsheet milik orang lain (anggota yang diundang) tidak bisa dipindah; tetap di "Shared with me".
 
+  const MIME_FOLDER = 'application/vnd.google-apps.folder';
+  let janjiInduk = null;   // dibagi bersama supaya panggilan bersamaan tidak membuat folder dobel
+  let sudahRapi = {};      // ID spreadsheet yang sudah dicek sesi ini
   let idFolderStruk = null;
 
-  /** Folder "Dompet Keluarga - Struk" milik akun ini; dibuat sekali, ID-nya disimpan di config appData. */
-  async function folderStruk_() {
-    if (idFolderStruk) return idFolderStruk;
+  /** Folder yang ID-nya tersimpan di config (kunci), atau dibuat baru kalau belum ada / sudah dibuang. */
+  async function folderConfig_(kunci, nama, induk) {
     const c = (await bacaConfig_()) || {};
-    if (c.folderStruk) {
+    if (c[kunci]) {
       try {
-        const f = await GOOGLE.api(DRIVE + '/files/' + c.folderStruk + '?fields=id,trashed');
-        if (!f.trashed) return (idFolderStruk = f.id);
+        const f = await GOOGLE.api(DRIVE + '/files/' + c[kunci] + '?fields=id,trashed');
+        if (!f.trashed) return f.id;
       } catch (e) { /* terhapus → buat baru */ }
     }
     const f = await GOOGLE.api(DRIVE + '/files?fields=id', {
-      method: 'POST', json: { name: 'Dompet Keluarga - Struk', mimeType: 'application/vnd.google-apps.folder' },
+      method: 'POST', json: Object.assign({ name: nama, mimeType: MIME_FOLDER }, induk ? { parents: [induk] } : {}),
     });
-    await tulisConfig_(Object.assign(c, { folderStruk: f.id }));
-    return (idFolderStruk = f.id);
+    const baru = await bacaConfig_(); // dibaca lagi: config mungkin berubah selama menunggu
+    baru[kunci] = f.id;
+    await tulisConfig_(baru);
+    return f.id;
+  }
+
+  function folderInduk_() {
+    if (!janjiInduk) janjiInduk = folderConfig_('folderInduk', 'Dompet Keluarga').catch(e => { janjiInduk = null; throw e; });
+    return janjiInduk;
+  }
+
+  /** Memindahkan file milik akun ini ke folder induk (nama: ganti nama sekalian). Gagal diabaikan. */
+  async function masukkanKeInduk_(idFile, nama) {
+    try {
+      const induk = await folderInduk_();
+      const f = await GOOGLE.api(DRIVE + '/files/' + encodeURIComponent(idFile) + '?fields=parents,ownedByMe,name');
+      if (!f.ownedByMe) return;
+      const sudah = (f.parents || []).includes(induk);
+      if (sudah && (!nama || f.name === nama)) return;
+      const q = sudah ? '' : '&addParents=' + induk + ((f.parents || []).length ? '&removeParents=' + f.parents.join(',') : '');
+      await GOOGLE.api(DRIVE + '/files/' + encodeURIComponent(idFile) + '?fields=id' + q, { method: 'PATCH', json: nama ? { name: nama } : {} });
+    } catch (e) {
+      console.warn('File tidak bisa dipindah ke folder Dompet Keluarga:', e);
+    }
+  }
+
+  /** Sekali per sesi, di latar: spreadsheet aktif & folder foto struk lama dipindah ke folder induk. */
+  async function rapikanFolder_(idDb) {
+    try {
+      await masukkanKeInduk_(idDb);
+      const c = await bacaConfig_();
+      if (c.folderStruk) await masukkanKeInduk_(c.folderStruk, 'Foto Struk');
+    } catch (e) { /* tidak penting */ }
+  }
+
+  // ---------- Lampiran foto struk (Google Drive) ----------
+
+  /** Folder "Foto Struk" di dalam folder induk; dibuat sekali, ID-nya disimpan di config appData. */
+  async function folderStruk_() {
+    if (idFolderStruk) return idFolderStruk;
+    const c = await bacaConfig_();
+    const lama = c.folderStruk;
+    const id = await folderConfig_('folderStruk', 'Foto Struk', await folderInduk_());
+    if (id === lama) await masukkanKeInduk_(id, 'Foto Struk'); // folder versi lama ("Dompet Keluarga - Struk")
+    return (idFolderStruk = id);
   }
 
   /** Mengunggah foto (base64 JPEG) ke folder struk. Hasil: ID file Drive. Dibagikan terpisah lewat bagikanStruk_. */
