@@ -102,9 +102,11 @@ function labelTanggal(s) {
   if (keTanggal(s).toDateString() === kemarin.toDateString()) return 'Kemarin';
   return keTanggal(s).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
 }
+/** Nama panggilan dari email: "galang.setiawan.syn@gmail.com" → "Galang" (kata pertama sebelum . _ - atau angka). */
 function namaPendek(email) {
-  const n = String(email || '').split('@')[0];
-  return n.charAt(0).toUpperCase() + n.slice(1);
+  const lokal = String(email || '').split('@')[0];
+  const n = lokal.split(/[._\-+\d]+/).find(Boolean) || lokal;
+  return n.charAt(0).toUpperCase() + n.slice(1).toLowerCase();
 }
 function total(trx, tipe) {
   return trx.filter(t => t.tipe === tipe).reduce((a, t) => a + t.jumlah, 0);
@@ -434,7 +436,7 @@ function pemilihBulan(ringkas) {
   const label = ringkas
     ? keTanggal(S.bulan).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' })
     : namaBulan(S.bulan);
-  return `<div class="pemilih-bulan ${ringkas ? 'ringkas' : ''}">
+  return `<div class="pemilih-bulan ${ringkas ? 'mini' : ''}">
     <button data-aksi="bulan" data-geser="-1" aria-label="Periode sebelumnya">‹</button>
     <span title="${esc(namaBulan(S.bulan))}">${esc(label)}</span>
     <button data-aksi="bulan" data-geser="1" aria-label="Periode berikutnya">›</button>

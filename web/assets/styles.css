@@ -94,7 +94,8 @@ h1, h2, h3 { margin: 0; letter-spacing: -.01em; }
 .besar, .nominal, .nilai, .tile b, .ringkas b, .input-jumlah input { font-variant-numeric: tabular-nums; }
 svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
-#view { padding: 14px 16px calc(var(--nav-h) + 40px + env(safe-area-inset-bottom)); }
+/* Ruang bawah: navigasi + tombol ＋ yang melayang di atasnya, supaya isi terakhir tidak tertutup. */
+#view { padding: 14px 16px calc(var(--nav-h) + 96px + env(safe-area-inset-bottom)); }
 
 /* ---------- Header ---------- */
 .kepala { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 4px 0 18px; }
@@ -103,7 +104,8 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .kepala-kanan { display: flex; align-items: center; gap: 8px; flex: none; }
 .kepala-kembali { justify-content: flex-start; }
 .sapa { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
-.sapa h1 { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sapa > div { min-width: 0; }
+.sapa h1 { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .avatar {
   width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center;
   background: linear-gradient(135deg, var(--primary), #a855f7); color: #fff; font-weight: 800; font-size: 16px;
@@ -289,18 +291,23 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 10;
   bottom: calc(12px + env(safe-area-inset-bottom));
   width: calc(100% - 24px); max-width: 496px; height: var(--nav-h);
-  /* Beranda · Riwayat · [＋] · Dompet · Laporan · Lainnya */
-  display: grid; grid-template-columns: repeat(2, 1fr) 62px repeat(3, 1fr); align-items: center; padding: 0 4px;
+  /* 5 tab sama lebar; tombol ＋ melayang di kanan atas navigasi (lihat .fab) */
+  display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; padding: 0 4px;
   background: color-mix(in srgb, var(--card) 86%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);
   border: 1px solid var(--line); border-radius: 26px; box-shadow: var(--shadow-up);
 }
-.bottomnav button { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px; min-width: 0; font-weight: 600; color: var(--muted); height: 100%; justify-content: center; }
-.bottomnav button.aktif { color: var(--primary); }
+.bottomnav button { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; min-width: 0; font-weight: 600; color: var(--muted); height: 100%; justify-content: center; }
+/* Tab aktif: pil lembut di belakang ikon (lebih jelas dari sekadar ganti warna) */
+.bottomnav button:not(.fab) svg.ik { box-sizing: content-box; padding: 4px 16px; border-radius: 99px; transition: background .2s; }
+.bottomnav button.aktif { color: var(--primary); font-weight: 700; }
+.bottomnav button.aktif svg.ik { background: var(--primary-soft); }
+/* Tombol catat: melayang di atas navigasi, kanan bawah (mudah dijangkau jempol kanan) */
 .bottomnav .fab {
-  width: 54px; height: 54px; margin: 0 auto; border-radius: 19px; justify-self: center;
+  position: absolute; right: 2px; bottom: calc(100% + 14px);
+  width: 58px; height: 58px; border-radius: 20px;
   background: var(--primary); color: var(--on-primary);
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--primary) 45%, transparent);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 45%, transparent);
 }
 .bottomnav .fab svg.ik { width: 26px; height: 26px; stroke-width: 2.4; }
 .bottomnav .fab:active { transform: scale(.95); }
@@ -434,7 +441,7 @@ body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b
 /* ---------- Antrian struk (dibaca di latar belakang) ---------- */
 .antrian {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 15;
-  bottom: calc(var(--nav-h) + 22px + env(safe-area-inset-bottom));
+  bottom: calc(var(--nav-h) + 22px + 72px + env(safe-area-inset-bottom)); /* di atas tombol ＋ */
   width: calc(100% - 24px); max-width: 496px; display: flex; flex-direction: column; gap: 8px;
 }
 .antrian-item {
@@ -450,7 +457,7 @@ body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b
 .antrian-tutup { width: 40px; height: 40px; margin: -6px -4px -6px -6px; border-radius: 50%; color: var(--muted); flex: none; }
 .btn.kecil { flex: none; padding: 9px 14px; font-size: 13px; border-radius: 12px; box-shadow: none; }
 .spinner.kecil { width: 22px; height: 22px; border-width: 2.5px; flex: none; margin: 0 6px; }
-body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-area-inset-bottom)); }
+body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 190px + env(safe-area-inset-bottom)); }
 .struk-proses { display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin: 0 0 16px; border-radius: 16px; background: var(--primary-soft); }
 /* Beberapa buku keuangan */
 .chip-buku { display: inline-block; margin-top: 4px; padding: 3px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 12px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -500,10 +507,10 @@ select.field, select.field:focus { appearance: none; -webkit-appearance: none; c
 .grid-tanggal button.aktif { background: var(--primary); color: var(--on-primary); }
 .pemilih-bulan span { white-space: nowrap; }
 /* Beranda: pemilih periode ringkas di pojok kanan atas; tombol mata di sebelah total saldo */
-.pemilih-bulan.ringkas { padding: 2px; }
-.pemilih-bulan.ringkas span { min-width: 0; padding: 0 2px; font-size: 12.5px; }
-.pemilih-bulan.ringkas button { width: 32px; height: 32px; position: relative; }
-.pemilih-bulan.ringkas button::after { content: ''; position: absolute; inset: -6px -2px; } /* area sentuh ±44px */
+.pemilih-bulan.mini { padding: 2px; }
+.pemilih-bulan.mini span { min-width: 0; padding: 0 2px; font-size: 12.5px; }
+.pemilih-bulan.mini button { width: 32px; height: 32px; position: relative; }
+.pemilih-bulan.mini button::after { content: ''; position: absolute; inset: -6px -2px; } /* area sentuh ±44px */
 .baris-saldo { display: flex; align-items: center; gap: 10px; margin: 2px 0 16px; }
 .baris-saldo .besar { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tombol-mata { position: relative; z-index: 1; flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .16); }
