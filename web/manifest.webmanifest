@@ -11,6 +11,23 @@
   "orientation": "portrait",
   "background_color": "#f4f5f8",
   "theme_color": "#f4f5f8",
+  "shortcuts": [
+    { "name": "Catat pengeluaran", "short_name": "Pengeluaran", "url": "./?aksi=keluar", "icons": [{ "src": "ikon/ikon-192.png", "sizes": "192x192" }] },
+    { "name": "Foto struk", "short_name": "Foto struk", "url": "./?aksi=struk", "icons": [{ "src": "ikon/ikon-192.png", "sizes": "192x192" }] },
+    { "name": "Catat pemasukan", "short_name": "Pemasukan", "url": "./?aksi=masuk", "icons": [{ "src": "ikon/ikon-192.png", "sizes": "192x192" }] },
+    { "name": "Transfer antar dompet", "short_name": "Transfer", "url": "./?aksi=transfer", "icons": [{ "src": "ikon/ikon-192.png", "sizes": "192x192" }] }
+  ],
+  "share_target": {
+    "action": "./?bagikan=1",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [{ "name": "gambar", "accept": ["image/*"] }]
+    }
+  },
   "icons": [
     { "src": "ikon/ikon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "ikon/ikon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

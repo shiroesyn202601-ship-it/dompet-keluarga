@@ -200,7 +200,7 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .cari:focus { border-color: var(--primary); }
 .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; scrollbar-width: none; }
 .chips::-webkit-scrollbar { display: none; }
-.chip { padding: 8px 15px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.chip { padding: 8px 15px; min-height: 40px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .chip small { font-weight: 500; color: inherit; opacity: .75; }
 .chip.aktif { background: var(--text); color: var(--bg); border-color: var(--text); }
 
@@ -279,15 +279,28 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .sheet-bg { position: absolute; inset: 0; background: rgba(8, 10, 18, .5); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); animation: pudar .2s; }
 .sheet-panel {
   position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
-  width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto;
+  width: 100%; max-width: 520px; max-height: 92vh; max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain;
   background: var(--card); border-radius: 28px 28px 0 0;
   padding: 6px 18px calc(22px + env(safe-area-inset-bottom));
   animation: naik .28s cubic-bezier(.2, .8, .2, 1);
 }
+/* Digeser ke bawah untuk menutup (lihat "Geser lembar ke bawah" di app.js). */
+.sheet-panel.ditarik { transition: none; }
+.sheet-panel.lepas { transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
 .grabber { width: 40px; height: 5px; border-radius: 99px; background: var(--line); margin: 4px auto 2px; }
+.grabber, .sheet-head { touch-action: none; }
+/* Tombol utama form selalu terlihat di bawah lembar, tidak perlu menggulir (juga saat keyboard terbuka). */
+.sheet-panel .aksi-form:last-child {
+  position: sticky; bottom: calc(-22px - env(safe-area-inset-bottom)); z-index: 2;
+  margin: 8px -18px calc(-22px - env(safe-area-inset-bottom));
+  padding: 12px 18px calc(14px + env(safe-area-inset-bottom));
+  background: var(--card); border-top: 1px solid var(--line);
+}
 .sheet-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 0 14px; position: sticky; top: -6px; background: var(--card); z-index: 1; }
 .sheet-head h2 { font-size: 19px; font-weight: 800; }
-.sheet-head .tombol-ikon { box-shadow: none; background: var(--card-2); border: 0; width: 34px; height: 34px; font-size: 14px; }
+.sheet-head .tombol-ikon { box-shadow: none; background: var(--card-2); border: 0; width: 38px; height: 38px; font-size: 14px; position: relative; }
+/* Area sentuh tombol tutup diperluas sampai ±46px tanpa membesarkan tampilannya. */
+.sheet-head .tombol-ikon::after { content: ''; position: absolute; inset: -4px; }
 @keyframes naik { from { transform: translate(-50%, 100%); } }
 @keyframes pudar { from { opacity: 0; } }
 
@@ -377,7 +390,7 @@ body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b
 .tanya { z-index: 70; } /* di atas lembar, layar kunci, dan kartu sesi */
 .tanya .sesi-kartu p { color: var(--text); text-align: left; }
 .btn-bahaya { color: #fff; background: var(--keluar); }
-.tombol-teks { padding: 10px; font-size: 14px; font-weight: 700; color: var(--primary); text-decoration: none; }
+.tombol-teks { padding: 10px; min-height: 44px; font-size: 14px; font-weight: 700; color: var(--primary); text-decoration: none; }
 .setup-intro { margin: -6px 0 14px; color: var(--muted); font-size: 14px; }
 /* Baris status di atas halaman: offline / transaksi tertunda */
 .status-bar {
@@ -403,7 +416,7 @@ body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b
 .antrian-item .isi { flex: 1; min-width: 0; }
 .antrian-item b { display: block; font-size: 14px; font-weight: 700; }
 .antrian-item small { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.antrian-tutup { width: 28px; height: 28px; border-radius: 50%; color: var(--muted); flex: none; }
+.antrian-tutup { width: 40px; height: 40px; margin: -6px -4px -6px -6px; border-radius: 50%; color: var(--muted); flex: none; }
 .btn.kecil { flex: none; padding: 9px 14px; font-size: 13px; border-radius: 12px; box-shadow: none; }
 .spinner.kecil { width: 22px; height: 22px; border-width: 2.5px; flex: none; margin: 0 6px; }
 body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-area-inset-bottom)); }
@@ -496,3 +509,15 @@ select.field, select.field:focus { appearance: none; -webkit-appearance: none; c
 .tarik.siap .spinner { opacity: 1; }
 .tarik.memuat { transition: transform .2s; }
 .tarik.memuat .spinner { animation: putar .8s linear infinite; }
+
+/* Setelan HP "kurangi gerakan / hapus animasi": animasi & transisi dimatikan. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+/* Mencatat dengan suara (tombol mikrofon di kotak ketik cepat) */
+.ketik-cepat { position: relative; }
+.ketik-cepat.ada-suara .field { padding-right: 54px; }
+.tombol-suara { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; color: var(--muted); }
+.tombol-suara.dengar { background: var(--keluar); color: #fff; animation: denyut 1s ease-in-out infinite; }
+@keyframes denyut { 50% { opacity: .65; } }

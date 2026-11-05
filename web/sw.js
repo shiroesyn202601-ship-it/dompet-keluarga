@@ -13,19 +13,42 @@ self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(INTI.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
+const CACHE_BAGIKAN = 'dk-bagikan'; // gambar/teks dari "Bagikan → Dompet", dibaca app.js (terimaBagikan)
+
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(k => Promise.all(k.filter(n => n !== CACHE).map(n => caches.delete(n))))
+    .then(k => Promise.all(k.filter(n => n !== CACHE && n !== CACHE_BAGIKAN).map(n => caches.delete(n))))
     .then(() => self.clients.claim()));
 });
 
 self.addEventListener('fetch', e => {
   const req = e.request;
   const url = new URL(req.url);
+  // Share target (manifest "share_target"): simpan kiriman, lalu buka aplikasi di ./?dibagikan=1.
+  if (req.method === 'POST' && url.origin === location.origin && url.searchParams.has('bagikan')) {
+    e.respondWith(terimaBagikan(req));
+    return;
+  }
   // Google API, font, dan versi.txt tidak disentuh.
   if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.endsWith('/versi.txt')) return;
   e.respondWith(jaringanDulu(req, url));
 });
+
+async function terimaBagikan(req) {
+  try {
+    const data = await req.formData();
+    await caches.delete(CACHE_BAGIKAN);
+    const cache = await caches.open(CACHE_BAGIKAN);
+    const gambar = data.getAll('gambar').filter(f => f && f.size && /^image\//.test(f.type));
+    await Promise.all(gambar.slice(0, 5).map((f, i) =>
+      cache.put(new Request('bagikan/' + i), new Response(f, { headers: { 'Content-Type': f.type } }))));
+    const teks = [data.get('title'), data.get('text'), data.get('url')].filter(Boolean).join(' ').trim();
+    if (teks) await cache.put(new Request('bagikan/teks'), new Response(teks));
+  } catch (err) {
+    // Kiriman tidak terbaca: aplikasi tetap dibuka seperti biasa.
+  }
+  return Response.redirect('./?dibagikan=1', 303);
+}
 
 async function jaringanDulu(req, url) {
   const cache = await caches.open(CACHE);

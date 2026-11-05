@@ -403,6 +403,7 @@ function render() {
   $('#view').innerHTML = bannerStatus() + view();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
   simpanPosisi();
+  if (luncurTertunda) setTimeout(jalankanLuncur); // pintasan ikon / berbagi: tunggu data pertama tampil
 }
 
 // Halaman & bulan yang sedang dilihat diingat, supaya refresh / update otomatis / membuka lagi dari ikon
@@ -1856,14 +1857,14 @@ function renderFormTrx() {
     ${!F.id && !rutin && !F.dariRutin && F.tipe === TIPE.KELUAR
       ? '<button type="button" class="tombol-teks" style="display:block;margin:-4px 0 8px;padding-left:0" data-aksi="buka-patungan">👥 Dibayar bareng teman? Bagi tagihan (patungan)</button>' : ''}
 
+    ${F.oleh ? `<p class="info-kecil">Dicatat oleh ${esc(namaPendek(F.oleh))}</p>` : ''}
     <div class="aksi-form">
       ${rutin
         ? `${F.idRutin ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-rutin">Hapus</button>' : ''}
            <button type="button" class="btn btn-utama" data-aksi="simpan-rutin">Simpan</button>`
         : `${F.id ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-trx">Hapus</button>' : ''}
            <button type="button" class="btn btn-utama" data-aksi="simpan-trx">Simpan</button>`}
-    </div>
-    ${F.oleh ? `<p class="info-kecil">Dicatat oleh ${esc(namaPendek(F.oleh))}</p>` : ''}`;
+    </div>`;
 }
 
 /**
@@ -3374,7 +3375,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara',
 ]);
 
 /**
@@ -3580,6 +3581,156 @@ else document.addEventListener('pointerdown', function sentuhanPertama() {
   document.removeEventListener('pointerdown', sentuhanPertama);
   pasangPenjaga();
 });
+
+// ---------- Geser lembar ke bawah untuk menutup ----------
+// Hanya dari garis pegangan & judul lembar, supaya tidak bentrok dengan menggulir isi form.
+
+const geser = { awal: null, jarak: 0, waktu: 0 };
+const panelSheet = () => $('#sheet .sheet-panel');
+
+document.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1 || !e.target.closest('#sheet .grabber, #sheet .sheet-head') || e.target.closest('button')) return;
+  geser.awal = e.touches[0].clientY;
+  geser.jarak = 0;
+  geser.waktu = Date.now();
+  panelSheet().classList.add('ditarik');
+  panelSheet().classList.remove('lepas');
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (geser.awal == null) return;
+  geser.jarak = Math.max(0, e.touches[0].clientY - geser.awal);
+  panelSheet().style.transform = `translate(-50%, ${geser.jarak}px)`;
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  if (geser.awal == null) return;
+  const p = panelSheet();
+  // Ditutup kalau digeser cukup jauh, atau dikibas cepat ke bawah.
+  const kibas = geser.jarak > 40 && geser.jarak / Math.max(1, Date.now() - geser.waktu) > 0.6;
+  const tutup = geser.jarak > Math.min(160, p.offsetHeight * 0.3) || kibas;
+  geser.awal = null;
+  p.classList.remove('ditarik');
+  p.classList.add('lepas');
+  p.style.transform = tutup ? 'translate(-50%, 100%)' : '';
+  if (tutup) {
+    setTimeout(() => {
+      tutupSheet();
+      p.classList.remove('lepas');
+      p.style.transform = '';
+    }, 200);
+  }
+});
+
+// ---------- Getar singkat saat ada kesalahan (Android) ----------
+const toastAsli = toast;
+toast = function (pesan, error, tombol) { // eslint-disable-line no-func-assign
+  if (error) { try { if (navigator.vibrate) navigator.vibrate([25, 40, 25]); } catch (e) { /* abaikan */ } }
+  return toastAsli(pesan, error, tombol);
+};
+
+// ---------- Mencatat dengan suara ----------
+// Tombol 🎤 di kotak "ketik cepat": ucapkan "bakso dua puluh lima ribu pakai gopay", teksnya diisi lalu
+// dibaca sama seperti ketikan biasa. Hanya muncul kalau browser mendukung (Chrome Android, Safari iOS).
+
+const PengenalSuara = window.SpeechRecognition || window.webkitSpeechRecognition;
+let suaraAktif = null;
+
+function pasangTombolSuara() {
+  const kotak = document.querySelector('.ketik-cepat');
+  if (!PengenalSuara || !kotak || kotak.querySelector('.tombol-suara')) return;
+  kotak.classList.add('ada-suara');
+  kotak.insertAdjacentHTML('beforeend', '<button type="button" class="tombol-suara" data-aksi="suara" aria-label="Catat dengan suara">🎤</button>');
+}
+// Form dirender ulang berkali-kali; tombol dipasang setiap kotak ketik cepat muncul.
+new MutationObserver(pasangTombolSuara).observe(document.getElementById('sheet-isi'), { childList: true, subtree: true });
+
+AKSI.suara = el => {
+  if (suaraAktif) { suaraAktif.stop(); return; }
+  const r = new PengenalSuara();
+  r.lang = 'id-ID';
+  r.interimResults = true;
+  r.maxAlternatives = 1;
+  suaraAktif = r;
+  el.classList.add('dengar');
+  el.setAttribute('aria-label', 'Berhenti mendengarkan');
+  const input = $('#f-cepat');
+  r.onresult = ev => {
+    const teks = Array.from(ev.results).map(x => x[0].transcript).join(' ').trim();
+    if (input) input.value = teks;
+    if (ev.results[ev.results.length - 1].isFinal && input && teks) {
+      input.dispatchEvent(new Event('change', { bubbles: true })); // dibaca seperti ketik cepat
+    }
+  };
+  r.onerror = ev => {
+    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') toast('Izinkan akses mikrofon untuk mencatat dengan suara.', true);
+    else if (ev.error === 'no-speech') toast('Suara tidak terdengar. Coba lagi lebih dekat ke HP.', true);
+    else if (ev.error === 'network') toast('Pengenalan suara butuh sinyal internet.', true);
+  };
+  r.onend = () => {
+    suaraAktif = null;
+    const tombol = document.querySelector('.tombol-suara');
+    if (tombol) { tombol.classList.remove('dengar'); tombol.setAttribute('aria-label', 'Catat dengan suara'); }
+  };
+  try { r.start(); } catch (e) { suaraAktif = null; el.classList.remove('dengar'); }
+};
+
+// ---------- Pintasan ikon aplikasi & berbagi dari aplikasi lain ----------
+// manifest.webmanifest: "shortcuts" (tekan lama ikon) membuka ./?aksi=…, dan "share_target" (Bagikan → Dompet)
+// diterima sw.js lalu dialihkan ke ./?dibagikan=1. Dijalankan setelah data pertama kali dimuat.
+
+let luncurTertunda = location.search;
+
+/** Menjalankan aksi dari URL peluncuran (sekali), lalu membersihkan URL-nya. */
+async function jalankanLuncur() {
+  if (!luncurTertunda || !S.data || S.data.perluSetup) return;
+  const p = new URLSearchParams(luncurTertunda);
+  luncurTertunda = '';
+  if (p.has('aksi') || p.has('dibagikan')) history.replaceState(history.state, '', location.pathname);
+  const aksi = p.get('aksi');
+  if (aksi === 'keluar') bukaFormTrx(null, { tipe: TIPE.KELUAR });
+  else if (aksi === 'masuk') bukaFormTrx(null, { tipe: TIPE.MASUK }, 'Catat Pemasukan');
+  else if (aksi === 'transfer') bukaFormTrx(null, { tipe: TIPE.TRANSFER }, 'Transfer');
+  else if (aksi === 'struk') {
+    bukaFormTrx(null, { tipe: TIPE.KELUAR });
+    toast('Ketuk 📷 Kamera atau 🖼️ Galeri untuk memotret struk');
+  }
+  if (p.has('dibagikan')) await terimaBagikan();
+}
+
+/** Gambar / teks yang dibagikan dari aplikasi lain (disimpan sw.js di cache "dk-bagikan"). */
+async function terimaBagikan() {
+  let cache;
+  try { cache = await caches.open('dk-bagikan'); } catch (e) { return; }
+  const kunci = await cache.keys();
+  const gambar = [];
+  let teks = '';
+  for (const k of kunci) {
+    const r = await cache.match(k);
+    if (/\/teks$/.test(k.url)) teks = await r.text();
+    else gambar.push(new File([await r.blob()], 'dibagikan.jpg', { type: r.headers.get('content-type') || 'image/jpeg' }));
+  }
+  await caches.delete('dk-bagikan');
+  if (gambar.length) {
+    gambar.slice(0, 5).forEach(f => mulaiStruk(f, false));
+    toast(gambar.length > 1 ? `🧾 ${Math.min(5, gambar.length)} gambar sedang dibaca` : '🧾 Gambar sedang dibaca. Silakan lanjut pakai aplikasi.');
+  } else if (teks.trim()) {
+    // Teks bukti transfer dari aplikasi bank, mis. "Transfer Rp50.000 ke Budi berhasil".
+    bukaFormTrx(null, { tipe: TIPE.KELUAR });
+    isiFormCepat(bacaKetikCepat(teks.trim().slice(0, 300)));
+  }
+}
+
+// Aplikasi sudah terbuka (launch_handler focus-existing): URL pintasan diterima lewat launchQueue.
+if ('launchQueue' in window) {
+  window.launchQueue.setConsumer(params => {
+    if (!params || !params.targetURL) return;
+    const u = new URL(params.targetURL);
+    if (!u.search) return;
+    luncurTertunda = u.search;
+    jalankanLuncur();
+  });
+}
 
 // ---------- Tarik ke bawah untuk memperbarui ----------
 // Pengganti pull-to-refresh bawaan browser (dimatikan lewat overscroll-behavior di CSS): hanya data yang
