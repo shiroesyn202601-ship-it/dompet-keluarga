@@ -37,6 +37,12 @@ const SERVER = (() => {
       nama: 'Rutin',
       kolom: ['ID', 'Nama', 'Tipe', 'Jumlah', 'Kategori', 'Dompet', 'Dompet Tujuan', 'Catatan', 'Ulang', 'Mulai', 'Berikutnya'],
     },
+    // Catatan & pengingat (kalender). Pengingat = 'Ya' → muncul sebagai overlay saat aplikasi dibuka di tanggalnya.
+    // Ulang: '' | Mingguan | Bulanan | Tahunan. Warna: kunci warna di kalender (lihat WARNA_CATATAN di app.js).
+    catatan: {
+      nama: 'Catatan',
+      kolom: ['ID', 'Tanggal', 'Judul', 'Isi', 'Pengingat', 'Ulang', 'Warna', 'Dibuat Oleh', 'Dibuat Pada'],
+    },
   };
   const ULANG = ['Bulanan', 'Mingguan', 'Tahunan'];
 
@@ -185,15 +191,22 @@ const SERVER = (() => {
    * kolom Anggaran (Kategori), serta kolom Jenis/Target/Tenggat (Dompet).
    */
   async function pastikanStruktur_(id) {
-    for (const t of [TABEL.pengaturan, TABEL.rutin]) {
+    for (const t of [TABEL.pengaturan, TABEL.rutin, TABEL.catatan]) {
       if (t.nama in idSheet) continue;
-      const r = await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', {
-        method: 'POST',
-        json: { requests: [{ addSheet: { properties: { title: t.nama, gridProperties: { frozenRowCount: 1 } } } }] },
-      });
-      idSheet[t.nama] = r.replies[0].addSheet.properties.sheetId;
-      await tulis_(id, "'" + t.nama + "'!A1", [t.kolom]);
-      if (t === TABEL.rutin) await formatRutin_(id, idSheet[t.nama]);
+      try {
+        const r = await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', {
+          method: 'POST',
+          json: { requests: [{ addSheet: { properties: { title: t.nama, gridProperties: { frozenRowCount: 1 } } } }] },
+        });
+        idSheet[t.nama] = r.replies[0].addSheet.properties.sheetId;
+        await tulis_(id, "'" + t.nama + "'!A1", [t.kolom]);
+        if (t === TABEL.rutin) await formatRutin_(id, idSheet[t.nama]);
+        if (t === TABEL.catatan) await formatCatatan_(id, idSheet[t.nama]);
+      } catch (e) {
+        // Sheet tambahan yang lebih baru (Catatan) tidak wajib: anggota "hanya lihat" tetap bisa membuka buku.
+        if (t !== TABEL.catatan) throw e;
+        console.warn('Sheet Catatan tidak bisa dibuat:', e);
+      }
     }
 
     await lindungiSheet_(id);
@@ -233,6 +246,25 @@ const SERVER = (() => {
     } catch (e) {
       console.warn('Proteksi sheet dilewati:', e); // tidak wajib; jangan menghalangi pemakaian
     }
+  }
+
+  function formatCatatan_(id, sheetId) {
+    return GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', {
+      method: 'POST',
+      json: {
+        requests: [
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+              cell: { userEnteredFormat: { textFormat: { bold: true } } },
+              fields: 'userEnteredFormat.textFormat.bold',
+            },
+          },
+          formatKolom_(sheetId, 1, 2, 'DATE', 'yyyy-mm-dd'),
+          formatKolom_(sheetId, 8, 9, 'DATE_TIME', 'yyyy-mm-dd hh:mm'),
+        ],
+      },
+    });
   }
 
   function formatRutin_(id, sheetId) {
@@ -458,7 +490,8 @@ const SERVER = (() => {
   async function getData(bulan) {
     if (!(await cariIdDb_())) return { perluSetup: true, user: GOOGLE.email() };
     const id = await db_();
-    const [trx, kat, dom, set, rut] = await bacaTabel_(id, ['transaksi', 'kategori', 'dompet', 'pengaturan', 'rutin']);
+    const adaCatatan = TABEL.catatan.nama in idSheet;
+    const [trx, kat, dom, set, rut, cat] = await bacaTabel_(id, ['transaksi', 'kategori', 'dompet', 'pengaturan', 'rutin'].concat(adaCatatan ? ['catatan'] : []));
     const d = olahData_(trx, kat, dom);
     const mulai = mulaiPeriode_(set);
     if (!/^\d{4}-\d{2}$/.test(bulan || '')) bulan = periodeDari_(tanggalLokal_(), mulai);
@@ -502,6 +535,8 @@ const SERVER = (() => {
       kategori: d.kategori,
       dompet: d.dompet.map(w => Object.assign({}, w, { saldo: saldo[w.nama] || 0 })),
       rutin: olahRutin_(rut),
+      catatan: adaCatatan ? olahCatatan_(cat) : [],
+      bisaCatatan: adaCatatan,
       cepat: kebiasaan_(d.transaksi),
       bulanan,
       transaksi: d.transaksi
@@ -595,6 +630,54 @@ const SERVER = (() => {
     const id = await db_();
     const [set] = await bacaTabel_(id, ['pengaturan']);
     await simpanPengaturan_(id, set, 'MULAI_PERIODE', String(n));
+    return true;
+  }
+
+  // ---------- Catatan & pengingat ----------
+
+  const ULANG_CATATAN = ['', 'Mingguan', 'Bulanan', 'Tahunan'];
+
+  function olahCatatan_(rows) {
+    return rows.filter(r => r[0] !== '').map(r => ({
+      id: String(r[0]),
+      tanggal: dariSerial_(r[1]).slice(0, 10),
+      judul: String(r[2]),
+      isi: String(r[3]),
+      pengingat: String(r[4]) === 'Ya',
+      ulang: ULANG_CATATAN.includes(String(r[5])) ? String(r[5]) : '',
+      warna: String(r[6] || ''),
+      oleh: String(r[7]),
+    })).filter(c => /^\d{4}-\d{2}-\d{2}$/.test(c.tanggal));
+  }
+
+  /** input: { id?, tanggal 'yyyy-mm-dd', judul, isi, pengingat (bool), ulang, warna }. */
+  async function simpanCatatan(input) {
+    const judul = teks_(input.judul).slice(0, 80);
+    if (!judul) throw new Error('Isi judul catatannya dulu.');
+    const tanggal = teks_(input.tanggal);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) throw new Error('Pilih tanggalnya dulu.');
+    const ulang = ULANG_CATATAN.includes(String(input.ulang || '')) ? String(input.ulang || '') : '';
+    const id = await db_();
+    if (!(TABEL.catatan.nama in idSheet)) throw new Error('Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).');
+    const idCatatan = teks_(input.id) || crypto.randomUUID();
+    const baris = [idCatatan, serialTanggal_(tanggal), judul, teks_(input.isi).slice(0, 2000), input.pengingat ? 'Ya' : '', ulang,
+      teks_(input.warna).slice(0, 12), GOOGLE.email(), serialSekarang_()];
+    const [rows] = await bacaTabel_(id, ['catatan']);
+    const i = input.id ? rows.findIndex(r => String(r[0]) === idCatatan) : -1;
+    if (i >= 0) {
+      baris[7] = rows[i][7] || baris[7]; // pencatat & waktu dibuat tidak berubah saat diubah
+      baris[8] = rows[i][8] || baris[8];
+      await tulis_(id, rangeBaris_(TABEL.catatan, i), [baris]);
+    } else {
+      await tambahBaris_(id, TABEL.catatan, [baris]);
+    }
+    return idCatatan;
+  }
+
+  async function hapusCatatan(idCatatan) {
+    const id = await db_();
+    const [rows] = await bacaTabel_(id, ['catatan']);
+    await hapusBaris_(id, TABEL.catatan, cariBaris_(rows, r => String(r[0]) === String(idCatatan)));
     return true;
   }
 
@@ -1399,7 +1482,7 @@ const SERVER = (() => {
   return {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
-    simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
+    simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },

@@ -4,7 +4,7 @@
 const CACHE = 'dompet-keluarga-v2';
 const INTI = [
   'index.html', 'manifest.webmanifest',
-  'assets/styles.css', 'assets/config.js', 'assets/google.js', 'assets/struk.js', 'assets/db.js', 'assets/app.js',
+  'assets/styles.css', 'assets/config.js', 'assets/google.js', 'assets/struk.js', 'assets/sholat.js', 'assets/db.js', 'assets/app.js',
   'ikon/ikon-192.png', 'ikon/apple-touch-icon.png', 'ikon/favicon-32.png',
 ];
 const BATAS_TUNGGU_MS = 5000; // sinyal lambat → pakai cache dulu, versi baru tetap disimpan untuk berikutnya

@@ -405,6 +405,7 @@ function render() {
   $('#view').innerHTML = bannerStatus() + view();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
   simpanPosisi();
+  setTimeout(cekPengingat, 500); // overlay pengingat catatan yang jatuh tempo hari ini
   if (S.tab !== 'laporan') kunciAnimasiGrafik = ''; // kembali ke Laporan nanti: animasi diputar lagi
   pasangGeserGrafik();
   if (luncurTertunda) setTimeout(jalankanLuncur); // pintasan ikon / berbagi: tunggu data pertama tampil
@@ -654,6 +655,7 @@ function viewBeranda() {
     ${kartuTagihan()}
 
     <div class="bento">${tileAnggaran(per)}${tileTabungan()}</div>
+    <div class="bento">${tileAgenda()}${tileSholat()}</div>
 
     <h2 class="judul-bagian">Pengeluaran per kategori ${urut.length > 5 ? '<button data-aksi="tab" data-tab="laporan">Semua</button>' : ''}</h2>
     <section class="kartu">
@@ -1754,6 +1756,16 @@ function viewLainnya() {
         <span class="isi"><b>Tagihan & transaksi rutin</b><small>${daftarRutin().length ? `${daftarRutin().length} rutin · berikutnya ${esc(daftarRutin()[0].nama)}, ${esc(tanggalPendek(daftarRutin()[0].berikutnya))}` : 'Listrik, internet, cicilan, SPP, gaji…'}</small></span>
         <span class="panah">›</span>
       </button>
+      <button class="baris" data-aksi="kalender">
+        <span class="ikon-bulat">🗓️</span>
+        <span class="isi"><b>Catatan & pengingat</b><small>${daftarCatatan().length ? daftarCatatan().length + ' catatan · tampil di kalender' : 'Kalender catatan, muncul saat tanggalnya tiba'}</small></span>
+        <span class="panah">›</span>
+      </button>
+      <button class="baris" data-aksi="sholat">
+        <span class="ikon-bulat">🕌</span>
+        <span class="isi"><b>Jadwal sholat & kiblat</b><small>${bacaLokasi() ? esc(bacaLokasi().nama) : 'Atur lokasi untuk jadwal & arah kiblat'}</small></span>
+        <span class="panah">›</span>
+      </button>
       <button class="baris" data-aksi="buku">
         <span class="ikon-bulat">📒</span>
         <span class="isi"><b>Buku keuangan</b><small>${esc(d.namaBuku || 'Keluarga')}${(d.buku || []).length > 1 ? ` · ${d.buku.length} buku` : ' · pisahkan pribadi, keluarga, usaha'}</small></span>
@@ -2260,6 +2272,7 @@ function bukaKunci() {
   clearTimeout(timerJeda);
   $('#kunci').hidden = true;
   $('#kunci').innerHTML = '';
+  setTimeout(cekPengingat, 300); // pengingat hari ini tampil setelah PIN dibuka
 }
 function renderKunci(salah) {
   const k = kunciTersimpan();
@@ -3652,7 +3665,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'cek-undangan',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'cek-undangan', 'kompas', 'lokasi-gps',
 ]);
 
 /**
@@ -3805,6 +3818,493 @@ setInterval(() => { if (document.visibilityState === 'visible') cekPembaruan(); 
 // Pembaruan yang tertunda langsung dipasang begitu form ditutup & antrian struk kosong.
 setInterval(() => { if (pembaruanDitunda && !sedangSibuk()) location.reload(); }, 3000);
 
+// ---------- Catatan & pengingat (kalender) ----------
+// Catatan disimpan di sheet "Catatan" buku ini, jadi seluruh anggota keluarga melihat kalender yang sama.
+// Catatan berpengingat muncul sebagai overlay saat aplikasi dibuka di tanggalnya (atau sampai 7 hari sesudahnya
+// kalau terlewat), sampai ditutup "Oke" di HP itu. "Ingatkan besok" menunda sehari.
+
+const WARNA_CATATAN = [['biru', '#3b82f6'], ['hijau', '#10b981'], ['kuning', '#f59e0b'], ['merah', '#ef4444'], ['ungu', '#8b5cf6']];
+const warnaCatatan = k => (WARNA_CATATAN.find(w => w[0] === k) || WARNA_CATATAN[0])[1];
+const NAMA_HARI_PENDEK = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+const daftarCatatan = () => (S.data && S.data.catatan) || []; // data offline versi lama belum punya catatan
+
+const isoDari = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const geserHari = (iso, n) => { const d = keTanggal(iso); d.setDate(d.getDate() + n); return isoDari(d); };
+const hariDalamBulan = (y, m) => new Date(y, m, 0).getDate(); // m: 1–12
+
+/** Apakah catatan ini terjadi di tanggal iso (memperhitungkan pengulangan)? */
+function terjadiPada(c, iso) {
+  if (iso < c.tanggal) return false;
+  if (!c.ulang) return iso === c.tanggal;
+  const [y, m, d] = iso.split('-').map(Number);
+  const [, m0, d0] = c.tanggal.split('-').map(Number);
+  if (c.ulang === 'Mingguan') return Math.round((keTanggal(iso) - keTanggal(c.tanggal)) / 864e5) % 7 === 0;
+  const hariPatokan = Math.min(d0, hariDalamBulan(y, m)); // tanggal 31 → 30/28 di bulan yang lebih pendek
+  if (c.ulang === 'Bulanan') return d === hariPatokan;
+  if (c.ulang === 'Tahunan') return m === m0 && d === hariPatokan;
+  return false;
+}
+
+const catatanPada = iso => daftarCatatan().filter(c => terjadiPada(c, iso));
+const tagihanPada = iso => daftarRutin().filter(r => r.berikutnya === iso);
+
+/** "Hari ini" / "Besok" / "Kemarin" / "Kamis, 5 Nov". */
+function labelHariPendek(iso) {
+  const n = Math.round((keTanggal(iso) - keTanggal(hariIni())) / 864e5);
+  if (n === 0) return 'Hari ini';
+  if (n === 1) return 'Besok';
+  if (n === -1) return 'Kemarin';
+  return keTanggal(iso).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
+}
+
+/** Kejadian catatan berikutnya mulai hari ini (maks. 60 hari ke depan), untuk kartu Beranda. */
+function agendaBerikut() {
+  const hari = hariIni();
+  for (let i = 0; i <= 60; i++) {
+    const iso = geserHari(hari, i);
+    const ada = catatanPada(iso);
+    if (ada.length) return { iso, catatan: ada };
+  }
+  return null;
+}
+
+function tileAgenda() {
+  const a = agendaBerikut();
+  const hariIniAda = a && a.iso === hariIni();
+  return `<button data-aksi="kalender">
+    <small>Catatan <span>›</span></small>
+    <b>${a ? esc(a.catatan[0].judul) : 'Kalender'}</b>
+    <span class="ket">${a ? (hariIniAda ? '📌 Hari ini' : '📅 ' + esc(labelHariPendek(a.iso))) + (a.catatan.length > 1 ? ` · +${a.catatan.length - 1} lagi` : '')
+      : 'Catatan & pengingat'}</span>
+  </button>`;
+}
+
+/** Kalender bulanan (mulai Senin) di lembar bawah. S.kal = { bulan: 'yyyy-mm', pilih: 'yyyy-mm-dd' }. */
+function bukaKalender(pilih) {
+  const tgl = pilih || (S.kal && S.kal.pilih) || hariIni();
+  S.kal = { bulan: tgl.slice(0, 7), pilih: tgl };
+  bukaSheet('Catatan & Pengingat', '<div id="kalender"></div>');
+  renderKalender();
+}
+
+function renderKalender() {
+  const kotak = $('#kalender');
+  if (!kotak) return;
+  const [y, m] = S.kal.bulan.split('-').map(Number);
+  const awal = new Date(y, m - 1, 1);
+  const geserAwal = (awal.getDay() + 6) % 7; // Senin = 0
+  const mulai = new Date(y, m - 1, 1 - geserAwal);
+  const hari = hariIni();
+  const sel = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(mulai.getFullYear(), mulai.getMonth(), mulai.getDate() + i);
+    const iso = isoDari(d);
+    if (i >= 35 && d.getMonth() !== m - 1) break; // baris ke-6 hanya kalau perlu
+    const ada = catatanPada(iso);
+    const tagihan = tagihanPada(iso);
+    const label = ada.slice(0, 2).map(c => `<i style="--w:${warnaCatatan(c.warna)}">${esc(c.judul)}</i>`).join('')
+      + (tagihan.length && ada.length < 2 ? `<i class="tagihan">💡 ${esc(tagihan[0].nama)}</i>` : '');
+    const sisa = ada.length + tagihan.length - (ada.slice(0, 2).length + (tagihan.length && ada.length < 2 ? 1 : 0));
+    sel.push(`<button type="button" class="kal-sel ${d.getMonth() !== m - 1 ? 'luar' : ''} ${iso === hari ? 'hari-ini' : ''} ${iso === S.kal.pilih ? 'pilih' : ''}"
+      data-aksi="kal-tgl" data-tgl="${iso}" aria-label="${esc(keteranganHari(iso))}${ada.length ? ', ' + ada.length + ' catatan' : ''}">
+      <span class="kal-angka">${d.getDate()}</span>${label}${sisa > 0 ? `<i class="lagi">+${sisa}</i>` : ''}</button>`);
+  }
+
+  const dipilih = catatanPada(S.kal.pilih);
+  const tagihanDipilih = tagihanPada(S.kal.pilih);
+  kotak.innerHTML = `
+    <div class="kal-kepala">
+      <button type="button" class="tombol-ikon" data-aksi="kal-bulan" data-geser="-1" aria-label="Bulan sebelumnya">‹</button>
+      <b>${awal.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</b>
+      <button type="button" class="tombol-ikon" data-aksi="kal-bulan" data-geser="1" aria-label="Bulan berikutnya">›</button>
+      ${S.kal.bulan !== hari.slice(0, 7) || S.kal.pilih !== hari ? '<button type="button" class="chip" data-aksi="kal-tgl" data-tgl="' + hari + '">Hari ini</button>' : ''}
+    </div>
+    <div class="kal-hari">${NAMA_HARI_PENDEK.map(h => `<span>${h}</span>`).join('')}</div>
+    <div class="kal-grid" id="kal-grid">${sel.join('')}</div>
+    <h3 class="kal-judul-hari">${esc(keteranganHari(S.kal.pilih))}</h3>
+    ${dipilih.map(c => `
+      <button type="button" class="kal-item" data-aksi="ubah-catatan" data-id="${esc(c.id)}" style="--w:${warnaCatatan(c.warna)}">
+        <span class="isi"><b>${esc(c.judul)}</b>${c.isi ? `<small>${esc(c.isi)}</small>` : ''}
+          <small class="kal-meta">${c.pengingat ? '🔔 Pengingat' : '📝 Catatan'}${c.ulang ? ' · 🔁 ' + c.ulang.toLowerCase() : ''}${c.oleh ? ' · ' + esc(namaPendek(c.oleh)) : ''}</small></span>
+        <span class="panah">›</span>
+      </button>`).join('')}
+    ${tagihanDipilih.map(r => `
+      <button type="button" class="kal-item tagihan" data-aksi="kelola-rutin">
+        <span class="isi"><b>💡 ${esc(r.nama)}</b><small>Tagihan rutin · ${rp(r.jumlah)}</small></span>
+        <span class="panah">›</span>
+      </button>`).join('')}
+    ${dipilih.length || tagihanDipilih.length ? '' : '<p class="info-kecil" style="text-align:left;margin-top:0">Belum ada catatan di tanggal ini.</p>'}
+    ${S.data.bisaCatatan === false ? '<p class="info-kecil" style="text-align:left">⚠️ Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).</p>' : ''}
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">＋ Catatan di ${esc(labelHariPendek(S.kal.pilih).replace(/^Hari ini$/, 'hari ini'))}</button></div>`;
+  pasangGeserKalender();
+}
+
+/** Geser kiri/kanan di kalender untuk ganti bulan. */
+function pasangGeserKalender() {
+  const grid = $('#kal-grid');
+  if (!grid) return;
+  let x0 = null, y0 = 0;
+  grid.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  grid.addEventListener('touchend', e => {
+    if (x0 == null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) > 60 && Math.abs(dy) < 50) gantiBulanKalender(dx < 0 ? 1 : -1);
+  });
+}
+
+function gantiBulanKalender(n) {
+  const [y, m] = S.kal.bulan.split('-').map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  S.kal.bulan = isoDari(d).slice(0, 7);
+  // Tanggal terpilih ikut pindah ke bulan itu (hari ini kalau bulan ini, selain itu tanggal 1).
+  S.kal.pilih = S.kal.bulan === hariIni().slice(0, 7) ? hariIni() : S.kal.bulan + '-01';
+  renderKalender();
+}
+
+/** Form catatan. c: catatan yang diubah (null = baru); tanggal: tanggal awal untuk catatan baru. */
+function bukaFormCatatan(c, tanggal) {
+  const x = c || { judul: '', isi: '', tanggal: tanggal || hariIni(), pengingat: true, ulang: '', warna: 'biru' };
+  S.formCatatan = { id: c ? c.id : '', pengingat: x.pengingat, ulang: x.ulang, warna: x.warna || 'biru' };
+  bukaSheet(c ? 'Ubah catatan' : 'Catatan baru', `
+    <div class="grup-form">
+      <label class="label" for="c-judul">Judul</label>
+      <input class="field" id="c-judul" maxlength="80" enterkeyhint="next" placeholder="mis. Bayar kos, Arisan, Ulang tahun Ibu" value="${esc(x.judul)}">
+    </div>
+    <div class="grup-form">
+      <label class="label" for="c-isi">Isi catatan <small style="font-weight:600">(opsional)</small></label>
+      <textarea class="field" id="c-isi" rows="3" maxlength="2000" placeholder="Detail yang perlu diingat">${esc(x.isi)}</textarea>
+    </div>
+    <div class="grup-form">
+      <label class="label" for="c-tanggal">Tanggal</label>
+      ${inputTanggal('c-tanggal', x.tanggal)}
+    </div>
+    <button type="button" class="baris" data-aksi="c-pengingat" role="switch" aria-checked="${S.formCatatan.pengingat}" id="c-pengingat">
+      <span class="ikon-bulat">🔔</span>
+      <span class="isi"><b>Jadikan pengingat</b><small>Muncul saat aplikasi dibuka di tanggal ini</small></span>
+      <span class="saklar ${S.formCatatan.pengingat ? 'nyala' : ''}" aria-hidden="true"></span>
+    </button>
+    <div class="grup-form" style="margin-top:14px">
+      <span class="label">Ulangi</span>
+      <div class="segmen" id="c-ulang">${[['', 'Tidak'], ['Mingguan', 'Mingguan'], ['Bulanan', 'Bulanan'], ['Tahunan', 'Tahunan']].map(([v, l]) =>
+        `<button type="button" class="${S.formCatatan.ulang === v ? 'aktif' : ''}" data-aksi="c-ulang" data-v="${v}">${l}</button>`).join('')}</div>
+    </div>
+    <div class="grup-form">
+      <span class="label">Warna</span>
+      <div class="pilih-warna" id="c-warna">${WARNA_CATATAN.map(([k, w]) =>
+        `<button type="button" class="${S.formCatatan.warna === k ? 'aktif' : ''}" style="--w:${w}" data-aksi="c-warna" data-v="${k}" aria-label="Warna ${k}"></button>`).join('')}</div>
+    </div>
+    ${c && c.oleh ? `<p class="info-kecil">Dibuat oleh ${esc(namaPendek(c.oleh))}</p>` : ''}
+    <div class="aksi-form">
+      ${c ? '<button type="button" class="btn btn-hapus" data-aksi="hapus-catatan">Hapus</button>' : '<button type="button" class="btn btn-hapus" data-aksi="kalender">Batal</button>'}
+      <button type="button" class="btn btn-utama" data-aksi="simpan-catatan">Simpan</button>
+    </div>`);
+  if (!c) setTimeout(() => $('#c-judul') && $('#c-judul').focus(), 250);
+}
+
+// ---------- Overlay pengingat ----------
+
+let pengingatTampil = false;
+let pengingatDilewatiHari = ''; // ditutup dengan tombol kembali: tidak dimunculkan lagi hari ini di sesi ini
+const kunciPengingat = () => 'dk_ingat_' + (S.data && S.data.spreadsheetId || '');
+const bacaPengingat = () => { try { return JSON.parse(bacaHp(kunciPengingat())) || {}; } catch (e) { return {}; } };
+
+/** Pengingat yang perlu ditampilkan sekarang: [{ c, tgl }] (kejadian terakhir ≤ hari ini, maks. 7 hari lalu). */
+function pengingatJatuhTempo() {
+  const hari = hariIni();
+  const status = bacaPengingat();
+  const hasil = [];
+  daftarCatatan().filter(c => c.pengingat).forEach(c => {
+    for (let i = 0; i <= 7; i++) {
+      const tgl = geserHari(hari, -i);
+      if (!terjadiPada(c, tgl)) continue;
+      const s = status[c.id + '|' + tgl] || '';
+      const ditunda = s.startsWith('tunda:') && s.slice(6) > hari;
+      if (s !== 'ok' && !ditunda) hasil.push({ c, tgl });
+      break; // hanya kejadian terakhir
+    }
+  });
+  return hasil.sort((a, b) => b.tgl.localeCompare(a.tgl));
+}
+
+function cekPengingat() {
+  if (pengingatTampil || pengingatDilewatiHari === hariIni()) return;
+  if (!S.data || S.data.perluSetup || !$('#kunci').hidden || !$('#sesi').hidden || !$('#tanya').hidden) return;
+  const daftar = pengingatJatuhTempo();
+  if (!daftar.length) return;
+  tampilPengingat(daftar);
+}
+
+function tampilPengingat(daftar) {
+  const { c, tgl } = daftar[0];
+  let el = $('#ingat');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'ingat';
+    el.className = 'sesi ingat';
+    el.setAttribute('role', 'alertdialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-labelledby', 'ingat-judul');
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <div class="sesi-kartu ingat-kartu" style="--w:${warnaCatatan(c.warna)}">
+      <span class="ingat-label">🔔 Pengingat · ${esc(labelHariPendek(tgl))}${daftar.length > 1 ? ` · 1 dari ${daftar.length}` : ''}</span>
+      <b id="ingat-judul">${esc(c.judul)}</b>
+      ${c.isi ? `<p class="ingat-isi">${esc(c.isi)}</p>` : ''}
+      ${c.oleh ? `<small class="ingat-oleh">Dari ${esc(namaPendek(c.oleh))}${c.ulang ? ' · berulang ' + c.ulang.toLowerCase() : ''}</small>` : ''}
+      <button type="button" class="btn btn-utama" data-aksi="ingat-ok" data-id="${esc(c.id)}" data-tgl="${tgl}">Oke, sudah</button>
+      <div class="ingat-aksi">
+        <button type="button" class="tombol-teks" data-aksi="ingat-tunda" data-id="${esc(c.id)}" data-tgl="${tgl}">Ingatkan besok</button>
+        <button type="button" class="tombol-teks" data-aksi="ingat-lihat" data-tgl="${tgl}">Lihat di kalender</button>
+      </div>
+    </div>`;
+  el.hidden = false;
+  pengingatTampil = true;
+  getar();
+}
+
+function tutupPengingat(id, tgl, nilai) {
+  if (id) {
+    const status = bacaPengingat();
+    status[id + '|' + tgl] = nilai;
+    // Bersihkan status lama (> 60 hari) supaya penyimpanan tidak terus membesar.
+    const batas = geserHari(hariIni(), -60);
+    Object.keys(status).forEach(k => { if (k.split('|')[1] < batas) delete status[k]; });
+    tulisHp(kunciPengingat(), JSON.stringify(status));
+  }
+  $('#ingat').hidden = true;
+  pengingatTampil = false;
+}
+
+// ---------- Jadwal sholat & kiblat ----------
+
+const NAMA_WAKTU = [['imsak', 'Imsak'], ['subuh', 'Subuh'], ['terbit', 'Terbit'], ['dzuhur', 'Dzuhur'], ['ashar', 'Ashar'], ['maghrib', 'Maghrib'], ['isya', 'Isya']];
+const WAKTU_SHOLAT = ['subuh', 'dzuhur', 'ashar', 'maghrib', 'isya'];
+const bacaLokasi = () => { try { return JSON.parse(bacaHp('dk_lokasi')); } catch (e) { return null; } };
+const jamMenit = m => String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0') + ':' + String(((m % 60) + 60) % 60).padStart(2, '0');
+const zonaHp = () => -new Date().getTimezoneOffset() / 60;
+
+function jadwalHari(lok, tanggal) {
+  return SHOLAT.hitung(tanggal || new Date(), lok.lat, lok.lng, zonaHp());
+}
+
+/** Sholat berikutnya dari sekarang: { kunci, nama, menit (jam), sisa (menit) }; lewat Isya → Subuh besok. */
+function sholatBerikut(lok) {
+  const kini = new Date();
+  const m = kini.getHours() * 60 + kini.getMinutes();
+  const j = jadwalHari(lok);
+  const k = WAKTU_SHOLAT.find(x => j[x] > m);
+  if (k) return { kunci: k, nama: NAMA_WAKTU.find(n => n[0] === k)[1], menit: j[k], sisa: j[k] - m };
+  const besok = new Date(kini.getFullYear(), kini.getMonth(), kini.getDate() + 1);
+  const jb = jadwalHari(lok, besok);
+  return { kunci: 'subuh', nama: 'Subuh', menit: jb.subuh, sisa: jb.subuh + 1440 - m };
+}
+
+const teksSisa = n => (n >= 60 ? Math.floor(n / 60) + ' j ' : '') + (n % 60) + ' m lagi';
+
+function tileSholat() {
+  const lok = bacaLokasi();
+  if (!lok) {
+    return `<button data-aksi="sholat"><small>Sholat <span>›</span></small><b>Jadwal</b><span class="ket">🕌 Atur lokasi & kiblat</span></button>`;
+  }
+  const s = sholatBerikut(lok);
+  return `<button data-aksi="sholat"><small>${esc(s.nama)} <span>›</span></small><b>${jamMenit(s.menit)}</b>
+    <span class="ket" data-sisa-sholat>🕌 ${teksSisa(s.sisa)}</span></button>`;
+}
+
+/** Kota terdekat dari koordinat (untuk nama lokasi GPS), kalau dalam 60 km. */
+function kotaTerdekat(lat, lng) {
+  let terbaik = null;
+  SHOLAT.KOTA.forEach(([nama, a, b]) => {
+    const km = Math.hypot((a - lat) * 111, (b - lng) * 111 * Math.cos(lat * Math.PI / 180));
+    if (!terbaik || km < terbaik.km) terbaik = { nama, km };
+  });
+  return terbaik && terbaik.km < 60 ? terbaik.nama : '';
+}
+
+function bukaSholat() {
+  const lok = bacaLokasi();
+  if (!lok) {
+    bukaSheet('Jadwal Sholat & Kiblat', `
+      <p style="margin-top:0">Jadwal sholat dan arah kiblat dihitung dari lokasi Anda, langsung di HP (tanpa internet).</p>
+      <div class="aksi-form" style="margin-bottom:14px"><button type="button" class="btn btn-utama" data-aksi="lokasi-gps">📍 Pakai lokasi saya</button></div>
+      ${pilihKota()}`);
+    return;
+  }
+  const j = jadwalHari(lok);
+  const s = sholatBerikut(lok);
+  const kiblat = SHOLAT.arahKiblat(lok.lat, lok.lng);
+  const tanggal = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  bukaSheet('Jadwal Sholat & Kiblat', `
+    <div class="sholat-kepala">
+      <div><small>${esc(tanggal)}</small><b>📍 ${esc(lok.nama)}</b></div>
+      <button type="button" class="chip" data-aksi="ganti-lokasi">Ganti</button>
+    </div>
+    <div class="sholat-berikut">
+      <small>Berikutnya</small>
+      <b>${esc(s.nama)} · ${jamMenit(s.menit)}</b>
+      <span data-sisa-sholat>${teksSisa(s.sisa)}</span>
+    </div>
+    <div class="daftar-sholat">${NAMA_WAKTU.map(([k, n]) => `
+      <div class="baris-sholat ${k === s.kunci ? 'berikut' : ''} ${WAKTU_SHOLAT.includes(k) ? '' : 'pelengkap'}">
+        <span>${n}</span><b>${jamMenit(j[k])}</b></div>`).join('')}</div>
+    <p class="info-kecil" style="text-align:left">Metode Kemenag RI (Subuh 20°, Isya 18°, Ashar Syafi'i, ihtiyat 2 menit).
+      Bisa berbeda 1–3 menit dengan jadwal masjid setempat.</p>
+
+    <h3 class="judul-kiblat">Arah kiblat</h3>
+    <div class="kompas" id="kompas" style="--kiblat:${kiblat.toFixed(1)}deg">
+      <div class="kompas-piringan" id="kompas-piringan">
+        <span class="mata-angin u">U</span><span class="mata-angin t">T</span><span class="mata-angin s">S</span><span class="mata-angin b">B</span>
+        <div class="jarum-kiblat"><span>🕋</span></div>
+      </div>
+      <div class="penanda-atas" aria-hidden="true"></div>
+    </div>
+    <p class="teks-kiblat" id="teks-kiblat"><b>${Math.round(kiblat)}°</b> dari utara · ${SHOLAT.namaArah(kiblat)}</p>
+    <button type="button" class="tombol-tambah" style="margin:4px 0 0" data-aksi="kompas">🧭 Aktifkan kompas</button>
+    <p class="info-kecil" style="text-align:left">Letakkan HP mendatar dan jauhkan dari benda logam/magnet. Putar badan sampai 🕋 tepat di garis atas.</p>`);
+}
+
+function pilihKota() {
+  return `<div class="grup-form">
+      <label class="label" for="pilih-kota">Atau pilih kota terdekat</label>
+      <select class="field" id="pilih-kota" data-pilih-kota>
+        <option value="">Pilih kota…</option>
+        ${SHOLAT.KOTA.map(([n], i) => `<option value="${i}">${esc(n)}</option>`).join('')}
+      </select>
+    </div>`;
+}
+
+function simpanLokasi(lok) {
+  tulisHp('dk_lokasi', JSON.stringify(lok));
+  bukaSholat();
+  if (S.tab === 'beranda' && S.data) render();
+}
+
+// Kompas: arah HP dari sensor. Android (Chrome): deviceorientationabsolute; iPhone: webkitCompassHeading (perlu izin).
+let kompasAktif = false;
+let sudahPas = false;
+function aturArahHp(arah) {
+  const piringan = $('#kompas-piringan');
+  const kompas = $('#kompas');
+  if (!piringan || !kompas) return;
+  piringan.style.transform = `rotate(${-arah}deg)`;
+  const kiblat = parseFloat(getComputedStyle(kompas).getPropertyValue('--kiblat')) || 0;
+  const selisih = ((kiblat - arah + 540) % 360) - 180;
+  const pas = Math.abs(selisih) < 5;
+  kompas.classList.toggle('pas', pas);
+  const teks = $('#teks-kiblat');
+  if (teks) teks.innerHTML = pas ? '<b>✅ Sudah menghadap kiblat</b>'
+    : `<b>${Math.round(kiblat)}°</b> · putar ${selisih > 0 ? 'ke kanan' : 'ke kiri'} ${Math.round(Math.abs(selisih))}°`;
+  if (pas && !sudahPas) getar();
+  sudahPas = pas;
+}
+function saatOrientasi(e) {
+  if (typeof e.webkitCompassHeading === 'number') return aturArahHp(e.webkitCompassHeading);
+  if (e.absolute && typeof e.alpha === 'number') aturArahHp(360 - e.alpha);
+}
+async function nyalakanKompas() {
+  if (kompasAktif) return toast('Kompas sudah aktif. Putar HP perlahan.');
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      if (await DeviceOrientationEvent.requestPermission() !== 'granted') return toast('Izin sensor arah ditolak.', true);
+    }
+  } catch (e) { return toast('Sensor arah tidak bisa diakses.', true); }
+  const jenis = 'ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation';
+  window.addEventListener(jenis, saatOrientasi);
+  kompasAktif = true;
+  setTimeout(() => {
+    const p = $('#kompas-piringan');
+    if (p && !p.style.transform) toast('HP ini tidak punya sensor kompas. Pakai derajat di bawah dengan kompas biasa.', true);
+  }, 2500);
+}
+
+// Hitung mundur sholat di Beranda & lembar jadwal, tiap 30 detik.
+setInterval(() => {
+  const lok = bacaLokasi();
+  const el = document.querySelectorAll('[data-sisa-sholat]');
+  if (!lok || !el.length) return;
+  const s = sholatBerikut(lok);
+  el.forEach(x => { x.textContent = (x.closest('.bento') ? '🕌 ' : '') + teksSisa(s.sisa); });
+}, 30000);
+
+document.addEventListener('change', e => {
+  if (!e.target.matches('[data-pilih-kota]') || e.target.value === '') return;
+  const [nama, lat, lng] = SHOLAT.KOTA[Number(e.target.value)];
+  simpanLokasi({ nama, lat, lng });
+});
+
+Object.assign(AKSI, {
+  'kalender': () => bukaKalender(),
+  'kal-tgl': el => {
+    S.kal.pilih = el.dataset.tgl;
+    S.kal.bulan = el.dataset.tgl.slice(0, 7);
+    renderKalender();
+  },
+  'kal-bulan': el => gantiBulanKalender(Number(el.dataset.geser)),
+  'tambah-catatan': () => bukaFormCatatan(null, S.kal && S.kal.pilih),
+  'ubah-catatan': el => {
+    const c = daftarCatatan().find(x => x.id === el.dataset.id);
+    if (c) bukaFormCatatan(c);
+  },
+  'c-pengingat': el => {
+    S.formCatatan.pengingat = !S.formCatatan.pengingat;
+    el.setAttribute('aria-checked', S.formCatatan.pengingat);
+    el.querySelector('.saklar').classList.toggle('nyala', S.formCatatan.pengingat);
+  },
+  'c-ulang': el => {
+    S.formCatatan.ulang = el.dataset.v;
+    document.querySelectorAll('#c-ulang button').forEach(b => b.classList.toggle('aktif', b === el));
+  },
+  'c-warna': el => {
+    S.formCatatan.warna = el.dataset.v;
+    document.querySelectorAll('#c-warna button').forEach(b => b.classList.toggle('aktif', b === el));
+  },
+  'simpan-catatan': async el => {
+    const input = Object.assign({}, S.formCatatan, {
+      judul: $('#c-judul').value, isi: $('#c-isi').value, tanggal: $('#c-tanggal').value,
+    });
+    if (!input.judul.trim()) return toast('Isi judul catatannya dulu.', true);
+    if (await kirim(el, 'simpanCatatan', [input], input.pengingat ? 'Pengingat tersimpan 🔔' : 'Catatan tersimpan ✔')) bukaKalender(input.tanggal);
+  },
+  'hapus-catatan': async el => {
+    if (!await tanya('Hapus catatan ini untuk semua anggota buku?', 'Hapus')) return;
+    const tgl = $('#c-tanggal').value;
+    if (await kirim(el, 'hapusCatatan', [S.formCatatan.id], 'Catatan dihapus')) bukaKalender(tgl);
+  },
+  'ingat-ok': el => { tutupPengingat(el.dataset.id, el.dataset.tgl, 'ok'); setTimeout(cekPengingat, 300); },
+  'ingat-tunda': el => {
+    tutupPengingat(el.dataset.id, el.dataset.tgl, 'tunda:' + geserHari(hariIni(), 1));
+    toast('Diingatkan lagi besok');
+    setTimeout(cekPengingat, 300);
+  },
+  'ingat-lihat': el => { tutupPengingat('', '', ''); pengingatDilewatiHari = hariIni(); bukaKalender(el.dataset.tgl); },
+  'sholat': () => bukaSholat(),
+  'ganti-lokasi': () => bukaSheet('Lokasi jadwal sholat', `
+    <div class="aksi-form" style="margin:0 0 14px"><button type="button" class="btn btn-utama" data-aksi="lokasi-gps">📍 Pakai lokasi saya sekarang</button></div>
+    ${pilihKota()}`),
+  'lokasi-gps': el => {
+    if (!navigator.geolocation) return toast('HP ini tidak mendukung lokasi. Pilih kota di bawah.', true);
+    el.disabled = true;
+    el.textContent = '📍 Mencari lokasi…';
+    navigator.geolocation.getCurrentPosition(p => {
+      const lat = p.coords.latitude, lng = p.coords.longitude;
+      const kota = kotaTerdekat(lat, lng);
+      simpanLokasi({ nama: kota ? 'Sekitar ' + kota : `Lokasi Anda (${lat.toFixed(2)}, ${lng.toFixed(2)})`, lat, lng });
+    }, err => {
+      el.disabled = false;
+      el.textContent = '📍 Pakai lokasi saya';
+      toast(err.code === 1 ? 'Izin lokasi ditolak. Pilih kota terdekat di bawah.' : 'Lokasi tidak ditemukan. Pilih kota terdekat di bawah.', true);
+    }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 10 * 60 * 1000 });
+  },
+  'kompas': () => nyalakanKompas(),
+});
+
+// Pengingat dicek setelah tampilan pertama, setelah PIN dibuka, dan saat aplikasi dibuka lagi (bisa sudah ganti hari).
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') setTimeout(cekPengingat, 600);
+});
+
 // ---------- Tombol kembali (Android) ----------
 // Satu entri riwayat "penjaga" selalu dipasang di atas halaman, supaya tombol kembali tidak langsung
 // menutup aplikasi. Saat ditekan: tutup dialog/form → kembali ke Beranda → di Beranda harus ditekan
@@ -3823,6 +4323,12 @@ function pasangPenjaga() {
 
 /** Menutup lapisan paling atas yang boleh ditutup dengan tombol kembali; true kalau ada yang ditutup. */
 function tutupLapisanAtas() {
+  if ($('#ingat') && !$('#ingat').hidden) {
+    // Pengingat ditutup dengan tombol kembali: muncul lagi saat aplikasi dibuka besok / sesi berikutnya.
+    tutupPengingat('', '', '');
+    pengingatDilewatiHari = hariIni();
+    return true;
+  }
   if (!$('#tanya').hidden) {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); // = Batal
     return true;
