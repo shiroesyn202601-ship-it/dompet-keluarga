@@ -144,6 +144,7 @@ Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang 
 ## Mengembangkan
 - Ubah file di `web/`, lalu commit dan push ke `main`. Deploy berjalan otomatis dalam 1–2 menit (pantau di tab **Actions**).
 - `web/index.html` memasang **Content-Security-Policy**: skrip hanya dari situs ini dan Google. Menambah layanan/CDN baru → tambahkan domainnya di tag itu. Kalau isi `<script>` tema di `<head>` diubah, hitung ulang hash-nya: `node -e "const s=require('fs').readFileSync('web/index.html','utf8');console.log(require('crypto').createHash('sha256').update(s.split('<script>')[1].split('</script>')[0]).digest('base64'))"`, lalu ganti nilai `sha256-…`.
+- **Bahasa (Indonesia/Inggris):** teks antarmuka ditulis dalam bahasa Indonesia dan dibungkus `T('...')`; teks itu sekaligus kunci kamus Inggris di `web/assets/bahasa-en.js` (cara pakai lengkap di `web/assets/bahasa.js`). Bagian yang berubah-ubah memakai isian: `T('Lanjutkan sebagai {email}', { email })`. Setiap menambah atau mengubah teks, tambahkan terjemahannya lalu jalankan `node .github/cek-bahasa.js`. Data di spreadsheet (nama sheet, kolom, kategori awal, tipe) tetap bahasa Indonesia; nama bawaan diterjemahkan hanya saat ditampilkan lewat `namaT()`. Bot Telegram dan halaman privasi masih berbahasa Indonesia.
 - Untuk mencoba di komputer sendiri, jalankan server statis, misalnya `npx serve web`, lalu tambahkan `http://localhost:3000` ke **Authorized JavaScript origins** di Google Cloud.
 
 ## Struktur data (spreadsheet)

@@ -42,6 +42,7 @@ Selama aplikasi dipakai, sesi Google diperpanjang otomatis (jendela Google kadan
 - **Zakat:** tab **Dompet → 🕌 Hitung zakat** untuk perkiraan zakat maal dan penghasilan.
 - **Beberapa buku:** pisahkan keuangan Keluarga, Pribadi, dan Usaha di **⚙️ → Buku keuangan**. Tiap buku bisa dibagikan ke orang berbeda.
 - **Privasi di HP:** ketuk **👁** di Beranda untuk menyamarkan angka, atau aktifkan **⚙️ → Kunci aplikasi** (PIN atau sidik jari). Tema gelap/terang bisa dipilih di **⚙️ → Tampilan & keamanan**.
+- **Bahasa Inggris:** pilih **English** di **⚙️ → Tampilan & keamanan → Bahasa** (atau di layar masuk). Berlaku per HP, jadi tiap anggota keluarga bebas memilih bahasanya sendiri untuk buku yang sama.
 - **Bot Telegram:** catat cukup dengan chat, mis. *makan bakso 25rb* atau *bensin 30rb pakai gopay*, atau kirim foto struk. Buka **⚙️ → Bot Telegram → Hubungkan akun Telegram saya**, setujui, lalu ketuk **Buka Telegram & hubungkan**. Untuk itu spreadsheet buku Anda dibagikan ke akun bot; aksesnya dicabut otomatis saat semua akun Telegram diputus. (Menu ini muncul kalau pengelola aplikasi sudah memasang bot.)
 
 ## Privasi
