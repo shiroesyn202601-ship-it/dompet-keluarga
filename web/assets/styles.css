@@ -239,6 +239,21 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .grafik .seri-2 { fill: var(--seri-2); }
 .grafik .pilih { fill: var(--primary-soft); }
 .grafik .hit { fill: transparent; cursor: pointer; }
+.grafik .garis { fill: none; stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.grafik .garis.seri-1 { stroke: var(--seri-1); }
+.grafik .garis.seri-2 { stroke: var(--seri-2); }
+.grafik .titik { stroke: var(--card); stroke-width: 1.5; }
+.grafik .surplus, .sw.surplus { fill: var(--masuk); background: var(--masuk); }
+.grafik .defisit, .sw.defisit { fill: var(--keluar); background: var(--keluar); }
+/* Grafik bulanan Laporan: geser ke samping untuk ganti jenis */
+.geser-grafik { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; margin: 0 -2px; }
+.geser-grafik::-webkit-scrollbar { display: none; }
+.slide-grafik { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; padding: 0 2px; }
+.titik-grafik { display: flex; justify-content: center; gap: 4px; margin: 6px 0 2px; }
+.titik-grafik button { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 10px; border-radius: 99px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.titik-grafik button span { width: 7px; height: 7px; border-radius: 50%; background: var(--line); transition: width .2s, background .2s; }
+.titik-grafik button.aktif { color: var(--text); }
+.titik-grafik button.aktif span { width: 18px; border-radius: 99px; background: var(--primary); }
 .detail-bulan { font-size: 13px; margin: 10px 0 0; }
 .detail-bulan small { color: var(--muted); font-size: 12px; }
 .tabel-data summary { font-size: 13px; font-weight: 700; color: var(--primary); cursor: pointer; margin-top: 12px; }
@@ -495,6 +510,11 @@ select.field, select.field:focus { appearance: none; -webkit-appearance: none; c
 .sambut .btn { flex: 0 0 auto; width: 100%; max-width: 330px; margin-top: 10px; }
 
 /* ---------- Aplikasi terpasang ---------- */
+/* Saklar nyala/mati (mis. Sembunyikan nominal); seluruh baris tetap bisa diketuk */
+.saklar { position: relative; flex: none; width: 46px; height: 28px; border-radius: 99px; background: var(--line); transition: background .2s; }
+.saklar::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(16, 24, 40, .3); transition: transform .2s; }
+.saklar.nyala { background: var(--primary); }
+.saklar.nyala::after { transform: translateX(18px); }
 .catatan-versi { text-align: center; color: var(--muted); font-size: 12.5px; margin: 18px 0 8px; }
 .panduan .btn { width: 100%; margin-top: 4px; }
 

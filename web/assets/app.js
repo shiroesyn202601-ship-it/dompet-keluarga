@@ -403,6 +403,7 @@ function render() {
   $('#view').innerHTML = bannerStatus() + view();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
   simpanPosisi();
+  pasangGeserGrafik();
   if (luncurTertunda) setTimeout(jalankanLuncur); // pintasan ikon / berbagi: tunggu data pertama tampil
 }
 
@@ -1260,8 +1261,7 @@ function viewLaporan() {
 
     <section class="kartu">
       <h3>Pemasukan & pengeluaran per bulan</h3>
-      <div class="legenda"><span><i class="sw seri-1"></i>Pemasukan</span><span><i class="sw seri-2"></i>Pengeluaran</span></div>
-      ${grafikBulanan(bulan, data, pilih)}
+      ${geserGrafik(bulan, data, pilih)}
       <p class="detail-bulan"><b>${esc(namaBulan(pilih))}</b> · Pemasukan ${rp(r.masuk)} · Pengeluaran ${rp(r.keluar)}
         <br><small>Ketuk bulan di grafik untuk melihat rinciannya.</small></p>
       <button type="button" class="tombol-tambah" style="margin:0 0 12px" data-aksi="bagikan-laporan" data-bulan="${esc(pilih)}">📤 Bagikan ringkasan ${esc(namaBulan(pilih))}</button>
@@ -1375,6 +1375,112 @@ function grafikBulanan(bulan, data, pilih) {
 
   return `<svg class="grafik" viewBox="0 0 ${W} ${H}" role="img" aria-label="Pemasukan dan pengeluaran per bulan">
     ${grid}<line class="dasar" x1="${kiri}" x2="${W}" y1="${dasar}" y2="${dasar}"/>${grup}</svg>`;
+}
+
+/** Tren pemasukan & pengeluaran sebagai garis, titik tiap bulan. */
+function grafikGaris(bulan, data, pilih) {
+  const W = 340, H = 190, kiri = 36, bawah = 22, atas = 10;
+  const tinggi = H - bawah - atas;
+  const skala = angkaBulat(Math.max(1, ...data.map(x => Math.max(x.masuk, x.keluar))));
+  const y = v => atas + tinggi - v / skala * tinggi;
+  const lebarGrup = (W - kiri) / 12;
+  const cx = i => kiri + i * lebarGrup + lebarGrup / 2;
+  // Bulan setelah bulan ini (tahun berjalan) belum terjadi: garis berhenti di bulan terakhir yang ada datanya.
+  const akhir = data.reduce((a, d, i) => (d.masuk || d.keluar ? i : a), -1);
+  const garis = (f, kelas) => akhir < 0 ? '' : `
+    <polyline class="garis ${kelas}" points="${data.slice(0, akhir + 1).map((d, i) => cx(i) + ',' + y(d[f])).join(' ')}"/>
+    ${data.slice(0, akhir + 1).map((d, i) => `<circle class="titik ${kelas}" cx="${cx(i)}" cy="${y(d[f])}" r="${bulan[i] === pilih ? 4.5 : 2.8}"/>`).join('')}`;
+
+  const grid = [skala / 2, skala].map(v => `
+    <line class="grid" x1="${kiri}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/>
+    <text class="sumbu" x="${kiri - 6}" y="${y(v) + 3}" text-anchor="end">${rpPendek(v)}</text>`).join('');
+  const label = bulan.map((k, i) => `
+    ${k === pilih ? `<rect class="pilih" x="${kiri + i * lebarGrup + 1}" y="${atas - 4}" width="${lebarGrup - 2}" height="${tinggi + 4}" rx="6"/>` : ''}
+    <text class="sumbu ${k === pilih ? 'aktif' : ''}" x="${cx(i)}" y="${H - 6}" text-anchor="middle">${NAMA_BULAN_PENDEK[i]}</text>`).join('');
+
+  return `<svg class="grafik" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tren pemasukan dan pengeluaran per bulan">
+    ${grid}${label}<line class="dasar" x1="${kiri}" x2="${W}" y1="${y(0)}" y2="${y(0)}"/>
+    ${garis('masuk', 'seri-1')}${garis('keluar', 'seri-2')}${areaKetuk(bulan, data, kiri, lebarGrup, H)}</svg>`;
+}
+
+/** Selisih (pemasukan − pengeluaran) per bulan: batang ke atas = surplus, ke bawah = defisit. */
+function grafikSelisih(bulan, data, pilih) {
+  const W = 340, H = 190, kiri = 36, bawah = 22, atas = 8;
+  const tinggi = H - bawah - atas;
+  const nilai = data.map(d => d.masuk - d.keluar);
+  const skala = angkaBulat(Math.max(1, ...nilai.map(Math.abs)));
+  const adaMinus = nilai.some(v => v < 0);
+  const bawahSkala = adaMinus ? -skala : 0;
+  const y = v => atas + (skala - v) / (skala - bawahSkala) * tinggi;
+  const lebarGrup = (W - kiri) / 12;
+  const bw = Math.min(16, lebarGrup - 8);
+  const nol = y(0);
+
+  const grid = (adaMinus ? [skala, -skala] : [skala / 2, skala]).map(v => `
+    <line class="grid" x1="${kiri}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/>
+    <text class="sumbu" x="${kiri - 6}" y="${y(v) + 3}" text-anchor="end">${v < 0 ? '−' : ''}${rpPendek(Math.abs(v))}</text>`).join('');
+  const grup = bulan.map((k, i) => {
+    const x0 = kiri + i * lebarGrup;
+    const cx = x0 + lebarGrup / 2;
+    const v = nilai[i];
+    const h = Math.abs(y(v) - nol);
+    return `
+      ${k === pilih ? `<rect class="pilih" x="${x0 + 1}" y="${atas}" width="${lebarGrup - 2}" height="${tinggi}" rx="6"/>` : ''}
+      ${h >= 0.5 ? `<rect class="${v >= 0 ? 'surplus' : 'defisit'}" x="${cx - bw / 2}" y="${Math.min(y(v), nol)}" width="${bw}" height="${h}" rx="${Math.min(4, h / 2, bw / 2)}"/>` : ''}
+      <text class="sumbu ${k === pilih ? 'aktif' : ''}" x="${cx}" y="${H - 6}" text-anchor="middle">${NAMA_BULAN_PENDEK[i]}</text>`;
+  }).join('');
+
+  return `<svg class="grafik" viewBox="0 0 ${W} ${H}" role="img" aria-label="Selisih pemasukan dan pengeluaran per bulan">
+    ${grid}<line class="dasar" x1="${kiri}" x2="${W}" y1="${nol}" y2="${nol}"/>${grup}${areaKetuk(bulan, data, kiri, lebarGrup, H)}</svg>`;
+}
+
+/** Area ketuk per bulan (sama untuk semua jenis grafik bulanan): membuka rincian bulan itu. */
+function areaKetuk(bulan, data, kiri, lebarGrup, H) {
+  return bulan.map((k, i) => `<rect class="hit" x="${kiri + i * lebarGrup}" y="0" width="${lebarGrup}" height="${H}" data-aksi="lap-bulan" data-bulan="${k}">
+    <title>${namaBulan(k)}: pemasukan ${rp(data[i].masuk)}, pengeluaran ${rp(data[i].keluar)}, selisih ${rp(data[i].masuk - data[i].keluar)}</title></rect>`).join('');
+}
+
+/** Jenis grafik bulanan di Laporan; digeser ke samping (scroll-snap) atau lewat titik di bawahnya. */
+const JENIS_GRAFIK = [
+  { judul: 'Batang', legenda: '<span><i class="sw seri-1"></i>Pemasukan</span><span><i class="sw seri-2"></i>Pengeluaran</span>', gambar: grafikBulanan },
+  { judul: 'Tren', legenda: '<span><i class="sw seri-1"></i>Pemasukan</span><span><i class="sw seri-2"></i>Pengeluaran</span>', gambar: grafikGaris },
+  { judul: 'Selisih', legenda: '<span><i class="sw surplus"></i>Surplus</span><span><i class="sw defisit"></i>Defisit</span>', gambar: grafikSelisih },
+];
+
+function geserGrafik(bulan, data, pilih) {
+  const aktif = S.grafikLaporan || 0;
+  return `
+    <div class="geser-grafik" id="geser-grafik" aria-roledescription="carousel" aria-label="Grafik per bulan, geser untuk ganti jenis">
+      ${JENIS_GRAFIK.map((j, i) => `
+        <div class="slide-grafik" role="group" aria-label="${j.judul} (${i + 1} dari ${JENIS_GRAFIK.length})">
+          <div class="legenda">${j.legenda}</div>
+          ${j.gambar(bulan, data, pilih)}
+        </div>`).join('')}
+    </div>
+    <div class="titik-grafik" role="tablist" aria-label="Jenis grafik">
+      ${JENIS_GRAFIK.map((j, i) => `<button type="button" role="tab" class="${i === aktif ? 'aktif' : ''}" aria-selected="${i === aktif}"
+        data-aksi="jenis-grafik" data-i="${i}"><span></span>${j.judul}</button>`).join('')}
+    </div>`;
+}
+
+/** Setelah render: kembalikan posisi geser grafik & pantau geserannya. */
+function pasangGeserGrafik() {
+  const el = $('#geser-grafik');
+  if (!el) return;
+  el.scrollLeft = (S.grafikLaporan || 0) * el.clientWidth;
+  let timer = 0;
+  el.addEventListener('scroll', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth));
+      if (i === (S.grafikLaporan || 0)) return;
+      S.grafikLaporan = i;
+      document.querySelectorAll('.titik-grafik button').forEach((b, n) => {
+        b.classList.toggle('aktif', n === i);
+        b.setAttribute('aria-selected', n === i);
+      });
+    }, 80);
+  }, { passive: true });
 }
 
 /** Batang vertikal dengan sudut atas membulat, menempel di garis dasar. */
@@ -1596,10 +1702,10 @@ function viewLainnya() {
       <span class="label">Tema</span>
       <div class="segmen" style="margin-bottom:6px">${[['', 'Otomatis'], ['light', 'Terang'], ['dark', 'Gelap']].map(([t, l]) =>
         `<button type="button" class="${temaDipilih() === t ? 'aktif' : ''}" data-aksi="tema" data-t="${t}">${l}</button>`).join('')}</div>
-      <button class="baris" data-aksi="samar">
+      <button class="baris" data-aksi="samar" role="switch" aria-checked="${modeSamar()}">
         <span class="ikon-bulat">👁</span>
-        <span class="isi"><b>Sembunyikan nominal</b><small>${modeSamar() ? 'Aktif · angka disamarkan' : 'Samarkan angka saat HP dilihat orang lain'}</small></span>
-        <span class="panah">${modeSamar() ? 'Matikan' : 'Aktifkan'}</span>
+        <span class="isi"><b>Sembunyikan nominal</b><small>${modeSamar() ? 'Angka disamarkan' : 'Samarkan angka saat HP dilihat orang lain'}</small></span>
+        <span class="saklar ${modeSamar() ? 'nyala' : ''}" aria-hidden="true"></span>
       </button>
       <button class="baris" data-aksi="atur-kunci">
         <span class="ikon-bulat">🔒</span>
@@ -1607,12 +1713,16 @@ function viewLainnya() {
         <span class="panah">›</span>
       </button>
     </section>
-    ${kartuPasang()}`;
+    ${kartuPasang()}
+    ${!MODE_APLIKASI && labelVersi() ? `<p class="catatan-versi">Dompet Keluarga ${labelVersi()}</p>` : ''}`;
 }
+
+/** "v1.66" dari versi.txt (dibuat saat deploy: 1.<jumlah commit>); penanda lama berupa kode commit tidak ditampilkan. */
+const labelVersi = () => (/^\d+\.\d+$/.test(versiAwal || '') ? 'v' + versiAwal : '');
 
 function kartuPasang() {
   if (MODE_APLIKASI) {
-    return `<p class="catatan-versi">✅ Terpasang sebagai aplikasi · update otomatis${versiAwal ? ` · versi ${esc(versiAwal)}` : ''}</p>`;
+    return `<p class="catatan-versi">✅ Terpasang sebagai aplikasi · update otomatis${labelVersi() ? ' · ' + labelVersi() : ''}</p>`;
   }
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   return `
@@ -3207,6 +3317,10 @@ const AKSI = {
     S.bulan = S.tahun === new Date().getFullYear() ? periodeSekarang() : S.tahun + '-12';
     render();
     muat(); // muat ulang transaksi bulan terpilih untuk tab lain, di latar belakang
+  },
+  'jenis-grafik': el => {
+    const g = $('#geser-grafik');
+    if (g) g.scrollTo({ left: Number(el.dataset.i) * g.clientWidth, behavior: 'smooth' });
   },
   'lap-bulan': el => {
     S.bulan = el.dataset.bulan;

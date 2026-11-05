@@ -24,8 +24,11 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
-      # Penanda versi: aplikasi yang sudah terpasang di HP membandingkan ini untuk memuat ulang otomatis.
-      - run: echo "${GITHUB_SHA::7}" > web/versi.txt
+        with:
+          fetch-depth: 0 # seluruh riwayat, untuk menghitung jumlah commit
+      # Penanda versi "1.<jumlah commit>" (tampil sebagai v1.66 di menu Lainnya). Aplikasi yang sudah
+      # terpasang di HP membandingkan ini untuk memuat ulang otomatis.
+      - run: echo "1.$(git rev-list --count HEAD)" > web/versi.txt
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
