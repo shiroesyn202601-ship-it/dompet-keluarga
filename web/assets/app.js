@@ -2386,8 +2386,10 @@ function renderFormTrx() {
  */
 function bagianLampiran() {
   if (F.lampiranData) {
-    return `<div class="lampiran">${F.lampiranThumb ? `<img src="${F.lampiranThumb}" alt="Foto struk">` : '<span class="ikon-bulat">🧾</span>'}
-      <span class="isi"><b>📎 Foto struk</b><small>Disimpan ke Google Drive saat transaksi disimpan</small></span>
+    // Foto belum ada di Drive (diunggah saat Simpan), jadi dibuka dari data di HP.
+    return `<div class="lampiran"><button type="button" class="lampiran-buka" data-aksi="lihat-lampiran" aria-label="Lihat foto struk">
+        ${F.lampiranThumb ? `<img src="${F.lampiranThumb}" alt="">` : '<span class="ikon-bulat">🧾</span>'}
+        <span class="isi"><b>📎 Lihat foto struk</b><small>Disimpan ke Google Drive saat transaksi disimpan</small></span></button>
       <button type="button" class="tombol-ikon" data-aksi="lampiran-hapus" aria-label="Buang foto">✕</button></div>`;
   }
   if (F.lampiran) {
@@ -5647,6 +5649,7 @@ function pasangPenjaga() {
 /** Menutup lapisan paling atas yang boleh ditutup dengan tombol kembali; true kalau ada yang ditutup. */
 function tutupLapisanAtas() {
   if (kilas) { tutupKilasBalik(); return true; }
+  if (tutupFoto()) return true;
   if ($('#ringkas-suara') && !$('#ringkas-suara').hidden) { tutupRingkasanSuara(); hasilSuara = null; return true; }
   if ($('#ingat') && !$('#ingat').hidden) {
     // Pengingat ditutup dengan tombol kembali: muncul lagi saat aplikasi dibuka besok / sesi berikutnya.
@@ -6208,6 +6211,40 @@ function tutupRingkasanSuara() {
   if (el) el.hidden = true;
 }
 
+/** Foto struk layar penuh (sebelum diunggah ke Drive). Ketuk di mana saja atau tombol kembali untuk menutup. */
+function lihatFoto(src) {
+  let el = $('#lihat-foto');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'lihat-foto';
+    el.className = 'lihat-foto';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-label', 'Foto struk');
+    el.dataset.aksi = 'tutup-foto';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<img src="${src}" alt="Foto struk"><button type="button" class="tutup-foto" data-aksi="tutup-foto" aria-label="Tutup">✕</button>`;
+  el.hidden = false;
+  setTimeout(() => el.querySelector('.tutup-foto').focus(), 50);
+}
+
+function tutupFoto() {
+  const el = $('#lihat-foto');
+  if (!el || el.hidden) return false;
+  el.hidden = true;
+  el.innerHTML = ''; // lepas gambar besar dari memori
+  return true;
+}
+
+Object.assign(AKSI, {
+  'lihat-lampiran': () => {
+    if (F && F.lampiranData) lihatFoto('data:image/jpeg;base64,' + F.lampiranData);
+    else if (F && F.lampiranThumb) lihatFoto(F.lampiranThumb);
+  },
+  'tutup-foto': () => tutupFoto(),
+});
+
 /**
  * Kartu konfirmasi hasil foto struk (sama seperti hasil suara): Simpan langsung, Koreksi di form, atau Foto ulang.
  * Form transaksi sudah diisi terapkanStruk(); kartu ini hanya menampilkan isian F.
@@ -6230,7 +6267,7 @@ function tampilRingkasanStruk() {
       <span class="label-ringkas" id="ringkas-judul">🧾 Struk terbaca · yang akan dicatat</span>
       <div class="kepala-ringkas-struk">
         <div class="nominal-ringkas keluar ${F.jumlah ? '' : 'belum'}"><small>${esc(F.tipe)}</small>${F.jumlah ? '−' + rp(F.jumlah) : 'Rp —'}</div>
-        ${F.lampiranThumb ? `<img class="thumb-ringkas" src="${F.lampiranThumb}" alt="Foto struk">` : ''}
+        ${F.lampiranThumb ? `<button type="button" class="thumb-ringkas" data-aksi="lihat-lampiran" aria-label="Lihat foto struk"><img src="${F.lampiranThumb}" alt=""></button>` : ''}
       </div>
       ${h.pilihanJumlah.length > 1 ? `
         <div class="pilih-total-ringkas"><small>Total terbaca berbeda-beda, ketuk yang sesuai struk:</small>

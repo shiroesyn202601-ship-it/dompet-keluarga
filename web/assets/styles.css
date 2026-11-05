@@ -483,6 +483,18 @@ body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-ar
 .lampiran .isi { flex: 1; min-width: 0; }
 .lampiran b { display: block; font-size: 14px; }
 .lampiran small { display: block; font-size: 12px; color: var(--muted); }
+.lampiran-buka { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 0; border: 0; background: none;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.lampiran-buka b { color: var(--primary); }
+
+/* Foto struk layar penuh. */
+.lihat-foto { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px;
+  padding-top: calc(16px + env(safe-area-inset-top)); padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, .92); animation: muncul-panel .2s ease-out; }
+.lihat-foto[hidden] { display: none; }
+.lihat-foto img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+.tutup-foto { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; width: 44px; height: 44px; border: 0;
+  border-radius: 50%; background: rgba(255, 255, 255, .18); color: #fff; font-size: 20px; cursor: pointer; }
 /* Kekayaan bersih */
 .kekayaan { font-size: 28px; font-weight: 800; letter-spacing: -.02em; margin: 2px 0 8px; font-variant-numeric: tabular-nums; }
 .kekayaan.minus { color: var(--keluar); }
@@ -903,7 +915,9 @@ body.tanpa-nav #view:has(.bilah-catatan) { padding-bottom: calc(165px + env(safe
 .kartu-ringkas > .tombol-teks { align-self: center; }
 /* Kartu konfirmasi foto struk: nominal + gambar kecil struknya, pilihan total kalau hasil baca berbeda. */
 .kepala-ringkas-struk { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.thumb-ringkas { flex: none; width: 56px; height: 56px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); }
+.thumb-ringkas { flex: none; width: 56px; height: 56px; padding: 0; overflow: hidden; border-radius: 12px; border: 1px solid var(--line);
+  background: none; cursor: zoom-in; }
+.thumb-ringkas img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .pilih-total-ringkas small { display: block; font-size: 12px; font-weight: 700; color: var(--keluar); margin-bottom: 6px; }
 .pilih-total-ringkas .chips { margin: 0; }
 .status-ringkas { margin: -4px 0 0 !important; font-size: 13px !important; color: var(--muted); }
