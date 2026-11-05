@@ -52,6 +52,7 @@ const STRUK = (() => {
           tanggal: tanggalWajar(h.tanggal, hariIni),
           kategori: kategori.indexOf(h.kategori) >= 0 ? h.kategori : '',
           catatan: String(h.catatan || '').trim().slice(0, 120),
+          rincian: rapikanRincian(h.rincian, jumlah, kategori),
         });
       }
     };
@@ -94,6 +95,26 @@ const STRUK = (() => {
     return gabungHasil(terkumpul);
   }
 
+  /** Rincian per kategori dipakai hanya kalau ≥ 2 kategori dan jumlahnya cocok dengan total (±2%). */
+  function rapikanRincian(r, total, kategori) {
+    if (!Array.isArray(r)) return [];
+    const per = {};
+    r.forEach(x => {
+      const k = kategori.indexOf(x && x.kategori) >= 0 ? x.kategori : '';
+      const j = Math.round(Number(x && x.jumlah) || 0);
+      if (!k || j <= 0) return;
+      per[k] = per[k] || { kategori: k, jumlah: 0, barang: [] };
+      per[k].jumlah += j;
+      if (x.barang) per[k].barang.push(String(x.barang).trim().slice(0, 60));
+    });
+    const daftar = Object.keys(per).map(k => Object.assign(per[k], { barang: per[k].barang.join(', ') }));
+    const jml = daftar.reduce((a, x) => a + x.jumlah, 0);
+    if (daftar.length < 2 || Math.abs(jml - total) > total * 0.02) return [];
+    // Selisih pembulatan masuk ke kategori terbesar supaya totalnya pas.
+    daftar.sort((a, b) => b.jumlah - a.jumlah)[0].jumlah += total - jml;
+    return daftar;
+  }
+
   /** Total dengan suara (berbobot) terbanyak menang. */
   function gabungHasil(hasil) {
     hasil.sort((a, b) => URUTAN.indexOf(a.sumber) - URUTAN.indexOf(b.sumber));
@@ -117,6 +138,7 @@ const STRUK = (() => {
       tanggal: ambil('tanggal'),
       kategori: ambil('kategori'),
       catatan: ambil('catatan'),
+      rincian: (urut.find(x => x.jumlah === grup[0].jumlah && x.rincian && x.rincian.length) || {}).rincian || [],
       yakin: grup[0].sumber.length >= 2,
       pilihanJumlah: grup,
       lapis: hasil.map(h => h.sumber),
@@ -140,6 +162,9 @@ const STRUK = (() => {
       '- tanggal: tanggal transaksi format yyyy-mm-dd. Kosongkan jika tidak ada. Hari ini ' + hariIni + '.',
       '- kategori: pilih satu yang paling cocok dari daftar.',
       '- catatan: nama toko / penerima lalu ringkasan barang atau keperluan, maksimal 80 karakter. Contoh: "Indomaret - susu, roti, sabun" atau "Transfer ke Budi".',
+      '- rincian: hanya untuk struk belanja berisi barang dari BEBERAPA kategori berbeda. Kelompokkan barang per kategori dari daftar:',
+      '  jumlah = total harga barang kategori itu (bagikan diskon/pajak secara proporsional, sehingga jumlah semua rincian = jumlah total),',
+      '  barang = 1–4 nama barang singkat. Kosongkan (array kosong) kalau semua barang satu kategori, atau untuk bukti transfer/tagihan.',
     ].join('\n');
   }
 
@@ -151,8 +176,20 @@ const STRUK = (() => {
         tanggal: { type: 'STRING' },
         kategori: kategori.length ? { type: 'STRING', enum: kategori } : { type: 'STRING' },
         catatan: { type: 'STRING' },
+        rincian: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              kategori: kategori.length ? { type: 'STRING', enum: kategori } : { type: 'STRING' },
+              jumlah: { type: 'INTEGER' },
+              barang: { type: 'STRING' },
+            },
+            required: ['kategori', 'jumlah', 'barang'],
+          },
+        },
       },
-      required: ['jumlah', 'tanggal', 'kategori', 'catatan'],
+      required: ['jumlah', 'tanggal', 'kategori', 'catatan', 'rincian'],
     };
   }
 

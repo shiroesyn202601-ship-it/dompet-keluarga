@@ -43,6 +43,8 @@ const SERVER = (() => {
       nama: 'Catatan',
       kolom: ['ID', 'Tanggal', 'Judul', 'Isi', 'Pengingat', 'Ulang', 'Warna', 'Dibuat Oleh', 'Dibuat Pada'],
     },
+    // Riwayat perubahan oleh anggota: ubah / hapus / kembalikan transaksi (pencatatan baru sudah tercatat di Dibuat Oleh).
+    log: { nama: 'Log', kolom: ['Waktu', 'Oleh', 'Aksi', 'Ringkasan'] },
   };
   const ULANG = ['Bulanan', 'Mingguan', 'Tahunan'];
 
@@ -191,7 +193,7 @@ const SERVER = (() => {
    * kolom Anggaran (Kategori), serta kolom Jenis/Target/Tenggat (Dompet).
    */
   async function pastikanStruktur_(id) {
-    for (const t of [TABEL.pengaturan, TABEL.rutin, TABEL.catatan]) {
+    for (const t of [TABEL.pengaturan, TABEL.rutin, TABEL.catatan, TABEL.log]) {
       if (t.nama in idSheet) continue;
       try {
         const r = await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', {
@@ -204,8 +206,8 @@ const SERVER = (() => {
         if (t === TABEL.catatan) await formatCatatan_(id, idSheet[t.nama]);
       } catch (e) {
         // Sheet tambahan yang lebih baru (Catatan) tidak wajib: anggota "hanya lihat" tetap bisa membuka buku.
-        if (t !== TABEL.catatan) throw e;
-        console.warn('Sheet Catatan tidak bisa dibuat:', e);
+        if (t !== TABEL.catatan && t !== TABEL.log) throw e;
+        console.warn('Sheet ' + t.nama + ' tidak bisa dibuat:', e);
       }
     }
 
@@ -491,7 +493,12 @@ const SERVER = (() => {
     if (!(await cariIdDb_())) return { perluSetup: true, user: GOOGLE.email() };
     const id = await db_();
     const adaCatatan = TABEL.catatan.nama in idSheet;
-    const [trx, kat, dom, set, rut, cat] = await bacaTabel_(id, ['transaksi', 'kategori', 'dompet', 'pengaturan', 'rutin'].concat(adaCatatan ? ['catatan'] : []));
+    const adaLog = TABEL.log.nama in idSheet;
+    const tabel = ['transaksi', 'kategori', 'dompet', 'pengaturan', 'rutin'].concat(adaCatatan ? ['catatan'] : [], adaLog ? ['log'] : []);
+    const isi = await bacaTabel_(id, tabel);
+    const [trx, kat, dom, set, rut] = isi;
+    const cat = adaCatatan ? isi[tabel.indexOf('catatan')] : [];
+    const lg = adaLog ? isi[tabel.indexOf('log')] : [];
     const d = olahData_(trx, kat, dom);
     const mulai = mulaiPeriode_(set);
     if (!/^\d{4}-\d{2}$/.test(bulan || '')) bulan = periodeDari_(tanggalLokal_(), mulai);
@@ -537,7 +544,9 @@ const SERVER = (() => {
       rutin: olahRutin_(rut),
       catatan: adaCatatan ? olahCatatan_(cat) : [],
       bisaCatatan: adaCatatan,
+      log: lg.filter(r => r[0] !== '').slice(-60).map(r => ({ waktu: dariSerial_(r[0]), oleh: String(r[1]), aksi: String(r[2]), ringkasan: String(r[3]) })).reverse(),
       cepat: kebiasaan_(d.transaksi),
+      saranRutin: saranRutin_(d.transaksi, olahRutin_(rut)),
       bulanan,
       transaksi: d.transaksi
         .filter(t => periodeDari_(t.tanggal, mulai) === bulan)
@@ -564,6 +573,37 @@ const SERVER = (() => {
    *   favorit: transaksi yang sering diulang (≥2×), dengan nominal & dompet yang paling sering → tombol satu ketuk.
    *   saran: catatan yang pernah dipakai beserta kategori terakhirnya → saran saat mengetik catatan.
    */
+  /**
+   * Transaksi yang tampaknya rutin bulanan tapi belum dijadikan tagihan rutin: catatan sama, muncul di ≥ 3 dari
+   * 4 bulan terakhir, nominal mirip (±15% dari median), dan tanggalnya berdekatan. Maksimal 3 saran.
+   */
+  function saranRutin_(semua, rutin) {
+    const kini = new Date();
+    const bulan = [0, 1, 2, 3].map(n => { const d = new Date(kini.getFullYear(), kini.getMonth() - n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); });
+    const median = a => { const x = a.slice().sort((p, q) => p - q); return x[Math.floor(x.length / 2)]; };
+    const sudah = rutin.map(r => r.nama.toLowerCase().trim());
+    const grup = {};
+    semua.filter(t => t.tipe !== TIPE.TRANSFER && t.catatan && bulan.includes(t.tanggal.slice(0, 7))).forEach(t => {
+      const k = t.tipe + '|' + t.catatan.toLowerCase().trim();
+      (grup[k] = grup[k] || []).push(t);
+    });
+    return Object.keys(grup).map(k => {
+      const daftar = grup[k];
+      const perBulan = {};
+      daftar.forEach(t => { (perBulan[t.tanggal.slice(0, 7)] = perBulan[t.tanggal.slice(0, 7)] || []).push(t); });
+      const bulanAda = Object.keys(perBulan);
+      if (bulanAda.length < 3 || daftar.length > bulanAda.length + 1) return null; // jajan harian bukan tagihan
+      const jumlah = median(daftar.map(t => t.jumlah));
+      if (!jumlah || daftar.some(t => Math.abs(t.jumlah - jumlah) > jumlah * 0.15)) return null;
+      const hari = daftar.map(t => Number(t.tanggal.slice(8, 10)));
+      const hariMed = median(hari);
+      if (hari.some(h => Math.abs(h - hariMed) > 5)) return null;
+      const contoh = daftar.slice().sort((a, b) => b.tanggal.localeCompare(a.tanggal))[0];
+      if (sudah.includes(contoh.catatan.toLowerCase().trim())) return null;
+      return { kunci: k, nama: contoh.catatan, tipe: contoh.tipe, jumlah, kategori: contoh.kategori, dompet: contoh.dompet, hari: hariMed, kali: bulanAda.length };
+    }).filter(Boolean).sort((a, b) => b.kali - a.kali || b.jumlah - a.jumlah).slice(0, 3);
+  }
+
   function kebiasaan_(semua) {
     const batas = new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10);
     const terbaru = semua.filter(t => t.tipe !== TIPE.TRANSFER && t.tanggal >= batas)
@@ -622,6 +662,13 @@ const SERVER = (() => {
     if (!mulai || mulai <= 1) return { awal: iso(y, m, 1), akhir: iso(y, m, new Date(Date.UTC(y, m, 0)).getUTCDate()) };
     const akhir = new Date(Date.UTC(y, m, mulai - 1)); // bulan berikutnya, sehari sebelum tanggal mulai
     return { awal: iso(y, m, mulai), akhir: iso(akhir.getUTCFullYear(), akhir.getUTCMonth() + 1, akhir.getUTCDate()) };
+  }
+
+  async function aturPengingatTelegram(nyala) {
+    const id = await db_();
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    await simpanPengaturan_(id, set, 'PENGINGAT_TELEGRAM', nyala ? 'Nyala' : 'Mati');
+    return true;
   }
 
   async function simpanMulaiPeriode(n) {
@@ -774,7 +821,8 @@ const SERVER = (() => {
       // Foto diunggah dulu, supaya baris tidak bergeser selama menunggu unggahan.
       const lampiran = input.lampiranData ? await unggahStruk_(input.lampiranData, input.tanggal) : null;
       const baris = cariBaris_(await daftarId_(id), x => x === t.id) + 2;
-      const lampiranLama = lampiran || input.hapusLampiran ? (await bacaBarisTransaksi_(id, baris))[11] : '';
+      const lama = await bacaBarisTransaksi_(id, baris); // untuk log perubahan & foto lama
+      const lampiranLama = lampiran || input.hapusLampiran ? lama[11] : '';
       const data = [
         { range: "'" + tbl.nama + "'!B" + baris + ':H' + baris, values: [[t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan]] },
         { range: "'" + tbl.nama + "'!K" + baris, values: [[sekarang]] },
@@ -782,6 +830,13 @@ const SERVER = (() => {
       if (lampiran || input.hapusLampiran) data.push({ range: "'" + tbl.nama + "'!L" + baris, values: [[lampiran || '']] });
       await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', { method: 'POST', json: { valueInputOption: 'RAW', data } });
       if (lampiranLama && lampiranLama !== lampiran) await buangLampiran_(lampiranLama); // foto lama diganti/dihapus
+      const beda = [];
+      if (Number(lama[3]) !== t.jumlah) beda.push(rpLog_(lama[3]) + ' → ' + rpLog_(t.jumlah));
+      if (String(lama[4]) !== t.kategori && t.kategori) beda.push('kategori ' + lama[4] + ' → ' + t.kategori);
+      if (String(lama[5]) !== t.dompet) beda.push('dompet ' + lama[5] + ' → ' + t.dompet);
+      if (Number(lama[1]) !== t.tanggal) beda.push('tanggal ' + dariSerial_(lama[1]).slice(0, 10) + ' → ' + dariSerial_(t.tanggal).slice(0, 10));
+      if (String(lama[7] || '') !== t.catatan) beda.push('catatan diubah');
+      if (beda.length) await catatLog_(id, 'ubah', (t.kategori || t.tipe) + ' ' + rpLog_(t.jumlah) + ': ' + beda.join(', '));
     } else {
       t.id = teks_(input.idBaru) || crypto.randomUUID();
       if (input.idBaru && (await daftarId_(id)).includes(t.id)) return t.id;
@@ -946,7 +1001,24 @@ const SERVER = (() => {
     const baris = await bacaBarisTransaksi_(id, i + 2);
     await hapusBaris_(id, TABEL.transaksi, i);
     await buangLampiran_(baris[11]);
+    await catatLog_(id, 'hapus', ringkasBaris_(baris));
     return baris;
+  }
+
+  /** Rupiah ringkas untuk log: 25000 → "Rp25.000". */
+  const rpLog_ = n => 'Rp' + Math.round(Number(n) || 0).toLocaleString('id-ID');
+  /** Baris transaksi mentah → "Belanja Rp250.000 · Indomaret (12 Nov)". */
+  function ringkasBaris_(b) {
+    const tgl = dariSerial_(b[1]).slice(0, 10);
+    const judul = String(b[2]) === TIPE.TRANSFER ? 'Transfer ' + b[5] + ' → ' + b[6] : String(b[4] || b[2]);
+    return judul + ' ' + rpLog_(b[3]) + (b[7] ? ' · ' + String(b[7]).slice(0, 40) : '') + ' (' + tgl + ')';
+  }
+  /** Tulis satu baris log; gagal (mis. akses hanya lihat / sheet belum ada) tidak menggagalkan aksi utamanya. */
+  async function catatLog_(id, aksi, ringkasan) {
+    if (!(TABEL.log.nama in idSheet)) return;
+    try {
+      await tambahBaris_(id, TABEL.log, [[serialSekarang_(), GOOGLE.email(), aksi, String(ringkasan).slice(0, 200)]]);
+    } catch (e) { console.warn('Log tidak tercatat:', e); }
   }
 
   /** baris: hasil hapusTransaksi. Ditambah lagi apa adanya (pencatat & waktu asli tetap), foto diambil dari Sampah. */
@@ -955,6 +1027,7 @@ const SERVER = (() => {
     if (!Array.isArray(baris) || !baris[0]) throw new Error('Data transaksi tidak lengkap.');
     if ((await daftarId_(id)).includes(String(baris[0]))) return true;
     await tambahBaris_(id, TABEL.transaksi, [baris.slice(0, TABEL.transaksi.kolom.length)]);
+    await catatLog_(id, 'kembalikan', ringkasBaris_(baris));
     await buangLampiran_(baris[11], false);
     return true;
   }
@@ -1243,6 +1316,7 @@ const SERVER = (() => {
       bot: (bersama && bersama.nama) || p.TELEGRAM_BOT || '',
       bersama: !!bersama,
       pengguna: Object.keys(pengguna).map(id => Object.assign({ id }, pengguna[id])),
+      pengingat: p.PENGINGAT_TELEGRAM !== 'Mati', // pengingat harian dari bot (lihat bot/Kode.gs → kirimPengingatHarian)
     };
   }
 
@@ -1312,7 +1386,7 @@ const SERVER = (() => {
   let modelAi = '';
 
   /**
-   * Kalimat lisan → satu transaksi { tipe, jumlah, kategori, dompet, dompetTujuan, tanggal, catatan }.
+   * Kalimat lisan → { transaksi: [{ tipe, jumlah, kategori, dompet, dompetTujuan, tanggal, catatan }] } (bisa lebih dari satu).
    * konteks: { hariIni 'yyyy-mm-dd', kategori: [{nama, tipe}], dompet: [nama], tabungan: [nama] }.
    * null kalau belum ada kunci Gemini. Hasil tetap divalidasi lagi di aplikasi.
    */
@@ -1326,7 +1400,9 @@ const SERVER = (() => {
     const hari = new Date(konteks.hariIni + 'T12:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const daftar = tipe => konteks.kategori.filter(k => k.tipe === tipe).map(k => k.nama).join(', ') || '-';
     const prompt = [
-      'Kamu membantu mencatat keuangan keluarga Indonesia. Ubah kalimat lisan di bawah menjadi SATU transaksi.',
+      'Kamu membantu mencatat keuangan keluarga Indonesia. Ubah kalimat lisan di bawah menjadi daftar transaksi.',
+      'Satu kalimat bisa berisi beberapa transaksi ("bakso 25rb, parkir 5rb, bensin 30rb pakai gopay" = 3 transaksi). Maksimal 8.',
+      'Dompet atau tanggal yang disebut sekali berlaku untuk semua transaksi di kalimat itu, kecuali disebut lain.',
       'Hari ini ' + hari + ' (' + konteks.hariIni + ').',
       'Aturan:',
       '- tipe: "Pengeluaran", "Pemasukan", atau "Transfer" (memindahkan uang antar dompet sendiri, termasuk setor/tarik tabungan, top up e-wallet, tarik tunai).',
@@ -1345,7 +1421,7 @@ const SERVER = (() => {
       'Tabungan: ' + (konteks.tabungan.join(', ') || '-'),
       'Kalimat: "' + String(teks).slice(0, 400).replace(/"/g, "'") + '"',
     ].join('\n');
-    const skema = {
+    const item = {
       type: 'OBJECT',
       properties: {
         tipe: { type: 'STRING', enum: ['Pengeluaran', 'Pemasukan', 'Transfer'] },
@@ -1358,6 +1434,7 @@ const SERVER = (() => {
       },
       required: ['tipe', 'jumlah', 'kategori', 'dompet', 'dompetTujuan', 'tanggal', 'catatan'],
     };
+    const skema = { type: 'OBJECT', properties: { transaksi: { type: 'ARRAY', items: item } }, required: ['transaksi'] };
     return STRUK.tanyaAI([{ text: prompt }], skema, kunciAi, modelAi);
   }
 
@@ -1538,7 +1615,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, aturPengingatTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
   };

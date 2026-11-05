@@ -184,7 +184,18 @@ async function mulai() {
     history.replaceState(null, '', location.pathname + location.search);
   }
   pulihkanPosisi();
-  if (GOOGLE.sudahMasuk()) muat();
+  if (GOOGLE.sudahMasuk()) {
+    // Tampilkan data terakhir di HP seketika (kalau periodenya sama), lalu perbarui dari spreadsheet di latar.
+    const d = bacaLokal('data', null);
+    if (d && !d.perluSetup && (!S.bulan || S.bulan === d.bulan)) {
+      S.data = d;
+      S.bulan = d.bulan;
+      S.menyegarkan = true;
+      $('#nav').hidden = false;
+      render();
+    }
+    muat();
+  }
   else if (!navigator.onLine && pakaiDataTerakhir()) { /* tanpa sinyal: tetap bisa mencatat, login menyusul saat online */ }
   // Token habis (dibuka lagi > 1 jam kemudian): tampilkan data terakhir di HP, jangan lempar ke layar login.
   // Ketukan pertama di mana saja menyambung ulang diam-diam (lihat GOOGLE.segarkanKalauPerlu).
@@ -201,6 +212,7 @@ async function muat() {
       toast('Berhasil bergabung ke Dompet Keluarga ✔');
     }
     S.data = await api('getData', S.bulan);
+    S.menyegarkan = false;
     S.offline = false;
     S.sesiHabis = false;
     $('#nav').hidden = !!S.data.perluSetup;
@@ -213,6 +225,7 @@ async function muat() {
       kirimTertunda();
     }
   } catch (e) {
+    if (S.menyegarkan) { S.menyegarkan = false; if (S.data) render(); }
     if (e instanceof GOOGLE.PerluMasuk) return;
     if (e.jaringan && pakaiDataTerakhir()) return;
     if (!S.data || S.data.perluSetup) {
@@ -318,7 +331,8 @@ function bannerStatus() {
   const daftar = tertunda();
   const gagal = daftar.filter(t => t.gagal);
   const menunggu = daftar.length - gagal.length;
-  return (S.offline ? '<div class="status-bar">📴 Offline · menampilkan data terakhir. Transaksi baru tetap bisa dicatat.</div>' : '') +
+  return (S.menyegarkan ? '<div class="bilah-segar" role="status" aria-label="Memperbarui data"><i></i></div>' : '') +
+    (S.offline ? '<div class="status-bar">📴 Offline · menampilkan data terakhir. Transaksi baru tetap bisa dicatat.</div>' : '') +
     (!S.offline && S.sesiHabis ? '<div class="status-bar">🔄 Menampilkan data terakhir · tersambung lagi begitu Anda mengetuk layar</div>' : '') +
     (menunggu ? `<div class="status-bar">📤 ${menunggu} transaksi menunggu dikirim${S.offline ? '' : ' <button type="button" data-aksi="kirim-tertunda">Kirim sekarang</button>'}</div>` : '') +
     gagal.map(t => `<div class="status-bar gagal">⚠️ ${rp(t.jumlah)} ${esc(t.kategori || 'Transfer')} tidak bisa dikirim: ${esc(t.gagal)}
@@ -345,13 +359,24 @@ function tampilMasuk() {
     </div>`;
 }
 
+/** Kerangka abu-abu berdenyut selama data pertama dimuat (sama dengan isi awal index.html). */
+const KERANGKA_BERANDA = `<div class="kerangka" aria-busy="true" aria-label="Memuat">
+        <div class="k-kepala"><i class="k-bulat"></i><div><i class="k-garis" style="width:50px"></i><i class="k-garis tebal" style="width:110px"></i></div><i class="k-pil"></i></div>
+        <i class="k-kartu"></i>
+        <div class="k-pintasan"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="k-bento"><i></i><i></i></div>
+        <i class="k-garis tebal" style="width:160px;margin:6px 0 12px"></i>
+        <div class="k-daftar"><div><i class="k-bulat kecil"></i><i class="k-garis"></i></div><div><i class="k-bulat kecil"></i><i class="k-garis"></i></div><div><i class="k-bulat kecil"></i><i class="k-garis"></i></div></div>
+      </div>`;
+const KERANGKA_DAFTAR = '<div class="kerangka k-daftar" style="margin-top:8px">' + '<div><i class="k-bulat kecil"></i><i class="k-garis"></i></div>'.repeat(6) + '</div>';
+
 /** Setelah masuk (atau ganti akun): buang semua tampilan & data lama, lalu muat ulang. */
 async function muatDariAwal() {
   $('#sesi').hidden = true;
   tutupSheet();
   S.data = null;
   $('#nav').hidden = true;
-  $('#view').innerHTML = '<div class="memuat-awal"><div class="spinner"></div><p>Memuat…</p></div>';
+  $('#view').innerHTML = KERANGKA_BERANDA;
   await muat();
 }
 
@@ -413,6 +438,7 @@ function render() {
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
   simpanPosisi();
   setTimeout(cekPengingat, 500); // overlay pengingat catatan yang jatuh tempo hari ini
+  setTimeout(() => { if (typeof cekKilasBalik === 'function') cekKilasBalik(); }, 900); // kilas balik awal periode
   if (S.tab !== 'laporan') kunciAnimasiGrafik = ''; // kembali ke Laporan nanti: animasi diputar lagi
   pasangGeserGrafik();
   if (S.tab === 'catatan') pasangGeserKalender();
@@ -473,11 +499,15 @@ function itemTrx(t) {
     else if (adalahUtang(t.dompet)) { judul = 'Uang dari ' + t.dompet; ikon = '🤝'; }
     sub = [`${t.dompet} → ${t.dompetTujuan}`, t.catatan].filter(Boolean).join(' · ');
   }
-  return `<button class="trx" data-aksi="edit-trx" data-id="${esc(t.id)}">
-    <span class="ikon-bulat">${ilus(ikon)}</span>
-    <span class="trx-isi"><b>${esc(judul)}</b><small>${esc(sub)}</small></span>
-    <span class="nominal ${kelas}">${tanda}${rp(t.jumlah)}</span>
-  </button>`;
+  // Dibungkus .trx-geser: geser kiri = hapus (bisa diurungkan), geser kanan = catat lagi hari ini.
+  return `<div class="trx-geser">
+    <div class="latar-geser" aria-hidden="true"><span class="ulang">🔁 Catat lagi</span><span class="hapus">🗑 Hapus</span></div>
+    <button class="trx" data-aksi="edit-trx" data-id="${esc(t.id)}">
+      <span class="ikon-bulat">${ilus(ikon)}</span>
+      <span class="trx-isi"><b>${esc(judul)}</b><small>${esc(sub)}</small></span>
+      <span class="nominal ${kelas}">${tanda}${rp(t.jumlah)}</span>
+    </button>
+  </div>`;
 }
 
 function kosong(ikon, teks) {
@@ -678,6 +708,8 @@ function viewBeranda() {
 
     ${kartuMulai()}
     ${kartuTagihan()}
+    ${kartuSaranRutin()}
+    ${kartuAktivitasBaru()}
 
     <div class="bento">${tileAnggaran(per)}${tileTabungan()}</div>
 
@@ -787,7 +819,7 @@ function viewRiwayat() {
     ${chipFilter.length ? `<div class="chips">${chipFilter.map(([k, l]) =>
       `<button class="chip aktif" data-aksi="hapus-filter" data-k="${k}">${esc(l)} ✕</button>`).join('')}</div>` : ''}
     <div id="hasil-riwayat">${sumber === null
-      ? '<div class="memuat-awal" style="padding-top:12vh"><div class="spinner"></div><p>Memuat transaksi…</p></div>'
+      ? KERANGKA_DAFTAR
       : ringkas + (isi || kosong('🔍', 'Tidak ada transaksi yang cocok.')) + lagi}</div>`;
 }
 
@@ -1711,7 +1743,8 @@ function kartuSorotan(pilih) {
   }
   if (!butir.length) return '';
   return `<section class="kartu">
-    <h3>✨ Sorotan · ${esc(namaBulan(pilih))}</h3>
+    <div class="kepala-kartu"><h3>✨ Sorotan · ${esc(namaBulan(pilih))}</h3>
+      <button type="button" class="chip chip-kilas" data-aksi="kilas-putar" data-bulan="${esc(pilih)}">▶ Kilas balik</button></div>
     <div class="sorotan">${butir.map(b => `
       <div class="butir-sorotan ${b.kelas}"><span class="ikon-sorotan">${b.ikon}</span>
         <span class="isi"><b>${b.judul}</b><small>${esc(b.ket)}</small></span></div>`).join('')}</div>
@@ -1938,6 +1971,11 @@ function viewLainnya() {
         <span class="isi"><b>Tagihan & transaksi rutin</b><small>${daftarRutin().length ? `${daftarRutin().length} rutin · berikutnya ${esc(daftarRutin()[0].nama)}, ${esc(tanggalPendek(daftarRutin()[0].berikutnya))}` : 'Listrik, internet, cicilan, SPP, gaji…'}</small></span>
         <span class="panah">${svg('maju')}</span>
       </button>
+      <button class="baris" data-aksi="aktivitas">
+        <span class="ikon-bulat">👥</span>
+        <span class="isi"><b>Aktivitas keluarga</b><small>Siapa mencatat, mengubah, atau menghapus apa</small></span>
+        <span class="panah">${svg('maju')}</span>
+      </button>
       <button class="baris" data-aksi="buku">
         <span class="ikon-bulat">📒</span>
         <span class="isi"><b>Buku keuangan</b><small>${esc(d.namaBuku || 'Keluarga')}${(d.buku || []).length > 1 ? ` · ${d.buku.length} buku` : ' · pisahkan pribadi, keluarga, usaha'}</small></span>
@@ -1997,6 +2035,14 @@ function viewLainnya() {
         <span class="pilih-kecil">
           <select id="pilih-tema" aria-label="Tema">${[['', 'Otomatis'], ['light', 'Terang'], ['dark', 'Gelap']].map(([t, l]) =>
             `<option value="${t}" ${temaDipilih() === t ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        </span>
+      </label>
+      <label class="baris baris-pilih">
+        <span class="ikon-bulat">🔠</span>
+        <span class="isi"><b>Ukuran tampilan</b><small>Perbesar teks & tombol supaya lebih mudah dibaca</small></span>
+        <span class="pilih-kecil">
+          <select id="pilih-ukuran" aria-label="Ukuran tampilan">${[['', 'Normal'], ['besar', 'Besar'], ['sangat', 'Sangat besar']].map(([u, l]) =>
+            `<option value="${u}" ${ukuranDipilih() === u ? 'selected' : ''}>${l}</option>`).join('')}</select>
         </span>
       </label>
       <button class="baris" data-aksi="samar" role="switch" aria-checked="${modeSamar()}">
@@ -2344,6 +2390,14 @@ function tulisHp(k, v) {
 const WARNA_BILAH = { light: '#f4f5f8', dark: '#0b0c10' }; // = --bg tiap tema
 /** '' = otomatis ikut perangkat, 'light', atau 'dark'. Dipasang awal di index.html supaya tidak berkedip. */
 const temaDipilih = () => bacaHp('dk_tema') || '';
+/** Ukuran tampilan: '' (normal) | 'besar' | 'sangat' — seluruh aplikasi diperbesar (zoom), bukan hanya huruf. */
+const ukuranDipilih = () => bacaHp('dk_ukuran') || '';
+function aturUkuran(u) {
+  tulisHp('dk_ukuran', u || null);
+  if (u) document.documentElement.dataset.ukuran = u;
+  else delete document.documentElement.dataset.ukuran;
+}
+
 function aturTema(t) {
   tulisHp('dk_tema', t || null);
   if (t) document.documentElement.dataset.theme = t;
@@ -2829,6 +2883,82 @@ function labelJatuhTempo(tgl) {
 }
 
 /** Kartu Beranda: rutin yang jatuh tempo dalam 7 hari atau sudah terlewat. */
+// ---------- Aktivitas keluarga ----------
+
+const kunciAktivitas = () => 'dk_aktivitas_' + (S.data && S.data.spreadsheetId || '');
+const ikonAksi = { catat: '➕', ubah: '✏️', hapus: '🗑️', kembalikan: '↩️' };
+const kataAksi = { catat: 'mencatat', ubah: 'mengubah', hapus: 'menghapus', kembalikan: 'mengembalikan' };
+
+/** Gabungan log perubahan + transaksi baru periode ini, terbaru dulu. */
+function daftarAktivitas() {
+  const baru = (S.data.transaksi || []).filter(t => t.oleh && t.dibuat).map(t => ({
+    waktu: t.dibuat, oleh: t.oleh, aksi: 'catat',
+    ringkasan: (t.tipe === TIPE.TRANSFER ? 'Transfer ' + t.dompet + ' → ' + t.dompetTujuan : t.kategori) + ' ' + rp(t.jumlah) + (t.catatan ? ' · ' + t.catatan : ''),
+  }));
+  return (S.data.log || []).concat(baru).sort((a, b) => String(b.waktu).localeCompare(String(a.waktu))).slice(0, 80);
+}
+
+function waktuRelatif(w) {
+  const d = new Date(String(w).replace(' ', 'T'));
+  if (isNaN(d)) return '';
+  const menit = Math.round((Date.now() - d) / 60000);
+  if (menit < 1) return 'baru saja';
+  if (menit < 60) return menit + ' mnt lalu';
+  if (menit < 24 * 60) return Math.round(menit / 60) + ' jam lalu';
+  if (menit < 7 * 24 * 60) return Math.round(menit / 1440) + ' hari lalu';
+  return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+}
+
+/** Beranda: perubahan oleh anggota LAIN sejak terakhir dilihat (ubah/hapus saja, supaya tidak ramai). */
+function kartuAktivitasBaru() {
+  const terakhir = bacaHp(kunciAktivitas()) || '';
+  const lain = (S.data.log || []).filter(x => x.oleh !== S.data.user && String(x.waktu) > terakhir && (x.aksi === 'ubah' || x.aksi === 'hapus'));
+  if (!lain.length) return '';
+  const x = lain[0];
+  return `<button type="button" class="kartu kartu-aktivitas" data-aksi="aktivitas">
+    <span class="ikon-bulat">${ikonAksi[x.aksi] || '👥'}</span>
+    <span class="isi"><b>${esc(namaPendek(x.oleh))} ${kataAksi[x.aksi] || x.aksi} transaksi</b>
+      <small>${esc(x.ringkasan)}</small>
+      ${lain.length > 1 ? `<small class="lagi">+${lain.length - 1} perubahan lain · ${esc(waktuRelatif(x.waktu))}</small>` : `<small class="lagi">${esc(waktuRelatif(x.waktu))}</small>`}</span>
+    <span class="panah">${svg('maju')}</span>
+  </button>`;
+}
+
+function bukaAktivitas() {
+  const daftar = daftarAktivitas();
+  if (daftar.length) tulisHp(kunciAktivitas(), String(daftar[0].waktu));
+  bukaSheet('Aktivitas keluarga', `
+    <p class="info-kecil" style="text-align:left;margin-top:0">Perubahan & penghapusan tercatat di sheet <b>Log</b> spreadsheet. Pencatatan baru dari periode ini.</p>
+    <div class="daftar-aktivitas">${daftar.map(x => `
+      <div class="baris-aktivitas ${x.aksi}">
+        <span class="ikon-aksi">${ikonAksi[x.aksi] || '•'}</span>
+        <span class="isi"><b>${esc(x.oleh === S.data.user ? 'Anda' : namaPendek(x.oleh))}</b> ${kataAksi[x.aksi] || esc(x.aksi)}
+          <small>${esc(x.ringkasan)}</small></span>
+        <small class="waktu">${esc(waktuRelatif(x.waktu))}</small>
+      </div>`).join('') || kosong('👥', 'Belum ada aktivitas.')}</div>`);
+  if (S.tab === 'beranda') render();
+}
+
+/** Saran "jadikan tagihan rutin" (dari pola transaksi 3–4 bulan terakhir); bisa ditolak per saran. */
+const kunciSaranDitolak = () => 'dk_saran_tolak_' + (S.data && S.data.spreadsheetId || '');
+function kartuSaranRutin() {
+  let tolak = [];
+  try { tolak = JSON.parse(bacaHp(kunciSaranDitolak())) || []; } catch (e) { tolak = []; }
+  const x = (S.data.saranRutin || []).find(s => !tolak.includes(s.kunci));
+  if (!x) return '';
+  return `<section class="kartu kartu-saran">
+    <span class="ikon-bulat">${ilus(ikonKategori(x.kategori, x.tipe))}</span>
+    <div class="isi"><small>💡 Sepertinya rutin</small>
+      <b>${esc(x.nama)} · ${rp(x.jumlah)}</b>
+      <span>Tercatat ${x.kali} bulan terakhir, sekitar tanggal ${x.hari}. Jadikan tagihan rutin supaya diingatkan?</span>
+      <div class="aksi-saran">
+        <button type="button" class="chip aktif" data-aksi="saran-rutin" data-kunci="${esc(x.kunci)}">Jadikan rutin</button>
+        <button type="button" class="chip" data-aksi="tolak-saran" data-kunci="${esc(x.kunci)}">Bukan</button>
+      </div>
+    </div>
+  </section>`;
+}
+
 function kartuTagihan() {
   const dibayarOffline = tertunda().map(t => t.dariRutin).filter(Boolean); // sudah dibayar, menunggu sinyal
   const daftar = daftarRutin().filter(r => selisihHari(r.berikutnya) <= 7 && !dibayarOffline.includes(r.id));
@@ -3118,7 +3248,14 @@ function infoStruk(h) {
   const peringatan = kembar
     ? `<p class="info-kecil peringatan-kembar">⚠️ Sudah ada ${esc(kembar.kategori)} ${rp(kembar.jumlah)} di tanggal yang sama${kembar.catatan ? ' (' + esc(kembar.catatan) + ')' : ''}. Pastikan struk ini belum pernah dicatat.</p>`
     : '';
-  return `<div style="margin:-8px 0 16px">${pilihan}<p class="info-kecil" style="text-align:left;margin-top:0">${status}</p>${peringatan}</div>`;
+  const rincian = (h.rincian || []).length >= 2 && h.rincian.reduce((a, x) => a + x.jumlah, 0) === F.jumlah && !F.id ? `
+    <button type="button" class="tombol-pecah" data-aksi="pecah-struk">
+      <span class="ikon-pecah">🧩</span>
+      <span class="isi"><b>Pecah jadi ${h.rincian.length} transaksi per kategori</b>
+        <small>${h.rincian.map(x => esc(x.kategori) + ' ' + rpPendek(x.jumlah)).join(' · ')}</small></span>
+      <span class="panah">${svg('maju')}</span>
+    </button>` : '';
+  return `<div style="margin:-8px 0 16px">${pilihan}<p class="info-kecil" style="text-align:left;margin-top:0">${status}</p>${peringatan}${rincian}</div>`;
 }
 
 /**
@@ -3140,6 +3277,11 @@ function bukaFormTelegram(kode, muatan = kode) {
         ${t.bot ? `<a class="btn btn-utama" style="display:block;text-decoration:none" href="https://t.me/${esc(t.bot)}?start=${esc(muatan)}" target="_blank" rel="noopener">Buka Telegram & hubungkan</a>` : ''}
         <p class="info-kecil" style="margin-bottom:0;word-break:break-all">${t.bot ? 'Atau kirim' : 'Kirim'} <b>/hubungkan ${esc(muatan)}</b> ke bot.</p>
       </div>` : ''}
+    ${t.pengguna.length ? `<button type="button" class="baris" data-aksi="pengingat-telegram" role="switch" aria-checked="${t.pengingat !== false}">
+      <span class="ikon-bulat">🔔</span>
+      <span class="isi"><b>Pengingat harian</b><small>Tiap pagi ± jam 6: catatan berpengingat & tagihan yang jatuh tempo</small></span>
+      <span class="saklar ${t.pengingat !== false ? 'nyala' : ''}" aria-hidden="true"></span>
+    </button>` : ''}
     <span class="label" style="margin-top:14px">Akun terhubung (${t.pengguna.length})</span>
     ${t.pengguna.map(p => `
       <div class="baris">
@@ -3415,6 +3557,31 @@ const AKSI = {
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
   'telegram': () => bukaFormTelegram(),
+  'aktivitas': () => bukaAktivitas(),
+  'saran-rutin': el => {
+    const x = (S.data.saranRutin || []).find(s => s.kunci === el.dataset.kunci);
+    if (!x) return;
+    // Jatuh tempo berikutnya: tanggal yang sama bulan ini kalau belum lewat, selain itu bulan depan.
+    const kini = keTanggal(hariIni());
+    let d = new Date(kini.getFullYear(), kini.getMonth(), Math.min(x.hari, 28));
+    if (d < kini) d = new Date(kini.getFullYear(), kini.getMonth() + 1, Math.min(x.hari, 28));
+    bukaFormRutin();
+    Object.assign(F, { nama: x.nama, tipe: x.tipe, jumlah: x.jumlah, kategori: x.kategori, dompet: x.dompet, catatan: x.nama,
+      tanggal: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') });
+    renderFormTrx();
+  },
+  'tolak-saran': el => {
+    let tolak = [];
+    try { tolak = JSON.parse(bacaHp(kunciSaranDitolak())) || []; } catch (e) { tolak = []; }
+    tolak.push(el.dataset.kunci);
+    tulisHp(kunciSaranDitolak(), JSON.stringify(tolak.slice(-50)));
+    render();
+    toast('Oke, tidak disarankan lagi');
+  },
+  'pengingat-telegram': async el => {
+    const nyala = S.data.telegram.pengingat === false;
+    if (await kirim(el, 'aturPengingatTelegram', [nyala], nyala ? 'Pengingat harian dinyalakan 🔔' : 'Pengingat harian dimatikan')) bukaFormTelegram();
+  },
   'cadangan': () => bukaCadangan(),
   'unduh-csv': async el => {
     el.disabled = true;
@@ -3462,8 +3629,9 @@ const AKSI = {
     if (!F.jumlah) return toast('Isi jumlahnya dulu.', true);
     if (F.tipe !== TIPE.TRANSFER && !F.kategori) return toast('Pilih kategorinya dulu.', true);
     if (F.tipe === TIPE.TRANSFER && (!F.dompetTujuan || F.dompetTujuan === F.dompet)) return toast('Pilih dompet tujuan yang berbeda.', true);
-    const pesan = F.id ? 'Transaksi diperbarui ✔' : 'Transaksi tersimpan ✔';
     const t = F;
+    const dasar = F.id ? 'Transaksi diperbarui ✔' : 'Transaksi tersimpan ✔';
+    const pesan = () => { const a = pesanAnggaran(t); toast(a ? dasar + ' · ' + a.teks : dasar, a && a.lewat); };
     const dariJob = t.dariJob;
     // ID transaksi baru dibuat di HP, supaya kiriman ulang (setelah sinyal putus) tidak membuat data dobel.
     if (!t.id && !t.idBaru) t.idBaru = crypto.randomUUID();
@@ -3987,7 +4155,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'contoh-suara', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'contoh-suara', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
 ]);
 
 /**
@@ -5026,6 +5194,7 @@ function pasangPenjaga() {
 
 /** Menutup lapisan paling atas yang boleh ditutup dengan tombol kembali; true kalau ada yang ditutup. */
 function tutupLapisanAtas() {
+  if (kilas) { tutupKilasBalik(); return true; }
   if ($('#ringkas-suara') && !$('#ringkas-suara').hidden) { tutupRingkasanSuara(); hasilSuara = null; return true; }
   if ($('#ingat') && !$('#ingat').hidden) {
     // Pengingat ditutup dengan tombol kembali: muncul lagi saat aplikasi dibuka besok / sesi berikutnya.
@@ -5128,6 +5297,7 @@ Object.assign(AKSI, {
 // Pilihan tema (dropdown di Lainnya).
 document.addEventListener('change', e => {
   if (e.target.id === 'pilih-tema') { aturTema(e.target.value); render(); }
+  if (e.target.id === 'pilih-ukuran') { aturUkuran(e.target.value); render(); }
 });
 
 // ---------- Mencatat dengan suara ----------
@@ -5200,11 +5370,199 @@ function contohSuara() {
     [`Bayar listrik tiga ratus lima puluh ribu ${d2}`, 'Pengeluaran · Tagihan'],
     [`Beli obat 45 ribu pakai ${d1}`, 'Pengeluaran · Kesehatan'],
     [`Parkir goceng`, 'Bahasa gaul: gopek, seceng, goceng, ceban, gocap, cepek'],
+    [`Bakso 25 ribu, parkir goceng, bensin 30 ribu pakai ${d1}`, 'Beberapa transaksi sekaligus'],
+    [`Belanja sayur 50 ribu Sabtu minggu lalu`, 'Tanggal: kemarin, Sabtu lalu, tanggal 1 bulan kemarin'],
     [`Gaji lima juta masuk ${d2}`, 'Pemasukan · Gaji'],
     [`Dapat bonus satu setengah juta`, 'Pemasukan · Bonus'],
     [`Nasi padang 2 bungkus 40 ribu`, 'Angka kecil (2 bungkus) tidak dianggap nominal'],
   ];
 }
+
+// ---------- Peringatan anggaran setelah menyimpan pengeluaran ----------
+
+/** Pengeluaran yang baru disimpan membuat kategorinya ≥ 80% anggaran? → { teks, lewat }; selain itu null. */
+function pesanAnggaran(t) {
+  if (!t || t.tipe !== TIPE.KELUAR || !t.kategori || !S.data) return null;
+  if (SERVER.periodeDari(t.tanggal, S.data.mulaiPeriode || 1) !== S.data.bulan) return null; // anggaran periode yang tampil
+  const k = kategoriBeranggaran().find(x => x.nama === t.kategori);
+  if (!k || !k.batas) return null;
+  const pakai = pengeluaranPerKategori()[k.nama] || 0;
+  const persen = Math.round(pakai / k.batas * 100);
+  if (persen >= 100) return { lewat: true, teks: `⛔ anggaran ${k.nama} lewat ${rp(pakai - k.batas)}` };
+  if (persen >= 80) return { lewat: false, teks: `⚠️ ${k.nama} sudah ${persen}% anggaran (sisa ${rp(k.batas - pakai)})` };
+  return null;
+}
+
+// ---------- Geser transaksi: kiri = hapus, kanan = catat lagi ----------
+
+let geserTrx = null;
+const BATAS_GESER = 90;
+document.addEventListener('pointerdown', e => {
+  const kotak = e.target.closest && e.target.closest('.trx-geser');
+  if (!kotak || e.button > 0 || e.pointerType === 'mouse') return;
+  geserTrx = { kotak, x0: e.clientX, y0: e.clientY, dx: 0, arah: '' };
+});
+document.addEventListener('pointermove', e => {
+  const g = geserTrx;
+  if (!g) return;
+  const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+  if (!g.arah) {
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+    g.arah = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x' : 'y';
+    if (g.arah === 'x') g.kotak.classList.add('digeser');
+  }
+  if (g.arah !== 'x') return;
+  g.dx = Math.max(-150, Math.min(150, dx));
+  g.kotak.style.setProperty('--dx', g.dx + 'px');
+  g.kotak.dataset.arah = g.dx < 0 ? 'hapus' : 'ulang';
+  const lewat = Math.abs(g.dx) > BATAS_GESER;
+  if (lewat !== g.kotak.classList.contains('lewat') && lewat && navigator.vibrate) navigator.vibrate(15);
+  g.kotak.classList.toggle('lewat', lewat);
+}, { passive: true });
+function selesaiGeser() {
+  const g = geserTrx;
+  geserTrx = null;
+  if (!g || g.arah !== 'x') return;
+  const lewat = Math.abs(g.dx) > BATAS_GESER;
+  g.kotak.classList.remove('digeser', 'lewat');
+  g.kotak.style.setProperty('--dx', '0px');
+  g.kotak.dataset.dicegah = '1'; // ketukan dari geseran ini tidak membuka form
+  setTimeout(() => { delete g.kotak.dataset.dicegah; }, 60);
+  if (!lewat) return;
+  const tombol = g.kotak.querySelector('.trx');
+  const t = S.data.transaksi.concat((S.cariData && S.cariData.transaksi) || []).find(x => x.id === tombol.dataset.id);
+  if (!t) return;
+  if (g.dx < 0) {
+    g.kotak.classList.add('terhapus');
+    kirim(tombol, 'hapusTransaksi', [t.id], baris => {
+      trxTerhapus = baris;
+      toast('Transaksi dihapus', false, { label: 'Urungkan', aksi: 'urungkan-hapus' });
+    }).then(ok => { if (!ok) g.kotak.classList.remove('terhapus'); });
+  } else {
+    bukaFormTrx(null, { tipe: t.tipe, jumlah: t.jumlah, kategori: t.kategori, dompet: t.dompet, dompetTujuan: t.dompetTujuan,
+      catatan: t.catatan, tanggal: hariIni() }, 'Catat lagi');
+  }
+}
+document.addEventListener('pointerup', selesaiGeser);
+document.addEventListener('pointercancel', selesaiGeser);
+document.addEventListener('click', e => {
+  if (e.target.closest && e.target.closest('.trx-geser[data-dicegah]')) { e.stopPropagation(); e.preventDefault(); }
+}, true);
+
+// ---------- Kilas balik bulanan (gaya "story") ----------
+// Muncul sekali saat aplikasi pertama dibuka di periode baru, untuk periode sebelumnya. Bisa diputar lagi dari Laporan.
+
+let kilas = null; // { k, i, n, timer }
+const kunciKilas = () => 'dk_kilas_' + (S.data && S.data.spreadsheetId || '');
+let kilasDicek = false;
+
+function cekKilasBalik() {
+  if (kilas || kilasDicek || !S.data || S.data.perluSetup || S.tab !== 'beranda') return;
+  kilasDicek = true;
+  const lalu = bulanSebelum(periodeSekarang());
+  const r = (S.data.bulanan || {})[lalu];
+  if (!r || !(r.keluar || r.masuk) || bacaHp(kunciKilas()) === lalu) return;
+  if (!$('#sheet').hidden || ($('#ingat') && !$('#ingat').hidden) || !$('#kunci').hidden || !$('#sesi').hidden) { kilasDicek = false; return; }
+  tulisHp(kunciKilas(), lalu);
+  bukaKilasBalik(lalu);
+}
+
+function slideKilas(k) {
+  const r = ringkasBulan(k);
+  const sebelum = ringkasBulan(bulanSebelum(k));
+  const top = Object.keys(r.kategori).map(n => ({ n, v: r.kategori[n] })).sort((a, b) => b.v - a.v);
+  const nama = namaPendek(S.data.user);
+  const slide = [];
+  slide.push(`<div class="kilas-isi tengah"><span class="kilas-emoji">✨</span><small>Kilas balik</small>
+    <h2>${esc(namaBulan(k))}</h2><p>Halo ${esc(nama)}, yuk lihat ke mana uang keluarga pergi bulan itu 👀</p></div>`);
+  slide.push(`<div class="kilas-isi"><small>Total pengeluaran</small><div class="kilas-angka keluar">${rp(r.keluar)}</div>
+    <div class="kilas-baris"><span>💰 Pemasukan</span><b>${rp(r.masuk)}</b></div>
+    <div class="kilas-baris"><span>${r.masuk >= r.keluar ? '🟢 Sisa' : '🔴 Minus'}</span><b>${rp(Math.abs(r.masuk - r.keluar))}</b></div></div>`);
+  if (top.length) {
+    slide.push(`<div class="kilas-isi"><small>Paling banyak untuk</small>
+      <div class="kilas-ilus">${ilus(ikonKategori(top[0].n, TIPE.KELUAR))}</div>
+      <h2>${esc(top[0].n)}</h2><p><b>${rp(top[0].v)}</b> · ${r.keluar ? Math.round(top[0].v / r.keluar * 100) : 0}% dari pengeluaran</p>
+      ${top.slice(1, 4).map((x, i) => `<div class="kilas-baris"><span>${i + 2}. ${esc(x.n)}</span><b>${rp(x.v)}</b></div>`).join('')}</div>`);
+  }
+  if (sebelum.keluar && r.keluar) {
+    const p = Math.round((r.keluar - sebelum.keluar) / sebelum.keluar * 100);
+    slide.push(`<div class="kilas-isi tengah"><span class="kilas-emoji">${p > 0 ? '📈' : p < 0 ? '📉' : '⚖️'}</span>
+      <small>Dibanding ${esc(namaBulan(bulanSebelum(k)))}</small>
+      <div class="kilas-angka ${p > 0 ? 'keluar' : 'masuk'}">${p > 0 ? '+' : p < 0 ? '−' : ''}${Math.abs(p)}%</div>
+      <p>${p > 0 ? `Pengeluaran naik ${rp(r.keluar - sebelum.keluar)}. Cek lagi kategori yang membengkak, ya.`
+        : p < 0 ? `Hemat ${rp(sebelum.keluar - r.keluar)} dari bulan sebelumnya. Mantap! 🎉` : 'Pengeluaran sama persis. Konsisten!'}</p></div>`);
+  }
+  const rasio = r.masuk ? Math.round((r.masuk - r.keluar) / r.masuk * 100) : null;
+  slide.push(`<div class="kilas-isi tengah"><span class="kilas-emoji">${rasio === null ? '📒' : rasio >= 20 ? '🏆' : rasio >= 0 ? '💪' : '🫶'}</span>
+    <h2>${rasio === null ? 'Terus mencatat!' : rasio >= 20 ? 'Keuangan sehat!' : rasio >= 0 ? 'Masih aman' : 'Bulan yang berat'}</h2>
+    <p>${rasio === null ? 'Catat pemasukan juga supaya rangkumannya lengkap.'
+      : rasio >= 20 ? `${rasio}% pemasukan berhasil disisihkan. Pertahankan!`
+      : rasio >= 0 ? `Tersisa ${rasio}% pemasukan. Coba targetkan 20% bulan ini.`
+      : 'Pengeluaran melebihi pemasukan. Pasang anggaran supaya bulan ini lebih terkendali.'}</p>
+    <div class="kilas-aksi">
+      <button type="button" class="btn btn-hapus" data-aksi="kilas-bagikan">📤 Bagikan</button>
+      <button type="button" class="btn btn-utama" data-aksi="kilas-tutup">Mulai bulan ini 💪</button>
+    </div></div>`);
+  return slide;
+}
+
+function bukaKilasBalik(k) {
+  const slide = slideKilas(k);
+  let el = $('#kilas');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'kilas';
+    el.className = 'kilas';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-label', 'Kilas balik bulanan');
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <div class="kilas-bar">${slide.map(() => '<i><b></b></i>').join('')}</div>
+    <button type="button" class="kilas-x" data-aksi="kilas-tutup" aria-label="Tutup">✕</button>
+    <div class="kilas-panggung">${slide.map((h, i) => `<section class="kilas-slide" data-i="${i}">${h}</section>`).join('')}</div>
+    <button type="button" class="kilas-zona kiri" data-aksi="kilas-mundur" aria-label="Sebelumnya"></button>
+    <button type="button" class="kilas-zona kanan" data-aksi="kilas-maju" aria-label="Berikutnya"></button>`;
+  el.hidden = false;
+  document.body.style.overflow = 'hidden';
+  kilas = { k, i: -1, n: slide.length, timer: 0 };
+  keSlideKilas(0);
+}
+
+function keSlideKilas(i) {
+  if (!kilas) return;
+  if (i >= kilas.n) return; // slide terakhir tetap tampil sampai ditutup
+  kilas.i = Math.max(0, i);
+  const el = $('#kilas');
+  el.querySelectorAll('.kilas-slide').forEach((s, n) => s.classList.toggle('aktif', n === kilas.i));
+  el.querySelectorAll('.kilas-bar i').forEach((b, n) => {
+    b.className = n < kilas.i ? 'lewat' : n === kilas.i ? 'jalan' : '';
+  });
+  clearTimeout(kilas.timer);
+  if (kilas.i < kilas.n - 1) kilas.timer = setTimeout(() => keSlideKilas(kilas.i + 1), 5000);
+}
+
+function tutupKilasBalik() {
+  if (!kilas) return;
+  clearTimeout(kilas.timer);
+  kilas = null;
+  const el = $('#kilas');
+  if (el) el.hidden = true;
+  document.body.style.overflow = '';
+}
+
+Object.assign(AKSI, {
+  'kilas-maju': () => keSlideKilas(kilas ? kilas.i + 1 : 0),
+  'kilas-mundur': () => keSlideKilas(kilas ? kilas.i - 1 : 0),
+  'kilas-tutup': () => tutupKilasBalik(),
+  'kilas-bagikan': async () => {
+    const k = kilas && kilas.k;
+    if (!k) return;
+    try { await bagikanLaporan(k); } catch (e) { toast('Gambar tidak bisa dibuat: ' + pesanError(e), true); }
+  },
+  'kilas-putar': el => bukaKilasBalik(el.dataset.bulan),
+});
 
 // ---------- Ringkasan hasil suara ----------
 // Setelah bicara, data yang terbaca ditampilkan dulu di kartu: Simpan langsung, Koreksi di form, atau Ulangi.
@@ -5235,6 +5593,7 @@ async function tampilRingkasanSuara(teks) {
   if (!F) return;
   const urutan = ++urutanSuara;
   let h = null;
+  let daftarAi = null;
   if ((S.data.kunciGemini || []).length && navigator.onLine) {
     const el = kartuRingkasSuara();
     el.innerHTML = `
@@ -5259,16 +5618,22 @@ async function tampilRingkasanSuara(teks) {
         new Promise((_, gagal) => { tungguLewati = () => gagal(new Error('dilewati')); }),
       ]);
       if (r) {
-        h = rapikanHasilAi(r);
         const t = bacaTanggalLisan(angkaDariKata(teks)).tanggal;
-        if (t) h.tanggal = t;
+        daftarAi = (Array.isArray(r.transaksi) ? r.transaksi : [r]).slice(0, 8).map(x => {
+          const y = rapikanHasilAi(x);
+          if (t) y.tanggal = t;
+          return y;
+        }).filter(y => y.jumlah || y.catatan);
+        h = daftarAi[0] || null;
       }
     } catch (e) {
       if (e.message !== 'dilewati') console.warn('AI suara gagal, pakai aturan biasa:', e.message);
     }
     if (urutan !== urutanSuara || !F || $('#ringkas-suara').hidden) return; // sudah ditutup / bicara lagi
   }
-  if (!h) h = Object.assign(bacaKetikCepat(teks.slice(0, 300)), { sumber: 'aturan' });
+  const daftar = daftarAi && daftarAi.length ? daftarAi : pecahKalimat(teks.slice(0, 300));
+  if (daftar.length > 1) return tampilBanyakSuara(teks, daftar);
+  if (!h) h = daftar[0] || Object.assign(bacaKetikCepat(teks.slice(0, 300)), { sumber: 'aturan' });
   bacaFieldTrx();
   hasilSuara = { teks, h };
   // Pratinjau = isian form setelah hasil ini diterapkan (aturan sama dengan isiFormCepat).
@@ -5318,6 +5683,73 @@ async function tampilRingkasanSuara(teks) {
   setTimeout(() => { const b = el.querySelector('[data-aksi="ringkas-simpan"]:not([disabled])') || el.querySelector('[data-aksi="ringkas-koreksi"]'); if (b) b.focus(); }, 50);
 }
 
+/**
+ * Aturan biasa untuk kalimat berisi beberapa transaksi: "bakso 25rb, parkir 5rb dan bensin 30rb pakai gopay".
+ * Dipecah di koma / "dan" / "terus" kalau tiap bagian punya nominal; dompet & tanggal yang disebut sekali berlaku untuk semua.
+ */
+function pecahKalimat(teks) {
+  const utuh = Object.assign(bacaKetikCepat(teks), { sumber: 'aturan' });
+  const bagian = angkaDariKata(teks).split(/\s*(?:,|;|\bdan\b|\bterus\b)\s*/i).map(x => x.trim()).filter(Boolean);
+  if (bagian.length < 2) return [utuh];
+  const hasil = bagian.map(b => Object.assign(bacaKetikCepat(b), { sumber: 'aturan' }));
+  if (hasil.filter(x => x.jumlah).length < 2) return [utuh]; // bukan daftar transaksi, mis. "nasi dan teh 20rb"
+  return hasil.filter(x => x.jumlah).map(x => Object.assign(x, {
+    dompet: x.dompet || utuh.dompet,
+    tanggal: x.tanggal || utuh.tanggal,
+  }));
+}
+
+let banyakSuara = null; // [{ ...transaksi siap simpan, kurang: [] }]
+
+/** Kartu ringkasan untuk beberapa transaksi sekaligus: tiap baris bisa dibuang (✕), lalu Simpan semua. */
+function tampilBanyakSuara(teks, daftar) {
+  bacaFieldTrx();
+  banyakSuara = daftar.map(h => {
+    const x = { tipe: h.tipe || TIPE.KELUAR, jumlah: h.jumlah, kategori: h.kategori || '', dompet: h.dompet || F.dompet,
+      dompetTujuan: h.dompetTujuan || '', tanggal: h.tanggal || F.tanggal || hariIni(), catatan: h.catatan || '', sumber: h.sumber };
+    if (x.tipe !== TIPE.TRANSFER && !(x.tipe === TIPE.KELUAR ? dompetBiasa() : dompetBiasa()).some(w => w.nama === x.dompet)) x.dompet = F.dompet;
+    x.kurang = [];
+    if (!x.jumlah) x.kurang.push('nominal');
+    if (x.tipe !== TIPE.TRANSFER && !x.kategori) x.kurang.push('kategori');
+    if (x.tipe === TIPE.TRANSFER && (!x.dompetTujuan || x.dompetTujuan === x.dompet)) x.kurang.push('dompet tujuan');
+    return x;
+  });
+  hasilSuara = { teks, banyak: true };
+  gambarBanyakSuara(teks);
+  getar();
+}
+
+function gambarBanyakSuara(teks) {
+  const el = kartuRingkasSuara();
+  const daftar = banyakSuara;
+  const lengkap = daftar.filter(x => !x.kurang.length);
+  const total = lengkap.filter(x => x.tipe === TIPE.KELUAR).reduce((a, x) => a + x.jumlah, 0);
+  const ai = daftar.some(x => x.sumber === 'ai');
+  el.innerHTML = `
+    <div class="sesi-kartu kartu-ringkas">
+      <span class="label-ringkas" id="ringkas-judul">${ai ? '🤖 Dipahami AI' : '🎤 Terbaca'} · ${daftar.length} transaksi</span>
+      <p class="kutipan-suara">“${esc(teks || hasilSuara.teks)}”</p>
+      <div class="daftar-banyak">${daftar.map((x, i) => {
+        const ikon = x.tipe === TIPE.TRANSFER ? '🔁' : x.kategori ? ikonKategori(x.kategori, x.tipe) : '🏷️';
+        return `<div class="baris-banyak ${x.kurang.length ? 'belum' : ''}">
+          <span class="ikon-ringkas">${ilus(ikon)}</span>
+          <span class="isi"><b>${esc(x.catatan || x.kategori || x.tipe)}</b>
+            <small>${x.kurang.length ? '⚠️ ' + x.kurang.join(', ') + ' belum terbaca'
+              : esc([x.tipe === TIPE.TRANSFER ? x.dompet + ' → ' + x.dompetTujuan : x.kategori, x.tipe === TIPE.TRANSFER ? '' : x.dompet, labelHariPendek(x.tanggal)].filter(Boolean).join(' · '))}</small></span>
+          <b class="nominal ${x.tipe === TIPE.MASUK ? 'masuk' : x.tipe === TIPE.TRANSFER ? '' : 'keluar'}">${x.jumlah ? (x.tipe === TIPE.MASUK ? '+' : x.tipe === TIPE.TRANSFER ? '' : '−') + rp(x.jumlah) : '—'}</b>
+          <button type="button" class="buang-banyak" data-aksi="buang-banyak" data-i="${i}" aria-label="Buang transaksi ini">✕</button>
+        </div>`;
+      }).join('')}</div>
+      ${total ? `<div class="total-banyak"><span>Total pengeluaran</span><b>${rp(total)}</b></div>` : ''}
+      ${lengkap.length < daftar.length ? `<p class="peringatan-ringkas">⚠️ Yang belum lengkap tidak ikut disimpan. Buang (✕) atau catat manual nanti.</p>` : ''}
+      <div class="aksi-ringkas">
+        <button type="button" class="btn btn-hapus" data-aksi="ringkas-ulang">🎤 Ulangi</button>
+        <button type="button" class="btn btn-utama" data-aksi="simpan-banyak" ${lengkap.length ? '' : 'disabled'}>✔ Simpan ${lengkap.length > 1 ? 'semua (' + lengkap.length + ')' : ''}</button>
+      </div>
+    </div>`;
+  el.hidden = false;
+}
+
 function tutupRingkasanSuara() {
   const el = $('#ringkas-suara');
   if (el) el.hidden = true;
@@ -5353,6 +5785,52 @@ Object.assign(AKSI, {
     tampilRingkasanSuara(el.dataset.teks);
   },
   'ringkas-tanpa-ai': () => { lewatiAi = true; tungguLewati(); },
+  // Struk berisi beberapa kategori → kartu "Simpan semua" (sama dengan suara banyak transaksi).
+  'pecah-struk': () => {
+    if (!F || !F.struk || !(F.struk.rincian || []).length) return;
+    bacaFieldTrx();
+    const toko = String(F.catatan || F.struk.catatan || '').split(/\s+-\s+/)[0].trim();
+    const daftar = F.struk.rincian.map(x => ({
+      sumber: 'struk', tipe: TIPE.KELUAR, jumlah: x.jumlah, kategori: x.kategori, dompet: F.dompet, tanggal: F.tanggal,
+      catatan: [toko, x.barang].filter(Boolean).join(' - ').slice(0, 100),
+    }));
+    tampilBanyakSuara('Struk ' + (toko || '') + ' · total ' + rp(F.jumlah), daftar);
+    const label = $('#ringkas-judul');
+    if (label) label.textContent = '🧾 Struk dipecah · ' + daftar.length + ' transaksi';
+  },
+  'buang-banyak': el => {
+    if (!banyakSuara) return;
+    banyakSuara.splice(Number(el.dataset.i), 1);
+    if (!banyakSuara.length) { tutupRingkasanSuara(); banyakSuara = null; return; }
+    gambarBanyakSuara();
+  },
+  'simpan-banyak': async el => {
+    const daftar = (banyakSuara || []).filter(x => !x.kurang.length);
+    if (!daftar.length) return;
+    const job = F && F.dariJob; // struk dari antrean baca di latar: dibersihkan setelah tersimpan
+    el.disabled = true;
+    loading(true);
+    let tersimpan = 0;
+    try {
+      for (const x of daftar) {
+        await api('simpanTransaksi', { idBaru: crypto.randomUUID(), tipe: x.tipe, jumlah: x.jumlah, kategori: x.kategori, dompet: x.dompet,
+          dompetTujuan: x.dompetTujuan, tanggal: x.tanggal, catatan: x.catatan });
+        tersimpan++;
+      }
+    } catch (e) {
+      if (!(e instanceof GOOGLE.PerluMasuk)) toast(`${tersimpan} tersimpan, sisanya gagal: ${pesanError(e)}`, true);
+    }
+    loading(false);
+    el.disabled = false;
+    if (!tersimpan) return;
+    tutupRingkasanSuara();
+    banyakSuara = null;
+    hasilSuara = null;
+    if (job && typeof hapusJob === 'function') hapusJob(job);
+    tutupSheet();
+    await muat();
+    if (tersimpan === daftar.length) toast(`${tersimpan} transaksi tersimpan ✔`);
+  },
   'ringkas-simpan': () => {
     if (!hasilSuara || !F) return tutupRingkasanSuara();
     tutupRingkasanSuara();
@@ -5512,4 +5990,5 @@ document.addEventListener('touchend', async () => {
   }
 });
 
+if (ukuranDipilih()) document.documentElement.dataset.ukuran = ukuranDipilih();
 mulai();

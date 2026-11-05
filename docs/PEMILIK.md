@@ -116,6 +116,7 @@ Keduanya bisa aktif bersamaan. Spreadsheet `SPREADSHEET_ID` tetap dibuka dengan 
 6. **Pasang webhook:** di editor, pilih fungsi **pasangWebhook** lalu klik **▶ Run**. Di Execution log muncul `✅ Bot @namabot terpasang`, dan untuk bot bersama juga baris berisi nilai `botTelegram` dan `emailBot`.
 7. **Bot bersama:** salin kedua nilai itu ke [web/assets/config.js](../web/assets/config.js), lalu commit dan push. Sejak itu menu **⚙️ → Bot Telegram** muncul untuk semua pengguna.
 8. **Tautkan akun:** di aplikasi, buka **⚙️ → Bot Telegram → Hubungkan akun Telegram saya**, setujui, lalu ketuk **Buka Telegram & hubungkan** dan **Start**. Anggota keluarga lain melakukan hal yang sama dari akunnya sendiri.
+9. **Pengingat harian (opsional):** di editor, pilih fungsi **pasangPengingatHarian** lalu klik **▶ Run** sekali. Setiap pagi sekitar jam 06.00 WIB, bot mengirim catatan berpengingat dan tagihan rutin yang jatuh tempo (terlambat, hari ini, besok) ke semua akun Telegram yang terhubung. Tiap buku bisa mematikannya di **⚙️ → Bot Telegram → Pengingat harian**.
 
 Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang menemukan bot hanya mendapat pesan "belum terhubung".
 

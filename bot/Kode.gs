@@ -1640,3 +1640,117 @@ function tanggalWajar_(s, hariIni) {
   if (d.getMonth() !== Number(m[2]) - 1 || d.getDate() !== Number(m[3])) return '';
   return s <= hariIni && s >= '2000-01-01' ? s : '';
 }
+
+// ======================================================================
+// Pengingat harian lewat Telegram (pemicu waktu, ± jam 06.00 WIB)
+// Catatan berpengingat yang jatuh hari ini + tagihan rutin yang jatuh tempo (terlambat, hari ini, besok)
+// dikirim ke setiap akun Telegram yang terhubung ke buku itu. Bisa dimatikan per buku dari aplikasi
+// (Pengaturan PENGINGAT_TELEGRAM = 'Mati').
+// ======================================================================
+
+/** Jalankan SEKALI dari editor Apps Script untuk memasang pemicu harian. */
+function pasangPengingatHarian() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'kirimPengingatHarian')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('kirimPengingatHarian').timeBased().everyDays(1).atHour(6).inTimezone(TZ).create();
+  console.log('Pengingat harian aktif: setiap hari sekitar jam 06.00 WIB.');
+}
+
+function kirimPengingatHarian() {
+  const semua = PropertiesService.getScriptProperties().getProperties();
+  const perBuku = {};
+  Object.keys(semua).forEach(k => {
+    if (/^tg_-?\d+$/.test(k)) (perBuku[semua[k]] = perBuku[semua[k]] || []).push(k.slice(3));
+  });
+  if (semua.SPREADSHEET_ID && !perBuku[semua.SPREADSHEET_ID]) perBuku[semua.SPREADSHEET_ID] = [];
+  const hari = hariIni_();
+  Object.keys(perBuku).forEach(idSheet => {
+    try {
+      pengingatBuku_(idSheet, perBuku[idSheet], hari);
+    } catch (err) {
+      console.error('Pengingat ' + idSheet + ': ' + (err.stack || err));
+    }
+  });
+}
+
+/** Baca beberapa tabel sekaligus. tabel: [[nama sheet, jumlah kolom]]. */
+function bacaTabel_(tabel) {
+  const ranges = tabel.map(t => 'ranges=' + range_("'" + t[0] + "'!A2:" + String.fromCharCode(64 + t[1]))).join('&');
+  const j = jawabanSheets_(UrlFetchApp.fetchAll([sheetsApi_('/values:batchGet?' + ranges
+    + '&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER')])[0]);
+  return j.valueRanges.map(vr => vr.values || []);
+}
+
+function pengingatBuku_(idSheet, idTerindeks, hari) {
+  pakaiSpreadsheet_(idSheet);
+  const kunciHari = 'pg_' + idSheet;
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty(kunciHari) === hari) return; // sudah dikirim hari ini
+  let baris;
+  try {
+    baris = bacaTabel_([['Pengaturan', 2], ['Rutin', 11], ['Catatan', 7]]);
+  } catch (err) {
+    if (err.status !== 400) throw err; // 400 = sheet Rutin/Catatan belum ada (buku lama)
+    baris = [bacaTabel_([['Pengaturan', 2]])[0], [], []];
+  }
+  const p = {};
+  baris[0].forEach(r => { if (r[0] !== '') p[String(r[0])] = String(r[1] == null ? '' : r[1]); });
+  if (p.PENGINGAT_TELEGRAM === 'Mati') return;
+  const pengguna = penggunaTelegram_(p);
+  const tujuan = Object.keys(pengguna).filter(id => modeLama_() || idTerindeks.indexOf(String(id)) >= 0);
+  if (!tujuan.length) return;
+
+  const besok = tglGeser_(hari, 1);
+  const tagihan = baris[1].filter(r => r[0] !== '' && r[10] !== '').map(r => ({
+    nama: String(r[1]), tipe: String(r[2]), jumlah: Number(r[3]) || 0, berikutnya: tgl_(r[10]),
+  })).filter(r => r.berikutnya <= besok).sort((a, b) => a.berikutnya.localeCompare(b.berikutnya));
+  const catatan = baris[2].filter(r => r[0] !== '' && String(r[4]) === 'Ya').map(r => ({
+    tanggal: tgl_(r[1]), judul: String(r[2]), isi: String(r[3] || ''), ulang: String(r[5] || ''),
+  })).filter(c => catatanTerjadi_(c, hari));
+  if (!tagihan.length && !catatan.length) return;
+
+  const baris2 = ['🔔 <b>Pengingat hari ini</b> · ' + html_(tglPanjang_(hari)), ''];
+  catatan.forEach(c => {
+    const tugas = String(c.isi).split('\n').map(s => s.trim()).filter(Boolean);
+    const daftarTugas = tugas.length && tugas.every(s => /^\[( |x)\] ?/i.test(s));
+    let ket = '';
+    if (daftarTugas) ket = ' · ' + tugas.filter(s => /^\[x\]/i.test(s)).length + '/' + tugas.length + ' selesai';
+    else if (tugas.length) ket = ' — ' + html_(tugas[0].slice(0, 80));
+    baris2.push((daftarTugas ? '☑️ ' : '📌 ') + '<b>' + html_(c.judul) + '</b>' + ket);
+  });
+  tagihan.forEach(r => {
+    const selisih = Math.round((keTanggal_(r.berikutnya) - keTanggal_(hari)) / 864e5);
+    const kapan = selisih < 0 ? 'terlambat ' + (-selisih) + ' hari' : selisih === 0 ? 'jatuh tempo hari ini' : 'besok';
+    baris2.push((r.tipe === TIPE.MASUK ? '💰 ' : '💡 ') + '<b>' + html_(r.nama) + '</b> · ' + rp_(r.jumlah) + ' · ' + kapan);
+  });
+  if (tagihan.length) baris2.push('', 'Sudah dibayar? Catat dari aplikasi (Beranda → tagihan) supaya jatuh temponya maju.');
+  const teks = baris2.join('\n');
+  tujuan.forEach(id => kirim_(id, teks));
+  props.setProperty(kunciHari, hari);
+}
+
+/** Sama dengan terjadiPada() di aplikasi: catatan sekali, atau berulang mingguan/bulanan/tahunan. */
+function catatanTerjadi_(c, iso) {
+  if (!c.tanggal || iso < c.tanggal) return false;
+  if (!c.ulang) return iso === c.tanggal;
+  const a = iso.split('-').map(Number), b = c.tanggal.split('-').map(Number);
+  if (c.ulang === 'Mingguan') return Math.round((keTanggal_(iso) - keTanggal_(c.tanggal)) / 864e5) % 7 === 0;
+  const hariBulan = new Date(a[0], a[1], 0).getDate();
+  const patokan = Math.min(b[2], hariBulan);
+  if (c.ulang === 'Bulanan') return a[2] === patokan;
+  if (c.ulang === 'Tahunan') return a[1] === b[1] && a[2] === patokan;
+  return false;
+}
+
+function tglGeser_(iso, n) {
+  const d = keTanggal_(iso);
+  d.setDate(d.getDate() + n);
+  return Utilities.formatDate(d, TZ, 'yyyy-MM-dd');
+}
+
+function tglPanjang_(iso) {
+  const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const d = keTanggal_(iso);
+  return HARI[d.getDay()] + ', ' + d.getDate() + ' ' + NAMA_BULAN[d.getMonth()];
+}
