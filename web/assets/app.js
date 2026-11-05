@@ -1793,7 +1793,7 @@ function renderFormTrx() {
 
     ${F.strukJob ? `
       <div class="struk-proses" role="status"><span class="spinner kecil"></span>
-        <span><b>Membaca struk…</b><small>Isi lain boleh diisi dulu, atau tutup form ini. Hasilnya tetap muncul di bawah layar.</small></span></div>`
+        <span><b>Membaca struk… <span class="detik" data-detik="${F.strukJob}"></span></b><small>Isi lain boleh diisi dulu, atau tutup form ini. Hasilnya tetap muncul di bawah layar.</small></span></div>`
     : !F.id && !rutin && F.tipe === TIPE.KELUAR ? `
       <p class="label" style="margin:0 0 6px">Isi otomatis dari foto struk</p>
       <div style="display:flex;gap:8px;margin:0 0 16px">
@@ -2307,32 +2307,46 @@ const ANTRIAN = [];
 let nomorStruk = 0;
 let sumberStruk = 'cepat'; // 'form' kalau foto dipilih dari dalam form transaksi
 
-/** Mengecilkan foto supaya cepat dikirim. Hasil: { base64 (JPEG tanpa awalan data URL), thumb (data URL kecil) }. */
-function kecilkanGambar(file, maks = 2000) {
+/**
+ * Batas ukuran foto dihitung dari JUMLAH PIKSEL, bukan sisi terpanjang. Dengan batas sisi terpanjang,
+ * struk panjang (1:4) atau screenshot panjang ikut menyempit sampai angkanya tidak terbaca.
+ */
+const PIKSEL_BACA = 5e6;   // untuk dibaca AI/OCR: cukup tajam untuk angka kecil di struk
+const PIKSEL_ARSIP = 2e6;  // lampiran yang disimpan ke Drive: cukup untuk dilihat, hemat penyimpanan
+const SISI_MAKS = 4096;
+
+/**
+ * Menyiapkan foto. Hasil: { base64 (untuk dibaca), arsip (untuk lampiran), thumb (data URL kecil) };
+ * base64/arsip berupa JPEG tanpa awalan data URL.
+ */
+function kecilkanGambar(file) {
   return new Promise((ok, gagal) => {
-    const rusak = () => gagal(new Error('Gambar tidak bisa dibuka. Coba foto lain.'));
-    const reader = new FileReader();
-    reader.onerror = rusak;
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = rusak;
-      img.onload = () => {
-        const gambar = ukuran => {
-          const skala = Math.min(1, ukuran / Math.max(img.width, img.height));
-          const c = document.createElement('canvas');
-          c.width = Math.round(img.width * skala);
-          c.height = Math.round(img.height * skala);
-          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-          return c;
-        };
-        ok({
-          base64: gambar(maks).toDataURL('image/jpeg', 0.85).split(',')[1],
-          thumb: gambar(120).toDataURL('image/jpeg', 0.7),
-        });
+    // Object URL: browser langsung membaca file, tanpa mengubah foto 5–10 MB menjadi teks base64 dulu.
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); gagal(new Error('Gambar tidak bisa dibuka. Coba foto lain (format JPG/PNG).')); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const jpeg = (skala, mutu) => {
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(w * skala));
+        c.height = Math.max(1, Math.round(h * skala));
+        const ctx = c.getContext('2d');
+        // Screenshot PNG transparan: tanpa latar putih, bagian transparan jadi hitam di JPEG dan teksnya hilang.
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        return c.toDataURL('image/jpeg', mutu);
       };
-      img.src = reader.result;
+      const skalaPiksel = batas => Math.min(1, Math.sqrt(batas / (w * h)), SISI_MAKS / Math.max(w, h));
+      ok({
+        base64: jpeg(skalaPiksel(PIKSEL_BACA), 0.88).split(',')[1],
+        arsip: jpeg(skalaPiksel(PIKSEL_ARSIP), 0.8).split(',')[1],
+        thumb: jpeg(Math.min(1, 120 / Math.max(w, h)), 0.7),
+      });
     };
-    reader.readAsDataURL(file);
+    img.src = url;
   });
 }
 
@@ -2352,11 +2366,14 @@ function mulaiStruk(file, dariForm) {
 async function jalankanStruk(job) {
   job.status = 'proses';
   job.pesan = '';
+  job.ulangOtomatis = '';
+  job.mulai = Date.now();
   renderAntrian();
   try {
+    if (!navigator.onLine) throw new Error('Tidak ada sinyal.');
     const g = await kecilkanGambar(job.file);
     job.thumb = g.thumb;
-    job.base64 = g.base64; // ikut disimpan sebagai lampiran transaksi
+    job.base64 = g.arsip; // versi lebih kecil yang disimpan sebagai lampiran transaksi
     renderAntrian();
     job.hasil = await api('bacaStruk', g.base64, 'image/jpeg');
     if (!ANTRIAN.includes(job)) return; // sudah dibuang pengguna
@@ -2364,7 +2381,7 @@ async function jalankanStruk(job) {
     if (formMenungguStruk(job)) {
       terapkanStruk(job);
       hapusJob(job.id);
-      toast(job.hasil.yakin ? 'Struk terbaca ✔ Cek lagi sebelum disimpan.' : 'Struk terbaca, tapi hasilnya kurang pasti. Periksa totalnya.');
+      toast(job.hasil.pilihanJumlah.length > 1 ? 'Struk terbaca, tapi totalnya beda-beda. Pilih yang sesuai.' : 'Struk terbaca ✔ Cek sekilas sebelum disimpan.');
     } else {
       getar();
       toast('🧾 Struk siap ditinjau: ' + rp(job.hasil.jumlah));
@@ -2373,6 +2390,10 @@ async function jalankanStruk(job) {
     if (!ANTRIAN.includes(job)) return;
     job.status = 'gagal';
     job.pesan = pesanError(e);
+    // Gagal karena sesi login / sinyal: dibaca ulang otomatis begitu tersambung (lihat ulangiStrukTertunda).
+    if (e instanceof GOOGLE.PerluMasuk) job.ulangOtomatis = 'sesi';
+    else if (e.jaringan || !navigator.onLine) job.ulangOtomatis = 'sinyal';
+    if (job.ulangOtomatis) job.pesan = job.ulangOtomatis === 'sesi' ? 'Sesi login berakhir. Dibaca ulang otomatis setelah tersambung.' : 'Tidak ada sinyal. Dibaca ulang otomatis begitu online.';
     if (formMenungguStruk(job)) {
       F.strukJob = null;
       renderFormTrx();
@@ -2383,6 +2404,19 @@ async function jalankanStruk(job) {
 }
 
 const formMenungguStruk = job => !!(F && F.strukJob === job.id && $('#form-trx'));
+
+/** Struk yang gagal karena sesi login / sinyal dibaca ulang. jenis: 'sesi' | 'sinyal'. */
+function ulangiStrukTertunda(jenis) {
+  ANTRIAN.filter(j => j.status === 'gagal' && j.ulangOtomatis === jenis).forEach(jalankanStruk);
+}
+
+/** Lama membaca ("12 dtk") di antrian & form, supaya pengguna tahu prosesnya masih berjalan. */
+setInterval(() => {
+  document.querySelectorAll('[data-detik]').forEach(el => {
+    const job = ANTRIAN.find(j => j.id === Number(el.dataset.detik));
+    if (job && job.mulai) el.textContent = Math.round((Date.now() - job.mulai) / 1000) + ' dtk';
+  });
+}, 1000);
 
 /** Mengisi form transaksi yang sedang terbuka dengan hasil struk. */
 function terapkanStruk(job) {
@@ -2418,7 +2452,7 @@ function renderAntrian() {
     const gambar = j.thumb ? `<img src="${j.thumb}" alt="">` : '<span class="antrian-ikon">🧾</span>';
     let isi, aksi;
     if (j.status === 'proses') {
-      isi = '<b>Membaca struk…</b><small>Boleh lanjut pakai aplikasi</small>';
+      isi = `<b>Membaca struk… <span class="detik" data-detik="${j.id}"></span></b><small>Boleh lanjut pakai aplikasi</small>`;
       aksi = '<span class="spinner kecil" aria-label="Sedang memproses"></span>';
     } else if (j.status === 'siap') {
       isi = `<b>✅ Struk siap · ${rp(j.hasil.jumlah)}</b><small>${esc(j.hasil.catatan || j.hasil.kategori || 'Ketuk Tinjau untuk menyimpan')}</small>`;
@@ -2438,8 +2472,15 @@ function infoStruk(h) {
     <p class="label" style="margin:0 0 6px">Ketuk total yang sesuai struk:</p>
     <div class="chips" style="margin-bottom:6px">${h.pilihanJumlah.map(p =>
       `<button type="button" class="chip ${p.jumlah === F.jumlah ? 'aktif' : ''}" data-aksi="f-pilih-jumlah" data-jumlah="${p.jumlah}">${rp(p.jumlah)}</button>`).join('')}</div>` : '';
-  const status = h.yakin ? '✅ Yakin, totalnya terbaca sama beberapa kali.' : '⚠️ Cek lagi totalnya dengan struk.';
-  return `<div style="margin:-8px 0 16px">${pilihan}<p class="info-kecil" style="text-align:left;margin-top:0">${status}</p></div>`;
+  const status = h.yakin ? '✅ Yakin, totalnya terbaca sama beberapa kali.'
+    : h.pilihanJumlah.length > 1 ? '⚠️ Hasil baca berbeda-beda. Cocokkan dengan struk.'
+    : '🔍 Cocokkan sekilas totalnya dengan struk.';
+  const kembar = !F.id && S.data && (S.data.transaksi || []).find(t =>
+    t.tipe === TIPE.KELUAR && t.jumlah === F.jumlah && t.tanggal === F.tanggal);
+  const peringatan = kembar
+    ? `<p class="info-kecil peringatan-kembar">⚠️ Sudah ada ${esc(kembar.kategori)} ${rp(kembar.jumlah)} di tanggal yang sama${kembar.catatan ? ' (' + esc(kembar.catatan) + ')' : ''}. Pastikan struk ini belum pernah dicatat.</p>`
+    : '';
+  return `<div style="margin:-8px 0 16px">${pilihan}<p class="info-kecil" style="text-align:left;margin-top:0">${status}</p>${peringatan}</div>`;
 }
 
 /**
@@ -2947,9 +2988,9 @@ const AKSI = {
       const file = input.files[0];
       if (!file || !F || !$('#form-trx')) return;
       try {
-        const g = await kecilkanGambar(file, 1600);
+        const g = await kecilkanGambar(file);
         bacaFieldTrx();
-        F.lampiranData = g.base64;
+        F.lampiranData = g.arsip;
         F.lampiranThumb = g.thumb;
         renderFormTrx();
       } catch (e) {
@@ -3273,6 +3314,7 @@ async function setelahTersambung(email, dariTombol) {
   if (email !== S.data.user) return muatDariAwal(); // ternyata akun lain
   const kartuTampil = !$('#sesi').hidden;
   $('#sesi').hidden = true;
+  ulangiStrukTertunda('sesi');
   if ($('#sheet').hidden) {
     if (dariTombol) loading(true);
     await muat();
@@ -3398,6 +3440,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('online', () => {
   if (!S.data || S.data.perluSetup) return;
   if (!GOOGLE.sudahMasuk()) return perluMasukLagi();
+  ulangiStrukTertunda('sinyal');
   muat();
 });
 window.addEventListener('offline', () => {
