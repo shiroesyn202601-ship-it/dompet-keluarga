@@ -4736,7 +4736,8 @@ setInterval(() => { if (pembaruanDitunda && !sedangSibuk()) location.reload(); }
 
 const WARNA_CATATAN = [['biru', '#3b82f6'], ['hijau', '#10b981'], ['kuning', '#f59e0b'], ['merah', '#ef4444'], ['ungu', '#8b5cf6']];
 const warnaCatatan = k => (WARNA_CATATAN.find(w => w[0] === k) || WARNA_CATATAN[0])[1];
-const NAMA_HARI_PENDEK = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+const NAMA_WARNA = { biru: T('biru'), hijau: T('hijau'), kuning: T('kuning'), merah: T('merah'), ungu: T('ungu') };
+const NAMA_HARI_PENDEK = [T('Sen'), T('Sel'), T('Rab'), T('Kam'), T('Jum'), T('Sab'), T('Min||hari')];
 const daftarCatatan = () => (S.data && S.data.catatan) || []; // data offline versi lama belum punya catatan
 
 const isoDari = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -4762,10 +4763,10 @@ const tagihanPada = iso => daftarRutin().filter(r => r.berikutnya === iso);
 /** "Hari ini" / "Besok" / "Kemarin" / "Kamis, 5 Nov". */
 function labelHariPendek(iso) {
   const n = Math.round((keTanggal(iso) - keTanggal(hariIni())) / 864e5);
-  if (n === 0) return 'Hari ini';
-  if (n === 1) return 'Besok';
-  if (n === -1) return 'Kemarin';
-  return keTanggal(iso).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
+  if (n === 0) return T('Hari ini');
+  if (n === 1) return T('Besok');
+  if (n === -1) return T('Kemarin');
+  return keTanggal(iso).toLocaleDateString(LOKAL, { weekday: 'long', day: 'numeric', month: 'short' });
 }
 
 /** Pindah ke halaman penuh (Catatan / Sholat), menutup lembar bawah yang mungkin masih terbuka. */
@@ -4788,8 +4789,8 @@ function viewCatatan() {
   if (!S.kal) S.kal = { bulan: hariIni().slice(0, 7), pilih: hariIni() };
   return `
     <div class="kepala kepala-kembali">
-      <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="Kembali">${svg('kembali')}</button>
-      <h1>Catatan & Pengingat</h1>
+      <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="${T('Kembali')}">${svg('kembali')}</button>
+      <h1>${T('Catatan & Pengingat')}</h1>
     </div>
     <section class="kartu halaman-kalender"><div id="kalender">${htmlKalender()}</div></section>`;
 }
@@ -4818,7 +4819,7 @@ function htmlKalender() {
       + (tagihan.length && ada.length < 2 ? `<i class="tagihan">💡 ${esc(tagihan[0].nama)}</i>` : '');
     const sisa = ada.length + tagihan.length - (ada.slice(0, 2).length + (tagihan.length && ada.length < 2 ? 1 : 0));
     sel.push(`<button type="button" class="kal-sel ${d.getMonth() !== m - 1 ? 'luar' : ''} ${iso === hari ? 'hari-ini' : ''} ${iso === S.kal.pilih ? 'pilih' : ''}"
-      data-aksi="kal-tgl" data-tgl="${iso}" aria-label="${esc(keteranganHari(iso))}${ada.length ? ', ' + ada.length + ' catatan' : ''}">
+      data-aksi="kal-tgl" data-tgl="${iso}" aria-label="${esc(keteranganHari(iso))}${ada.length ? T(', {n} catatan', { n: ada.length }) : ''}">
       <span class="kal-angka">${d.getDate()}</span>${label}${sisa > 0 ? `<i class="lagi">+${sisa}</i>` : ''}</button>`);
   }
 
@@ -4826,10 +4827,10 @@ function htmlKalender() {
   const tagihanDipilih = tagihanPada(S.kal.pilih);
   return `
     <div class="kal-kepala">
-      <button type="button" class="tombol-ikon" data-aksi="kal-bulan" data-geser="-1" aria-label="Bulan sebelumnya">${svg('kembali')}</button>
-      <b>${awal.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</b>
-      <button type="button" class="tombol-ikon" data-aksi="kal-bulan" data-geser="1" aria-label="Bulan berikutnya">${svg('maju')}</button>
-      ${S.kal.bulan !== hari.slice(0, 7) || S.kal.pilih !== hari ? '<button type="button" class="chip" data-aksi="kal-tgl" data-tgl="' + hari + '">Hari ini</button>' : ''}
+      <button type="button" class="tombol-ikon" data-aksi="kal-bulan" data-geser="-1" aria-label="${T('Bulan sebelumnya')}">${svg('kembali')}</button>
+      <b>${awal.toLocaleDateString(LOKAL, { month: 'long', year: 'numeric' })}</b>
+      <button type="button" class="tombol-ikon" data-aksi="kal-bulan" data-geser="1" aria-label="${T('Bulan berikutnya')}">${svg('maju')}</button>
+      ${S.kal.bulan !== hari.slice(0, 7) || S.kal.pilih !== hari ? '<button type="button" class="chip" data-aksi="kal-tgl" data-tgl="' + hari + '">' + T('Hari ini') + '</button>' : ''}
     </div>
     <div class="kal-hari">${NAMA_HARI_PENDEK.map(h => `<span>${h}</span>`).join('')}</div>
     <div class="kal-grid" id="kal-grid">${sel.join('')}</div>
@@ -4837,12 +4838,12 @@ function htmlKalender() {
     ${dipilih.map(itemCatatan).join('')}
     ${tagihanDipilih.map(r => `
       <button type="button" class="kal-item tagihan" data-aksi="kelola-rutin">
-        <span class="isi"><b>💡 ${esc(r.nama)}</b><small>Tagihan rutin · ${rp(r.jumlah)}</small></span>
+        <span class="isi"><b>💡 ${esc(r.nama)}</b><small>${T('Tagihan rutin')} · ${rp(r.jumlah)}</small></span>
         <span class="panah">${svg('maju')}</span>
       </button>`).join('')}
-    ${dipilih.length || tagihanDipilih.length ? '' : '<p class="info-kecil" style="text-align:left;margin-top:0">Belum ada catatan di tanggal ini.</p>'}
-    ${S.data.bisaCatatan === false ? '<p class="info-kecil" style="text-align:left">⚠️ Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).</p>' : ''}
-    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">＋ Catatan di ${esc(labelHariPendek(S.kal.pilih).replace(/^Hari ini$/, 'hari ini'))}</button></div>`;
+    ${dipilih.length || tagihanDipilih.length ? '' : '<p class="info-kecil" style="text-align:left;margin-top:0">' + T('Belum ada catatan di tanggal ini.') + '</p>'}
+    ${S.data.bisaCatatan === false ? '<p class="info-kecil" style="text-align:left">' + T('⚠️ Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).') + '</p>' : ''}
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">${labelHariPendek(S.kal.pilih) === T('Hari ini') ? T('＋ Catatan di hari ini') : T('＋ Catatan di {hari}', { hari: esc(labelHariPendek(S.kal.pilih)) })}</button></div>`;
 }
 
 /** Geser kiri/kanan di kalender untuk ganti bulan. */
@@ -4885,11 +4886,11 @@ function daftarCentang(c, semua) {
   return `<div class="daftar-centang">${tampil.map((t, i) => `
       <button type="button" class="centang ${t.selesai ? 'selesai' : ''}" role="checkbox" aria-checked="${t.selesai}"
         data-aksi="centang-tugas" data-id="${esc(c.id)}" data-i="${i}"><span class="kotak-centang" aria-hidden="true"></span><span>${esc(t.teks)}</span></button>`).join('')}
-      ${tugas.length > tampil.length ? `<small class="centang-lagi">+${tugas.length - tampil.length} item lagi</small>` : ''}</div>`;
+      ${tugas.length > tampil.length ? `<small class="centang-lagi">${T('+{n} item lagi', { n: tugas.length - tampil.length })}</small>` : ''}</div>`;
 }
 
 function itemCatatan(c) {
-  const meta = `${c.pengingat ? '🔔 Pengingat' : '📝 Catatan'}${c.ulang ? ' · 🔁 ' + c.ulang.toLowerCase() : ''}${c.oleh ? ' · ' + esc(namaPendek(c.oleh)) : ''}`;
+  const meta = `${c.pengingat ? T('🔔 Pengingat') : T('📝 Catatan')}${c.ulang ? ' · 🔁 ' + namaT(c.ulang).toLowerCase() : ''}${c.oleh ? ' · ' + esc(namaPendek(c.oleh)) : ''}`;
   const tugas = bacaTugas(c.isi);
   if (!tugas) {
     return `
@@ -4902,7 +4903,7 @@ function itemCatatan(c) {
   return `
     <div class="kal-item kal-tugas ${selesai === tugas.length ? 'tuntas' : ''}" style="--w:${warnaCatatan(c.warna)}">
       <button type="button" class="kal-tugas-kepala" data-aksi="ubah-catatan" data-id="${esc(c.id)}">
-        <span class="isi"><b>${esc(c.judul)}</b><small class="kal-meta">☑️ ${selesai}/${tugas.length} selesai · ${meta}</small></span>
+        <span class="isi"><b>${esc(c.judul)}</b><small class="kal-meta">☑️ ${T('{a}/{b} selesai', { a: selesai, b: tugas.length })} · ${meta}</small></span>
         <span class="panah">${svg('maju')}</span>
       </button>
       <div class="progres-tugas"><i style="width:${Math.round(selesai / tugas.length * 100)}%"></i></div>
@@ -4912,9 +4913,9 @@ function itemCatatan(c) {
 
 function barisTugasForm(t) {
   return `<div class="baris-tugas ${t.selesai ? 'selesai' : ''}">
-      <button type="button" class="kotak-centang" data-aksi="c-tugas-centang" role="checkbox" aria-checked="${t.selesai}" aria-label="Tandai selesai"></button>
-      <input maxlength="200" enterkeyhint="next" placeholder="Tulis item…" value="${esc(t.teks)}">
-      <button type="button" class="tombol-hapus-tugas" data-aksi="c-tugas-hapus" aria-label="Hapus item">✕</button>
+      <button type="button" class="kotak-centang" data-aksi="c-tugas-centang" role="checkbox" aria-checked="${t.selesai}" aria-label="${T('Tandai selesai')}"></button>
+      <input maxlength="200" enterkeyhint="next" placeholder="${T('Tulis item…')}" value="${esc(t.teks)}">
+      <button type="button" class="tombol-hapus-tugas" data-aksi="c-tugas-hapus" aria-label="${T('Hapus item')}">✕</button>
     </div>`;
 }
 const tugasDariForm = () => [...document.querySelectorAll('#c-tugas .baris-tugas')].map(r => ({
@@ -4942,7 +4943,7 @@ function centangTugas(id, i) {
   segarkanCentang(c);
   if (tugas[i].selesai) { // item belanja dicentang → tawarkan catat sebagai pengeluaran
     tugasUntukTrx = tugas[i].teks;
-    toast('✔ ' + tugas[i].teks, false, { label: 'Catat pengeluaran', aksi: 'tugas-jadi-trx' });
+    toast('✔ ' + tugas[i].teks, false, { label: T('Catat pengeluaran'), aksi: 'tugas-jadi-trx' });
   }
   const kirimIsi = c.isi;
   antrianTugas = antrianTugas.then(() => api('simpanCatatan', {
@@ -4950,7 +4951,7 @@ function centangTugas(id, i) {
   })).catch(e => {
     c.isi = isiLama;
     segarkanCentang(c);
-    if (!(e instanceof GOOGLE.PerluMasuk)) toast('Centang belum tersimpan: ' + pesanError(e), true);
+    if (!(e instanceof GOOGLE.PerluMasuk)) toast(T('Centang belum tersimpan: {pesan}', { pesan: pesanError(e) }), true);
   });
 }
 function segarkanCentang(c) {
@@ -5028,7 +5029,7 @@ function bukaFormCatatan(c, tanggal) {
   S.formCatatan.awal = jejakCatatan(S.formCatatan);
   if (draf) {
     Object.assign(S.formCatatan, draf);
-    setTimeout(() => toast('📝 Isian yang belum disimpan dipulihkan', false, { label: 'Buang', aksi: 'buang-draf-catatan' }), 300);
+    setTimeout(() => toast(T('📝 Isian yang belum disimpan dipulihkan'), false, { label: T('Buang'), aksi: 'buang-draf-catatan' }), 300);
   }
   bukaHalaman('catatan-edit');
 }
@@ -5045,7 +5046,7 @@ function antreCatatan(input, idLama) {
   if (i >= 0) daftar[i] = lokal; else daftar.push(lokal);
   tulisLokal('data', S.data);
   buangDrafCatatan(idLama);
-  toast('📴 Catatan disimpan di HP. Dikirim otomatis begitu ada sinyal.');
+  toast(T('📴 Catatan disimpan di HP. Dikirim otomatis begitu ada sinyal.'));
   bukaKalender(x.tanggal);
   return true;
 }
@@ -5064,7 +5065,7 @@ async function kirimCatatanTertunda() {
     }
   } catch (e) { /* sinyal putus lagi: dicoba lain kali */ }
   mengirimCatatan = false;
-  if (terkirim) { toast(terkirim + ' catatan terkirim ✔'); muat(); }
+  if (terkirim) { toast(T('{n} catatan terkirim ✔', { n: terkirim })); muat(); }
 }
 
 // ---------- Draf catatan (tersimpan di HP selama belum disimpan ke spreadsheet) ----------
@@ -5104,7 +5105,7 @@ document.addEventListener('change', e => {
 function tinggalkanFormCatatan() {
   if (S.tab !== 'catatan-edit' || !S.formCatatan) return;
   catatDrafCatatan();
-  if (bacaDrafCatatan(S.formCatatan.id)) toast('📝 Belum disimpan · isian disimpan sebagai draf', false, { label: 'Lanjutkan', aksi: 'lanjut-draf-catatan' });
+  if (bacaDrafCatatan(S.formCatatan.id)) toast(T('📝 Belum disimpan · isian disimpan sebagai draf'), false, { label: T('Lanjutkan'), aksi: 'lanjut-draf-catatan' });
   S.drafTerakhir = { id: S.formCatatan.id, tanggal: S.formCatatan.tanggal };
 }
 
@@ -5119,7 +5120,7 @@ function simpanDraftCatatan() {
 }
 
 // [nilai, label pendek di chip, teks pilihan]
-const LABEL_ULANG = [['', 'Sekali', 'Tidak berulang'], ['Mingguan', 'Mingguan', 'Tiap minggu'], ['Bulanan', 'Bulanan', 'Tiap bulan'], ['Tahunan', 'Tahunan', 'Tiap tahun']];
+const LABEL_ULANG = [['', T('Sekali'), T('Tidak berulang')], ['Mingguan', namaT('Mingguan'), T('Tiap minggu')], ['Bulanan', namaT('Bulanan'), T('Tiap bulan')], ['Tahunan', namaT('Tahunan'), T('Tiap tahun')]];
 
 function viewFormCatatan() {
   const f = S.formCatatan;
@@ -5127,45 +5128,45 @@ function viewFormCatatan() {
   const tugas = f.jenis === 'tugas';
   return `
     <div class="kepala kepala-kembali kepala-form-catatan">
-      <button class="tombol-ikon" data-aksi="keluar-catatan" aria-label="Kembali">${svg('kembali')}</button>
-      <h1>${f.id ? 'Ubah catatan' : 'Catatan baru'}</h1>
+      <button class="tombol-ikon" data-aksi="keluar-catatan" aria-label="${T('Kembali')}">${svg('kembali')}</button>
+      <h1>${f.id ? T('Ubah catatan') : T('Catatan baru')}</h1>
     </div>
     <div class="form-catatan" style="--w:${warnaCatatan(f.warna)}">
-      <input class="judul-catatan" id="c-judul" maxlength="80" enterkeyhint="next" placeholder="Judul" value="${esc(f.judul)}" aria-label="Judul">
+      <input class="judul-catatan" id="c-judul" maxlength="80" enterkeyhint="next" placeholder="${T('Judul')}" value="${esc(f.judul)}" aria-label="${T('Judul')}">
 
-      <div class="saklar-jenis" id="c-jenis" data-jenis="${f.jenis}" role="tablist" aria-label="Jenis catatan">
+      <div class="saklar-jenis" id="c-jenis" data-jenis="${f.jenis}" role="tablist" aria-label="${T('Jenis catatan')}">
         <button type="button" role="tab" aria-selected="${!tugas}" class="${tugas ? '' : 'aktif'}" data-aksi="c-jenis" data-v="teks">
-          <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h10"/></svg>Teks</button>
+          <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h10"/></svg>${T('Teks')}</button>
         <button type="button" role="tab" aria-selected="${tugas}" class="${tugas ? 'aktif' : ''}" data-aksi="c-jenis" data-v="tugas">
-          <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="6" height="6" rx="1.5"/><path d="m4.5 7 1.2 1.2L8 6M12 7h9"/><rect x="3" y="14" width="6" height="6" rx="1.5"/><path d="M12 17h9"/></svg>Daftar tugas</button>
+          <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="6" height="6" rx="1.5"/><path d="m4.5 7 1.2 1.2L8 6M12 7h9"/><rect x="3" y="14" width="6" height="6" rx="1.5"/><path d="M12 17h9"/></svg>${T('Daftar tugas')}</button>
       </div>
 
       <div id="c-isi-teks" ${tugas ? 'hidden' : ''}>
-        <textarea class="isi-catatan" id="c-isi" maxlength="2000" placeholder="Tulis catatan… atau ketuk 🎤 untuk bicara" aria-label="Isi catatan">${esc(f.isi)}</textarea>
+        <textarea class="isi-catatan" id="c-isi" maxlength="2000" placeholder="${T('Tulis catatan… atau ketuk 🎤 untuk bicara')}" aria-label="${T('Isi catatan')}">${esc(f.isi)}</textarea>
       </div>
       <div id="c-isi-tugas" ${tugas ? '' : 'hidden'}>
         <div id="c-tugas">${f.tugas.map(barisTugasForm).join('')}</div>
-        <button type="button" class="tombol-tambah-tugas" data-aksi="c-tugas-tambah">＋ Tambah item</button>
+        <button type="button" class="tombol-tambah-tugas" data-aksi="c-tugas-tambah">${T('＋ Tambah item')}</button>
       </div>
 
-      ${f.oleh ? `<p class="oleh-catatan">Dibuat oleh ${esc(namaPendek(f.oleh))}</p>` : ''}
+      ${f.oleh ? `<p class="oleh-catatan">${T('Dibuat oleh {nama}', { nama: esc(namaPendek(f.oleh)) })}</p>` : ''}
 
       <!-- Bilah bawah menempel (ikut naik di atas keyboard): opsi ringkas + Hapus/Simpan, mudah dijangkau jempol. -->
       <div class="bilah-catatan">
         <div class="pratinjau-dikte" id="pratinjau-dikte" role="status" aria-live="polite" hidden></div>
         <div class="opsi-catatan">
           <label class="chip-opsi">📅 <span id="c-tanggal-label">${esc(labelHariPendek(f.tanggal))}</span>
-            <input type="date" id="c-tanggal" value="${f.tanggal}" aria-label="Tanggal"></label>
-          <button type="button" class="chip-opsi ${f.pengingat ? 'nyala' : ''}" data-aksi="c-pengingat" role="switch" aria-checked="${f.pengingat}">${f.pengingat ? '🔔 Ingatkan' : '🔕 Ingatkan'}</button>
+            <input type="date" id="c-tanggal" value="${f.tanggal}" aria-label="${T('Tanggal')}"></label>
+          <button type="button" class="chip-opsi ${f.pengingat ? 'nyala' : ''}" data-aksi="c-pengingat" role="switch" aria-checked="${f.pengingat}">${f.pengingat ? T('🔔 Ingatkan') : T('🔕 Ingatkan')}</button>
           <label class="chip-opsi ${f.ulang ? 'nyala' : ''}">🔁 <span id="c-ulang-label">${LABEL_ULANG.find(u => u[0] === f.ulang)[1]}</span>
-            <select id="c-ulang" aria-label="Ulangi">${LABEL_ULANG.map(([v, , l]) => `<option value="${v}" ${f.ulang === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-          <button type="button" class="chip-opsi" data-aksi="c-warna" aria-label="Ganti warna (sekarang ${esc(f.warna)})"><i class="titik-warna"></i></button>
+            <select id="c-ulang" aria-label="${T('Ulangi')}">${LABEL_ULANG.map(([v, , l]) => `<option value="${v}" ${f.ulang === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <button type="button" class="chip-opsi" data-aksi="c-warna" aria-label="${T('Ganti warna (sekarang {warna})', { warna: esc(NAMA_WARNA[f.warna] || f.warna) })}"><i class="titik-warna"></i></button>
         </div>
         <div class="aksi-catatan">
-          ${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button type="button" class="tombol-dikte" id="tombol-dikte" data-aksi="suara-catatan" aria-label="Tulis dengan suara">
+          ${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button type="button" class="tombol-dikte" id="tombol-dikte" data-aksi="suara-catatan" aria-label="${T('Tulis dengan suara')}">
             <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>` : ''}
-          ${f.id ? `<button type="button" class="btn btn-hapus btn-hapus-catatan" data-aksi="hapus-catatan">🗑 Hapus</button>` : ''}
-          <button type="button" class="btn btn-utama" data-aksi="simpan-catatan">Simpan</button>
+          ${f.id ? `<button type="button" class="btn btn-hapus btn-hapus-catatan" data-aksi="hapus-catatan">${T('🗑 Hapus')}</button>` : ''}
+          <button type="button" class="btn btn-utama" data-aksi="simpan-catatan">${T('Simpan')}</button>
         </div>
       </div>
     </div>`;
@@ -5181,15 +5182,15 @@ function tampilDikte() {
   const tombol = $('#tombol-dikte'), pratinjau = $('#pratinjau-dikte');
   if (tombol) {
     tombol.classList.toggle('dengar', dikte.aktif);
-    tombol.setAttribute('aria-label', dikte.aktif ? 'Berhenti merekam suara' : 'Tulis dengan suara');
+    tombol.setAttribute('aria-label', dikte.aktif ? T('Berhenti merekam suara') : T('Tulis dengan suara'));
   }
   if (!pratinjau) return;
   pratinjau.hidden = !dikte.aktif;
   if (!dikte.aktif) return;
   pratinjau.innerHTML = `<span class="gelombang-suara kecil" aria-hidden="true">${'<i></i>'.repeat(5)}</span>
     <span class="teks-dikte">${dikte.sementara ? '“' + esc(dikte.sementara) + '”'
-      : dikte.tahap === 'siap' ? 'Menyalakan mikrofon…' : '<b>Mic menyala</b> · bicara, teks ditambahkan ke catatan'}</span>
-    <button type="button" class="tombol-teks" data-aksi="suara-catatan">Selesai</button>`;
+      : dikte.tahap === 'siap' ? T('Menyalakan mikrofon…') : T('<b>Mic menyala</b> · bicara, teks ditambahkan ke catatan')}</span>
+    <button type="button" class="tombol-teks" data-aksi="suara-catatan">${T('Selesai')}</button>`;
   pratinjau.dataset.tahap = dikte.sementara ? 'bicara' : dikte.tahap;
 }
 
@@ -5222,7 +5223,7 @@ function tambahTeksDikte(t) {
 function dengarLagi() {
   const Pengenal = window.SpeechRecognition || window.webkitSpeechRecognition;
   const r = new Pengenal();
-  r.lang = 'id-ID';
+  r.lang = BAHASA === 'en' ? 'en-US' : 'id-ID';
   r.interimResults = true;
   r.maxAlternatives = 1;
   dikte.r = r;
@@ -5240,9 +5241,9 @@ function dengarLagi() {
   r.onerror = ev => {
     if (ev.error === 'no-speech' || ev.error === 'aborted') return; // jeda biasa: dengar lagi
     dikte.galat = true;
-    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') toast('Izinkan akses mikrofon untuk menulis dengan suara.', true);
-    else if (ev.error === 'network') toast('Menulis dengan suara butuh sinyal internet.', true);
-    else toast('Mikrofon berhenti (' + ev.error + ').', true);
+    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') toast(T('Izinkan akses mikrofon untuk menulis dengan suara.'), true);
+    else if (ev.error === 'network') toast(T('Menulis dengan suara butuh sinyal internet.'), true);
+    else toast(T('Mikrofon berhenti ({galat}).', { galat: ev.error }), true);
   };
   r.onend = () => {
     dikte.sementara = '';
@@ -5258,7 +5259,7 @@ function mulaiDikte() {
   if (dikte.aktif) return hentikanDikte();
   Object.assign(dikte, { aktif: true, awalSesi: true, tahap: 'siap', sementara: '', galat: false });
   tampilDikte();
-  try { dengarLagi(); } catch (e) { hentikanDikte(); toast('Mikrofon tidak bisa dipakai.', true); }
+  try { dengarLagi(); } catch (e) { hentikanDikte(); toast(T('Mikrofon tidak bisa dipakai.'), true); }
 }
 
 function hentikanDikte() {
@@ -5336,14 +5337,14 @@ function tampilPengingat(daftar) {
   }
   el.innerHTML = `
     <div class="sesi-kartu ingat-kartu" style="--w:${warnaCatatan(c.warna)}">
-      <span class="ingat-label">🔔 Pengingat · ${esc(labelHariPendek(tgl))}${daftar.length > 1 ? ` · 1 dari ${daftar.length}` : ''}</span>
+      <span class="ingat-label">${T('🔔 Pengingat')} · ${esc(labelHariPendek(tgl))}${daftar.length > 1 ? ' · ' + T('1 dari {n}', { n: daftar.length }) : ''}</span>
       <b id="ingat-judul">${esc(c.judul)}</b>
       ${bacaTugas(c.isi) ? `<div class="ingat-isi">${daftarCentang(c, true)}</div>` : c.isi ? `<p class="ingat-isi">${esc(c.isi)}</p>` : ''}
-      ${c.oleh ? `<small class="ingat-oleh">Dari ${esc(namaPendek(c.oleh))}${c.ulang ? ' · berulang ' + c.ulang.toLowerCase() : ''}</small>` : ''}
-      <button type="button" class="btn btn-utama" data-aksi="ingat-ok" data-id="${esc(c.id)}" data-tgl="${tgl}">Oke, sudah</button>
+      ${c.oleh ? `<small class="ingat-oleh">${T('Dari {nama}', { nama: esc(namaPendek(c.oleh)) })}${c.ulang ? ' · ' + T('berulang {ulang}', { ulang: namaT(c.ulang).toLowerCase() }) : ''}</small>` : ''}
+      <button type="button" class="btn btn-utama" data-aksi="ingat-ok" data-id="${esc(c.id)}" data-tgl="${tgl}">${T('Oke, sudah')}</button>
       <div class="ingat-aksi">
-        <button type="button" class="tombol-teks" data-aksi="ingat-tunda" data-id="${esc(c.id)}" data-tgl="${tgl}">Ingatkan besok</button>
-        <button type="button" class="tombol-teks" data-aksi="ingat-lihat" data-tgl="${tgl}">Lihat di kalender</button>
+        <button type="button" class="tombol-teks" data-aksi="ingat-tunda" data-id="${esc(c.id)}" data-tgl="${tgl}">${T('Ingatkan besok')}</button>
+        <button type="button" class="tombol-teks" data-aksi="ingat-lihat" data-tgl="${tgl}">${T('Lihat di kalender')}</button>
       </div>
     </div>`;
   el.hidden = false;
@@ -5366,7 +5367,13 @@ function tutupPengingat(id, tgl, nilai) {
 
 // ---------- Jadwal sholat & kiblat ----------
 
-const NAMA_WAKTU = [['imsak', 'Imsak'], ['subuh', 'Subuh'], ['terbit', 'Terbit'], ['dzuhur', 'Dzuhur'], ['ashar', 'Ashar'], ['maghrib', 'Maghrib'], ['isya', 'Isya']];
+const NAMA_WAKTU = [['imsak', T('Imsak')], ['subuh', T('Subuh')], ['terbit', T('Terbit')], ['dzuhur', T('Dzuhur')], ['ashar', T('Ashar')], ['maghrib', T('Maghrib')], ['isya', T('Isya')]];
+/** Nama arah mata angin dari SHOLAT.namaArah, diterjemahkan untuk tampilan. */
+const NAMA_ARAH = {
+  utara: T('utara'), 'timur laut': T('timur laut'), timur: T('timur'), tenggara: T('tenggara'),
+  selatan: T('selatan'), 'barat daya': T('barat daya'), barat: T('barat'), 'barat laut': T('barat laut'),
+};
+const namaArahT = d => { const a = SHOLAT.namaArah(d); return NAMA_ARAH[a] || a; };
 const WAKTU_SHOLAT = ['subuh', 'dzuhur', 'ashar', 'maghrib', 'isya'];
 const bacaLokasi = () => { try { return JSON.parse(bacaHp('dk_lokasi')); } catch (e) { return null; } };
 const jamMenit = m => String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0') + ':' + String(((m % 60) + 60) % 60).padStart(2, '0');
@@ -5385,10 +5392,10 @@ function sholatBerikut(lok) {
   if (k) return { kunci: k, nama: NAMA_WAKTU.find(n => n[0] === k)[1], menit: j[k], sisa: j[k] - m };
   const besok = new Date(kini.getFullYear(), kini.getMonth(), kini.getDate() + 1);
   const jb = jadwalHari(lok, besok);
-  return { kunci: 'subuh', nama: 'Subuh', menit: jb.subuh, sisa: jb.subuh + 1440 - m };
+  return { kunci: 'subuh', nama: T('Subuh'), menit: jb.subuh, sisa: jb.subuh + 1440 - m };
 }
 
-const teksSisa = n => (n >= 60 ? Math.floor(n / 60) + ' j ' : '') + (n % 60) + ' m lagi';
+const teksSisa = n => (n >= 60 ? T('{j} j {m} m lagi', { j: Math.floor(n / 60), m: n % 60 }) : T('{m} m lagi', { m: n % 60 }));
 
 /** Kota terdekat dari koordinat (untuk nama lokasi GPS), kalau dalam 60 km. */
 function kotaTerdekat(lat, lng) {
@@ -5407,15 +5414,15 @@ function bukaSholat() {
 function viewSholat() {
   const kepala = `
     <div class="kepala kepala-kembali">
-      <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="Kembali">${svg('kembali')}</button>
-      <h1>Jadwal Sholat & Kiblat</h1>
+      <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="${T('Kembali')}">${svg('kembali')}</button>
+      <h1>${T('Jadwal Sholat & Kiblat')}</h1>
     </div>`;
   const lok = bacaLokasi();
   if (!lok) {
     return kepala + `
     <section class="kartu halaman-sholat">
-      <p style="margin-top:0">Jadwal sholat dan arah kiblat dihitung dari lokasi Anda, langsung di HP (tanpa internet).</p>
-      <div class="aksi-form" style="margin-bottom:14px"><button type="button" class="btn btn-utama" data-aksi="lokasi-gps">📍 Pakai lokasi saya</button></div>
+      <p style="margin-top:0">${T('Jadwal sholat dan arah kiblat dihitung dari lokasi Anda, langsung di HP (tanpa internet).')}</p>
+      <div class="aksi-form" style="margin-bottom:14px"><button type="button" class="btn btn-utama" data-aksi="lokasi-gps">${T('📍 Pakai lokasi saya')}</button></div>
       ${pilihKota()}
     </section>`;
   }
@@ -5423,32 +5430,32 @@ function viewSholat() {
   const j = jadwalHari(lok);
   const s = sholatBerikut(lok);
   const kiblat = SHOLAT.arahKiblat(lok.lat, lok.lng);
-  const tanggal = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
+  const tanggal = new Date().toLocaleDateString(LOKAL, { weekday: 'long', day: 'numeric', month: 'long' });
   return `<div class="hal-sholat">${kepala}
     <div class="sholat-kepala">
       <div><small>${esc(tanggal)}</small><b>📍 ${esc(lok.nama)}</b></div>
-      <button type="button" class="chip" data-aksi="ganti-lokasi">Ganti</button>
+      <button type="button" class="chip" data-aksi="ganti-lokasi">${T('Ganti')}</button>
     </div>
     <div class="sholat-berikut">
-      <div><small>Berikutnya</small><b>${esc(s.nama)} · ${jamMenit(s.menit)}</b></div>
+      <div><small>${T('Berikutnya')}</small><b>${esc(s.nama)} · ${jamMenit(s.menit)}</b></div>
       <span data-sisa-sholat>${teksSisa(s.sisa)}</span>
     </div>
     <div class="jadwal-sholat">${WAKTU_SHOLAT.map(k => `
       <div class="${k === s.kunci ? 'berikut' : ''}"><span>${NAMA_WAKTU.find(n => n[0] === k)[1]}</span><b>${jamMenit(j[k])}</b></div>`).join('')}</div>
-    <p class="sholat-pelengkap">Imsak <b>${jamMenit(j.imsak)}</b> · Terbit <b>${jamMenit(j.terbit)}</b></p>
-    <p class="sholat-pelengkap">Metode Kemenag RI (Subuh 20°, Isya 18°, Ashar Syafi'i, ihtiyat 2 menit). Bisa berbeda 1–3 menit dengan jadwal masjid setempat.</p>
+    <p class="sholat-pelengkap">${T('Imsak')} <b>${jamMenit(j.imsak)}</b> · ${T('Terbit')} <b>${jamMenit(j.terbit)}</b></p>
+    <p class="sholat-pelengkap">${T("Metode Kemenag RI (Subuh 20°, Isya 18°, Ashar Syafi'i, ihtiyat 2 menit). Bisa berbeda 1–3 menit dengan jadwal masjid setempat.")}</p>
 
     <div class="area-kompas">${htmlKompas(kiblat)}${tombolKompas()}</div>
-    <p class="teks-kiblat" id="teks-kiblat"><b>Kiblat ${Math.round(kiblat)}°</b> dari utara · ${SHOLAT.namaArah(kiblat)}</p>
-    <p class="sholat-pelengkap">Letakkan HP mendatar dan jauhkan dari benda logam/magnet. Putar badan sampai 🕋 tepat di garis atas.</p>
+    <p class="teks-kiblat" id="teks-kiblat">${T('<b>Kiblat {derajat}°</b> dari utara', { derajat: Math.round(kiblat) })} · ${namaArahT(kiblat)}</p>
+    <p class="sholat-pelengkap">${T('Letakkan HP mendatar dan jauhkan dari benda logam/magnet. Putar badan sampai 🕋 tepat di garis atas.')}</p>
   </div>`;
 }
 
 function pilihKota() {
   return `<div class="grup-form">
-      <label class="label" for="pilih-kota">Atau pilih kota terdekat</label>
+      <label class="label" for="pilih-kota">${T('Atau pilih kota terdekat')}</label>
       <select class="field" id="pilih-kota" data-pilih-kota>
-        <option value="">Pilih kota…</option>
+        <option value="">${T('Pilih kota…')}</option>
         ${SHOLAT.KOTA.map(([n], i) => `<option value="${i}">${esc(n)}</option>`).join('')}
       </select>
     </div>`;
@@ -5466,7 +5473,7 @@ function simpanLokasi(lok) {
  * Nilai sensor dihaluskan & dianimasikan per frame, dan tidak melompat saat melewati 359° → 0°.
  */
 function htmlKompas(kiblat) {
-  const huruf = [['U', 0, 'u'], ['T', 90, ''], ['S', 180, ''], ['B', 270, '']];
+  const huruf = [[T('U||kompas'), 0, 'u'], [T('T||kompas'), 90, ''], [T('S||kompas'), 180, ''], [T('B||kompas'), 270, '']];
   return `<div class="kompas ${statusKompas === 'aktif' ? 'hidup' : ''}" id="kompas" style="--kiblat:${kiblat.toFixed(1)}deg;--hp:${tampilHp.toFixed(1)}deg">
       <div class="kompas-riak" aria-hidden="true"><i></i><i></i></div>
       <div class="kompas-piringan" id="kompas-piringan">
@@ -5481,9 +5488,9 @@ function htmlKompas(kiblat) {
 }
 
 function isiTengahKompas(kiblat, selisih) {
-  if (selisih == null) return `<b>${Math.round(kiblat)}°</b><small>${SHOLAT.namaArah(kiblat)}</small>`;
-  if (statusPas) return '<b class="cek">✓</b><small>Menghadap kiblat</small>';
-  return `<b>${Math.round(Math.abs(selisih))}°</b><small>putar ${selisih > 0 ? 'ke kanan ↻' : 'ke kiri ↺'}</small>`;
+  if (selisih == null) return `<b>${Math.round(kiblat)}°</b><small>${namaArahT(kiblat)}</small>`;
+  if (statusPas) return '<b class="cek">✓</b><small>' + T('Menghadap kiblat') + '</small>';
+  return `<b>${Math.round(Math.abs(selisih))}°</b><small>${selisih > 0 ? T('putar ke kanan ↻') : T('putar ke kiri ↺')}</small>`;
 }
 
 // Tombol melayang di atas kompas & hilang saat kompas menyala.
@@ -5497,10 +5504,10 @@ let adaDataHp = false;
 let frameKompas = 0;
 let teksTengahTerakhir = '';
 const LABEL_KOMPAS = {
-  mati: '🧭 Aktifkan kompas',
-  menunggu: '⏳ Menunggu sensor kompas…',
-  aktif: '🧭 Kompas aktif',
-  'tidak-ada': '⚠️ HP ini tidak punya sensor kompas',
+  mati: T('🧭 Aktifkan kompas'),
+  menunggu: T('⏳ Menunggu sensor kompas…'),
+  aktif: T('🧭 Kompas aktif'),
+  'tidak-ada': T('⚠️ HP ini tidak punya sensor kompas'),
 };
 function tombolKompas() {
   return `<button type="button" class="tombol-kompas ${statusKompas}" data-aksi="kompas" id="tombol-kompas"
@@ -5556,9 +5563,9 @@ async function nyalakanKompas() {
   if (statusKompas === 'aktif' || statusKompas === 'menunggu') return matikanKompas();
   try {
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-      if (await DeviceOrientationEvent.requestPermission() !== 'granted') return toast('Izin sensor arah ditolak.', true);
+      if (await DeviceOrientationEvent.requestPermission() !== 'granted') return toast(T('Izin sensor arah ditolak.'), true);
     }
-  } catch (e) { return toast('Sensor arah tidak bisa diakses.', true); }
+  } catch (e) { return toast(T('Sensor arah tidak bisa diakses.'), true); }
   jenisKompas = 'ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation';
   adaDataHp = false;
   window.addEventListener(jenisKompas, saatOrientasi);
@@ -5567,7 +5574,7 @@ async function nyalakanKompas() {
     if (statusKompas !== 'menunggu') return;
     window.removeEventListener(jenisKompas, saatOrientasi);
     aturStatusKompas('tidak-ada');
-    toast('Sensor kompas tidak terbaca. Pakai derajat di atas dengan kompas biasa.', true);
+    toast(T('Sensor kompas tidak terbaca. Pakai derajat di atas dengan kompas biasa.'), true);
   }, 3000);
 }
 
@@ -5625,12 +5632,12 @@ Object.assign(AKSI, {
     const on = S.formCatatan.pengingat = !S.formCatatan.pengingat;
     el.setAttribute('aria-checked', on);
     el.classList.toggle('nyala', on);
-    el.textContent = on ? '🔔 Ingatkan' : '🔕 Ingatkan';
+    el.textContent = on ? T('🔔 Ingatkan') : T('🔕 Ingatkan');
   },
   'c-warna': el => { // ketuk = warna berikutnya
     const i = WARNA_CATATAN.findIndex(w => w[0] === S.formCatatan.warna);
     S.formCatatan.warna = WARNA_CATATAN[(i + 1) % WARNA_CATATAN.length][0];
-    el.setAttribute('aria-label', 'Ganti warna (sekarang ' + S.formCatatan.warna + ')');
+    el.setAttribute('aria-label', T('Ganti warna (sekarang {warna})', { warna: NAMA_WARNA[S.formCatatan.warna] || S.formCatatan.warna }));
     const f = $('.form-catatan');
     if (f) f.style.setProperty('--w', warnaCatatan(S.formCatatan.warna));
   },
@@ -5642,9 +5649,9 @@ Object.assign(AKSI, {
       id: f.id, judul: f.judul, tanggal: f.tanggal, pengingat: f.pengingat, ulang: f.ulang, warna: f.warna,
       isi: f.jenis === 'tugas' ? tulisTugas(f.tugas) : f.isi,
     };
-    if (!input.judul.trim()) return toast('Isi judul catatannya dulu.', true);
+    if (!input.judul.trim()) return toast(T('Isi judul catatannya dulu.'), true);
     if (S.offline || !navigator.onLine) return antreCatatan(input, f.id);
-    if (await kirim(el, 'simpanCatatan', [input], input.pengingat ? 'Pengingat tersimpan 🔔' : 'Catatan tersimpan ✔',
+    if (await kirim(el, 'simpanCatatan', [input], input.pengingat ? T('Pengingat tersimpan 🔔') : T('Catatan tersimpan ✔'),
       e => e.jaringan && antreCatatan(input, f.id))) {
       buangDrafCatatan(f.id);
       bukaKalender(input.tanggal);
@@ -5655,7 +5662,7 @@ Object.assign(AKSI, {
     const idDraf = S.formCatatan.id;
     const ok = await kirim(el, 'hapusCatatan', [S.formCatatan.id], baris => {
       catatanTerhapus = baris;
-      toast('Catatan dihapus', false, { label: 'Urungkan', aksi: 'urungkan-catatan' });
+      toast(T('Catatan dihapus'), false, { label: T('Urungkan'), aksi: 'urungkan-catatan' });
     });
     if (ok) { buangDrafCatatan(idDraf); bukaKalender(tgl); }
   },
@@ -5663,31 +5670,31 @@ Object.assign(AKSI, {
     const baris = catatanTerhapus;
     catatanTerhapus = null;
     $('#toast').hidden = true;
-    if (baris) kirim(el, 'kembalikanCatatan', [baris], 'Catatan dikembalikan');
+    if (baris) kirim(el, 'kembalikanCatatan', [baris], T('Catatan dikembalikan'));
   },
   'ingat-ok': el => { tutupPengingat(el.dataset.id, el.dataset.tgl, 'ok'); setTimeout(cekPengingat, 300); },
   'ingat-tunda': el => {
     tutupPengingat(el.dataset.id, el.dataset.tgl, 'tunda:' + geserHari(hariIni(), 1));
-    toast('Diingatkan lagi besok');
+    toast(T('Diingatkan lagi besok'));
     setTimeout(cekPengingat, 300);
   },
   'ingat-lihat': el => { tutupPengingat('', '', ''); pengingatDilewatiHari = hariIni(); bukaKalender(el.dataset.tgl); },
   'sholat': () => bukaSholat(),
-  'ganti-lokasi': () => bukaSheet('Lokasi jadwal sholat', `
-    <div class="aksi-form" style="margin:0 0 14px"><button type="button" class="btn btn-utama" data-aksi="lokasi-gps">📍 Pakai lokasi saya sekarang</button></div>
+  'ganti-lokasi': () => bukaSheet(T('Lokasi jadwal sholat'), `
+    <div class="aksi-form" style="margin:0 0 14px"><button type="button" class="btn btn-utama" data-aksi="lokasi-gps">${T('📍 Pakai lokasi saya sekarang')}</button></div>
     ${pilihKota()}`),
   'lokasi-gps': el => {
-    if (!navigator.geolocation) return toast('HP ini tidak mendukung lokasi. Pilih kota di bawah.', true);
+    if (!navigator.geolocation) return toast(T('HP ini tidak mendukung lokasi. Pilih kota di bawah.'), true);
     el.disabled = true;
-    el.textContent = '📍 Mencari lokasi…';
+    el.textContent = T('📍 Mencari lokasi…');
     navigator.geolocation.getCurrentPosition(p => {
       const lat = p.coords.latitude, lng = p.coords.longitude;
       const kota = kotaTerdekat(lat, lng);
-      simpanLokasi({ nama: kota ? 'Sekitar ' + kota : `Lokasi Anda (${lat.toFixed(2)}, ${lng.toFixed(2)})`, lat, lng });
+      simpanLokasi({ nama: kota ? T('Sekitar {kota}', { kota }) : T('Lokasi Anda ({lat}, {lng})', { lat: lat.toFixed(2), lng: lng.toFixed(2) }), lat, lng });
     }, err => {
       el.disabled = false;
-      el.textContent = '📍 Pakai lokasi saya';
-      toast(err.code === 1 ? 'Izin lokasi ditolak. Pilih kota terdekat di bawah.' : 'Lokasi tidak ditemukan. Pilih kota terdekat di bawah.', true);
+      el.textContent = T('📍 Pakai lokasi saya');
+      toast(err.code === 1 ? T('Izin lokasi ditolak. Pilih kota terdekat di bawah.') : T('Lokasi tidak ditemukan. Pilih kota terdekat di bawah.'), true);
     }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 10 * 60 * 1000 });
   },
   'kompas': () => nyalakanKompas(),
@@ -5750,7 +5757,7 @@ window.addEventListener('popstate', e => {
     return pasangPenjaga();
   }
   // Di Beranda: penjaga tidak dipasang dulu, jadi tekan kembali sekali lagi = keluar.
-  toast('Tekan kembali sekali lagi untuk keluar');
+  toast(T('Tekan kembali sekali lagi untuk keluar'));
   timerPenjaga = setTimeout(pasangPenjaga, JEDA_KELUAR_MS);
 });
 
@@ -5813,7 +5820,7 @@ toast = function (pesan, error, tombol) { // eslint-disable-line no-func-assign
 Object.assign(AKSI, {
   'hari-laporan': el => {
     const n = Number(el.dataset.n), k = Number(el.dataset.k);
-    toast(`${labelHariPendek(el.dataset.tgl)}: ${n ? rp(n) + ' · ' + k + ' transaksi' : 'tanpa pengeluaran 🌱'}`);
+    toast(`${labelHariPendek(el.dataset.tgl)}: ${n ? rp(n) + ' · ' + T('{n} transaksi', { n: k }) : T('tanpa pengeluaran 🌱')}`);
   },
 });
 
