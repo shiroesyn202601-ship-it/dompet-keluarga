@@ -3455,6 +3455,60 @@ setInterval(() => { if (document.visibilityState === 'visible') cekPembaruan(); 
 // Pembaruan yang tertunda langsung dipasang begitu form ditutup & antrian struk kosong.
 setInterval(() => { if (pembaruanDitunda && !sedangSibuk()) location.reload(); }, 3000);
 
+// ---------- Tombol kembali (Android) ----------
+// Satu entri riwayat "penjaga" selalu dipasang di atas halaman, supaya tombol kembali tidak langsung
+// menutup aplikasi. Saat ditekan: tutup dialog/form → kembali ke Beranda → di Beranda harus ditekan
+// 2× dalam JEDA_KELUAR_MS untuk keluar.
+
+const JEDA_KELUAR_MS = 2000;
+let adaPenjaga = !!(history.state && history.state.dkJaga); // halaman dimuat ulang: penjaganya masih ada
+let timerPenjaga = 0;
+
+function pasangPenjaga() {
+  clearTimeout(timerPenjaga);
+  if (adaPenjaga) return;
+  history.pushState({ dkJaga: 1 }, '');
+  adaPenjaga = true;
+}
+
+/** Menutup lapisan paling atas yang boleh ditutup dengan tombol kembali; true kalau ada yang ditutup. */
+function tutupLapisanAtas() {
+  if (!$('#tanya').hidden) {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); // = Batal
+    return true;
+  }
+  if (!$('#loading').hidden) return true; // sedang menyimpan: jangan diganggu
+  if (!$('#sheet').hidden) {
+    tutupSheet();
+    return true;
+  }
+  return false;
+}
+
+window.addEventListener('popstate', e => {
+  if (e.state && e.state.dkJaga) { adaPenjaga = true; return; } // maju lagi ke entri penjaga
+  adaPenjaga = false;
+  if (tutupLapisanAtas()) return pasangPenjaga();
+  const bisaKeBeranda = S.data && !S.data.perluSetup && $('#kunci').hidden && $('#sesi').hidden && S.tab !== 'beranda';
+  if (bisaKeBeranda) {
+    S.tab = 'beranda';
+    render();
+    window.scrollTo(0, 0);
+    return pasangPenjaga();
+  }
+  // Di Beranda: penjaga tidak dipasang dulu, jadi tekan kembali sekali lagi = keluar.
+  toast('Tekan kembali sekali lagi untuk keluar');
+  timerPenjaga = setTimeout(pasangPenjaga, JEDA_KELUAR_MS);
+});
+
+// Chrome melewati (tidak berhenti di) entri riwayat yang dibuat sebelum pengguna menyentuh halaman,
+// jadi penjaga baru dipasang setelah sentuhan pertama.
+if (navigator.userActivation && navigator.userActivation.hasBeenActive) pasangPenjaga();
+else document.addEventListener('pointerdown', function sentuhanPertama() {
+  document.removeEventListener('pointerdown', sentuhanPertama);
+  pasangPenjaga();
+});
+
 // ---------- Tarik ke bawah untuk memperbarui ----------
 // Pengganti pull-to-refresh bawaan browser (dimatikan lewat overscroll-behavior di CSS): hanya data yang
 // dibaca ulang dari spreadsheet, halaman tidak dimuat ulang. Jalan juga di aplikasi terpasang.
