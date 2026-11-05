@@ -404,13 +404,14 @@ async function pilihDanHubungkan(idFile) {
 }
 
 function render() {
-  const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, laporan: viewLaporan, lainnya: viewLainnya }[S.tab];
+  const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, laporan: viewLaporan, lainnya: viewLainnya, catatan: viewCatatan, sholat: viewSholat }[S.tab] || viewBeranda;
   $('#view').innerHTML = bannerStatus() + view();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
   simpanPosisi();
   setTimeout(cekPengingat, 500); // overlay pengingat catatan yang jatuh tempo hari ini
   if (S.tab !== 'laporan') kunciAnimasiGrafik = ''; // kembali ke Laporan nanti: animasi diputar lagi
   pasangGeserGrafik();
+  if (S.tab === 'catatan') pasangGeserKalender();
   if (luncurTertunda) setTimeout(jalankanLuncur); // pintasan ikon / berbagi: tunggu data pertama tampil
 }
 
@@ -425,7 +426,7 @@ function pulihkanPosisi() {
   try {
     const p = JSON.parse(localStorage.getItem('dk_posisi'));
     if (!p || !(Date.now() - p.waktu < POSISI_BERLAKU_MS)) return;
-    if (!['beranda', 'riwayat', 'dompet', 'laporan', 'lainnya'].includes(p.tab)) return;
+    if (!['beranda', 'riwayat', 'dompet', 'laporan', 'lainnya', 'catatan', 'sholat'].includes(p.tab)) return;
     S.tab = p.tab;
     S.bulan = p.bulan || '';
     S.tahun = p.tahun || S.tahun;
@@ -660,7 +661,6 @@ function viewBeranda() {
     ${kartuTagihan()}
 
     <div class="bento">${tileAnggaran(per)}${tileTabungan()}</div>
-    <div class="bento">${tileAgenda()}${tileSholat()}</div>
 
     <h2 class="judul-bagian">Pengeluaran per kategori ${urut.length > 5 ? '<button data-aksi="tab" data-tab="laporan">Semua</button>' : ''}</h2>
     <section class="kartu">
@@ -3862,39 +3862,40 @@ function labelHariPendek(iso) {
   return keTanggal(iso).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
 }
 
-/** Kejadian catatan berikutnya mulai hari ini (maks. 60 hari ke depan), untuk kartu Beranda. */
-function agendaBerikut() {
-  const hari = hariIni();
-  for (let i = 0; i <= 60; i++) {
-    const iso = geserHari(hari, i);
-    const ada = catatanPada(iso);
-    if (ada.length) return { iso, catatan: ada };
-  }
-  return null;
+/** Pindah ke halaman penuh (Catatan / Sholat), menutup lembar bawah yang mungkin masih terbuka. */
+function bukaHalaman(tab) {
+  if (!$('#sheet').hidden) tutupSheet();
+  const pindah = S.tab !== tab;
+  S.tab = tab;
+  render();
+  if (pindah) window.scrollTo(0, 0);
 }
 
-function tileAgenda() {
-  const a = agendaBerikut();
-  const hariIniAda = a && a.iso === hariIni();
-  return `<button data-aksi="kalender">
-    <small>Catatan <span>›</span></small>
-    <b>${a ? esc(a.catatan[0].judul) : 'Kalender'}</b>
-    <span class="ket">${a ? (hariIniAda ? '📌 Hari ini' : '📅 ' + esc(labelHariPendek(a.iso))) + (a.catatan.length > 1 ? ` · +${a.catatan.length - 1} lagi` : '')
-      : 'Catatan & pengingat'}</span>
-  </button>`;
-}
-
-/** Kalender bulanan (mulai Senin) di lembar bawah. S.kal = { bulan: 'yyyy-mm', pilih: 'yyyy-mm-dd' }. */
+/** Halaman kalender bulanan (mulai Senin). S.kal = { bulan: 'yyyy-mm', pilih: 'yyyy-mm-dd' }. */
 function bukaKalender(pilih) {
   const tgl = pilih || (S.kal && S.kal.pilih) || hariIni();
   S.kal = { bulan: tgl.slice(0, 7), pilih: tgl };
-  bukaSheet('Catatan & Pengingat', '<div id="kalender"></div>');
-  renderKalender();
+  bukaHalaman('catatan');
+}
+
+function viewCatatan() {
+  if (!S.kal) S.kal = { bulan: hariIni().slice(0, 7), pilih: hariIni() };
+  return `
+    <div class="kepala kepala-kembali">
+      <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="Kembali">${svg('kembali')}</button>
+      <h1>Catatan & Pengingat</h1>
+    </div>
+    <section class="kartu halaman-kalender"><div id="kalender">${htmlKalender()}</div></section>`;
 }
 
 function renderKalender() {
   const kotak = $('#kalender');
   if (!kotak) return;
+  kotak.innerHTML = htmlKalender();
+  pasangGeserKalender();
+}
+
+function htmlKalender() {
   const [y, m] = S.kal.bulan.split('-').map(Number);
   const awal = new Date(y, m - 1, 1);
   const geserAwal = (awal.getDay() + 6) % 7; // Senin = 0
@@ -3917,7 +3918,7 @@ function renderKalender() {
 
   const dipilih = catatanPada(S.kal.pilih);
   const tagihanDipilih = tagihanPada(S.kal.pilih);
-  kotak.innerHTML = `
+  return `
     <div class="kal-kepala">
       <button type="button" class="tombol-ikon" data-aksi="kal-bulan" data-geser="-1" aria-label="Bulan sebelumnya">‹</button>
       <b>${awal.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}</b>
@@ -3941,7 +3942,6 @@ function renderKalender() {
     ${dipilih.length || tagihanDipilih.length ? '' : '<p class="info-kecil" style="text-align:left;margin-top:0">Belum ada catatan di tanggal ini.</p>'}
     ${S.data.bisaCatatan === false ? '<p class="info-kecil" style="text-align:left">⚠️ Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).</p>' : ''}
     <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">＋ Catatan di ${esc(labelHariPendek(S.kal.pilih).replace(/^Hari ini$/, 'hari ini'))}</button></div>`;
-  pasangGeserKalender();
 }
 
 /** Geser kiri/kanan di kalender untuk ganti bulan. */
@@ -4108,16 +4108,6 @@ function sholatBerikut(lok) {
 
 const teksSisa = n => (n >= 60 ? Math.floor(n / 60) + ' j ' : '') + (n % 60) + ' m lagi';
 
-function tileSholat() {
-  const lok = bacaLokasi();
-  if (!lok) {
-    return `<button data-aksi="sholat"><small>Sholat <span>›</span></small><b>Jadwal</b><span class="ket">🕌 Atur lokasi & kiblat</span></button>`;
-  }
-  const s = sholatBerikut(lok);
-  return `<button data-aksi="sholat"><small>${esc(s.nama)} <span>›</span></small><b>${jamMenit(s.menit)}</b>
-    <span class="ket" data-sisa-sholat>🕌 ${teksSisa(s.sisa)}</span></button>`;
-}
-
 /** Kota terdekat dari koordinat (untuk nama lokasi GPS), kalau dalam 60 km. */
 function kotaTerdekat(lat, lng) {
   let terbaik = null;
@@ -4129,19 +4119,31 @@ function kotaTerdekat(lat, lng) {
 }
 
 function bukaSholat() {
+  bukaHalaman('sholat');
+}
+
+function viewSholat() {
+  return `
+    <div class="kepala kepala-kembali">
+      <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="Kembali">${svg('kembali')}</button>
+      <h1>Jadwal Sholat & Kiblat</h1>
+    </div>
+    <section class="kartu halaman-sholat">${htmlSholat()}</section>`;
+}
+
+function htmlSholat() {
   const lok = bacaLokasi();
   if (!lok) {
-    bukaSheet('Jadwal Sholat & Kiblat', `
+    return `
       <p style="margin-top:0">Jadwal sholat dan arah kiblat dihitung dari lokasi Anda, langsung di HP (tanpa internet).</p>
       <div class="aksi-form" style="margin-bottom:14px"><button type="button" class="btn btn-utama" data-aksi="lokasi-gps">📍 Pakai lokasi saya</button></div>
-      ${pilihKota()}`);
-    return;
+      ${pilihKota()}`;
   }
   const j = jadwalHari(lok);
   const s = sholatBerikut(lok);
   const kiblat = SHOLAT.arahKiblat(lok.lat, lok.lng);
   const tanggal = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  bukaSheet('Jadwal Sholat & Kiblat', `
+  return `
     <div class="sholat-kepala">
       <div><small>${esc(tanggal)}</small><b>📍 ${esc(lok.nama)}</b></div>
       <button type="button" class="chip" data-aksi="ganti-lokasi">Ganti</button>
@@ -4167,7 +4169,7 @@ function bukaSholat() {
     </div>
     <p class="teks-kiblat" id="teks-kiblat"><b>${Math.round(kiblat)}°</b> dari utara · ${SHOLAT.namaArah(kiblat)}</p>
     <button type="button" class="tombol-tambah" style="margin:4px 0 0" data-aksi="kompas">🧭 Aktifkan kompas</button>
-    <p class="info-kecil" style="text-align:left">Letakkan HP mendatar dan jauhkan dari benda logam/magnet. Putar badan sampai 🕋 tepat di garis atas.</p>`);
+    <p class="info-kecil" style="text-align:left">Letakkan HP mendatar dan jauhkan dari benda logam/magnet. Putar badan sampai 🕋 tepat di garis atas.</p>`;
 }
 
 function pilihKota() {
@@ -4183,7 +4185,6 @@ function pilihKota() {
 function simpanLokasi(lok) {
   tulisHp('dk_lokasi', JSON.stringify(lok));
   bukaSholat();
-  if (S.tab === 'beranda' && S.data) render();
 }
 
 // Kompas: arah HP dari sensor. Android (Chrome): deviceorientationabsolute; iPhone: webkitCompassHeading (perlu izin).
@@ -4224,13 +4225,13 @@ async function nyalakanKompas() {
   }, 2500);
 }
 
-// Hitung mundur sholat di Beranda & lembar jadwal, tiap 30 detik.
+// Hitung mundur sholat di halaman jadwal, tiap 30 detik.
 setInterval(() => {
   const lok = bacaLokasi();
   const el = document.querySelectorAll('[data-sisa-sholat]');
   if (!lok || !el.length) return;
   const s = sholatBerikut(lok);
-  el.forEach(x => { x.textContent = (x.closest('.bento') ? '🕌 ' : '') + teksSisa(s.sisa); });
+  el.forEach(x => { x.textContent = teksSisa(s.sisa); });
 }, 30000);
 
 document.addEventListener('change', e => {

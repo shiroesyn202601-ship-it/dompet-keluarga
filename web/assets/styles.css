@@ -669,3 +669,7 @@ textarea.field { resize: vertical; min-height: 84px; line-height: 1.45; }
 .penanda-atas { position: absolute; left: 50%; top: -8px; width: 0; height: 0; transform: translateX(-50%); border: 8px solid transparent; border-top: 12px solid var(--text); border-bottom: 0; }
 .kompas.pas .kompas-piringan { border-color: var(--masuk); box-shadow: 0 0 0 4px color-mix(in srgb, var(--masuk) 25%, transparent); }
 .teks-kiblat { text-align: center; margin: 0 0 6px; font-size: 14px; }
+
+/* Halaman penuh Catatan & Sholat */
+.halaman-kalender { padding: 14px 12px; }
+.halaman-sholat { padding: 16px; }
