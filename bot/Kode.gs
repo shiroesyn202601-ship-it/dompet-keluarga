@@ -1696,10 +1696,15 @@ function pengingatBuku_(idSheet, idTerindeks, hari) {
   }
   const p = {};
   baris[0].forEach(r => { if (r[0] !== '') p[String(r[0])] = String(r[1] == null ? '' : r[1]); });
-  if (p.PENGINGAT_TELEGRAM === 'Mati') return;
   const pengguna = penggunaTelegram_(p);
   const tujuan = Object.keys(pengguna).filter(id => modeLama_() || idTerindeks.indexOf(String(id)) >= 0);
   if (!tujuan.length) return;
+  try {
+    kirimRekapBulanan_(idSheet, p, tujuan, hari);
+  } catch (err) {
+    console.error('Rekap ' + idSheet + ': ' + (err.stack || err));
+  }
+  if (p.PENGINGAT_TELEGRAM === 'Mati') return props.setProperty(kunciHari, hari);
 
   const besok = tglGeser_(hari, 1);
   const tagihan = baris[1].filter(r => r[0] !== '' && r[10] !== '').map(r => ({
@@ -1728,6 +1733,47 @@ function pengingatBuku_(idSheet, idTerindeks, hari) {
   const teks = baris2.join('\n');
   tujuan.forEach(id => kirim_(id, teks));
   props.setProperty(kunciHari, hari);
+}
+
+/**
+ * Di hari pertama periode baru (tanggal 1, atau tanggal gajian), kirim rekap periode sebelumnya:
+ * pemasukan, pengeluaran, sisa, 3 kategori terbesar, dan perbandingan dengan periode sebelumnya.
+ * Sekali per periode per buku; bisa dimatikan dari aplikasi (Pengaturan REKAP_TELEGRAM = 'Mati').
+ */
+function kirimRekapBulanan_(idSheet, p, tujuan, hari) {
+  if (p.REKAP_TELEGRAM === 'Mati') return;
+  const mulai = Math.min(28, Math.max(1, Math.round(Number(p.MULAI_PERIODE) || 1)));
+  if (Number(hari.slice(8, 10)) !== mulai) return;
+  mulaiPeriode_ = mulai;
+  const ini = periode_(hari);
+  const lalu = bulanSebelum_(ini);
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('rk_' + idSheet) === lalu) return;
+  const d = muatData_();
+  const a = ringkasBulan_(d, lalu);
+  if (!a.masuk && !a.keluar) return props.setProperty('rk_' + idSheet, lalu);
+  const b = ringkasBulan_(d, bulanSebelum_(lalu));
+  const top = Object.keys(a.per).sort((x, y) => a.per[y] - a.per[x]).slice(0, 3);
+  const baris = [
+    '📊 <b>Rekap ' + html_(namaBulan_(lalu)) + '</b>',
+    '',
+    '⬇️ Pemasukan: <b>' + rp_(a.masuk) + '</b>',
+    '⬆️ Pengeluaran: <b>' + rp_(a.keluar) + '</b>',
+    (a.masuk >= a.keluar ? '🟢 Sisa: <b>' : '🔴 Minus: <b>') + rp_(Math.abs(a.masuk - a.keluar)) + '</b>'
+      + (a.masuk ? ' (' + Math.round((a.masuk - a.keluar) / a.masuk * 100) + '% dari pemasukan)' : ''),
+  ];
+  if (top.length) {
+    baris.push('', '<b>Paling banyak untuk</b>');
+    top.forEach((n, i) => baris.push((i + 1) + '. ' + ikonKategori_(d, { tipe: TIPE.KELUAR, kategori: n }) + ' ' + html_(n) + ' · ' + rp_(a.per[n])));
+  }
+  if (b.keluar && a.keluar) {
+    const persen = Math.round((a.keluar - b.keluar) / b.keluar * 100);
+    if (persen) baris.push('', (persen > 0 ? '📈 Pengeluaran naik ' : '📉 Pengeluaran turun ') + Math.abs(persen) + '% dibanding ' + html_(namaBulan_(bulanSebelum_(lalu))) + '.');
+  }
+  baris.push('', '✨ Buka aplikasi untuk kilas balik lengkapnya. Semangat untuk periode baru!');
+  const teks = baris.join('\n');
+  tujuan.forEach(id => kirim_(id, teks));
+  props.setProperty('rk_' + idSheet, lalu);
 }
 
 /** Sama dengan terjadiPada() di aplikasi: catatan sekali, atau berulang mingguan/bulanan/tahunan. */

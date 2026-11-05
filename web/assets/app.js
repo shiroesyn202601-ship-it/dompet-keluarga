@@ -71,6 +71,7 @@ const IKON = {
   masjid: '<path d="M12 3c2.5 2 4.5 3.6 4.5 6.5V11h-9V9.5C7.5 6.6 9.5 5 12 3z"/><path d="M4 21V11h16v10"/><path d="M2 21h20"/><path d="M10 21v-4a2 2 0 0 1 4 0v4"/><path d="M4 11V8M20 11V8"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   kembali: '<path d="m15 18-6-6 6-6"/>',
+  cari: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   maju: '<path d="m9 18 6-6-6-6"/>',
 };
 const svg = nama => `<svg class="ik" viewBox="0 0 24 24" aria-hidden="true">${IKON[nama]}</svg>`;
@@ -130,6 +131,7 @@ const ilus = e => (typeof ILUSTRASI !== 'undefined' ? ILUSTRASI.html(e, esc) : e
 function loading(ya) { $('#loading').hidden = !ya; }
 let timerToast;
 let trxTerhapus = null; // baris terakhir yang dihapus, untuk tombol "Urungkan"
+let catatanTerhapus = null;
 /** tombol (opsional): { label, aksi } → tombol di dalam toast, mis. "Urungkan"; toast tampil lebih lama. */
 function toast(pesan, error, tombol) {
   const el = $('#toast');
@@ -223,6 +225,7 @@ async function muat() {
       tulisLokal('data', S.data);
       render();
       kirimTertunda();
+      kirimCatatanTertunda();
     }
   } catch (e) {
     if (S.menyegarkan) { S.menyegarkan = false; if (S.data) render(); }
@@ -334,6 +337,7 @@ function bannerStatus() {
   return (S.menyegarkan ? '<div class="bilah-segar" role="status" aria-label="Memperbarui data"><i></i></div>' : '') +
     (S.offline ? '<div class="status-bar">📴 Offline · menampilkan data terakhir. Transaksi baru tetap bisa dicatat.</div>' : '') +
     (!S.offline && S.sesiHabis ? '<div class="status-bar">🔄 Menampilkan data terakhir · tersambung lagi begitu Anda mengetuk layar</div>' : '') +
+    (catatanTertunda().length ? `<div class="status-bar">📝 ${catatanTertunda().length} catatan menunggu dikirim</div>` : '') +
     (menunggu ? `<div class="status-bar">📤 ${menunggu} transaksi menunggu dikirim${S.offline ? '' : ' <button type="button" data-aksi="kirim-tertunda">Kirim sekarang</button>'}</div>` : '') +
     gagal.map(t => `<div class="status-bar gagal">⚠️ ${rp(t.jumlah)} ${esc(t.kategori || 'Transfer')} tidak bisa dikirim: ${esc(t.gagal)}
       <button type="button" data-aksi="ulang-tertunda" data-id="${esc(t.idBaru)}">Catat ulang</button></div>`).join('');
@@ -439,6 +443,7 @@ function render() {
   simpanPosisi();
   setTimeout(cekPengingat, 500); // overlay pengingat catatan yang jatuh tempo hari ini
   setTimeout(() => { if (typeof cekKilasBalik === 'function') cekKilasBalik(); }, 900); // kilas balik awal periode
+  setTimeout(() => { if (typeof cekPetunjuk === 'function' && !kilas) cekPetunjuk(); }, 1400);
   if (S.tab !== 'laporan') kunciAnimasiGrafik = ''; // kembali ke Laporan nanti: animasi diputar lagi
   pasangGeserGrafik();
   if (S.tab === 'catatan') pasangGeserKalender();
@@ -671,7 +676,7 @@ function viewBeranda() {
         <span class="avatar" aria-hidden="true">${esc(nama.charAt(0))}</span>
         <div style="min-width:0"><small>Halo,</small><h1>${esc(nama)}</h1></div>
       </div>
-      <div class="kepala-kanan">${pemilihBulan(true)}</div>
+      <div class="kepala-kanan"><button type="button" class="tombol-ikon tombol-cari" data-aksi="cari-global" aria-label="Cari transaksi & catatan">${svg('cari')}</button>${pemilihBulan(true)}</div>
     </div>
 
     <section class="kartu kartu-saldo">
@@ -705,6 +710,7 @@ function viewBeranda() {
       <button data-aksi="kalender"><span class="kotak">${svg('kalender')}</span>Catatan</button>
       <button data-aksi="sholat"><span class="kotak">${svg('masjid')}</span>Sholat</button>
     </div>
+    ${bagianSekaliKetuk()}
 
     ${kartuMulai()}
     ${kartuTagihan()}
@@ -2199,10 +2205,28 @@ function bukaSheet(judul, html) {
   document.body.style.overflow = 'hidden';
 }
 function tutupSheet() {
+  simpanDrafTrx();
   $('#sheet').hidden = true;
   if (typeof tutupRingkasanSuara === 'function') tutupRingkasanSuara();
   document.body.style.overflow = '';
   F = null;
+}
+
+// ---------- Draf transaksi baru (lembar ditutup sebelum disimpan) ----------
+const kunciDrafTrx = () => 'dk_draf_trx_' + (S.data && S.data.spreadsheetId || '');
+function simpanDrafTrx() {
+  if (!F || F.id || F._menyimpan || F.modeRutin || F.patungan || F.utang || F.dariRutin || F.dariJob || F.strukJob || !('tipe' in F) || !$('#f-jumlah')) return;
+  try { bacaFieldTrx(); } catch (e) { return; }
+  if (!F.jumlah && !String(F.catatan || '').trim()) return;
+  tulisHp(kunciDrafTrx(), JSON.stringify({ waktu: Date.now(), isian: {
+    tipe: F.tipe, jumlah: F.jumlah, kategori: F.kategori, dompet: F.dompet, dompetTujuan: F.dompetTujuan, tanggal: F.tanggal, catatan: F.catatan,
+  } }));
+}
+function bacaDrafTrx() {
+  try {
+    const d = JSON.parse(bacaHp(kunciDrafTrx()));
+    return d && Date.now() - d.waktu < 12 * 3600e3 ? d.isian : null;
+  } catch (e) { return null; }
 }
 
 /** tanganiGagal(e): opsional; kembalikan true kalau error sudah ditangani (mis. disimpan sebagai tertunda). */
@@ -2946,6 +2970,131 @@ function bukaAktivitas() {
   if (S.tab === 'beranda') render();
 }
 
+// ---------- Pencarian global (transaksi semua bulan + catatan) ----------
+let semuaTrxCari = null; // dimuat sekali saat pencarian pertama
+function bukaCariGlobal() {
+  S.hasilGlobal = [];
+  bukaSheet('Cari', `
+    <div class="kotak-cari-global"><input class="field" id="cari-global" type="search" enterkeyhint="search" autocomplete="off"
+      placeholder="mis. arisan, bpjs, 25000, GoPay"></div>
+    <div id="hasil-global"><p class="info-kecil">Cari di semua transaksi (semua bulan) dan catatan.</p></div>`);
+  setTimeout(() => $('#cari-global') && $('#cari-global').focus(), 200);
+}
+let timerCari = 0;
+async function jalankanCariGlobal(q) {
+  const kotak = $('#hasil-global');
+  if (!kotak) return;
+  q = q.trim().toLowerCase();
+  if (q.length < 2) { kotak.innerHTML = '<p class="info-kecil">Ketik minimal 2 huruf.</p>'; return; }
+  const angkaQ = q.replace(/\D/g, '');
+  const cocokTrx = t => [t.catatan, t.kategori, t.dompet, t.dompetTujuan].some(x => String(x || '').toLowerCase().includes(q))
+    || (angkaQ.length >= 3 && String(t.jumlah).includes(angkaQ));
+  const catatan = daftarCatatan().filter(c => (c.judul + ' ' + c.isi).toLowerCase().includes(q)).slice(0, 10);
+  if (!semuaTrxCari) {
+    kotak.innerHTML = KERANGKA_DAFTAR;
+    try { semuaTrxCari = await api('cariTransaksi', '', ''); } catch (e) { semuaTrxCari = null; }
+    if (!$('#hasil-global')) return;
+  }
+  const sumber = semuaTrxCari || S.data.transaksi;
+  const trx = sumber.filter(cocokTrx).slice(0, 40);
+  S.hasilGlobal = trx;
+  $('#hasil-global').innerHTML = (catatan.length ? `<h4 class="sub-laporan">📝 Catatan (${catatan.length})</h4>` + catatan.map(c => `
+      <button type="button" class="kal-item" data-aksi="ubah-catatan" data-id="${esc(c.id)}" style="--w:${warnaCatatan(c.warna)}">
+        <span class="isi"><b>${esc(c.judul)}</b><small>${esc(labelHariPendek(c.tanggal))}${c.isi ? ' · ' + esc(c.isi.replace(/\[( |x)\] ?/gi, '').slice(0, 80)) : ''}</small></span>
+      </button>`).join('') : '')
+    + (trx.length ? `<h4 class="sub-laporan">💳 Transaksi (${trx.length}${trx.length === 40 ? '+' : ''})</h4>` + trx.map(t => {
+      const tgl = `<small class="tgl-cari">${esc(labelHariPendek(t.tanggal))}</small>`;
+      return tgl + itemTrx(t);
+    }).join('') : '')
+    + (!catatan.length && !trx.length ? kosong('🔍', 'Tidak ditemukan.') : '')
+    + (!semuaTrxCari ? '<p class="info-kecil">Offline: hanya mencari di periode ini.</p>' : '');
+}
+document.addEventListener('input', e => {
+  if (e.target.id !== 'cari-global') return;
+  clearTimeout(timerCari);
+  timerCari = setTimeout(() => jalankanCariGlobal(e.target.value), 250);
+});
+
+// ---------- Petunjuk sekali lihat (fitur yang tidak kelihatan: geser, mic, sekali ketuk) ----------
+let petunjukTampil = false;
+function petunjukSekali(kunci, sasaran, teks) {
+  if (!sasaran || petunjukTampil || bacaHp('dk_petunjuk_' + kunci)) return false;
+  const r = sasaran.getBoundingClientRect();
+  if (!r.width || r.top > innerHeight - 60 || r.bottom < 0) return false;
+  tulisHp('dk_petunjuk_' + kunci, '1');
+  petunjukTampil = true;
+  const el = document.createElement('div');
+  el.className = 'petunjuk';
+  el.setAttribute('role', 'status');
+  el.innerHTML = `<span>${teks}</span><button type="button" aria-label="Tutup petunjuk">Oke</button>`;
+  document.body.appendChild(el);
+  const lebar = Math.min(300, innerWidth - 24);
+  el.style.width = lebar + 'px';
+  const kiri = Math.max(12, Math.min(innerWidth - lebar - 12, r.left + r.width / 2 - lebar / 2));
+  const bawah = r.bottom + 12 + el.offsetHeight < innerHeight - 90;
+  el.style.left = kiri + 'px';
+  el.style.top = (bawah ? r.bottom + 10 : r.top - el.offsetHeight - 10) + 'px';
+  el.style.setProperty('--panah', Math.max(16, Math.min(lebar - 16, r.left + r.width / 2 - kiri)) + 'px');
+  el.classList.add(bawah ? 'bawah' : 'atas');
+  const tutup = () => { el.remove(); petunjukTampil = false; document.removeEventListener('pointerdown', tutup, true); };
+  setTimeout(() => document.addEventListener('pointerdown', tutup, true), 300);
+  setTimeout(tutup, 7000);
+  return true;
+}
+function cekPetunjuk() {
+  if (!S.data || $('#sheet').hidden === false && !$('.tombol-suara')) return;
+  if (S.tab === 'riwayat') {
+    const k = document.querySelector('#view .trx-geser');
+    if (k && petunjukSekali('geser', k, '👆 <b>Geser</b> transaksi: ← untuk <b>hapus</b>, → untuk <b>catat lagi</b>')) {
+      k.classList.add('contoh-geser');
+      setTimeout(() => k.classList.remove('contoh-geser'), 2600);
+    }
+  } else if (S.tab === 'beranda' && $('#sheet').hidden) {
+    petunjukSekali('ketuk', document.querySelector('.sekali-ketuk'), '⚡ Ketuk sekali, langsung tercatat hari ini. Bisa diurungkan.');
+  } else if (S.tab === 'catatan-edit') {
+    petunjukSekali('dikte', $('#tombol-dikte'), '🎤 Ketuk untuk <b>menulis dengan suara</b>. Bisa berkali-kali, teks ditambahkan.');
+  }
+}
+
+// ---------- Catat sekali ketuk (Beranda) ----------
+let trxSekaliKetuk = null;
+const daftarSekaliKetuk = () => kebiasaan().favorit.filter(f => f.tipe !== TIPE.TRANSFER && f.jumlah > 0).slice(0, 4);
+
+function bagianSekaliKetuk() {
+  const fav = daftarSekaliKetuk();
+  if (!fav.length) return '';
+  return `<div class="sekali-ketuk">
+      <small>⚡ Catat sekali ketuk</small>
+      <div class="chips chips-geser">${fav.map((f, i) => `<button type="button" class="chip chip-ketuk" data-aksi="ketuk-catat" data-i="${i}">
+        ${ilus(ikonKategori(f.kategori, f.tipe))} ${esc(f.catatan || f.kategori)} <b>${f.tipe === TIPE.MASUK ? '+' : ''}${rpPendek(f.jumlah)}</b></button>`).join('')}</div>
+    </div>`;
+}
+
+async function catatSekaliKetuk(el) {
+  const f = daftarSekaliKetuk()[Number(el.dataset.i)];
+  if (!f || el.disabled) return;
+  const dompet = dompetBiasa().some(w => w.nama === f.dompet) ? f.dompet : (dompetBiasa()[0] || {}).nama;
+  const t = { idBaru: crypto.randomUUID(), tipe: f.tipe, jumlah: f.jumlah, kategori: f.kategori, dompet, dompetTujuan: '', tanggal: hariIni(), catatan: f.catatan };
+  getar();
+  el.disabled = true;
+  el.classList.add('mengirim');
+  const nama = (f.catatan || f.kategori) + ' ' + rp(f.jumlah);
+  try {
+    if (S.offline || !navigator.onLine) { simpanTertunda(t, true); return; }
+    await api('simpanTransaksi', t);
+    trxSekaliKetuk = t.idBaru;
+    await muat();
+    const a = pesanAnggaran(t);
+    toast('Tercatat ' + nama + ' ✔' + (a ? ' · ' + a.teks : ''), a && a.lewat, { label: 'Urungkan', aksi: 'urungkan-ketuk' });
+  } catch (e) {
+    if (e.jaringan) simpanTertunda(t, true);
+    else if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
+  } finally {
+    el.disabled = false;
+    el.classList.remove('mengirim');
+  }
+}
+
 /** Saran "jadikan tagihan rutin" (dari pola transaksi 3–4 bulan terakhir); bisa ditolak per saran. */
 const kunciSaranDitolak = () => 'dk_saran_tolak_' + (S.data && S.data.spreadsheetId || '');
 function kartuSaranRutin() {
@@ -3288,6 +3437,11 @@ function bukaFormTelegram(kode, muatan = kode) {
       <span class="ikon-bulat">🔔</span>
       <span class="isi"><b>Pengingat harian</b><small>Tiap pagi ± jam 6: catatan berpengingat & tagihan yang jatuh tempo</small></span>
       <span class="saklar ${t.pengingat !== false ? 'nyala' : ''}" aria-hidden="true"></span>
+    </button>
+    <button type="button" class="baris" data-aksi="rekap-telegram" role="switch" aria-checked="${t.rekap !== false}">
+      <span class="ikon-bulat">📊</span>
+      <span class="isi"><b>Rekap bulanan</b><small>Di awal periode: pemasukan, pengeluaran & kategori terbesar bulan lalu</small></span>
+      <span class="saklar ${t.rekap !== false ? 'nyala' : ''}" aria-hidden="true"></span>
     </button>` : ''}
     <span class="label" style="margin-top:14px">Akun terhubung (${t.pengguna.length})</span>
     ${t.pengguna.map(p => `
@@ -3411,15 +3565,46 @@ function bukaFormDompet(w, jenis) {
     </div>`);
 }
 
+/** Perkiraan kapan target tercapai dari rata-rata setoran 3 bulan terakhir. */
+function perkiraanTabungan(w) {
+  if (!w.target || w.saldo >= w.target) return '';
+  const rata = (S.data.setoranTabungan || {})[w.nama] || 0;
+  const sisa = w.target - w.saldo;
+  if (rata <= 0) return `<div class="perkiraan-tabungan">🔮 Belum ada setoran rutin 3 bulan terakhir. Setor sedikit tiap bulan supaya bisa diperkirakan.</div>`;
+  const bulan = Math.ceil(sisa / rata);
+  const d = new Date();
+  d.setMonth(d.getMonth() + bulan);
+  const kapan = d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  const telat = w.tenggat && d.toISOString().slice(0, 10) > w.tenggat;
+  return `<div class="perkiraan-tabungan ${telat ? 'telat' : ''}">🔮 Dengan rata-rata setoran <b>${rp(rata)}/bulan</b>, target tercapai sekitar <b>${kapan}</b>${bulan <= 1 ? ' (bulan depan!)' : ` (${bulan} bulan lagi)`}.${telat ? ' ⚠️ Lewat tenggat, perlu setoran lebih besar.' : ''}</div>`;
+}
+
+/** Sekali per tabungan: perayaan saat target tercapai. */
+function rayakanTabungan(w) {
+  if (!w.target || w.saldo < w.target) return;
+  const kunci = 'dk_tercapai_' + (S.data.spreadsheetId || '') + '_' + w.nama;
+  if (bacaHp(kunci)) return;
+  tulisHp(kunci, '1');
+  const el = document.createElement('div');
+  el.className = 'konfeti';
+  el.innerHTML = Array.from({ length: 28 }, (_, i) => `<i style="--x:${Math.round(Math.random() * 100)}%;--t:${(Math.random() * .6).toFixed(2)}s;--r:${Math.round(Math.random() * 720 - 360)}deg">${['🎉', '✨', '💰', '🎊', '⭐'][i % 5]}</i>`).join('');
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+  getar();
+  toast('🎉 Selamat! Target ' + w.nama + ' tercapai!');
+}
+
 function bukaTabungan(w) {
   const p = progresTabungan(w);
+  setTimeout(() => rayakanTabungan(w), 400);
   bukaSheet(w.nama, `
     <div class="ringkas-tabungan">
       <span class="ikon-bulat">${ilus(w.ikon)}</span>
       <div><small>Terkumpul</small><b>${rp(w.saldo)}</b></div>
     </div>
     ${p.persen !== null ? `<span class="meter" role="meter" aria-label="${esc(w.nama)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.persen}"><i style="width:${p.persen}%"></i></span>` : ''}
-    <p class="info-kecil" style="text-align:left;margin:8px 0 16px">${esc(p.teks)}</p>
+    <p class="info-kecil" style="text-align:left;margin:8px 0 ${perkiraanTabungan(w) ? '8px' : '16px'}">${esc(p.teks)}</p>
+    ${perkiraanTabungan(w)}
     <div class="aksi-form">
       <button type="button" class="btn btn-hapus" data-aksi="tarik-tabungan" data-nama="${esc(w.nama)}">Tarik</button>
       <button type="button" class="btn btn-utama" data-aksi="setor-tabungan" data-nama="${esc(w.nama)}">Setor</button>
@@ -3427,15 +3612,40 @@ function bukaTabungan(w) {
     <button type="button" class="tombol-tambah" style="margin-top:12px" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">✏️ Ubah tabungan</button>`);
 }
 
+/**
+ * Saran anggaran per kategori dari 3 periode terakhir (sebelum periode berjalan): rata-rata × 95%, dibulatkan
+ * (kelipatan 50rb kalau ≥ 500rb, selain itu 10rb). Hanya kategori yang terpakai ≥ 2 dari 3 periode.
+ */
+function saranAnggaran() {
+  const per = [];
+  let k = periodeSekarang();
+  for (let i = 0; i < 3; i++) { k = bulanSebelum(k); per.push(ringkasBulan(k)); }
+  const hasil = {};
+  S.data.kategori.filter(x => x.tipe === TIPE.KELUAR).forEach(x => {
+    const nilai = per.map(r => r.kategori[x.nama] || 0);
+    if (nilai.filter(Boolean).length < 2) return;
+    const rata = nilai.reduce((a, b) => a + b, 0) / 3;
+    const kelipatan = rata >= 500000 ? 50000 : 10000;
+    const batas = Math.max(kelipatan, Math.round(rata * 0.95 / kelipatan) * kelipatan);
+    hasil[x.nama] = { rata: Math.round(rata), batas };
+  });
+  return hasil;
+}
+
 function bukaFormAnggaran() {
   const daftar = S.data.kategori.filter(k => k.tipe === TIPE.KELUAR);
+  const saran = saranAnggaran();
   bukaSheet('Anggaran Bulanan', `
     <p class="info-kecil" style="text-align:left;margin:0 0 8px">Batas belanja per kategori setiap bulan. Kosongkan kategori yang tidak perlu dibatasi.
       Centang <b>📨 Amplop</b> supaya sisa bulan ini menambah anggaran bulan depan (dan kelebihan menguranginya).</p>
+    ${Object.keys(saran).length ? `<button type="button" class="tombol-pecah" data-aksi="isi-saran-anggaran" style="margin:0 0 12px">
+      <span class="ikon-pecah">✨</span><span class="isi"><b>Isi otomatis dari kebiasaan belanja</b>
+      <small>Berdasarkan rata-rata 3 bulan terakhir · ${Object.keys(saran).length} kategori</small></span></button>` : ''}
     ${daftar.map(k => `
       <div class="baris baris-input">
         <span class="ikon-bulat">${ilus(k.ikon)}</span>
         <span class="isi"><b>${esc(k.nama)}</b>
+          ${saran[k.nama] ? `<button type="button" class="saran-anggaran" data-aksi="pakai-saran-anggaran" data-nama="${esc(k.nama)}" data-n="${saran[k.nama].batas}" title="Rata-rata 3 bulan: ${rp(saran[k.nama].rata)}">💡 Saran ${rpPendek(saran[k.nama].batas)}</button>` : ''}
           <label class="amplop"><input type="checkbox" class="input-amplop" data-nama="${esc(k.nama)}" ${k.bawaSisa ? 'checked' : ''}> 📨 Amplop</label></span>
         <input class="field input-rp input-anggaran" data-nama="${esc(k.nama)}" inputmode="numeric" placeholder="Tanpa batas" aria-label="Anggaran ${esc(k.nama)}" value="${formatAngka(k.anggaran)}">
       </div>`).join('')}
@@ -3497,8 +3707,44 @@ const AKSI = {
   },
   'filter-tipe': el => { S.filterTipe = el.dataset.tipe; render(); },
 
-  'tambah-trx': () => bukaFormTrx(null),
-  'edit-trx': el => bukaFormTrx(S.data.transaksi.concat((S.cariData && S.cariData.transaksi) || []).find(t => t.id === el.dataset.id)),
+  'tambah-trx': () => {
+    const draf = bacaDrafTrx();
+    tulisHp(kunciDrafTrx(), null);
+    bukaFormTrx(null, draf || undefined);
+    if (draf) toast('📝 Isian tadi dipulihkan' + (draf.jumlah ? ' · ' + rp(draf.jumlah) : ''), false, { label: 'Mulai baru', aksi: 'buang-draf-trx' });
+  },
+  'buang-draf-trx': () => { $('#toast').hidden = true; tulisHp(kunciDrafTrx(), null); F = null; bukaFormTrx(null); },
+  'buang-draf-catatan': () => {
+    $('#toast').hidden = true;
+    if (!S.formCatatan) return;
+    buangDrafCatatan(S.formCatatan.id);
+    const c = S.formCatatan.id ? daftarCatatan().find(x => x.id === S.formCatatan.id) : null;
+    bukaFormCatatan(c || null, S.formCatatan.tanggal);
+  },
+  'keluar-catatan': () => { tinggalkanFormCatatan(); bukaKalender(S.formCatatan && S.formCatatan.tanggal); },
+  'lanjut-draf-catatan': () => {
+    $('#toast').hidden = true;
+    const d = S.drafTerakhir || {};
+    const c = d.id ? daftarCatatan().find(x => x.id === d.id) : null;
+    bukaFormCatatan(c || null, d.tanggal);
+  },
+  // #1 Sekali ketuk
+  'ketuk-catat': el => catatSekaliKetuk(el),
+  'urungkan-ketuk': el => {
+    const id = trxSekaliKetuk;
+    trxSekaliKetuk = null;
+    $('#toast').hidden = true;
+    if (id) kirim(el, 'hapusTransaksi', [id], 'Dibatalkan ↩️');
+  },
+  // #2 Item belanja dicentang → form pengeluaran terisi
+  'tugas-jadi-trx': () => {
+    $('#toast').hidden = true;
+    const teks = tugasUntukTrx;
+    if (!teks) return;
+    bukaFormTrx(null, { tipe: TIPE.KELUAR, catatan: teks, kategori: tebakKategori(TIPE.KELUAR, teks) }, 'Catat belanja');
+    setTimeout(() => $('#f-jumlah') && $('#f-jumlah').focus(), 250);
+  },
+  'edit-trx': el => bukaFormTrx(S.data.transaksi.concat((S.cariData && S.cariData.transaksi) || [], S.hasilGlobal || []).find(t => t.id === el.dataset.id)),
   'buka-filter': () => bukaFilter(),
   'pilih-rentang': el => {
     F.rentang = el.dataset.k;
@@ -3564,6 +3810,7 @@ const AKSI = {
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
   'telegram': () => bukaFormTelegram(),
+  'cari-global': () => bukaCariGlobal(),
   'log-update': () => { $('#toast').hidden = true; bukaLogUpdate(); },
   'aktivitas': () => bukaAktivitas(),
   'saran-rutin': el => {
@@ -3585,6 +3832,10 @@ const AKSI = {
     tulisHp(kunciSaranDitolak(), JSON.stringify(tolak.slice(-50)));
     render();
     toast('Oke, tidak disarankan lagi');
+  },
+  'rekap-telegram': async el => {
+    const nyala = S.data.telegram.rekap === false;
+    if (await kirim(el, 'aturRekapTelegram', [nyala], nyala ? 'Rekap bulanan dinyalakan 📊' : 'Rekap bulanan dimatikan')) bukaFormTelegram();
   },
   'pengingat-telegram': async el => {
     const nyala = S.data.telegram.pengingat === false;
@@ -3638,6 +3889,8 @@ const AKSI = {
     if (F.tipe !== TIPE.TRANSFER && !F.kategori) return toast('Pilih kategorinya dulu.', true);
     if (F.tipe === TIPE.TRANSFER && (!F.dompetTujuan || F.dompetTujuan === F.dompet)) return toast('Pilih dompet tujuan yang berbeda.', true);
     const t = F;
+    t._menyimpan = true; // lembar ditutup karena tersimpan → bukan draf
+    tulisHp(kunciDrafTrx(), null);
     const dasar = F.id ? 'Transaksi diperbarui ✔' : 'Transaksi tersimpan ✔';
     const pesan = () => { const a = pesanAnggaran(t); toast(a ? dasar + ' · ' + a.teks : dasar, a && a.lewat); };
     const dariJob = t.dariJob;
@@ -3649,7 +3902,7 @@ const AKSI = {
     // Ada foto baru: unggah ke Drive lama, jadi disimpan di latar belakang dan form langsung ditutup.
     if (t.lampiranData) return simpanDiLatar(t, pesan);
     kirim(el, 'simpanTransaksi', [t], pesan, e => !t.id && e.jaringan && tunda())
-      .then(ok => { if (ok && dariJob) hapusJob(dariJob); });
+      .then(ok => { if (ok && dariJob) hapusJob(dariJob); if (!ok) t._menyimpan = false; });
   },
   'bagikan-laporan': async el => {
     el.disabled = true;
@@ -3977,6 +4230,19 @@ const AKSI = {
     $('#input-struk-kamera').click();
   },
   'cepat-transfer': () => bukaFormTrx(null, { tipe: TIPE.TRANSFER }, 'Transfer'),
+  'pakai-saran-anggaran': el => {
+    const i = document.querySelector(`.input-anggaran[data-nama="${CSS.escape(el.dataset.nama)}"]`);
+    if (i) { i.value = formatAngka(Number(el.dataset.n)); i.classList.add('terisi-otomatis'); hitungTotalAnggaran(); }
+  },
+  'isi-saran-anggaran': () => {
+    let n = 0;
+    document.querySelectorAll('[data-aksi="pakai-saran-anggaran"]').forEach(b => {
+      const i = document.querySelector(`.input-anggaran[data-nama="${CSS.escape(b.dataset.nama)}"]`);
+      if (i && !angka(i.value)) { i.value = formatAngka(Number(b.dataset.n)); i.classList.add('terisi-otomatis'); n++; }
+    });
+    hitungTotalAnggaran();
+    toast(n ? n + ' kategori diisi. Periksa lalu ketuk Simpan.' : 'Semua kategori yang disarankan sudah terisi.');
+  },
   'simpan-anggaran': el => {
     const peta = {};
     const amplop = {};
@@ -4163,7 +4429,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'contoh-suara', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
 ]);
 
 /**
@@ -4562,6 +4828,7 @@ function tambahBarisTugas(setelah, teks) {
 
 // Centang dari kalender/overlay: tampilan langsung berubah, simpan di latar (berurutan supaya tidak saling timpa).
 let antrianTugas = Promise.resolve();
+let tugasUntukTrx = '';
 function centangTugas(id, i) {
   const c = daftarCatatan().find(x => x.id === id);
   const tugas = c && bacaTugas(c.isi);
@@ -4571,6 +4838,10 @@ function centangTugas(id, i) {
   c.isi = tulisTugas(tugas);
   getar();
   segarkanCentang(c);
+  if (tugas[i].selesai) { // item belanja dicentang → tawarkan catat sebagai pengeluaran
+    tugasUntukTrx = tugas[i].teks;
+    toast('✔ ' + tugas[i].teks, false, { label: 'Catat pengeluaran', aksi: 'tugas-jadi-trx' });
+  }
   const kirimIsi = c.isi;
   antrianTugas = antrianTugas.then(() => api('simpanCatatan', {
     id: c.id, tanggal: c.tanggal, judul: c.judul, isi: kirimIsi, pengingat: c.pengingat, ulang: c.ulang, warna: c.warna,
@@ -4651,7 +4922,88 @@ function bukaFormCatatan(c, tanggal) {
     warna: x.warna || 'biru', jenis: tugas ? 'tugas' : 'teks', isi: tugas ? '' : x.isi, tugas: tugas || [{ teks: '', selesai: false }],
     fokus: !c,
   };
+  const draf = bacaDrafCatatan(S.formCatatan.id);
+  S.formCatatan.awal = jejakCatatan(S.formCatatan);
+  if (draf) {
+    Object.assign(S.formCatatan, draf);
+    setTimeout(() => toast('📝 Isian yang belum disimpan dipulihkan', false, { label: 'Buang', aksi: 'buang-draf-catatan' }), 300);
+  }
   bukaHalaman('catatan-edit');
+}
+
+// ---------- Catatan tanpa sinyal: disimpan di HP, dikirim otomatis saat online ----------
+const catatanTertunda = () => bacaLokal('catatan_tertunda', []).filter(bukuIni);
+function antreCatatan(input, idLama) {
+  const x = Object.assign({}, input, { id: input.id || crypto.randomUUID(), buku: S.data.spreadsheetId });
+  tulisLokal('catatan_tertunda', bacaLokal('catatan_tertunda', []).filter(c => c.id !== x.id).concat([x]));
+  // Tampil langsung di kalender (data lokal), sebelum terkirim.
+  const daftar = S.data.catatan || (S.data.catatan = []);
+  const lokal = { id: x.id, tanggal: x.tanggal, judul: x.judul, isi: x.isi, pengingat: x.pengingat, ulang: x.ulang, warna: x.warna, oleh: S.data.user, tertunda: true };
+  const i = daftar.findIndex(c => c.id === x.id);
+  if (i >= 0) daftar[i] = lokal; else daftar.push(lokal);
+  tulisLokal('data', S.data);
+  buangDrafCatatan(idLama);
+  toast('📴 Catatan disimpan di HP. Dikirim otomatis begitu ada sinyal.');
+  bukaKalender(x.tanggal);
+  return true;
+}
+let mengirimCatatan = false;
+async function kirimCatatanTertunda() {
+  if (mengirimCatatan || !GOOGLE.sudahMasuk() || !catatanTertunda().length) return;
+  mengirimCatatan = true;
+  let terkirim = 0;
+  try {
+    for (const c of catatanTertunda()) {
+      const input = Object.assign({}, c);
+      delete input.buku;
+      await api('simpanCatatan', input);
+      tulisLokal('catatan_tertunda', bacaLokal('catatan_tertunda', []).filter(x => x.id !== c.id));
+      terkirim++;
+    }
+  } catch (e) { /* sinyal putus lagi: dicoba lain kali */ }
+  mengirimCatatan = false;
+  if (terkirim) { toast(terkirim + ' catatan terkirim ✔'); muat(); }
+}
+
+// ---------- Draf catatan (tersimpan di HP selama belum disimpan ke spreadsheet) ----------
+const kunciDrafCatatan = id => 'dk_draf_catatan_' + (S.data && S.data.spreadsheetId || '') + '_' + (id || 'baru');
+const jejakCatatan = f => JSON.stringify([f.judul, f.jenis === 'tugas' ? '' : f.isi, f.jenis === 'tugas' ? tulisTugas(f.tugas || []) : '',
+  f.jenis, f.tanggal, f.pengingat, f.ulang, f.warna]);
+function bacaDrafCatatan(id) {
+  try {
+    const d = JSON.parse(bacaHp(kunciDrafCatatan(id)));
+    return d && Date.now() - d.waktu < 14 * 864e5 ? d.isian : null;
+  } catch (e) { return null; }
+}
+function buangDrafCatatan(id) { tulisHp(kunciDrafCatatan(id), null); }
+/** Dipanggil saat mengetik / mengubah opsi: simpan draf kalau berbeda dari isi awal, hapus kalau sama. */
+function catatDrafCatatan() {
+  const f = S.formCatatan;
+  if (!f || !$('#c-judul')) return;
+  simpanDraftCatatan();
+  if (jejakCatatan(f) === f.awal) return buangDrafCatatan(f.id);
+  tulisHp(kunciDrafCatatan(f.id), JSON.stringify({ waktu: Date.now(), isian: {
+    judul: f.judul, isi: f.isi, tugas: f.tugas, jenis: f.jenis, tanggal: f.tanggal, pengingat: f.pengingat, ulang: f.ulang, warna: f.warna,
+  } }));
+}
+let timerDrafCatatan = 0;
+document.addEventListener('input', e => {
+  if (S.tab !== 'catatan-edit' || !e.target.closest || !e.target.closest('.form-catatan')) return;
+  clearTimeout(timerDrafCatatan);
+  timerDrafCatatan = setTimeout(catatDrafCatatan, 400);
+});
+document.addEventListener('click', e => {
+  if (S.tab === 'catatan-edit' && e.target.closest && e.target.closest('.form-catatan [data-aksi]')) setTimeout(catatDrafCatatan, 50);
+});
+document.addEventListener('change', e => {
+  if (S.tab === 'catatan-edit' && e.target.closest && e.target.closest('.form-catatan')) setTimeout(catatDrafCatatan, 50);
+});
+/** Keluar dari form catatan tanpa menyimpan: isian tetap ada sebagai draf. */
+function tinggalkanFormCatatan() {
+  if (S.tab !== 'catatan-edit' || !S.formCatatan) return;
+  catatDrafCatatan();
+  if (bacaDrafCatatan(S.formCatatan.id)) toast('📝 Belum disimpan · isian disimpan sebagai draf', false, { label: 'Lanjutkan', aksi: 'lanjut-draf-catatan' });
+  S.drafTerakhir = { id: S.formCatatan.id, tanggal: S.formCatatan.tanggal };
 }
 
 /** Ambil isian form yang sedang tampil ke S.formCatatan (dipanggil sebelum render ulang & saat ganti jenis). */
@@ -4673,7 +5025,7 @@ function viewFormCatatan() {
   const tugas = f.jenis === 'tugas';
   return `
     <div class="kepala kepala-kembali kepala-form-catatan">
-      <button class="tombol-ikon" data-aksi="kalender" aria-label="Kembali">${svg('kembali')}</button>
+      <button class="tombol-ikon" data-aksi="keluar-catatan" aria-label="Kembali">${svg('kembali')}</button>
       <h1>${f.id ? 'Ubah catatan' : 'Catatan baru'}</h1>
     </div>
     <div class="form-catatan" style="--w:${warnaCatatan(f.warna)}">
@@ -5189,12 +5541,27 @@ Object.assign(AKSI, {
       isi: f.jenis === 'tugas' ? tulisTugas(f.tugas) : f.isi,
     };
     if (!input.judul.trim()) return toast('Isi judul catatannya dulu.', true);
-    if (await kirim(el, 'simpanCatatan', [input], input.pengingat ? 'Pengingat tersimpan 🔔' : 'Catatan tersimpan ✔')) bukaKalender(input.tanggal);
+    if (S.offline || !navigator.onLine) return antreCatatan(input, f.id);
+    if (await kirim(el, 'simpanCatatan', [input], input.pengingat ? 'Pengingat tersimpan 🔔' : 'Catatan tersimpan ✔',
+      e => e.jaringan && antreCatatan(input, f.id))) {
+      buangDrafCatatan(f.id);
+      bukaKalender(input.tanggal);
+    }
   },
   'hapus-catatan': async el => {
-    if (!await tanya('Hapus catatan ini untuk semua anggota buku?', 'Hapus')) return;
     const tgl = S.formCatatan.tanggal;
-    if (await kirim(el, 'hapusCatatan', [S.formCatatan.id], 'Catatan dihapus')) bukaKalender(tgl);
+    const idDraf = S.formCatatan.id;
+    const ok = await kirim(el, 'hapusCatatan', [S.formCatatan.id], baris => {
+      catatanTerhapus = baris;
+      toast('Catatan dihapus', false, { label: 'Urungkan', aksi: 'urungkan-catatan' });
+    });
+    if (ok) { buangDrafCatatan(idDraf); bukaKalender(tgl); }
+  },
+  'urungkan-catatan': el => {
+    const baris = catatanTerhapus;
+    catatanTerhapus = null;
+    $('#toast').hidden = true;
+    if (baris) kirim(el, 'kembalikanCatatan', [baris], 'Catatan dikembalikan');
   },
   'ingat-ok': el => { tutupPengingat(el.dataset.id, el.dataset.tgl, 'ok'); setTimeout(cekPengingat, 300); },
   'ingat-tunda': el => {
@@ -5271,7 +5638,7 @@ window.addEventListener('popstate', e => {
   if (e.state && e.state.dkJaga) { adaPenjaga = true; return; } // maju lagi ke entri penjaga
   adaPenjaga = false;
   if (tutupLapisanAtas()) return pasangPenjaga();
-  if (S.tab === 'catatan-edit') { bukaKalender(S.formCatatan && S.formCatatan.tanggal); return pasangPenjaga(); }
+  if (S.tab === 'catatan-edit') { tinggalkanFormCatatan(); bukaKalender(S.formCatatan && S.formCatatan.tanggal); return pasangPenjaga(); }
   const bisaKeBeranda = S.data && !S.data.perluSetup && $('#kunci').hidden && $('#sesi').hidden && S.tab !== 'beranda';
   if (bisaKeBeranda) {
     S.tab = 'beranda';
@@ -5364,6 +5731,7 @@ function pasangTombolSuara() {
   const kotak = document.querySelector('.ketik-cepat');
   if (!PengenalSuara || !kotak || kotak.querySelector('.tombol-suara')) return;
   kotak.classList.add('ada-suara');
+  setTimeout(() => petunjukSekali('mic', kotak.querySelector('.tombol-suara'), '🎤 Ketuk lalu ucapkan, mis. <i>"bakso 25 ribu pakai gopay kemarin"</i>'), 700);
   kotak.insertAdjacentHTML('beforeend', '<button type="button" class="tombol-suara" data-aksi="suara" aria-label="Catat dengan suara">'
     + '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>');
 }

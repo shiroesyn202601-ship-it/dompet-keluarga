@@ -547,6 +547,7 @@ const SERVER = (() => {
       log: lg.filter(r => r[0] !== '').slice(-60).map(r => ({ waktu: dariSerial_(r[0]), oleh: String(r[1]), aksi: String(r[2]), ringkasan: String(r[3]) })).reverse(),
       cepat: kebiasaan_(d.transaksi),
       saranRutin: saranRutin_(d.transaksi, olahRutin_(rut)),
+      setoranTabungan: setoranTabungan_(d.transaksi, d.dompet),
       bulanan,
       transaksi: d.transaksi
         .filter(t => periodeDari_(t.tanggal, mulai) === bulan)
@@ -602,6 +603,20 @@ const SERVER = (() => {
       if (sudah.includes(contoh.catatan.toLowerCase().trim())) return null;
       return { kunci: k, nama: contoh.catatan, tipe: contoh.tipe, jumlah, kategori: contoh.kategori, dompet: contoh.dompet, hari: hariMed, kali: bulanAda.length };
     }).filter(Boolean).sort((a, b) => b.kali - a.kali || b.jumlah - a.jumlah).slice(0, 3);
+  }
+
+  /** Rata-rata setoran bersih (setor − tarik) per bulan ke tiap tabungan, dari 3 bulan kalender terakhir. */
+  function setoranTabungan_(semua, dompet) {
+    const tabungan = dompet.filter(w => w.jenis === JENIS.TABUNGAN).map(w => w.nama);
+    const kini = new Date();
+    const batas = new Date(kini.getFullYear(), kini.getMonth() - 3, 1).toISOString().slice(0, 10);
+    const hasil = {};
+    tabungan.forEach(n => {
+      const bersih = semua.filter(t => t.tipe === TIPE.TRANSFER && t.tanggal >= batas && (t.dompetTujuan === n || t.dompet === n))
+        .reduce((a, t) => a + (t.dompetTujuan === n ? t.jumlah : -t.jumlah), 0);
+      hasil[n] = Math.round(bersih / 3);
+    });
+    return hasil;
   }
 
   function kebiasaan_(semua) {
@@ -664,6 +679,13 @@ const SERVER = (() => {
     return { awal: iso(y, m, mulai), akhir: iso(akhir.getUTCFullYear(), akhir.getUTCMonth() + 1, akhir.getUTCDate()) };
   }
 
+  async function aturRekapTelegram(nyala) {
+    const id = await db_();
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    await simpanPengaturan_(id, set, 'REKAP_TELEGRAM', nyala ? 'Nyala' : 'Mati');
+    return true;
+  }
+
   async function aturPengingatTelegram(nyala) {
     const id = await db_();
     const [set] = await bacaTabel_(id, ['pengaturan']);
@@ -721,10 +743,22 @@ const SERVER = (() => {
     return idCatatan;
   }
 
+  /** Mengembalikan baris yang dihapus (untuk tombol Urungkan, lihat kembalikanCatatan). */
   async function hapusCatatan(idCatatan) {
     const id = await db_();
     const [rows] = await bacaTabel_(id, ['catatan']);
-    await hapusBaris_(id, TABEL.catatan, cariBaris_(rows, r => String(r[0]) === String(idCatatan)));
+    const i = cariBaris_(rows, r => String(r[0]) === String(idCatatan));
+    const baris = rows[i];
+    await hapusBaris_(id, TABEL.catatan, i);
+    return baris;
+  }
+
+  async function kembalikanCatatan(baris) {
+    const id = await db_();
+    if (!Array.isArray(baris) || !baris[0]) throw new Error('Data catatan tidak lengkap.');
+    const [rows] = await bacaTabel_(id, ['catatan']);
+    if (rows.some(r => String(r[0]) === String(baris[0]))) return true;
+    await tambahBaris_(id, TABEL.catatan, [baris.slice(0, TABEL.catatan.kolom.length)]);
     return true;
   }
 
@@ -1317,6 +1351,7 @@ const SERVER = (() => {
       bersama: !!bersama,
       pengguna: Object.keys(pengguna).map(id => Object.assign({ id }, pengguna[id])),
       pengingat: p.PENGINGAT_TELEGRAM !== 'Mati', // pengingat harian dari bot (lihat bot/Kode.gs → kirimPengingatHarian)
+      rekap: p.REKAP_TELEGRAM !== 'Mati',          // rekap bulanan di awal periode
     };
   }
 
@@ -1614,8 +1649,8 @@ const SERVER = (() => {
   return {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
-    simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, aturPengingatTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
+    simpanMulaiPeriode, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
   };
