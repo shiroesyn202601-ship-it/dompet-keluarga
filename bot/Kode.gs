@@ -38,7 +38,8 @@ const BATAS_AI_MS = 35000;
  */
 const PIKIR_PERINTAH = 0;
 const PIKIR_TANYA = 1024;
-const PIKIR_STRUK = 1024; // cukup untuk menjumlah barang di nota, tanpa berpikir panjang yang lambat
+const PIKIR_STRUK = 1024; // OCR + AI: teks OCR berantakan, cukup untuk menjumlah barang tanpa berpikir panjang
+const PIKIR_STRUK_FOTO = 512; // AI foto: nominal biasanya terbaca langsung dari gambar, jadi lebih hemat supaya cepat
 let mulaiProses_ = Date.now();
 const KOLOM_TRANSAKSI = 11;
 const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -205,16 +206,30 @@ function prosesPesan_(m) {
   if (tautan) return hubungkan_(m, tautan[1] || properti_('SPREADSHEET_ID'), tautan[2].toUpperCase());
 
   const foto = m.photo || (m.document && /^image\//.test(m.document.mime_type || ''));
-  // Pesan bebas: status "mengetik" dikirim bersamaan dengan membaca data.
-  const buka = bukaUntuk_(m.from.id, chatId, teks && !foto && !/^\//.test(teks) ? chatId : null);
+  // Dikirim bersamaan dengan membaca data: status "mengetik" (pesan bebas), atau
+  // pesan "Membaca struk…" + info file foto (foto), supaya tidak menunggu satu per satu.
+  let lain = [];
+  if (foto) {
+    lain = [
+      permintaanTg_('sendMessage', { chat_id: chatId, text: '⏳ Membaca struk…', parse_mode: 'HTML' }),
+      permintaanTg_('getFile', { file_id: m.photo ? m.photo[m.photo.length - 1].file_id : m.document.file_id }),
+    ];
+  } else if (teks && !/^\//.test(teks)) {
+    lain = [permintaanTg_('sendChatAction', { chat_id: chatId, action: 'typing' })];
+  }
+  // Foto: sheet Transaksi baru dibaca bersamaan dengan AI (lihat prosesFoto_), bukan di awal.
+  const buka = bukaUntuk_(m.from.id, chatId, lain, !!foto);
   waktu_('data dimuat');
   if (!buka) return;
   const { d, pengguna } = buka;
+  const balasanTg = buka.lain.map(jsonTg_);
   if (!kuotaHarianCukup_()) {
-    return kirim_(chatId, '⏳ Batas ' + BATAS_PESAN_HARIAN + ' pesan per hari untuk buku ini sudah tercapai. Lanjut besok, atau catat lewat aplikasi.');
+    const pesan = '⏳ Batas ' + BATAS_PESAN_HARIAN + ' pesan per hari untuk buku ini sudah tercapai. Lanjut besok, atau catat lewat aplikasi.';
+    if (foto && balasanTg[0].ok) return ubahPesan_(chatId, balasanTg[0].result.message_id, pesan);
+    return kirim_(chatId, pesan);
   }
 
-  if (foto) return prosesFoto_(m, pengguna, d);
+  if (foto) return prosesFoto_(m, pengguna, d, balasanTg[0], balasanTg[1]);
   if (!teks) return;
 
   const perintah = teks.match(/^\/(\w+)/);
@@ -659,21 +674,29 @@ function pertanyaanMurni_(teks) {
 // Foto struk
 // ======================================================================
 
-function prosesFoto_(m, pengguna, d) {
+/** `jTunggu`, `jFile`: jawaban sendMessage "Membaca struk…" dan getFile yang dikirim bersamaan dengan memuat data. */
+function prosesFoto_(m, pengguna, d, jTunggu, jFile) {
   const chatId = m.chat.id;
-  const tunggu = kirim_(chatId, '⏳ Membaca struk…').result;
-  const fileId = m.photo ? m.photo[m.photo.length - 1].file_id : m.document.file_id;
-  const info = tg_('getFile', { file_id: fileId }).result;
+  const tunggu = jTunggu && jTunggu.ok ? jTunggu.result : kirim_(chatId, '⏳ Membaca struk…').result;
+  const info = jFile && jFile.ok ? jFile.result
+    : tg_('getFile', { file_id: m.photo ? m.photo[m.photo.length - 1].file_id : m.document.file_id }).result;
+  if (!info || !info.file_path) return ubahPesan_(chatId, tunggu.message_id, '❌ Foto tidak bisa diunduh dari Telegram. Coba kirim ulang.');
   const blob = UrlFetchApp.fetch('https://api.telegram.org/file/bot' + properti_('TELEGRAM_TOKEN') + '/' + info.file_path).getBlob();
   const mime = /\.png$/i.test(info.file_path) ? 'image/png' : 'image/jpeg';
+  waktu_('foto diunduh');
 
   const kategori = d.kategori.filter(k => k.tipe === TIPE.KELUAR).map(k => k.nama);
+  // Transaksi baru dibutuhkan sesudah struk terbaca (dompet default & peringatan anggaran),
+  // jadi dibaca bersamaan dengan AI foto supaya waktunya tertutup oleh waktu AI.
+  const ekstra = { minta: [mintaTransaksi_()], jawaban: null };
   let h;
   try {
-    h = bacaStruk_(Utilities.base64Encode(blob.getBytes()), mime, kategori, kunciGemini_(d.pengaturan), d.pengaturan.GEMINI_MODEL || MODEL_GEMINI);
+    h = bacaStruk_(Utilities.base64Encode(blob.getBytes()), mime, kategori, kunciGemini_(d.pengaturan), d.pengaturan.GEMINI_MODEL || MODEL_GEMINI, ekstra);
   } catch (err) {
     return ubahPesan_(chatId, tunggu.message_id, '❌ ' + html_(err.message));
   }
+  d.transaksi = olahJawabanTransaksi_(ekstra.jawaban ? ekstra.jawaban[0] : UrlFetchApp.fetchAll([mintaTransaksi_()])[0]);
+  waktu_('transaksi siap');
 
   // Keterangan foto bisa menyebut dompet ("pakai gopay") atau catatan tambahan.
   const ket = (m.caption || '').trim();
@@ -683,6 +706,8 @@ function prosesFoto_(m, pengguna, d) {
     dompet: dompet ? dompet.nama : '', catatan: [h.catatan, dompet ? '' : ket].filter(Boolean).join(' · '),
   }, pengguna);
   const id = tambahTransaksi_(t, pengguna.email);
+  // Supaya peringatan anggaran di bawah ikut menghitung struk ini.
+  d.transaksi.push(Object.assign({ id, oleh: pengguna.email, dibuat: sekarangIso_() }, t));
 
   const tombol = [];
   // Kalau lapis-lapis tidak sepakat, tampilkan pilihan nominal (sama seperti di aplikasi).
@@ -784,7 +809,7 @@ function catatIndeks_(idTelegram, idSheet) {
  * (TELEGRAM_PENGGUNA). Spreadsheet adalah sumber kebenaran: diputus dari aplikasi / akses bot dicabut
  * → indeks ikut dihapus. Hasil: { d, pengguna }, atau null kalau tidak bisa (chatId sudah diberi tahu).
  */
-function bukaUntuk_(idTelegram, chatId, ketikKe) {
+function bukaUntuk_(idTelegram, chatId, lain, tanpaTransaksi) {
   const idSheet = spreadsheetUntuk_(idTelegram);
   if (!idSheet) {
     belumTerhubung_(chatId);
@@ -792,8 +817,9 @@ function bukaUntuk_(idTelegram, chatId, ketikKe) {
   }
   pakaiSpreadsheet_(idSheet);
   let d;
+  const balasanLain = [];
   try {
-    d = muatData_(ketikKe);
+    d = muatData_(lain, balasanLain, tanpaTransaksi);
   } catch (err) {
     if (err.status !== 403 && err.status !== 404) throw err;
     if (properti_('tg_' + idTelegram)) catatIndeks_(idTelegram, '');
@@ -806,7 +832,7 @@ function bukaUntuk_(idTelegram, chatId, ketikKe) {
     belumTerhubung_(chatId);
     return null;
   }
-  return { d, pengguna };
+  return { d, pengguna, lain: balasanLain };
 }
 
 function belumTerhubung_(chatId) {
@@ -900,25 +926,54 @@ function range_(r) {
 
 const TABEL_BACA = [['Transaksi', KOLOM_TRANSAKSI], ['Kategori', 4], ['Dompet', 6], ['Pengaturan', 2]];
 
-/** Semua data dalam satu permintaan Sheets API. `ketikKe` (opsional): chat yang sekalian dikirimi status "mengetik". */
-function muatData_(ketikKe) {
-  const ranges = TABEL_BACA.map(t => 'ranges=' + range_("'" + t[0] + "'!A2:" + String.fromCharCode(64 + t[1]))).join('&');
-  const minta = [sheetsApi_('/values:batchGet?' + ranges + '&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER')];
-  if (ketikKe) minta.push(permintaanTg_('sendChatAction', { chat_id: ketikKe, action: 'typing' }));
-  const j = jawabanSheets_(UrlFetchApp.fetchAll(minta)[0]);
-  return olahData_(j.valueRanges.map((vr, i) => (vr.values || []).map(r => {
-    const isi = r.slice(0, TABEL_BACA[i][1]);
-    while (isi.length < TABEL_BACA[i][1]) isi.push('');
-    return isi;
-  })));
+/**
+ * Semua data dalam satu permintaan Sheets API. `lain` (opsional): permintaan lain (mis. ke Telegram) yang
+ * dikirim bersamaan; jawabannya dimasukkan ke array `balasanLain`, urut sama dengan `lain`.
+ * `tanpaTransaksi`: sheet Transaksi (yang terbesar) tidak dibaca; d.transaksi kosong sampai diisi
+ * lewat mintaTransaksi_ / olahJawabanTransaksi_ (dipakai alur foto supaya tidak menunggu di awal).
+ */
+function muatData_(lain, balasanLain, tanpaTransaksi) {
+  const tabel = tanpaTransaksi ? TABEL_BACA.slice(1) : TABEL_BACA;
+  const ranges = tabel.map(t => 'ranges=' + range_("'" + t[0] + "'!A2:" + String.fromCharCode(64 + t[1]))).join('&');
+  const minta = [sheetsApi_('/values:batchGet?' + ranges + '&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER')]
+    .concat(lain || []);
+  const semua = UrlFetchApp.fetchAll(minta);
+  if (balasanLain) semua.slice(1).forEach(r => balasanLain.push(r));
+  const j = jawabanSheets_(semua[0]);
+  const isi = j.valueRanges.map((vr, i) => rapikanBaris_(vr.values, tabel[i][1]));
+  return olahData_(tanpaTransaksi ? [[]].concat(isi) : isi);
 }
 
-function olahData_([trx, kat, dom, set]) {
-  const transaksi = trx.filter(r => r[0] !== '').map(r => ({
+/** Baris dari Sheets API dipotong/ditambal supaya panjangnya tepat `kolom`. */
+function rapikanBaris_(values, kolom) {
+  return (values || []).map(r => {
+    const isi = r.slice(0, kolom);
+    while (isi.length < kolom) isi.push('');
+    return isi;
+  });
+}
+
+/** Permintaan baca sheet Transaksi saja (bisa ikut dikirim bersamaan dengan permintaan lain). */
+function mintaTransaksi_() {
+  return sheetsApi_('/values/' + range_("'Transaksi'!A2:" + String.fromCharCode(64 + KOLOM_TRANSAKSI))
+    + '?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER');
+}
+
+/** Jawaban mintaTransaksi_ → daftar transaksi seperti d.transaksi. */
+function olahJawabanTransaksi_(res) {
+  return olahTransaksi_(rapikanBaris_(jawabanSheets_(res).values, KOLOM_TRANSAKSI));
+}
+
+function olahTransaksi_(trx) {
+  return trx.filter(r => r[0] !== '').map(r => ({
     id: String(r[0]), tanggal: tgl_(r[1]), tipe: String(r[2]), jumlah: Number(r[3]) || 0, kategori: String(r[4]),
     dompet: String(r[5]), dompetTujuan: String(r[6]), catatan: String(r[7]), oleh: String(r[8]),
     dibuat: tglWaktu_(r[9]),
   }));
+}
+
+function olahData_([trx, kat, dom, set]) {
+  const transaksi = olahTransaksi_(trx);
   const kategori = kat.filter(r => r[0] !== '').map(r => ({
     nama: String(r[0]), tipe: String(r[1]), ikon: String(r[2]), anggaran: Number(r[3]) || 0,
   }));
@@ -1187,10 +1242,14 @@ function permintaanTg_(metode, data) {
 }
 
 function tg_(metode, data) {
-  const res = UrlFetchApp.fetchAll([permintaanTg_(metode, data)])[0];
-  const j = JSON.parse(res.getContentText());
+  const j = jsonTg_(UrlFetchApp.fetchAll([permintaanTg_(metode, data)])[0]);
   if (!j.ok) console.error('Telegram ' + metode + ': ' + j.description);
   return j;
+}
+
+/** Jawaban Telegram dari UrlFetchApp → objek { ok, result, description }. */
+function jsonTg_(res) {
+  try { return JSON.parse(res.getContentText()); } catch (e) { return { ok: false, description: 'HTTP ' + res.getResponseCode() }; }
 }
 
 function kirim_(chatId, teks, tombol) {
@@ -1311,8 +1370,10 @@ function teks_(v) {
  * permintaan yang gagal karena kuota/kunci diulang dengan kunci lain, dan yang gagal karena
  * model sedang sibuk/tidak tersedia diulang dengan model cadangan.
  * Mengembalikan array sejajar dengan `permintaan`: objek hasil, atau Error.
+ * `ikut` (opsional): { minta: [permintaan UrlFetchApp lain] } yang ikut dikirim bersamaan di putaran
+ * pertama; jawabannya ditaruh di ikut.jawaban (tetap null kalau putaran itu gagal total).
  */
-function jalankanGemini_(daftar, model, permintaan, skema) {
+function jalankanGemini_(daftar, model, permintaan, skema, ikut) {
   const props = PropertiesService.getScriptProperties();
   const mulai = (Number(props.getProperty('GEMINI_GILIRAN')) || 0) % daftar.length;
   props.setProperty('GEMINI_GILIRAN', String((mulai + 1) % daftar.length));
@@ -1331,7 +1392,11 @@ function jalankanGemini_(daftar, model, permintaan, skema) {
       const kunci = daftar[(mulai + n) % daftar.length];
       let jawaban;
       try {
-        jawaban = UrlFetchApp.fetchAll(sisa.map(function (i) { return mintaGemini_(kunci, model2[mi], permintaan[i].parts, skema, permintaan[i].pikir); }));
+        const minta = sisa.map(function (i) { return mintaGemini_(kunci, model2[mi], permintaan[i].parts, skema, permintaan[i].pikir); });
+        const sertakan = ikut && ikut.minta && !ikut.terkirim ? ikut.minta : [];
+        if (ikut) ikut.terkirim = true;
+        jawaban = UrlFetchApp.fetchAll(minta.concat(sertakan));
+        if (sertakan.length) ikut.jawaban = jawaban.splice(minta.length);
       } catch (e) {
         console.error('Gemini tidak bisa dihubungi: ' + e);
         sisa.forEach(function (i) { hasil[i] = new Error('Gemini terlalu lama menjawab atau tidak bisa dihubungi'); });
@@ -1364,22 +1429,57 @@ function jalankanGemini_(daftar, model, permintaan, skema) {
 /**
  * Membaca foto struk secara berlapis, lalu hasilnya dicocokkan:
  *   1. "AI foto"  : Gemini membaca gambar langsung.
- *   2. "OCR + AI" : gambar → teks (OCR Google Drive) → teks disimpulkan Gemini.
- *   3. "OCR"      : teks OCR yang sama dibaca dengan aturan biasa (tanpa AI).
+ *   2. "OCR"      : gambar → teks (OCR Google Drive) → dibaca dengan aturan biasa (tanpa AI).
+ *   3. "OCR + AI" : teks OCR yang sama disimpulkan Gemini — hanya cadangan kalau AI foto tidak memberi nominal.
+ * AI foto tidak butuh teks OCR, jadi AI foto dan unggahan OCR dikirim bersamaan.
  * Mengembalikan { jumlah, tanggal, kategori, catatan, yakin, pilihanJumlah, lapis }.
  */
-function bacaStruk_(base64, mime, kategori, daftarKunci, model) {
+function bacaStruk_(base64, mime, kategori, daftarKunci, model, ekstra) {
   if (!/^image\/(jpeg|png|webp)$/.test(String(mime))) throw new Error('Format gambar tidak didukung.');
   const hariIni = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
   console.log('bacaStruk: model ' + model + ', ukuran gambar ' + Math.round(String(base64).length * 0.75 / 1024) + ' KB');
 
   const hasil = [];   // { sumber, jumlah, tanggal, kategori, catatan }
   const gagal = [];   // pesan error per lapis, untuk pesan akhir
+  const skema = skemaStruk_(kategori);
+  const dariAi = function (sumber, h) {
+    try {
+      if (h instanceof Error) throw h;
+      console.log('bacaStruk: ' + sumber + ' → ' + JSON.stringify(h));
+      const jumlah = Math.round(Number(h.jumlah) || 0);
+      if (jumlah > 0) {
+        hasil.push({
+          sumber: sumber,
+          jumlah: jumlah,
+          tanggal: tanggalWajar_(h.tanggal, hariIni),
+          kategori: kategori.indexOf(h.kategori) >= 0 ? h.kategori : '',
+          catatan: teks_(h.catatan).slice(0, 120),
+        });
+      }
+    } catch (e) {
+      console.error('bacaStruk: ' + sumber + ' gagal: ' + e.message);
+      gagal.push(e.message);
+    }
+  };
 
-  // Lapis OCR dulu, karena teksnya dipakai lapis 2 dan 3.
+  // Lapis 1 + unggahan OCR (+ permintaan `ekstra` dari pemanggil, mis. baca sheet Transaksi), bersamaan.
+  const unggah = { minta: [mintaUnggahOcr_(base64, mime)].concat(ekstra ? ekstra.minta : []), jawaban: null };
+  if (daftarKunci.length) {
+    dariAi('AI foto', jalankanGemini_(daftarKunci, model, [{
+      sumber: 'AI foto', pikir: PIKIR_STRUK_FOTO, parts: [{ inlineData: { mimeType: mime, data: base64 } }, { text: petunjukStruk_('gambar', hariIni) }],
+    }], skema, unggah)[0]);
+  }
+  if (!unggah.terkirim) {
+    try { unggah.jawaban = UrlFetchApp.fetchAll(unggah.minta); } catch (e) { console.error('bacaStruk: unggah OCR gagal: ' + e); }
+  }
+  if (ekstra && unggah.jawaban) ekstra.jawaban = unggah.jawaban.slice(1);
+  waktu_('AI foto & unggah OCR selesai');
+
+  // Lapis 2: file OCR sudah jadi, tinggal diambil teksnya (cepat) lalu dibaca dengan aturan biasa.
   let teksOcr = '';
   try {
-    teksOcr = ocrDrive_(base64, mime);
+    if (!unggah.jawaban) throw new Error('unggahan OCR tidak selesai');
+    teksOcr = teksOcrDrive_(unggah.jawaban[0]);
     console.log('bacaStruk: teks OCR\n' + teksOcr.slice(0, 3000));
     const aturan = tebakDariTeks_(teksOcr, hariIni);
     if (aturan.jumlah) hasil.push(Object.assign({ sumber: 'OCR' }, aturan));
@@ -1387,33 +1487,14 @@ function bacaStruk_(base64, mime, kategori, daftarKunci, model) {
     console.error('bacaStruk: OCR gagal: ' + e);
     gagal.push('OCR gagal');
   }
+  waktu_('OCR selesai');
 
-  // Lapis AI: foto langsung dan teks OCR dikirim bersamaan.
-  if (daftarKunci.length) {
-    const skema = skemaStruk_(kategori);
-    const permintaan = [{ sumber: 'AI foto', pikir: PIKIR_STRUK, parts: [{ inlineData: { mimeType: mime, data: base64 } }, { text: petunjukStruk_('gambar', hariIni) }] }];
-    if (teksOcr.trim()) {
-      permintaan.push({ sumber: 'OCR + AI', pikir: PIKIR_STRUK, parts: [{ text: petunjukStruk_('teks', hariIni) + '\n\nTeks OCR:\n"""\n' + teksOcr.slice(0, 8000) + '\n"""' }] });
-    }
-    jalankanGemini_(daftarKunci, model, permintaan, skema).forEach(function (h, i) {
-      try {
-        if (h instanceof Error) throw h;
-        console.log('bacaStruk: ' + permintaan[i].sumber + ' → ' + JSON.stringify(h));
-        const jumlah = Math.round(Number(h.jumlah) || 0);
-        if (jumlah > 0) {
-          hasil.push({
-            sumber: permintaan[i].sumber,
-            jumlah: jumlah,
-            tanggal: tanggalWajar_(h.tanggal, hariIni),
-            kategori: kategori.indexOf(h.kategori) >= 0 ? h.kategori : '',
-            catatan: teks_(h.catatan).slice(0, 120),
-          });
-        }
-      } catch (e) {
-        console.error('bacaStruk: ' + permintaan[i].sumber + ' gagal: ' + e.message);
-        gagal.push(e.message);
-      }
-    });
+  // Lapis 3: cadangan kalau AI foto gagal / tidak menemukan nominal.
+  if (daftarKunci.length && teksOcr.trim() && !hasil.some(function (h) { return h.sumber === 'AI foto'; })) {
+    dariAi('OCR + AI', jalankanGemini_(daftarKunci, model, [{
+      sumber: 'OCR + AI', pikir: PIKIR_STRUK, parts: [{ text: petunjukStruk_('teks', hariIni) + '\n\nTeks OCR:\n"""\n' + teksOcr.slice(0, 8000) + '\n"""' }],
+    }], skema)[0]);
+    waktu_('OCR + AI selesai');
   }
 
   if (!hasil.length) {
@@ -1538,19 +1619,40 @@ function bacaJawabanGemini_(res) {
   }
 }
 
-/** Gambar → teks memakai OCR bawaan Google Drive. File sementara langsung dihapus. */
-function ocrDrive_(base64, mime) {
-  const blob = Utilities.newBlob(Utilities.base64Decode(base64), mime, 'struk');
-  const file = Drive.Files.create({ name: 'Dompet Keluarga - OCR sementara', mimeType: MimeType.GOOGLE_DOCS }, blob, { ocrLanguage: 'id' });
+/**
+ * OCR bawaan Google Drive, langkah 1: permintaan unggah gambar sebagai Google Docs (dikonversi OCR).
+ * Berupa permintaan UrlFetchApp supaya bisa dikirim bersamaan dengan Gemini (lihat bacaStruk_).
+ */
+function mintaUnggahOcr_(base64, mime) {
+  const batas = 'dk' + Utilities.getUuid().replace(/-/g, '');
+  const meta = JSON.stringify({ name: 'Dompet Keluarga - OCR sementara', mimeType: 'application/vnd.google-apps.document' });
+  const awal = '--' + batas + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta
+    + '\r\n--' + batas + '\r\nContent-Type: ' + mime + '\r\n\r\n';
+  const akhir = '\r\n--' + batas + '--';
+  return {
+    url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&ocrLanguage=id&fields=id',
+    method: 'post',
+    contentType: 'multipart/related; boundary=' + batas,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: Utilities.newBlob(awal).getBytes().concat(Utilities.base64Decode(base64), Utilities.newBlob(akhir).getBytes()),
+    muteHttpExceptions: true,
+  };
+}
+
+/** OCR langkah 2: dari jawaban unggah, ambil teksnya lalu hapus file sementara. */
+function teksOcrDrive_(resUnggah) {
+  if (resUnggah.getResponseCode() !== 200) {
+    throw new Error('unggah HTTP ' + resUnggah.getResponseCode() + ' ' + resUnggah.getContentText().slice(0, 200));
+  }
+  const id = JSON.parse(resUnggah.getContentText()).id;
+  const auth = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
   try {
-    const res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + file.id + '/export?mimeType=text/plain', {
-      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
-      muteHttpExceptions: true,
-    });
+    const res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '/export?mimeType=text/plain', { headers: auth, muteHttpExceptions: true });
     if (res.getResponseCode() !== 200) throw new Error('export HTTP ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 200));
     return res.getContentText().replace(/^﻿/, '');
   } finally {
-    try { Drive.Files.remove(file.id); } catch (e) { console.warn('Gagal menghapus file OCR sementara: ' + e); }
+    const hapus = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id, { method: 'delete', headers: auth, muteHttpExceptions: true });
+    if (hapus.getResponseCode() >= 300) console.warn('Gagal menghapus file OCR sementara: HTTP ' + hapus.getResponseCode());
   }
 }
 
