@@ -22,6 +22,7 @@ const S = {
 const DOMPET_UMUM = [['Tunai', '💵'], ['BCA', '🏦'], ['BRI', '🏦'], ['Mandiri', '🏦'], ['BNI', '🏦'], ['BSI', '🏦'],
   ['Jago', '🏦'], ['SeaBank', '🏦'], ['GoPay', '📱'], ['OVO', '📱'], ['DANA', '📱'], ['ShopeePay', '📱']];
 let F = null; // state form yang sedang terbuka
+terjemahkanHalaman(); // teks statis index.html (lihat bahasa.js)
 
 // Font dipasang di sini, bukan sebagai <link rel="stylesheet"> di index.html, supaya layar pertama
 // (dan splash screen Android) tidak menunggu Google Fonts. Teks tampil dulu dengan font sistem.
@@ -354,6 +355,12 @@ function bannerStatus() {
       <button type="button" data-aksi="ulang-tertunda" data-id="${esc(t.idBaru)}">Catat ulang</button></div>`).join('');
 }
 
+/** Pilihan bahasa (nama tiap bahasa ditulis dalam bahasanya sendiri). Mengganti = muat ulang, lihat bahasa.js. */
+function pilihBahasa() {
+  return `<select id="pilih-bahasa" aria-label="Bahasa / Language">${[['id', 'Bahasa Indonesia'], ['en', 'English']].map(([b, l]) =>
+    `<option value="${b}" ${BAHASA === b ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+}
+
 function tampilMasuk() {
   tutupSheet();
   loading(false);
@@ -371,6 +378,7 @@ function tampilMasuk() {
         <button type="button" class="tombol-teks" data-aksi="masuk" data-akun-lain="1">Pakai akun Google lain</button>`
       : '<button type="button" class="btn btn-utama" data-aksi="masuk">Masuk dengan Google</button>'}
       <a class="tombol-teks" href="privasi.html">Kebijakan privasi</a>
+      <span class="pilih-kecil pilih-bahasa-masuk">${pilihBahasa()}</span>
     </div>`;
 }
 
@@ -2046,6 +2054,11 @@ function viewLainnya() {
 
     <h2 class="judul-bagian">Tampilan & keamanan</h2>
     <section class="kartu" style="padding:4px 16px">
+      <label class="baris baris-pilih">
+        <span class="ikon-bulat">🌐</span>
+        <span class="isi"><b>${T('Bahasa')} · Language</b><small>${T('Bahasa tampilan aplikasi di HP ini')}</small></span>
+        <span class="pilih-kecil">${pilihBahasa()}</span>
+      </label>
       <label class="baris baris-pilih">
         <span class="ikon-bulat">${temaDipilih() === 'dark' ? '🌙' : temaDipilih() === 'light' ? '☀️' : '🌓'}</span>
         <span class="isi"><b>Tema</b><small>${temaDipilih() ? 'Tetap ' + (temaDipilih() === 'dark' ? 'gelap' : 'terang') : 'Ikut pengaturan HP'}</small></span>
@@ -5805,6 +5818,7 @@ Object.assign(AKSI, {
 
 // Pilihan tema (dropdown di Lainnya).
 document.addEventListener('change', e => {
+  if (e.target.id === 'pilih-bahasa') gantiBahasa(e.target.value);
   if (e.target.id === 'pilih-tema') { aturTema(e.target.value); render(); }
   if (e.target.id === 'pilih-ukuran') { aturUkuran(e.target.value); render(); }
 });

@@ -9,7 +9,7 @@
 const CACHE = 'dompet-keluarga-v5';
 const INTI = [
   'index.html', 'manifest.webmanifest',
-  'assets/styles.css', 'assets/config.js', 'assets/google.js', 'assets/struk.js', 'assets/sholat.js', 'assets/ilustrasi.js', 'assets/db.js', 'assets/app.js',
+  'assets/styles.css', 'assets/bahasa.js', 'assets/bahasa-en.js', 'assets/config.js', 'assets/google.js', 'assets/struk.js', 'assets/sholat.js', 'assets/ilustrasi.js', 'assets/db.js', 'assets/app.js',
   'ikon/ikon-192.png', 'ikon/apple-touch-icon.png', 'ikon/favicon-32.png',
 ];
 /** Versi isi cache disimpan di cache dengan kunci ini (dibaca app.js lewat caches.match('versi.txt')). */
