@@ -2156,7 +2156,8 @@ function bagianLampiran() {
 /** Simpan isian field teks ke F sebelum form dirender ulang. */
 function bacaFieldTrx() {
   if (!$('#f-jumlah')) return;
-  F.jumlah = angka($('#f-jumlah').value);
+  const j = $('#f-jumlah');
+  F.jumlah = j.dataset.nilai ? Number(j.dataset.nilai) : angka(j.value); // nilai akhir walau animasi hitung naik belum selesai
   F.tanggal = $('#f-tanggal').value;
   F.catatan = $('#f-catatan').value;
   if ($('#f-nama')) F.nama = $('#f-nama').value;
@@ -2422,12 +2423,58 @@ function bagianCepat() {
 /** Mengisi form dari hasil ketik cepat / favorit; field yang tidak dikenali tidak menimpa isian yang ada. */
 function isiFormCepat(h) {
   bacaFieldTrx();
+  const lama = { tipe: F.tipe, jumlah: F.jumlah, kategori: F.kategori, dompet: F.dompet, catatan: F.catatan };
   if (h.tipe && h.tipe !== F.tipe) { F.tipe = h.tipe; F.kategori = ''; }
   if (h.jumlah) F.jumlah = h.jumlah;
   if (h.kategori) F.kategori = h.kategori;
   if (h.dompet && dompetBiasa().some(w => w.nama === h.dompet)) F.dompet = h.dompet;
   if (h.catatan) F.catatan = h.catatan;
   renderFormTrx();
+  sorotTerisi(lama);
+}
+
+/**
+ * Animasi untuk field yang baru saja terisi otomatis (suara / ketik cepat / favorit): menyala bergantian dari atas,
+ * dan nominal "menghitung naik" ke nilainya. lama = nilai sebelum diisi.
+ */
+function sorotTerisi(lama) {
+  const daftar = [];
+  if (F.tipe !== lama.tipe) daftar.push(document.querySelector('#form-trx [data-aksi="f-tipe"].aktif'));
+  if (F.jumlah && F.jumlah !== lama.jumlah) { daftar.push(document.querySelector('#form-trx .input-jumlah')); hitungNaik($('#f-jumlah'), F.jumlah); }
+  if (F.kategori && F.kategori !== lama.kategori) daftar.push(document.querySelector('#form-trx [data-aksi="f-kategori"].aktif'));
+  if (F.dompet && F.dompet !== lama.dompet) daftar.push(document.querySelector('#form-trx [data-aksi="f-dompet"].aktif'));
+  if (F.catatan && F.catatan !== lama.catatan) daftar.push($('#f-catatan'));
+  const ada = daftar.filter(Boolean);
+  ada.forEach((el, i) => {
+    el.classList.remove('terisi-otomatis');
+    void el.offsetWidth; // mulai ulang animasi kalau diisi lagi
+    el.style.setProperty('--tunda', (i * 110) + 'ms');
+    el.classList.add('terisi-otomatis');
+    el.addEventListener('animationend', function selesai(e) {
+      if (e.animationName !== 'sorot-terisi') return;
+      el.classList.remove('terisi-otomatis');
+      el.removeEventListener('animationend', selesai);
+    });
+  });
+  if (ada.length) getar();
+}
+
+/** Nominal menghitung naik dari 0 ke n (~0,5 detik), lalu kembali ke nilai sebenarnya. */
+function hitungNaik(input, n) {
+  if (!input || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const fmt = v => new Intl.NumberFormat('id-ID').format(v);
+  const mulai = performance.now(), lama = 520;
+  input.dataset.nilai = n;
+  const langkah = t => {
+    if (!input.isConnected) return;
+    const k = Math.min(1, (t - mulai) / lama);
+    const v = k < 1 ? Math.round(n * (1 - Math.pow(1 - k, 3)) / 100) * 100 : n;
+    if (document.activeElement === input) { input.value = fmt(n); delete input.dataset.nilai; return; } // disentuh: langsung nilai akhir
+    input.value = fmt(Math.min(v, n));
+    if (k < 1) requestAnimationFrame(langkah);
+    else { input.value = fmt(n); delete input.dataset.nilai; }
+  };
+  requestAnimationFrame(langkah);
 }
 
 // ---------- Sisa aman per hari & periode gajian ----------
@@ -4712,10 +4759,39 @@ function pasangTombolSuara() {
   const kotak = document.querySelector('.ketik-cepat');
   if (!PengenalSuara || !kotak || kotak.querySelector('.tombol-suara')) return;
   kotak.classList.add('ada-suara');
-  kotak.insertAdjacentHTML('beforeend', '<button type="button" class="tombol-suara" data-aksi="suara" aria-label="Catat dengan suara">🎤</button>');
+  kotak.insertAdjacentHTML('beforeend', '<button type="button" class="tombol-suara" data-aksi="suara" aria-label="Catat dengan suara">'
+    + '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>');
 }
 // Form dirender ulang berkali-kali; tombol dipasang setiap kotak ketik cepat muncul.
 new MutationObserver(pasangTombolSuara).observe(document.getElementById('sheet-isi'), { childList: true, subtree: true });
+
+/**
+ * Panel di bawah kotak ketik cepat selama mikrofon dipakai.
+ * tahap: 'siap' (menyalakan mic) → 'dengar' (mic menyala, belum ada suara) → 'bicara' (suara tertangkap).
+ */
+function panelSuara(tahap, teks) {
+  const kotak = document.querySelector('.ketik-cepat');
+  if (!kotak) return;
+  kotak.classList.toggle('sedang-dengar', !!tahap);
+  const tombol = kotak.querySelector('.tombol-suara');
+  if (tombol) {
+    tombol.classList.toggle('dengar', !!tahap);
+    tombol.setAttribute('aria-label', tahap ? 'Berhenti mendengarkan' : 'Catat dengan suara');
+  }
+  let panel = document.getElementById('panel-suara');
+  if (!tahap) { if (panel) panel.remove(); return; }
+  if (!panel) {
+    kotak.insertAdjacentHTML('afterend', `<div class="panel-suara" id="panel-suara" role="status" aria-live="polite">
+        <div class="gelombang-suara" aria-hidden="true">${'<i></i>'.repeat(7)}</div>
+        <div class="teks-suara"><b></b><span></span></div>
+        <button type="button" class="tombol-teks" data-aksi="suara">Selesai</button>
+      </div>`);
+    panel = document.getElementById('panel-suara');
+  }
+  panel.dataset.tahap = tahap;
+  panel.querySelector('b').textContent = tahap === 'siap' ? 'Menyalakan mikrofon…' : tahap === 'dengar' ? 'Mic menyala, silakan bicara' : 'Mendengarkan…';
+  panel.querySelector('span').textContent = teks || (tahap === 'siap' ? '' : 'mis. "bakso dua puluh lima ribu pakai gopay"');
+}
 
 AKSI.suara = el => {
   if (suaraAktif) { suaraAktif.stop(); return; }
@@ -4724,12 +4800,14 @@ AKSI.suara = el => {
   r.interimResults = true;
   r.maxAlternatives = 1;
   suaraAktif = r;
-  el.classList.add('dengar');
-  el.setAttribute('aria-label', 'Berhenti mendengarkan');
+  panelSuara('siap');
   const input = $('#f-cepat');
+  r.onaudiostart = () => { panelSuara('dengar'); if (navigator.vibrate) navigator.vibrate(30); };
+  r.onspeechstart = () => panelSuara('bicara');
   r.onresult = ev => {
     const teks = Array.from(ev.results).map(x => x[0].transcript).join(' ').trim();
     if (input) input.value = teks;
+    panelSuara('bicara', teks ? '“' + teks + '”' : '');
     if (ev.results[ev.results.length - 1].isFinal && input && teks) {
       input.dispatchEvent(new Event('change', { bubbles: true })); // dibaca seperti ketik cepat
     }
@@ -4741,10 +4819,9 @@ AKSI.suara = el => {
   };
   r.onend = () => {
     suaraAktif = null;
-    const tombol = document.querySelector('.tombol-suara');
-    if (tombol) { tombol.classList.remove('dengar'); tombol.setAttribute('aria-label', 'Catat dengan suara'); }
+    panelSuara('');
   };
-  try { r.start(); } catch (e) { suaraAktif = null; el.classList.remove('dengar'); }
+  try { r.start(); } catch (e) { suaraAktif = null; panelSuara(''); }
 };
 
 // ---------- Pintasan ikon aplikasi & berbagi dari aplikasi lain ----------
