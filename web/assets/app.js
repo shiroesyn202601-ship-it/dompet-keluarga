@@ -3768,7 +3768,7 @@ const AKSI = {
     const draf = bacaDrafTrx();
     tulisHp(kunciDrafTrx(), null);
     bukaFormTrx(null, draf || undefined);
-    if (draf) toast('📝 Isian tadi dipulihkan' + (draf.jumlah ? ' · ' + rp(draf.jumlah) : ''), false, { label: 'Mulai baru', aksi: 'buang-draf-trx' });
+    if (draf) toast(T('📝 Isian tadi dipulihkan') + (draf.jumlah ? ' · ' + rp(draf.jumlah) : ''), false, { label: T('Mulai baru'), aksi: 'buang-draf-trx' });
   },
   'buang-draf-trx': () => { $('#toast').hidden = true; tulisHp(kunciDrafTrx(), null); F = null; bukaFormTrx(null); },
   'buang-draf-catatan': () => {
@@ -3791,14 +3791,14 @@ const AKSI = {
     const id = trxSekaliKetuk;
     trxSekaliKetuk = null;
     $('#toast').hidden = true;
-    if (id) kirim(el, 'hapusTransaksi', [id], 'Dibatalkan ↩️');
+    if (id) kirim(el, 'hapusTransaksi', [id], T('Dibatalkan ↩️'));
   },
   // #2 Item belanja dicentang → form pengeluaran terisi
   'tugas-jadi-trx': () => {
     $('#toast').hidden = true;
     const teks = tugasUntukTrx;
     if (!teks) return;
-    bukaFormTrx(null, { tipe: TIPE.KELUAR, catatan: teks, kategori: tebakKategori(TIPE.KELUAR, teks) }, 'Catat belanja');
+    bukaFormTrx(null, { tipe: TIPE.KELUAR, catatan: teks, kategori: tebakKategori(TIPE.KELUAR, teks) }, T('Catat belanja'));
     setTimeout(() => $('#f-jumlah') && $('#f-jumlah').focus(), 250);
   },
   'edit-trx': el => bukaFormTrx(S.data.transaksi.concat((S.cariData && S.cariData.transaksi) || [], S.hasilGlobal || []).find(t => t.id === el.dataset.id)),
@@ -3814,8 +3814,8 @@ const AKSI = {
       rentang: F.rentang, dari: nilai('#fl-dari'), sampai: nilai('#fl-sampai'),
       kategori: nilai('#fl-kategori'), dompet: nilai('#fl-dompet'), oleh: nilai('#fl-oleh'),
     };
-    if (f.rentang === 'kustom' && !f.dari && !f.sampai) return toast('Isi tanggal dari atau sampai.', true);
-    if (f.dari && f.sampai && f.dari > f.sampai) return toast('Tanggal "dari" harus sebelum "sampai".', true);
+    if (f.rentang === 'kustom' && !f.dari && !f.sampai) return toast(T('Isi tanggal dari atau sampai.'), true);
+    if (f.dari && f.sampai && f.dari > f.sampai) return toast(T('Tanggal "dari" harus sebelum "sampai".'), true);
     S.filter = f;
     S.batasRiwayat = 200;
     tutupSheet();
@@ -3842,7 +3842,7 @@ const AKSI = {
   'tinjau-struk': el => {
     const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
     if (!job || job.status !== 'siap') return;
-    bukaFormTrx(null, null, 'Tinjau Struk');
+    bukaFormTrx(null, null, T('Tinjau Struk'));
     terapkanStruk(job);
     tampilRingkasanStruk();
   },
@@ -3852,15 +3852,15 @@ const AKSI = {
   },
   'buang-struk': async el => {
     const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
-    if (job && job.jenis === 'simpan' && !await tanya('Buang transaksi ' + rp(job.t.jumlah) + ' yang gagal disimpan ini?', 'Buang')) return;
-    if (job && job.status === 'siap' && !await tanya('Buang hasil struk ini tanpa menyimpannya?', 'Buang')) return;
+    if (job && job.jenis === 'simpan' && !await tanya(T('Buang transaksi {jumlah} yang gagal disimpan ini?', { jumlah: rp(job.t.jumlah) }), T('Buang'))) return;
+    if (job && job.status === 'siap' && !await tanya(T('Buang hasil struk ini tanpa menyimpannya?'), T('Buang'))) return;
     hapusJob(el.dataset.id);
   },
   'buka-simpan': async el => {
     const job = ANTRIAN.find(j => j.id === Number(el.dataset.id));
     if (!job) return;
     if (!$('#sheet').hidden) {
-      if (F && !await tanya('Tutup form yang sedang dibuka? Isiannya akan hilang.', 'Tutup')) return;
+      if (F && !await tanya(T('Tutup form yang sedang dibuka? Isiannya akan hilang.'), T('Tutup'))) return;
       tutupSheet();
     }
     bukaLagiSimpan(job);
@@ -3889,21 +3889,21 @@ const AKSI = {
     tolak.push(el.dataset.kunci);
     tulisHp(kunciSaranDitolak(), JSON.stringify(tolak.slice(-50)));
     render();
-    toast('Oke, tidak disarankan lagi');
+    toast(T('Oke, tidak disarankan lagi'));
   },
   'rekap-telegram': async el => {
     const nyala = S.data.telegram.rekap === false;
-    if (await kirim(el, 'aturRekapTelegram', [nyala], nyala ? 'Rekap bulanan dinyalakan 📊' : 'Rekap bulanan dimatikan')) bukaFormTelegram();
+    if (await kirim(el, 'aturRekapTelegram', [nyala], nyala ? T('Rekap bulanan dinyalakan 📊') : T('Rekap bulanan dimatikan'))) bukaFormTelegram();
   },
   'pengingat-telegram': async el => {
     const nyala = S.data.telegram.pengingat === false;
-    if (await kirim(el, 'aturPengingatTelegram', [nyala], nyala ? 'Pengingat harian dinyalakan 🔔' : 'Pengingat harian dimatikan')) bukaFormTelegram();
+    if (await kirim(el, 'aturPengingatTelegram', [nyala], nyala ? T('Pengingat harian dinyalakan 🔔') : T('Pengingat harian dimatikan'))) bukaFormTelegram();
   },
   'cadangan': () => bukaCadangan(),
   'unduh-csv': async el => {
     el.disabled = true;
     loading(true);
-    try { await unduhCsv(); } catch (e) { if (!(e instanceof GOOGLE.PerluMasuk)) toast('Gagal mengunduh: ' + pesanError(e), true); }
+    try { await unduhCsv(); } catch (e) { if (!(e instanceof GOOGLE.PerluMasuk)) toast(T('Gagal mengunduh: {galat}', { galat: pesanError(e) }), true); }
     el.disabled = false;
     loading(false);
   },
@@ -3911,8 +3911,10 @@ const AKSI = {
     const t = S.data.telegram;
     // Bot bersama: buku ini akan dibagikan ke akun robot bot → minta persetujuan dulu.
     if (t.bersama && !t.pengguna.length && !await tanya(
-      `Supaya bisa mencatat lewat Telegram, spreadsheet buku "${S.data.namaBuku || 'ini'}" dibagikan (bisa mengubah) ke akun bot Dompet Keluarga. `
-      + 'Pengelola bot secara teknis bisa membuka isinya. Akses bot dicabut otomatis saat semua akun Telegram diputus.', 'Setuju & lanjut', true)) return;
+      S.data.namaBuku
+        ? T('Supaya bisa mencatat lewat Telegram, spreadsheet buku "{buku}" dibagikan (bisa mengubah) ke akun bot Dompet Keluarga. Pengelola bot secara teknis bisa membuka isinya. Akses bot dicabut otomatis saat semua akun Telegram diputus.', { buku: S.data.namaBuku })
+        : T('Supaya bisa mencatat lewat Telegram, spreadsheet buku "ini" dibagikan (bisa mengubah) ke akun bot Dompet Keluarga. Pengelola bot secara teknis bisa membuka isinya. Akses bot dicabut otomatis saat semua akun Telegram diputus.'),
+      T('Setuju & lanjut'), true)) return;
     el.disabled = true;
     loading(true);
     try {
@@ -3926,30 +3928,30 @@ const AKSI = {
     }
   },
   'putus-telegram': async el => {
-    if (!await tanya('Putuskan akun Telegram ini dari Dompet Keluarga?', 'Putuskan')) return;
-    if (await kirim(el, 'putuskanTelegram', [el.dataset.id], 'Akun Telegram diputuskan')) bukaFormTelegram();
+    if (!await tanya(T('Putuskan akun Telegram ini dari Dompet Keluarga?'), T('Putuskan'))) return;
+    if (await kirim(el, 'putuskanTelegram', [el.dataset.id], T('Akun Telegram diputuskan'))) bukaFormTelegram();
   },
   'simpan-gemini': async el => {
     const kunci = $('#g-kunci').value.trim();
-    if (!kunci) return toast('Tempel kunci API-nya dulu.', true);
-    if (await kirim(el, 'tambahKunciGemini', [kunci], 'Kunci Gemini tersimpan ✔')) bukaFormGemini();
+    if (!kunci) return toast(T('Tempel kunci API-nya dulu.'), true);
+    if (await kirim(el, 'tambahKunciGemini', [kunci], T('Kunci Gemini tersimpan ✔'))) bukaFormGemini();
   },
   'hapus-gemini': async el => {
-    if (!await tanya('Hapus kunci API ' + el.dataset.kunci + '?', 'Hapus')) return;
-    if (await kirim(el, 'hapusKunciGemini', [el.dataset.kunci], 'Kunci API dihapus')) bukaFormGemini();
+    if (!await tanya(T('Hapus kunci API {kunci}?', { kunci: el.dataset.kunci }), T('Hapus'))) return;
+    if (await kirim(el, 'hapusKunciGemini', [el.dataset.kunci], T('Kunci API dihapus'))) bukaFormGemini();
   },
   'f-kategori': el => { bacaFieldTrx(); F.kategori = el.dataset.nama; renderFormTrx(); },
   'f-dompet': el => { bacaFieldTrx(); F.dompet = el.dataset.nama; renderFormTrx(); },
   'f-tujuan': el => { bacaFieldTrx(); F.dompetTujuan = el.dataset.nama; renderFormTrx(); },
   'simpan-trx': el => {
     bacaFieldTrx();
-    if (!F.jumlah) return toast('Isi jumlahnya dulu.', true);
-    if (F.tipe !== TIPE.TRANSFER && !F.kategori) return toast('Pilih kategorinya dulu.', true);
-    if (F.tipe === TIPE.TRANSFER && (!F.dompetTujuan || F.dompetTujuan === F.dompet)) return toast('Pilih dompet tujuan yang berbeda.', true);
+    if (!F.jumlah) return toast(T('Isi jumlahnya dulu.'), true);
+    if (F.tipe !== TIPE.TRANSFER && !F.kategori) return toast(T('Pilih kategorinya dulu.'), true);
+    if (F.tipe === TIPE.TRANSFER && (!F.dompetTujuan || F.dompetTujuan === F.dompet)) return toast(T('Pilih dompet tujuan yang berbeda.'), true);
     const t = F;
     t._menyimpan = true; // lembar ditutup karena tersimpan → bukan draf
     tulisHp(kunciDrafTrx(), null);
-    const dasar = F.id ? 'Transaksi diperbarui ✔' : 'Transaksi tersimpan ✔';
+    const dasar = F.id ? T('Transaksi diperbarui ✔') : T('Transaksi tersimpan ✔');
     const pesan = () => { const a = pesanAnggaran(t); toast(a ? dasar + ' · ' + a.teks : dasar, a && a.lewat); };
     const dariJob = t.dariJob;
     // ID transaksi baru dibuat di HP, supaya kiriman ulang (setelah sinyal putus) tidak membuat data dobel.
@@ -3964,7 +3966,7 @@ const AKSI = {
   },
   'bagikan-laporan': async el => {
     el.disabled = true;
-    try { await bagikanLaporan(el.dataset.bulan); } catch (e) { toast('Gambar tidak bisa dibuat: ' + pesanError(e), true); }
+    try { await bagikanLaporan(el.dataset.bulan); } catch (e) { toast(T('Gambar tidak bisa dibuat: {galat}', { galat: pesanError(e) }), true); }
     el.disabled = false;
   },
   'tema': el => { aturTema(el.dataset.t); render(); },
@@ -3972,28 +3974,28 @@ const AKSI = {
   'atur-kunci': () => bukaFormKunci(),
   'simpan-kunci': async el => {
     const pin = $('#k-pin').value;
-    if (!/^\d{4,6}$/.test(pin)) return toast('PIN harus 4–6 angka.', true);
-    if (pin !== $('#k-pin2').value) return toast('Kedua PIN belum sama.', true);
+    if (!/^\d{4,6}$/.test(pin)) return toast(T('PIN harus 4–6 angka.'), true);
+    if (pin !== $('#k-pin2').value) return toast(T('Kedua PIN belum sama.'), true);
     el.disabled = true;
     const k = { garam: keBase64(crypto.getRandomValues(new Uint8Array(16))), panjang: pin.length };
     // Sidik jari didaftarkan lebih dulu, selagi masih dalam ketukan pengguna (syarat browser).
     if ($('#k-bio') && $('#k-bio').checked) {
-      try { k.bio = await daftarBio(); } catch (e) { toast('Sidik jari/wajah tidak bisa diaktifkan. PIN tetap dipakai.', true); }
+      try { k.bio = await daftarBio(); } catch (e) { toast(T('Sidik jari/wajah tidak bisa diaktifkan. PIN tetap dipakai.'), true); }
     }
     k.hash = await hashPin(pin, k.garam);
     tulisHp('dk_kunci', JSON.stringify(k));
     el.disabled = false;
     tutupSheet();
     render();
-    toast('Kunci aplikasi aktif 🔒');
+    toast(T('Kunci aplikasi aktif 🔒'));
   },
   'hapus-kunci': async () => {
     const k = kunciTersimpan();
-    if (!k || (await hashPin($('#k-pin').value, k.garam)) !== k.hash) return toast('PIN salah.', true);
+    if (!k || (await hashPin($('#k-pin').value, k.garam)) !== k.hash) return toast(T('PIN salah.'), true);
     tulisHp('dk_kunci', null);
     tutupSheet();
     render();
-    toast('Kunci aplikasi dimatikan');
+    toast(T('Kunci aplikasi dimatikan'));
   },
   'pin': async el => {
     const k = kunciTersimpan();
@@ -4016,11 +4018,11 @@ const AKSI = {
       tulisHp('dk_pin_salah', null);
       bukaKunci();
     } catch (e) {
-      toast('Sidik jari/wajah gagal. Pakai PIN.', true);
+      toast(T('Sidik jari/wajah gagal. Pakai PIN.'), true);
     }
   },
   'lupa-pin': async () => {
-    if (!await tanya('Untuk membuka kunci tanpa PIN, Anda perlu keluar lalu masuk lagi dengan akun Google. Data tetap aman di Google Drive. Lanjutkan?', 'Keluar & masuk lagi')) return;
+    if (!await tanya(T('Untuk membuka kunci tanpa PIN, Anda perlu keluar lalu masuk lagi dengan akun Google. Data tetap aman di Google Drive. Lanjutkan?'), T('Keluar & masuk lagi'))) return;
     resetKunci();
   },
   'rincian-aman': () => bukaRincianAman(),
@@ -4033,7 +4035,7 @@ const AKSI = {
   'simpan-periode': el => {
     S.bulan = ''; // pindah ke periode berjalan menurut tanggal gajian yang baru
     S.tahun = new Date().getFullYear();
-    kirim(el, 'simpanMulaiPeriode', [F.mulai], 'Periode gajian tersimpan ✔');
+    kirim(el, 'simpanMulaiPeriode', [F.mulai], T('Periode gajian tersimpan ✔'));
   },
   'f-ulang': el => { bacaFieldTrx(); F.ulang = el.dataset.ulang; renderFormTrx(); },
   'f-favorit': el => {
@@ -4052,29 +4054,29 @@ const AKSI = {
     }, r.nama);
   },
   'lewati-rutin': async el => {
-    if (!await tanya('Lewati tagihan ini tanpa mencatat transaksi? Jatuh temponya pindah ke ' + tanggalPendek(F.berikutRutin) + '.', 'Lewati', true)) return;
-    kirim(el, 'majukanRutin', [F.dariRutin], 'Dilewati ✔ Berikutnya ' + tanggalPendek(F.berikutRutin));
+    if (!await tanya(T('Lewati tagihan ini tanpa mencatat transaksi? Jatuh temponya pindah ke {tanggal}.', { tanggal: tanggalPendek(F.berikutRutin) }), T('Lewati'), true)) return;
+    kirim(el, 'majukanRutin', [F.dariRutin], T('Dilewati ✔ Berikutnya {tanggal}', { tanggal: tanggalPendek(F.berikutRutin) }));
   },
   'simpan-rutin': async el => {
     bacaFieldTrx();
-    const salah = cekIsianTrx() || (!F.tanggal ? 'Isi tanggal jatuh tempo.' : '');
+    const salah = cekIsianTrx() || (!F.tanggal ? T('Isi tanggal jatuh tempo.') : '');
     if (salah) return toast(salah, true);
     const ok = await kirim(el, 'simpanRutin', [{
       id: F.idRutin, nama: F.nama, tipe: F.tipe, jumlah: F.jumlah, kategori: F.kategori, dompet: F.dompet,
       dompetTujuan: F.dompetTujuan, catatan: F.catatan, ulang: F.ulang, berikutnya: F.tanggal,
-    }], 'Tagihan rutin tersimpan ✔');
+    }], T('Tagihan rutin tersimpan ✔'));
     if (ok) bukaDaftarRutin();
   },
   'hapus-rutin': async el => {
-    if (!await tanya('Hapus tagihan rutin "' + (F.nama || '') + '"? Transaksi yang sudah dicatat tidak ikut terhapus.', 'Hapus')) return;
-    if (await kirim(el, 'hapusRutin', [F.idRutin], 'Tagihan rutin dihapus')) bukaDaftarRutin();
+    if (!await tanya(T('Hapus tagihan rutin "{nama}"? Transaksi yang sudah dicatat tidak ikut terhapus.', { nama: F.nama || '' }), T('Hapus'))) return;
+    if (await kirim(el, 'hapusRutin', [F.idRutin], T('Tagihan rutin dihapus'))) bukaDaftarRutin();
   },
   'kirim-tertunda': async () => {
     if (!GOOGLE.sudahMasuk()) return perluMasukLagi();
     loading(true);
     await kirimTertunda();
     loading(false);
-    if (tertunda().some(t => !t.gagal)) toast('Belum bisa dikirim. Periksa koneksi internet.', true);
+    if (tertunda().some(t => !t.gagal)) toast(T('Belum bisa dikirim. Periksa koneksi internet.'), true);
   },
   'ulang-tertunda': el => {
     const t = tertunda().find(x => x.idBaru === el.dataset.id);
@@ -4082,19 +4084,19 @@ const AKSI = {
     render();
     if (t) {
       bukaFormTrx(null, { tipe: t.tipe, jumlah: t.jumlah, kategori: t.kategori, dompet: t.dompet,
-        dompetTujuan: t.dompetTujuan, tanggal: t.tanggal, catatan: t.catatan }, 'Catat Ulang');
+        dompetTujuan: t.dompetTujuan, tanggal: t.tanggal, catatan: t.catatan }, T('Catat Ulang'));
     }
   },
   // Tanpa konfirmasi: kesalahan cukup diurungkan dari toast.
   'hapus-trx': el => kirim(el, 'hapusTransaksi', [F.id], baris => {
     trxTerhapus = baris;
-    toast('Transaksi dihapus', false, { label: 'Urungkan', aksi: 'urungkan-hapus' });
+    toast(T('Transaksi dihapus'), false, { label: T('Urungkan'), aksi: 'urungkan-hapus' });
   }),
   'urungkan-hapus': el => {
     const baris = trxTerhapus;
     trxTerhapus = null;
     $('#toast').hidden = true;
-    if (baris) kirim(el, 'kembalikanTransaksi', [baris], 'Transaksi dikembalikan');
+    if (baris) kirim(el, 'kembalikanTransaksi', [baris], T('Transaksi dikembalikan'));
   },
 
   'tambah-dompet': () => bukaFormDompet(null, JENIS.DOMPET),
@@ -4105,7 +4107,7 @@ const AKSI = {
   'simpan-dompet': el => {
     const tab = F.jenis === JENIS.TABUNGAN;
     const nama = $('#d-nama').value.trim();
-    if (!nama) return toast('Isi nama ' + (tab ? 'tabungan' : 'dompet') + ' dulu.', true);
+    if (!nama) return toast(tab ? T('Isi nama tabungan dulu.') : T('Isi nama dompet dulu.'), true);
     // Yang diisi adalah saldo sekarang; saldo awal dihitung mundur dari mutasi transaksi,
     // jadi riwayat transaksi tidak berubah. Field yang tidak disentuh → saldo awal tetap.
     const isian = $('#d-saldo') ? $('#d-saldo').value : F.saldoTampil; // form orang utang tidak punya isian saldo
@@ -4115,7 +4117,7 @@ const AKSI = {
       saldoAwal,
       target: tab ? angka($('#d-target').value) : 0,
       tenggat: $('#d-tenggat') ? $('#d-tenggat').value : '',
-    }], 'Tersimpan ✔');
+    }], T('Tersimpan ✔'));
   },
   'lampiran-pilih': () => {
     bacaFieldTrx();
@@ -4145,25 +4147,25 @@ const AKSI = {
   'buku': () => bukaDaftarBuku(),
   'pindah-buku': el => {
     const b = (S.data.buku || []).find(x => x.id === el.dataset.id);
-    gantiBuku('hubungkanDatabase', [el.dataset.id], 'Buku ' + (b ? b.nama : '') + ' dibuka ✔');
+    gantiBuku('hubungkanDatabase', [el.dataset.id], T('Buku {nama} dibuka ✔', { nama: b ? b.nama : '' }));
   },
   'templat-buku': el => { $('#b-nama').value = TEMPLAT_BUKU[Number(el.dataset.i)]; },
   'buat-buku': () => {
     const nama = $('#b-nama').value.trim();
-    if (!nama) return toast('Isi nama bukunya dulu.', true);
-    if ((S.data.buku || []).some(b => b.nama.toLowerCase() === nama.toLowerCase())) return toast('Buku "' + nama + '" sudah ada.', true);
-    gantiBuku('buatBuku', [nama], 'Buku ' + nama + ' dibuat ✔ Atur dompetnya di tab Dompet.');
+    if (!nama) return toast(T('Isi nama bukunya dulu.'), true);
+    if ((S.data.buku || []).some(b => b.nama.toLowerCase() === nama.toLowerCase())) return toast(T('Buku "{nama}" sudah ada.', { nama }), true);
+    gantiBuku('buatBuku', [nama], T('Buku {nama} dibuat ✔ Atur dompetnya di tab Dompet.', { nama }));
   },
   'lupakan-buku': async el => {
     const b = (S.data.buku || []).find(x => x.id === el.dataset.id);
-    if (!await tanya('Hapus "' + (b ? b.nama : 'buku ini') + '" dari daftar Anda? Buku ini milik orang lain, jadi isinya tidak berubah. Anda bisa menambahkannya lagi lewat "Cek undangan" selama masih diberi akses.', 'Hapus dari daftar')) return;
-    if (await kirim(el, 'lupakanBuku', [el.dataset.id], 'Dihapus dari daftar')) bukaDaftarBuku();
+    if (!await tanya(b ? T('Hapus "{nama}" dari daftar Anda? Buku ini milik orang lain, jadi isinya tidak berubah. Anda bisa menambahkannya lagi lewat "Cek undangan" selama masih diberi akses.', { nama: b.nama }) : T('Hapus "buku ini" dari daftar Anda? Buku ini milik orang lain, jadi isinya tidak berubah. Anda bisa menambahkannya lagi lewat "Cek undangan" selama masih diberi akses.'), T('Hapus dari daftar'))) return;
+    if (await kirim(el, 'lupakanBuku', [el.dataset.id], T('Dihapus dari daftar'))) bukaDaftarBuku();
   },
   'hapus-buku': async el => {
     const b = (S.data.buku || []).find(x => x.id === el.dataset.id);
-    const nama = b ? b.nama : 'buku ini';
-    if (!await tanya(`Hapus buku "${nama}"? Buku hilang dari daftar Anda, dan spreadsheet-nya di Google Drive diberi nama "… - deleted". Datanya tidak hilang dan masih bisa dipulihkan dari Drive. Anggota lain akan melihat buku ini sebagai "dihapus".`, 'Hapus buku')) return;
-    if (await kirim(el, 'hapusBuku', [el.dataset.id], 'Buku ' + nama + ' dihapus')) bukaDaftarBuku();
+    const nama = b ? b.nama : T('buku ini');
+    if (!await tanya(T('Hapus buku "{nama}"? Buku hilang dari daftar Anda, dan spreadsheet-nya di Google Drive diberi nama "… - deleted". Datanya tidak hilang dan masih bisa dipulihkan dari Drive. Anggota lain akan melihat buku ini sebagai "dihapus".', { nama }), T('Hapus buku'))) return;
+    if (await kirim(el, 'hapusBuku', [el.dataset.id], T('Buku {nama} dihapus', { nama }))) bukaDaftarBuku();
   },
   'cek-undangan': async el => {
     el.disabled = true;
@@ -4175,8 +4177,8 @@ const AKSI = {
       loading(false);
       const ok = hasil.filter(h => !h.pesan);
       const lewat = hasil.filter(h => h.pesan);
-      if (lewat.length) toast((lewat.length > 1 ? lewat.length + ' file dilewati. ' : '') + lewat[0].pesan + '.', true);
-      if (ok.length === 1) await gantiBuku('hubungkanDatabase', [ok[0].id], 'Bergabung ke buku ' + ok[0].nama + ' ✔');
+      if (lewat.length) toast((lewat.length > 1 ? T('{n} file dilewati.', { n: lewat.length }) + ' ' : '') + lewat[0].pesan + '.', true);
+      if (ok.length === 1) await gantiBuku('hubungkanDatabase', [ok[0].id], T('Bergabung ke buku {nama} ✔', { nama: ok[0].nama }));
       else if (ok.length > 1) bukaPilihBukuUndangan(ok);
     } catch (e) {
       // Sesi habis sebelum jendela Google terbuka (bukan lewat api): tampilkan kartu "Lanjutkan sebagai …".
@@ -4187,14 +4189,14 @@ const AKSI = {
       loading(false);
     }
   },
-  'buka-undangan': el => gantiBuku('hubungkanDatabase', [el.dataset.id], 'Buku ' + el.dataset.nama + ' dibuka ✔'),
+  'buka-undangan': el => gantiBuku('hubungkanDatabase', [el.dataset.id], T('Buku {nama} dibuka ✔', { nama: el.dataset.nama })),
   'buka-zakat': () => bukaZakat(),
   'hitung-zakat': () => { tulisHp('dk_harga_emas', String(angka($('#z-emas').value) || '') || null); bukaZakat(); },
   'catat-zakat': el => {
     // Kategori sosial/donasi kalau ada; kalau tidak, biarkan pengguna memilih.
     const k = S.data.kategori.find(x => x.tipe === TIPE.KELUAR && /zakat|sosial|donasi|sedekah/i.test(x.nama));
     bukaFormTrx(null, { tipe: TIPE.KELUAR, jumlah: Number(el.dataset.jumlah), kategori: k ? k.nama : '',
-      catatan: el.dataset.jenis === 'maal' ? 'Zakat maal' : 'Zakat penghasilan ' + namaBulan(S.bulan) }, 'Bayar Zakat');
+      catatan: el.dataset.jenis === 'maal' ? T('Zakat maal') : T('Zakat penghasilan {bulan}', { bulan: namaBulan(S.bulan) }) }, T('Bayar Zakat'));
   },
   'templat-tabungan': el => {
     const [ikon, nama] = TEMPLAT_TABUNGAN[Number(el.dataset.i)];
@@ -4220,8 +4222,8 @@ const AKSI = {
   'p-tambah': () => {
     bacaFormPatungan();
     const nama = $('#p-nama').value.trim();
-    if (!nama) return toast('Ketik nama temannya dulu.', true);
-    if (F.peserta.some(p => p.nama.toLowerCase() === nama.toLowerCase())) return toast(nama + ' sudah ada.', true);
+    if (!nama) return toast(T('Ketik nama temannya dulu.'), true);
+    if (F.peserta.some(p => p.nama.toLowerCase() === nama.toLowerCase())) return toast(T('{nama} sudah ada.', { nama }), true);
     F.peserta.push({ nama, jumlah: 0 });
     bagiRata();
     renderFormPatungan();
@@ -4232,14 +4234,14 @@ const AKSI = {
   'p-ikut': () => { bacaFormPatungan(); F.ikut = !F.ikut; bagiRata(); renderFormPatungan(); },
   'simpan-patungan': el => {
     bacaFormPatungan();
-    if (!F.total) return toast('Isi total tagihannya dulu.', true);
-    if (!F.peserta.length) return toast('Tambahkan minimal satu teman.', true);
+    if (!F.total) return toast(T('Isi total tagihannya dulu.'), true);
+    if (!F.peserta.length) return toast(T('Tambahkan minimal satu teman.'), true);
     const saya = bagianSaya();
-    if (saya < 0 || F.peserta.reduce((a, p) => a + p.jumlah, 0) + saya !== F.total) return toast('Jumlah semua bagian belum sama dengan total.', true);
+    if (saya < 0 || F.peserta.reduce((a, p) => a + p.jumlah, 0) + saya !== F.total) return toast(T('Jumlah semua bagian belum sama dengan total.'), true);
     const n = F.peserta.length;
     kirim(el, 'catatPatungan', [{
       total: F.total, bagianSaya: saya, kategori: F.kategori, dompet: F.dompet, tanggal: F.tanggal, catatan: F.catatan, peserta: F.peserta,
-    }], `Patungan tercatat ✔ ${n} orang berutang ke Anda`);
+    }], T('Patungan tercatat ✔ {n} orang berutang ke Anda', { n }));
   },
   'tambah-utang': el => bukaFormUtang(el.dataset.nama, el.dataset.arah),
   'buka-utang': el => bukaUtang(S.data.dompet.find(w => w.nama === el.dataset.nama)),
@@ -4247,11 +4249,11 @@ const AKSI = {
   'u-dompet': el => { bacaFormUtang(); F.dompet = el.dataset.nama; renderFormUtang(); },
   'simpan-utang': el => {
     bacaFormUtang();
-    if (!F.nama) return toast('Isi nama orangnya dulu.', true);
-    if (!F.jumlah) return toast('Isi jumlahnya dulu.', true);
-    if (!F.dompet) return toast('Pilih dompetnya dulu.', true);
+    if (!F.nama) return toast(T('Isi nama orangnya dulu.'), true);
+    if (!F.jumlah) return toast(T('Isi jumlahnya dulu.'), true);
+    if (!F.dompet) return toast(T('Pilih dompetnya dulu.'), true);
     kirim(el, 'catatUtang', [{ nama: F.nama, arah: F.arah, jumlah: F.jumlah, dompet: F.dompet, tanggal: F.tanggal, tenggat: F.tenggat, catatan: F.catatan }],
-      F.arah === 'piutang' ? 'Pinjaman ke ' + F.nama + ' tercatat ✔' : 'Utang ke ' + F.nama + ' tercatat ✔');
+      F.arah === 'piutang' ? T('Pinjaman ke {nama} tercatat ✔', { nama: F.nama }) : T('Utang ke {nama} tercatat ✔', { nama: F.nama }));
   },
   'lunasi-utang': el => {
     const w = S.data.dompet.find(x => x.nama === el.dataset.nama);
@@ -4262,21 +4264,21 @@ const AKSI = {
     bukaFormTrx(null, {
       tipe: TIPE.TRANSFER, jumlah: Math.abs(w.saldo),
       dompet: dia ? w.nama : pertama.nama, dompetTujuan: dia ? pertama.nama : w.nama,
-      catatan: dia ? 'Pelunasan dari ' + w.nama : 'Bayar utang ke ' + w.nama,
-    }, dia ? 'Terima dari ' + w.nama : 'Bayar ke ' + w.nama);
+      catatan: dia ? T('Pelunasan dari {nama}', { nama: w.nama }) : T('Bayar utang ke {nama}', { nama: w.nama }),
+    }, dia ? T('Terima dari {nama}', { nama: w.nama }) : T('Bayar ke {nama}', { nama: w.nama }));
   },
   'hapus-dompet': async el => {
-    if (await tanya('Hapus "' + F.namaLama + '"?', 'Hapus')) kirim(el, 'hapusDompet', [F.namaLama], 'Dihapus');
+    if (await tanya(T('Hapus "{nama}"?', { nama: namaT(F.namaLama) }), T('Hapus'))) kirim(el, 'hapusDompet', [F.namaLama], T('Dihapus'));
   },
   'setor-tabungan': el => {
     const pertama = dompetBiasa()[0];
-    if (!pertama) return toast('Buat dompet dulu sebagai sumber setoran.', true);
-    bukaFormTrx(null, { tipe: TIPE.TRANSFER, dompet: pertama.nama, dompetTujuan: el.dataset.nama }, 'Setor ke ' + el.dataset.nama);
+    if (!pertama) return toast(T('Buat dompet dulu sebagai sumber setoran.'), true);
+    bukaFormTrx(null, { tipe: TIPE.TRANSFER, dompet: pertama.nama, dompetTujuan: el.dataset.nama }, T('Setor ke {nama}', { nama: namaT(el.dataset.nama) }));
   },
   'tarik-tabungan': el => {
     const pertama = dompetBiasa()[0];
-    if (!pertama) return toast('Buat dompet dulu sebagai tujuan penarikan.', true);
-    bukaFormTrx(null, { tipe: TIPE.TRANSFER, dompet: el.dataset.nama, dompetTujuan: pertama.nama }, 'Tarik dari ' + el.dataset.nama);
+    if (!pertama) return toast(T('Buat dompet dulu sebagai tujuan penarikan.'), true);
+    bukaFormTrx(null, { tipe: TIPE.TRANSFER, dompet: el.dataset.nama, dompetTujuan: pertama.nama }, T('Tarik dari {nama}', { nama: namaT(el.dataset.nama) }));
   },
 
   'atur-anggaran': () => bukaFormAnggaran(),
@@ -4287,7 +4289,7 @@ const AKSI = {
     sumberStruk = 'cepat';
     $('#input-struk-kamera').click();
   },
-  'cepat-transfer': () => bukaFormTrx(null, { tipe: TIPE.TRANSFER }, 'Transfer'),
+  'cepat-transfer': () => bukaFormTrx(null, { tipe: TIPE.TRANSFER }, T('Transfer')),
   'pakai-saran-anggaran': el => {
     const i = document.querySelector(`.input-anggaran[data-nama="${CSS.escape(el.dataset.nama)}"]`);
     if (i) { i.value = formatAngka(Number(el.dataset.n)); i.classList.add('terisi-otomatis'); hitungTotalAnggaran(); }
@@ -4299,14 +4301,14 @@ const AKSI = {
       if (i && !angka(i.value)) { i.value = formatAngka(Number(b.dataset.n)); i.classList.add('terisi-otomatis'); n++; }
     });
     hitungTotalAnggaran();
-    toast(n ? n + ' kategori diisi. Periksa lalu ketuk Simpan.' : 'Semua kategori yang disarankan sudah terisi.');
+    toast(n ? T('{n} kategori diisi. Periksa lalu ketuk Simpan.', { n }) : T('Semua kategori yang disarankan sudah terisi.'));
   },
   'simpan-anggaran': el => {
     const peta = {};
     const amplop = {};
     document.querySelectorAll('.input-anggaran').forEach(i => { peta[i.dataset.nama] = angka(i.value); });
     document.querySelectorAll('.input-amplop').forEach(i => { amplop[i.dataset.nama] = i.checked; });
-    kirim(el, 'simpanAnggaran', [peta, amplop], 'Anggaran tersimpan ✔');
+    kirim(el, 'simpanAnggaran', [peta, amplop], T('Anggaran tersimpan ✔'));
   },
 
   'tahun': async el => {
@@ -4332,15 +4334,15 @@ const AKSI = {
   'edit-kategori': el => bukaFormKategori(S.data.kategori.find(k => k.nama === el.dataset.nama && k.tipe === el.dataset.tipe)),
   'simpan-kategori': async el => {
     const nama = $('#k-nama').value.trim();
-    if (!nama) return toast('Isi nama kategori dulu.', true);
+    if (!nama) return toast(T('Isi nama kategori dulu.'), true);
     const tipe = F.tipe;
-    const ok = await kirim(el, 'simpanKategori', [{ namaLama: F.namaLama, tipeLama: F.tipeLama, nama, tipe, ikon: F.ikon }], 'Kategori tersimpan ✔');
+    const ok = await kirim(el, 'simpanKategori', [{ namaLama: F.namaLama, tipeLama: F.tipeLama, nama, tipe, ikon: F.ikon }], T('Kategori tersimpan ✔'));
     if (ok) bukaDaftarKategori(tipe);
   },
   'hapus-kategori': async el => {
-    if (!await tanya('Hapus kategori "' + F.namaLama + '"?', 'Hapus')) return;
+    if (!await tanya(T('Hapus kategori "{nama}"?', { nama: namaT(F.namaLama) }), T('Hapus'))) return;
     const tipe = F.tipeLama;
-    const ok = await kirim(el, 'hapusKategori', [F.namaLama, F.tipeLama], 'Kategori dihapus');
+    const ok = await kirim(el, 'hapusKategori', [F.namaLama, F.tipeLama], T('Kategori dihapus'));
     if (ok) bukaDaftarKategori(tipe);
   },
 
@@ -4353,7 +4355,7 @@ const AKSI = {
   },
   'setup-lain': () => {
     const nama = $('#s-lain').value.trim();
-    if (!nama) return toast('Ketik nama dompetnya dulu.', true);
+    if (!nama) return toast(T('Ketik nama dompetnya dulu.'), true);
     const ada = semuaDompetSetup().find(([n]) => n.toLowerCase() === nama.toLowerCase());
     if (!ada) S.setup.lain.push(nama);
     const n = ada ? ada[0] : nama;
@@ -4363,7 +4365,7 @@ const AKSI = {
   'buat-db': async el => {
     bacaSetup();
     const st = S.setup;
-    if (!st.pilih.length) return toast('Pilih minimal satu dompet.', true);
+    if (!st.pilih.length) return toast(T('Pilih minimal satu dompet.'), true);
     const dompet = semuaDompetSetup().filter(([n]) => st.pilih.includes(n))
       .map(([nama, ikon]) => ({ nama, ikon, saldoAwal: st.saldo[nama] || 0 }));
     el.disabled = true;
@@ -4371,7 +4373,7 @@ const AKSI = {
     try {
       await api('buatDatabase', st.email, dompet);
       await muat();
-      toast('Siap dipakai ✔ Ketuk ＋ untuk mencatat transaksi pertama.');
+      toast(T('Siap dipakai ✔ Ketuk ＋ untuk mencatat transaksi pertama.'));
     } catch (e) {
       toast(pesanError(e), true);
     } finally {
@@ -4435,7 +4437,7 @@ const AKSI = {
   },
   'keluar': async () => {
     const n = bacaLokal('tertunda', []).length; // semua buku, karena semuanya ikut terhapus
-    if (!await tanya(n ? `${n} transaksi belum terkirim dan akan hilang. Tetap keluar dari ${GOOGLE.email()}?` : 'Keluar dari ' + GOOGLE.email() + '?', 'Keluar')) return;
+    if (!await tanya(n ? T('{n} transaksi belum terkirim dan akan hilang. Tetap keluar dari {email}?', { n, email: GOOGLE.email() }) : T('Keluar dari {email}?', { email: GOOGLE.email() }), T('Keluar'))) return;
     // Data yang tersimpan di HP ikut dihapus, karena HP bisa dipakai orang lain.
     tulisLokal('data', null);
     tulisLokal('tertunda', null);
@@ -4447,13 +4449,13 @@ const AKSI = {
   'undang': () => { tandaiTips('undang'); bukaAnggota(); },
   'tutup-tips': () => { tandaiTips('tutup'); render(); },
   'keluarkan-anggota': async el => {
-    if (!await tanya(`Keluarkan ${el.dataset.email}? Akun ini tidak bisa lagi membuka buku ini, melihat foto struknya, atau mencatat lewat bot Telegram. Transaksi yang sudah dicatatnya tetap ada.`, 'Keluarkan')) return;
-    kirim(el, 'keluarkanAnggota', [el.dataset.id, el.dataset.email, el.dataset.buku || ''], 'Anggota dikeluarkan');
+    if (!await tanya(T('Keluarkan {email}? Akun ini tidak bisa lagi membuka buku ini, melihat foto struknya, atau mencatat lewat bot Telegram. Transaksi yang sudah dicatatnya tetap ada.', { email: el.dataset.email }), T('Keluarkan'))) return;
+    kirim(el, 'keluarkanAnggota', [el.dataset.id, el.dataset.email, el.dataset.buku || ''], T('Anggota dikeluarkan'));
   },
   'kirim-undangan': el => {
     const email = $('#u-email').value.trim();
-    if (!email) return toast('Isi emailnya dulu.', true);
-    kirim(el, 'bagikanKe', [email, el.dataset.buku || ''], 'Undangan terkirim ✔ ' + email + ' akan menerima email dari Google.');
+    if (!email) return toast(T('Isi emailnya dulu.'), true);
+    kirim(el, 'bagikanKe', [email, el.dataset.buku || ''], T('Undangan terkirim ✔ {email} akan menerima email dari Google.', { email }));
   },
   'anggota-buku': el => bukaAnggota(el.dataset.id),
   'salin-link': async () => {
@@ -4464,7 +4466,7 @@ const AKSI = {
       input.select();
       document.execCommand('copy');
     }
-    toast('Link disalin ✔');
+    toast(T('Link disalin ✔'));
   },
 
   'pasang-aplikasi': async () => {
@@ -4504,9 +4506,9 @@ async function setelahTersambung(email, dariTombol) {
     if (dariTombol) loading(true);
     await muat();
     loading(false);
-    if (dariTombol || kartuTampil) toast('Tersambung lagi ✔');
+    if (dariTombol || kartuTampil) toast(T('Tersambung lagi ✔'));
   } else if (dariTombol || kartuTampil) {
-    toast('Tersambung lagi ✔ Silakan ulangi, isian Anda masih ada.');
+    toast(T('Tersambung lagi ✔ Silakan ulangi, isian Anda masih ada.'));
   }
 }
 
@@ -4555,7 +4557,7 @@ document.addEventListener('change', e => {
   if (e.target.id === 'f-cepat' && e.target.value.trim()) {
     const h = bacaKetikCepat(e.target.value.trim());
     isiFormCepat(h);
-    if (!h.jumlah) toast('Nominalnya belum terbaca. Contoh: bakso 25rb', true);
+    if (!h.jumlah) toast(T('Nominalnya belum terbaca. Contoh: bakso 25rb'), true);
   }
   // Catatan yang pernah dipakai → kategori terisi sendiri (tanpa render ulang, supaya ketukan berikutnya tidak hilang).
   if (e.target.id === 'f-catatan' && !F.kategori && F.tipe !== TIPE.TRANSFER) {
@@ -4619,7 +4621,7 @@ window.addEventListener('beforeinstallprompt', e => {
 });
 window.addEventListener('appinstalled', () => {
   ajakanPasang = null;
-  toast('Aplikasi terpasang ✔ Buka dari layar utama HP');
+  toast(T('Aplikasi terpasang ✔ Buka dari layar utama HP'));
 });
 
 async function versiServer() {
@@ -4641,7 +4643,7 @@ function umumkanVersi(v) {
   const lama = bacaHp('dk_versi_lihat');
   tulisHp('dk_versi_lihat', v);
   if (!lama || lama === v) return; // pertama kali dipakai: tidak perlu diumumkan
-  setTimeout(() => toast('✨ Diperbarui ke v' + v, false, { label: 'Lihat yang baru', aksi: 'log-update' }), 2500);
+  setTimeout(() => toast(T('✨ Diperbarui ke v{v}', { v }), false, { label: T('Lihat yang baru'), aksi: 'log-update' }), 2500);
 }
 
 /** Judul commit → poin-poin: dipecah di "; " dan huruf pertama dibesarkan. */
@@ -4650,29 +4652,29 @@ function poinLog(judul) {
 }
 
 async function bukaLogUpdate() {
-  bukaSheet('Apa yang baru', '<div class="kerangka k-daftar" style="margin-top:8px">' + '<div><i class="k-bulat kecil"></i><i class="k-garis"></i></div>'.repeat(5) + '</div>');
+  bukaSheet(T('Apa yang baru'), '<div class="kerangka k-daftar" style="margin-top:8px">' + '<div><i class="k-bulat kecil"></i><i class="k-garis"></i></div>'.repeat(5) + '</div>');
   let log = [];
   try {
     const r = await fetch('changelog.json', { cache: 'no-store' });
     if (r.ok) log = await r.json();
   } catch (e) { /* offline */ }
-  if ($('#sheet-judul').textContent !== 'Apa yang baru') return; // sudah ditutup / ganti lembar
+  if ($('#sheet-judul').textContent !== T('Apa yang baru')) return; // sudah ditutup / ganti lembar
   if (!log.length) {
-    $('#sheet-isi').innerHTML = kosong('🆕', navigator.onLine ? 'Log update belum tersedia. Muncul setelah versi berikutnya ter-deploy.' : 'Butuh internet untuk memuat log update.');
+    $('#sheet-isi').innerHTML = kosong('🆕', navigator.onLine ? T('Log update belum tersedia. Muncul setelah versi berikutnya ter-deploy.') : T('Butuh internet untuk memuat log update.'));
     return;
   }
   const sekarang = versiAwal || log[0].v;
-  const tgl = t => keTanggal(t).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const tgl = t => keTanggal(t).toLocaleDateString(LOKAL, { day: 'numeric', month: 'long', year: 'numeric' });
   let tanggalSebelum = '';
   $('#sheet-isi').innerHTML = `
-    <p class="info-kecil" style="text-align:left;margin-top:0">Aplikasi diperbarui otomatis. Versi Anda: <b>${esc(labelVersi() || 'v' + sekarang)}</b></p>
+    <p class="info-kecil" style="text-align:left;margin-top:0">${T('Aplikasi diperbarui otomatis. Versi Anda: <b>{versi}</b>', { versi: esc(labelVersi() || 'v' + sekarang) })}</p>
     <div class="daftar-log">${log.slice(0, 60).map(x => {
       const kepala = x.tanggal !== tanggalSebelum ? `<h4 class="tanggal-log">${esc(tgl(x.tanggal))}</h4>` : '';
       tanggalSebelum = x.tanggal;
       return kepala + `<div class="item-log ${x.v === sekarang ? 'ini' : ''}">
         <span class="versi-log">v${esc(x.v)}</span>
         <ul>${poinLog(x.judul).map(p => `<li>${esc(p)}</li>`).join('')}</ul>
-        ${x.v === sekarang ? '<span class="lencana-log">Versi Anda</span>' : ''}
+        ${x.v === sekarang ? `<span class="lencana-log">${T('Versi Anda')}</span>` : ''}
       </div>`;
     }).join('')}</div>`;
 }
@@ -4691,7 +4693,7 @@ async function cekPembaruan() {
       pembaruanSiap = v;
     }
     if (!sedangSibuk()) return location.reload();
-    if (!pembaruanDitunda) toast('Versi baru tersedia, dipasang setelah Anda selesai');
+    if (!pembaruanDitunda) toast(T('Versi baru tersedia, dipasang setelah Anda selesai'));
     pembaruanDitunda = true;
   } finally {
     sedangCekVersi = false;
