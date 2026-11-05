@@ -638,37 +638,50 @@ textarea.field { resize: vertical; min-height: 84px; line-height: 1.45; }
 .ingat-aksi { display: flex; justify-content: space-between; gap: 6px; }
 
 /* ---------- Jadwal sholat & kiblat ---------- */
-.sholat-kepala { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.sholat-kepala { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .sholat-kepala small { display: block; font-size: 12px; color: var(--muted); }
 .sholat-kepala b { display: block; font-weight: 800; }
-.sholat-berikut { padding: 16px; border-radius: 18px; color: #fff; margin-bottom: 12px; background: linear-gradient(140deg, var(--hero-1), var(--hero-2)); }
+.sholat-berikut { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-radius: 18px; color: #fff; margin-bottom: 10px; background: linear-gradient(140deg, var(--hero-1), var(--hero-2)); }
 .sholat-berikut small { display: block; font-size: 12px; opacity: .75; }
-.sholat-berikut b { display: block; font-size: 24px; font-weight: 800; margin: 2px 0; }
-.sholat-berikut span { font-size: 13px; font-weight: 600; opacity: .9; }
-.daftar-sholat { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); }
-.baris-sholat { display: flex; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 600; }
-.baris-sholat:last-child { border-bottom: 0; }
-.baris-sholat b { font-variant-numeric: tabular-nums; font-weight: 800; }
-.baris-sholat.pelengkap { color: var(--muted); font-size: 14px; }
-.baris-sholat.berikut { background: var(--primary-soft); color: var(--primary); }
-.judul-kiblat { font-size: 16px; font-weight: 800; margin: 22px 0 10px; }
-.kompas { position: relative; width: 230px; height: 230px; margin: 4px auto 8px; }
+.sholat-berikut b { display: block; font-size: 20px; font-weight: 800; }
+.sholat-berikut span { font-size: 13px; font-weight: 700; opacity: .9; white-space: nowrap; }
+.jadwal-sholat { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.jadwal-sholat div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 2px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); min-width: 0; }
+.jadwal-sholat span { font-size: 11px; font-weight: 600; color: var(--muted); }
+.jadwal-sholat b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.jadwal-sholat .berikut { background: var(--primary-soft); border-color: var(--primary); }
+.jadwal-sholat .berikut span, .jadwal-sholat .berikut b { color: var(--primary); }
+.sholat-pelengkap { margin: 8px 0 0; font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.4; }
+.sholat-pelengkap b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Halaman sholat pas satu layar: kepala & jadwal tetap, kompas mengisi sisa tinggi (min. 150px, lalu baru scroll). */
+#view:has(.hal-sholat) { padding-bottom: 0; }
+.hal-sholat {
+  display: flex; flex-direction: column; box-sizing: border-box;
+  height: calc(100dvh - 14px); min-height: 560px;
+  padding-bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom));
+}
+.hal-sholat .kepala { margin-bottom: 10px; }
+.hal-sholat .kepala h1 { font-size: 20px; }
+.area-kompas { flex: 1; min-height: 150px; display: flex; align-items: center; justify-content: center; padding: 14px 0 6px; }
+.kompas { position: relative; height: 100%; max-height: 280px; aspect-ratio: 1; max-width: 100%; }
 .kompas-piringan {
   position: absolute; inset: 0; border-radius: 50%; background: var(--card-2); border: 2px solid var(--line);
   transition: transform .15s linear;
   background-image: repeating-conic-gradient(from -1deg, var(--line) 0 2deg, transparent 2deg 30deg);
 }
-.kompas-piringan::before { content: ''; position: absolute; inset: 16px; border-radius: 50%; background: var(--card); }
+.kompas-piringan::before { content: ''; position: absolute; inset: 7%; border-radius: 50%; background: var(--card); }
 .mata-angin { position: absolute; font-weight: 800; font-size: 14px; color: var(--muted); transform: translate(-50%, -50%); }
-.mata-angin.u { left: 50%; top: 30px; color: var(--keluar); }
-.mata-angin.t { left: calc(100% - 30px); top: 50%; }
-.mata-angin.s { left: 50%; top: calc(100% - 30px); }
-.mata-angin.b { left: 30px; top: 50%; }
-.jarum-kiblat { position: absolute; left: 50%; top: 50%; width: 4px; height: 92px; margin: -92px 0 0 -2px; transform-origin: 50% 100%; transform: rotate(var(--kiblat)); border-radius: 4px; background: linear-gradient(var(--primary), transparent); }
+.mata-angin.u { left: 50%; top: 14%; color: var(--keluar); }
+.mata-angin.t { left: 86%; top: 50%; }
+.mata-angin.s { left: 50%; top: 86%; }
+.mata-angin.b { left: 14%; top: 50%; }
+.jarum-kiblat { position: absolute; left: 50%; top: 10%; width: 4px; height: 40%; margin-left: -2px; transform-origin: 50% 100%; transform: rotate(var(--kiblat)); border-radius: 4px; background: linear-gradient(var(--primary), transparent); }
 .jarum-kiblat span { position: absolute; top: -14px; left: 50%; transform: translateX(-50%) rotate(calc(-1 * var(--kiblat))); font-size: 22px; }
 .penanda-atas { position: absolute; left: 50%; top: -8px; width: 0; height: 0; transform: translateX(-50%); border: 8px solid transparent; border-top: 12px solid var(--text); border-bottom: 0; }
 .kompas.pas .kompas-piringan { border-color: var(--masuk); box-shadow: 0 0 0 4px color-mix(in srgb, var(--masuk) 25%, transparent); }
-.teks-kiblat { text-align: center; margin: 0 0 6px; font-size: 14px; }
+.teks-kiblat { text-align: center; margin: 0 0 8px; font-size: 14px; }
+.tombol-kompas { margin: 0; padding: 11px; }
 
 /* Halaman penuh Catatan & Sholat */
 .halaman-kalender { padding: 14px 12px; }

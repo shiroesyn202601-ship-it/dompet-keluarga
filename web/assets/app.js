@@ -4123,53 +4123,51 @@ function bukaSholat() {
 }
 
 function viewSholat() {
-  return `
+  const kepala = `
     <div class="kepala kepala-kembali">
       <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="Kembali">${svg('kembali')}</button>
       <h1>Jadwal Sholat & Kiblat</h1>
-    </div>
-    <section class="kartu halaman-sholat">${htmlSholat()}</section>`;
-}
-
-function htmlSholat() {
+    </div>`;
   const lok = bacaLokasi();
   if (!lok) {
-    return `
+    return kepala + `
+    <section class="kartu halaman-sholat">
       <p style="margin-top:0">Jadwal sholat dan arah kiblat dihitung dari lokasi Anda, langsung di HP (tanpa internet).</p>
       <div class="aksi-form" style="margin-bottom:14px"><button type="button" class="btn btn-utama" data-aksi="lokasi-gps">📍 Pakai lokasi saya</button></div>
-      ${pilihKota()}`;
+      ${pilihKota()}
+    </section>`;
   }
+  // Satu layar penuh tanpa scroll: jadwal ringkas di atas, kompas mengisi sisa tinggi layar.
   const j = jadwalHari(lok);
   const s = sholatBerikut(lok);
   const kiblat = SHOLAT.arahKiblat(lok.lat, lok.lng);
-  const tanggal = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  return `
+  const tanggal = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
+  return `<div class="hal-sholat">${kepala}
     <div class="sholat-kepala">
       <div><small>${esc(tanggal)}</small><b>📍 ${esc(lok.nama)}</b></div>
       <button type="button" class="chip" data-aksi="ganti-lokasi">Ganti</button>
     </div>
     <div class="sholat-berikut">
-      <small>Berikutnya</small>
-      <b>${esc(s.nama)} · ${jamMenit(s.menit)}</b>
+      <div><small>Berikutnya</small><b>${esc(s.nama)} · ${jamMenit(s.menit)}</b></div>
       <span data-sisa-sholat>${teksSisa(s.sisa)}</span>
     </div>
-    <div class="daftar-sholat">${NAMA_WAKTU.map(([k, n]) => `
-      <div class="baris-sholat ${k === s.kunci ? 'berikut' : ''} ${WAKTU_SHOLAT.includes(k) ? '' : 'pelengkap'}">
-        <span>${n}</span><b>${jamMenit(j[k])}</b></div>`).join('')}</div>
-    <p class="info-kecil" style="text-align:left">Metode Kemenag RI (Subuh 20°, Isya 18°, Ashar Syafi'i, ihtiyat 2 menit).
-      Bisa berbeda 1–3 menit dengan jadwal masjid setempat.</p>
+    <div class="jadwal-sholat">${WAKTU_SHOLAT.map(k => `
+      <div class="${k === s.kunci ? 'berikut' : ''}"><span>${NAMA_WAKTU.find(n => n[0] === k)[1]}</span><b>${jamMenit(j[k])}</b></div>`).join('')}</div>
+    <p class="sholat-pelengkap">Imsak <b>${jamMenit(j.imsak)}</b> · Terbit <b>${jamMenit(j.terbit)}</b> · Metode Kemenag RI</p>
 
-    <h3 class="judul-kiblat">Arah kiblat</h3>
-    <div class="kompas" id="kompas" style="--kiblat:${kiblat.toFixed(1)}deg">
-      <div class="kompas-piringan" id="kompas-piringan">
-        <span class="mata-angin u">U</span><span class="mata-angin t">T</span><span class="mata-angin s">S</span><span class="mata-angin b">B</span>
-        <div class="jarum-kiblat"><span>🕋</span></div>
+    <div class="area-kompas">
+      <div class="kompas" id="kompas" style="--kiblat:${kiblat.toFixed(1)}deg">
+        <div class="kompas-piringan" id="kompas-piringan">
+          <span class="mata-angin u">U</span><span class="mata-angin t">T</span><span class="mata-angin s">S</span><span class="mata-angin b">B</span>
+          <div class="jarum-kiblat"><span>🕋</span></div>
+        </div>
+        <div class="penanda-atas" aria-hidden="true"></div>
       </div>
-      <div class="penanda-atas" aria-hidden="true"></div>
     </div>
-    <p class="teks-kiblat" id="teks-kiblat"><b>${Math.round(kiblat)}°</b> dari utara · ${SHOLAT.namaArah(kiblat)}</p>
-    <button type="button" class="tombol-tambah" style="margin:4px 0 0" data-aksi="kompas">🧭 Aktifkan kompas</button>
-    <p class="info-kecil" style="text-align:left">Letakkan HP mendatar dan jauhkan dari benda logam/magnet. Putar badan sampai 🕋 tepat di garis atas.</p>`;
+    <p class="teks-kiblat" id="teks-kiblat"><b>Kiblat ${Math.round(kiblat)}°</b> dari utara · ${SHOLAT.namaArah(kiblat)}</p>
+    <button type="button" class="tombol-tambah tombol-kompas" data-aksi="kompas">🧭 Aktifkan kompas</button>
+    <p class="sholat-pelengkap">HP mendatar, jauhkan dari logam. Putar badan sampai 🕋 di garis atas.</p>
+  </div>`;
 }
 
 function pilihKota() {
