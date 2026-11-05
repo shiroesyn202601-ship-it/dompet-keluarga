@@ -1982,6 +1982,7 @@ function bukaSheet(judul, html) {
 }
 function tutupSheet() {
   $('#sheet').hidden = true;
+  if (typeof tutupRingkasanSuara === 'function') tutupRingkasanSuara();
   document.body.style.overflow = '';
   F = null;
 }
@@ -2362,7 +2363,37 @@ const NOMINAL_SLANG = { gopek: 500, seceng: 1000, goceng: 5000, ceban: 10000, go
  * "bakso 25rb gopay" → { tipe, jumlah, kategori, dompet, catatan }. Hanya aturan sederhana,
  * jadi cepat dan tetap jalan tanpa sinyal. Field yang tidak dikenali dikosongkan.
  */
+/**
+ * Kata bilangan → angka, untuk hasil suara / ketikan: "dua puluh lima ribu" → "25000", "satu setengah juta" → "1500000",
+ * "seratus dua puluh ribu" → "120000". Kata lain dibiarkan apa adanya.
+ */
+const KATA_ANGKA = { nol: 0, satu: 1, se: 1, dua: 2, tiga: 3, empat: 4, lima: 5, enam: 6, tujuh: 7, delapan: 8, sembilan: 9, sepuluh: 10, sebelas: 11 };
+function angkaDariKata(teks) {
+  const kata = teks.split(/\s+/);
+  const hasil = [];
+  let total = 0, kelompok = 0, satuan = 0, aktif = false;
+  const selesai = () => { if (aktif) hasil.push(String(Math.round(total + kelompok + satuan))); total = kelompok = satuan = 0; aktif = false; };
+  for (const asli of kata) {
+    const w = asli.toLowerCase();
+    let m;
+    if (w in KATA_ANGKA && w !== 'se') { satuan += KATA_ANGKA[w]; aktif = true; }
+    else if (w === 'belas' && aktif) { satuan += 10; }
+    else if (w === 'puluh' && aktif) { kelompok += (satuan || 1) * 10; satuan = 0; }
+    else if ((m = w.match(/^(se)?ratus$/)) && (aktif || m[1])) { kelompok += (m[1] ? 1 : (satuan || 1)) * 100; satuan = 0; aktif = true; }
+    else if ((m = w.match(/^(se)?(ribu|juta|miliar)$/)) && (aktif || m[1])) {
+      const kali = { ribu: 1e3, juta: 1e6, miliar: 1e9 }[m[2]];
+      total += ((m[1] ? 1 : (kelompok + satuan)) || 1) * kali; kelompok = satuan = 0; aktif = true;
+    }
+    else if (w === 'setengah' && aktif === false) { satuan = 0.5; aktif = true; }
+    else if (w === 'setengah' && aktif) { satuan += 0.5; }
+    else { selesai(); hasil.push(asli); }
+  }
+  selesai();
+  return hasil.join(' ');
+}
+
 function bacaKetikCepat(teks) {
+  teks = angkaDariKata(teks);
   let sisa = ' ' + teks.toLowerCase() + ' ';
   let jumlah = 0;
   // Angka pertama yang bersatuan (rb/jt) atau ≥ 100; "nasi 2 bungkus 30rb" → 30.000, bukan 2.
@@ -3724,7 +3755,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'cek-undangan', 'kompas', 'lokasi-gps',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
 ]);
 
 /**
@@ -4061,7 +4092,7 @@ function itemCatatan(c) {
 function barisTugasForm(t) {
   return `<div class="baris-tugas ${t.selesai ? 'selesai' : ''}">
       <button type="button" class="kotak-centang" data-aksi="c-tugas-centang" role="checkbox" aria-checked="${t.selesai}" aria-label="Tandai selesai"></button>
-      <input class="field" maxlength="200" enterkeyhint="next" placeholder="Tulis item…" value="${esc(t.teks)}">
+      <input maxlength="200" enterkeyhint="next" placeholder="Tulis item…" value="${esc(t.teks)}">
       <button type="button" class="tombol-hapus-tugas" data-aksi="c-tugas-hapus" aria-label="Hapus item">✕</button>
     </div>`;
 }
@@ -4109,7 +4140,8 @@ Object.assign(AKSI, {
     if (jenis === S.formCatatan.jenis) return;
     simpanDraftCatatan();
     S.formCatatan.jenis = jenis;
-    document.querySelectorAll('#c-jenis button').forEach(b => b.classList.toggle('aktif', b === el));
+    document.querySelectorAll('#c-jenis button').forEach(b => { b.classList.toggle('aktif', b === el); b.setAttribute('aria-selected', b === el); });
+    $('#c-jenis').dataset.jenis = jenis;
     if (jenis === 'tugas') {
       // Teks yang sudah ditulis jadi item per baris.
       const baris = $('#c-isi').value.split('\n').map(b => b.replace(/^\s*([-*•]|\d+[.)])\s*/, '').trim()).filter(Boolean);
@@ -4193,9 +4225,11 @@ function viewFormCatatan() {
     <div class="form-catatan" style="--w:${warnaCatatan(f.warna)}">
       <input class="judul-catatan" id="c-judul" maxlength="80" enterkeyhint="next" placeholder="Judul" value="${esc(f.judul)}" aria-label="Judul">
 
-      <div class="segmen segmen-jenis" id="c-jenis">
-        <button type="button" class="${tugas ? '' : 'aktif'}" data-aksi="c-jenis" data-v="teks">📝 Teks</button>
-        <button type="button" class="${tugas ? 'aktif' : ''}" data-aksi="c-jenis" data-v="tugas">☑️ Daftar tugas</button>
+      <div class="saklar-jenis" id="c-jenis" data-jenis="${f.jenis}" role="tablist" aria-label="Jenis catatan">
+        <button type="button" role="tab" aria-selected="${!tugas}" class="${tugas ? '' : 'aktif'}" data-aksi="c-jenis" data-v="teks">
+          <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h10"/></svg>Teks</button>
+        <button type="button" role="tab" aria-selected="${tugas}" class="${tugas ? 'aktif' : ''}" data-aksi="c-jenis" data-v="tugas">
+          <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="6" height="6" rx="1.5"/><path d="m4.5 7 1.2 1.2L8 6M12 7h9"/><rect x="3" y="14" width="6" height="6" rx="1.5"/><path d="M12 17h9"/></svg>Daftar tugas</button>
       </div>
 
       <div id="c-isi-teks" ${tugas ? 'hidden' : ''}>
@@ -4658,6 +4692,7 @@ function pasangPenjaga() {
 
 /** Menutup lapisan paling atas yang boleh ditutup dengan tombol kembali; true kalau ada yang ditutup. */
 function tutupLapisanAtas() {
+  if ($('#ringkas-suara') && !$('#ringkas-suara').hidden) { tutupRingkasanSuara(); hasilSuara = null; return true; }
   if ($('#ingat') && !$('#ingat').hidden) {
     // Pengingat ditutup dengan tombol kembali: muncul lagi saat aplikasi dibuka besok / sesi berikutnya.
     tutupPengingat('', '', '');
@@ -4793,6 +4828,97 @@ function panelSuara(tahap, teks) {
   panel.querySelector('span').textContent = teks || (tahap === 'siap' ? '' : 'mis. "bakso dua puluh lima ribu pakai gopay"');
 }
 
+// ---------- Ringkasan hasil suara ----------
+// Setelah bicara, data yang terbaca ditampilkan dulu di kartu: Simpan langsung, Koreksi di form, atau Ulangi.
+
+let hasilSuara = null; // { teks, h }
+
+function tampilRingkasanSuara(teks) {
+  if (!F) return;
+  bacaFieldTrx();
+  const h = bacaKetikCepat(teks.slice(0, 300));
+  hasilSuara = { teks, h };
+  // Pratinjau = isian form setelah hasil ini diterapkan (aturan sama dengan isiFormCepat).
+  const x = Object.assign({}, F);
+  if (h.tipe && h.tipe !== x.tipe) { x.tipe = h.tipe; x.kategori = ''; }
+  if (h.jumlah) x.jumlah = h.jumlah;
+  if (h.kategori) x.kategori = h.kategori;
+  if (h.dompet && dompetBiasa().some(w => w.nama === h.dompet)) x.dompet = h.dompet;
+  if (h.catatan) x.catatan = h.catatan;
+
+  const kurang = [];
+  if (!x.jumlah) kurang.push('Nominal belum terbaca');
+  if (x.tipe !== TIPE.TRANSFER && !x.kategori) kurang.push('Kategori belum dipilih');
+  if (x.tipe === TIPE.TRANSFER) kurang.push('Transfer: pilih dompet tujuan di form');
+  const dompet = S.data.dompet.find(w => w.nama === x.dompet);
+  const masuk = x.tipe === TIPE.MASUK;
+  const baris = (ikon, label, nilai, kosong) => `
+      <div class="baris-ringkas ${kosong ? 'belum' : ''}"><span class="ikon-ringkas">${ikon}</span>
+        <span class="isi"><small>${label}</small><b>${nilai}</b></span></div>`;
+
+  let el = $('#ringkas-suara');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'ringkas-suara';
+    el.className = 'sesi ringkas-suara';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.setAttribute('aria-labelledby', 'ringkas-judul');
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <div class="sesi-kartu kartu-ringkas">
+      <span class="label-ringkas" id="ringkas-judul">🎤 Yang akan dicatat</span>
+      <p class="kutipan-suara">“${esc(teks)}”</p>
+      <div class="nominal-ringkas ${masuk ? 'masuk' : x.tipe === TIPE.TRANSFER ? '' : 'keluar'} ${x.jumlah ? '' : 'belum'}">
+        <small>${esc(x.tipe)}</small>${x.jumlah ? (masuk ? '+' : x.tipe === TIPE.TRANSFER ? '' : '−') + rp(x.jumlah) : 'Rp —'}</div>
+      <div class="daftar-ringkas">
+        ${x.tipe !== TIPE.TRANSFER ? baris(x.kategori ? esc(ikonKategori(x.kategori, x.tipe)) : '🏷️', 'Kategori', x.kategori ? esc(x.kategori) : 'Belum dipilih', !x.kategori) : ''}
+        ${baris(dompet ? esc(dompet.ikon) : '👛', 'Dompet', x.dompet ? esc(x.dompet) : 'Belum dipilih', !x.dompet)}
+        ${x.catatan ? baris('📝', 'Catatan', esc(x.catatan)) : ''}
+        ${baris('📅', 'Tanggal', esc(labelHariPendek(x.tanggal || hariIni())))}
+      </div>
+      ${kurang.length ? `<p class="peringatan-ringkas">⚠️ ${kurang.join(' · ')}</p>` : ''}
+      <div class="aksi-ringkas">
+        <button type="button" class="btn btn-hapus" data-aksi="ringkas-koreksi">✏️ Koreksi</button>
+        <button type="button" class="btn btn-utama" data-aksi="ringkas-simpan" ${kurang.length ? 'disabled' : ''}>✔ Simpan</button>
+      </div>
+      <button type="button" class="tombol-teks" data-aksi="ringkas-ulang">🎤 Ulangi bicara</button>
+    </div>`;
+  el.hidden = false;
+  getar();
+  setTimeout(() => { const b = el.querySelector('[data-aksi="ringkas-simpan"]:not([disabled])') || el.querySelector('[data-aksi="ringkas-koreksi"]'); if (b) b.focus(); }, 50);
+}
+
+function tutupRingkasanSuara() {
+  const el = $('#ringkas-suara');
+  if (el) el.hidden = true;
+}
+
+Object.assign(AKSI, {
+  'ringkas-simpan': () => {
+    if (!hasilSuara || !F) return tutupRingkasanSuara();
+    tutupRingkasanSuara();
+    isiFormCepat(hasilSuara.h);
+    hasilSuara = null;
+    const tombol = document.querySelector('#form-trx [data-aksi="simpan-trx"], #sheet [data-aksi="simpan-trx"]');
+    if (tombol) AKSI['simpan-trx'](tombol);
+  },
+  'ringkas-koreksi': () => {
+    tutupRingkasanSuara();
+    if (!hasilSuara || !F) return;
+    $('#f-cepat') && ($('#f-cepat').value = hasilSuara.teks);
+    isiFormCepat(hasilSuara.h);
+    hasilSuara = null;
+  },
+  'ringkas-ulang': () => {
+    tutupRingkasanSuara();
+    hasilSuara = null;
+    const t = document.querySelector('.tombol-suara');
+    if (t) AKSI.suara(t);
+  },
+});
+
 AKSI.suara = el => {
   if (suaraAktif) { suaraAktif.stop(); return; }
   const r = new PengenalSuara();
@@ -4808,8 +4934,9 @@ AKSI.suara = el => {
     const teks = Array.from(ev.results).map(x => x[0].transcript).join(' ').trim();
     if (input) input.value = teks;
     panelSuara('bicara', teks ? '“' + teks + '”' : '');
-    if (ev.results[ev.results.length - 1].isFinal && input && teks) {
-      input.dispatchEvent(new Event('change', { bubbles: true })); // dibaca seperti ketik cepat
+    if (ev.results[ev.results.length - 1].isFinal && teks) {
+      try { r.stop(); } catch (e) { /* sudah berhenti */ }
+      tampilRingkasanSuara(teks);
     }
   };
   r.onerror = ev => {
