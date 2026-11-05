@@ -107,6 +107,7 @@ const GOOGLE = (() => {
    * fetch ke API Google dengan token. Opsi tambahan:
    *   json: objek yang dikirim sebagai body JSON
    *   teks: true untuk mengembalikan teks, bukan JSON
+   *   blob: true untuk mengembalikan isi file (Blob), mis. foto lampiran
    */
   async function api(url, opsi = {}) {
     if (!sudahMasuk()) throw new PerluMasuk('Sesi login sudah habis. Silakan masuk lagi.');
@@ -139,6 +140,7 @@ const GOOGLE = (() => {
       throw err;
     }
     if (opsi.teks) return res.text();
+    if (opsi.blob) return res.blob();
     return res.status === 204 ? null : res.json();
   }
 

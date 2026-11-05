@@ -863,14 +863,18 @@ const SERVER = (() => {
       ];
       if (lampiran || input.hapusLampiran) data.push({ range: "'" + tbl.nama + "'!L" + baris, values: [[lampiran || '']] });
       await GOOGLE.api(SHEETS + '/' + id + '/values:batchUpdate', { method: 'POST', json: { valueInputOption: 'RAW', data } });
-      if (lampiranLama && lampiranLama !== lampiran) await buangLampiran_(lampiranLama); // foto lama diganti/dihapus
       const beda = [];
       if (Number(lama[3]) !== t.jumlah) beda.push(rpLog_(lama[3]) + ' → ' + rpLog_(t.jumlah));
       if (String(lama[4]) !== t.kategori && t.kategori) beda.push('kategori ' + lama[4] + ' → ' + t.kategori);
       if (String(lama[5]) !== t.dompet) beda.push('dompet ' + lama[5] + ' → ' + t.dompet);
       if (Number(lama[1]) !== t.tanggal) beda.push('tanggal ' + dariSerial_(lama[1]).slice(0, 10) + ' → ' + dariSerial_(t.tanggal).slice(0, 10));
       if (String(lama[7] || '') !== t.catatan) beda.push('catatan diubah');
-      if (beda.length) await catatLog_(id, 'ubah', (t.kategori || t.tipe) + ' ' + rpLog_(t.jumlah) + ': ' + beda.join(', '));
+      // Pekerjaan sampingan dijalankan bersamaan supaya simpan tidak menunggu satu per satu.
+      await Promise.all([
+        lampiran ? bagikanStruk_(lampiran) : null,
+        lampiranLama && lampiranLama !== lampiran ? buangLampiran_(lampiranLama) : null, // foto lama diganti/dihapus
+        beda.length ? catatLog_(id, 'ubah', (t.kategori || t.tipe) + ' ' + rpLog_(t.jumlah) + ': ' + beda.join(', ')) : null,
+      ]);
     } else {
       t.id = teks_(input.idBaru) || crypto.randomUUID();
       if (input.idBaru && (await daftarId_(id)).includes(t.id)) return t.id;
@@ -878,6 +882,7 @@ const SERVER = (() => {
       await tambahBaris_(id, tbl, [[
         t.id, t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, GOOGLE.email(), sekarang, sekarang, lampiran,
       ]]);
+      if (lampiran) await bagikanStruk_(lampiran);
       if (input.dariRutin) await majukanRutin(input.dariRutin);
       if (ULANG.includes(input.ulang)) {
         const tgl = String(input.tanggal);
@@ -1004,28 +1009,36 @@ const SERVER = (() => {
     return (idFolderStruk = f.id);
   }
 
-  /**
-   * Mengunggah foto (base64 JPEG) ke folder struk, lalu membagikannya (hanya lihat, tanpa email) ke semua akun
-   * yang punya akses ke spreadsheet keluarga, supaya anggota lain bisa membukanya. Hasil: ID file Drive.
-   */
+  /** Mengunggah foto (base64 JPEG) ke folder struk. Hasil: ID file Drive. Dibagikan terpisah lewat bagikanStruk_. */
   async function unggahStruk_(base64, tanggal) {
     const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
     const blob = new Blob([bytes], { type: 'image/jpeg' });
     const meta = { name: 'Struk ' + teks_(tanggal) + '.jpg', mimeType: 'image/jpeg', parents: [await folderStruk_()] };
     const f = await GOOGLE.api(UPLOAD + '/files?uploadType=multipart&fields=id', Object.assign({ method: 'POST' }, GOOGLE.multipart(meta, blob)));
+    return f.id;
+  }
+
+  /**
+   * Membagikan foto (hanya lihat, tanpa email) ke semua akun yang punya akses ke spreadsheet keluarga,
+   * supaya anggota lain bisa membukanya. Semua anggota dikirim bersamaan. Gagal tidak menggagalkan simpan.
+   */
+  async function bagikanStruk_(idFile) {
     try {
       const izin = await GOOGLE.api(DRIVE + '/files/' + dbId + '/permissions?fields=permissions(type,emailAddress)');
       const saya = String(GOOGLE.email()).toLowerCase();
-      for (const p of izin.permissions || []) {
-        if (p.type !== 'user' || !p.emailAddress || p.emailAddress.toLowerCase() === saya) continue;
-        await GOOGLE.api(DRIVE + '/files/' + f.id + '/permissions?sendNotificationEmail=false', {
+      await Promise.all((izin.permissions || [])
+        .filter(p => p.type === 'user' && p.emailAddress && p.emailAddress.toLowerCase() !== saya)
+        .map(p => GOOGLE.api(DRIVE + '/files/' + idFile + '/permissions?sendNotificationEmail=false', {
           method: 'POST', json: { type: 'user', role: 'reader', emailAddress: p.emailAddress },
-        });
-      }
+        }).catch(e => console.warn('Foto struk tidak bisa dibagikan ke ' + p.emailAddress + ':', e))));
     } catch (e) {
       console.warn('Foto struk tidak bisa dibagikan ke anggota lain:', e); // fotonya tetap tersimpan untuk pengunggah
     }
-    return f.id;
+  }
+
+  /** Isi foto lampiran (Blob) langsung lewat API Drive, supaya bisa dilihat di aplikasi tanpa membuka drive.google.com. */
+  async function ambilLampiran(idFile) {
+    return GOOGLE.api(DRIVE + '/files/' + encodeURIComponent(teks_(idFile)) + '?alt=media', { blob: true });
   }
 
   /** Mengembalikan isi baris yang dihapus, untuk "Urungkan" (kembalikanTransaksi). Fotonya ikut ke Sampah Drive. */
@@ -1652,7 +1665,7 @@ const SERVER = (() => {
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
-    tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, buatKodeTelegram, putuskanTelegram,
+    tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
   };
 })();

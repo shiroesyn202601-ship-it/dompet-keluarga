@@ -2417,9 +2417,10 @@ function bagianLampiran() {
       <button type="button" class="tombol-ikon" data-aksi="lampiran-hapus" aria-label="Buang foto">✕</button></div>`;
   }
   if (F.lampiran) {
-    return `<div class="lampiran"><span class="ikon-bulat">🧾</span>
-      <span class="isi"><b><a href="https://drive.google.com/file/d/${esc(F.lampiran)}/view" target="_blank" rel="noopener">📎 Lihat foto struk</a></b>
-        <small>Tersimpan di Google Drive</small></span>
+    const foto = fotoLampiranHp(F.lampiran, F.id);
+    return `<div class="lampiran"><button type="button" class="lampiran-buka" data-aksi="lihat-lampiran" aria-label="Lihat foto struk">
+        ${foto ? `<img src="${foto}" alt="">` : '<span class="ikon-bulat">🧾</span>'}
+        <span class="isi"><b>📎 Lihat foto struk</b><small>Tersimpan di Google Drive</small></span></button>
       <button type="button" class="tombol-ikon" data-aksi="lampiran-hapus" aria-label="Lepas lampiran">✕</button></div>`;
   }
   return '<button type="button" class="tombol-teks" style="display:block;margin:-4px 0 8px;padding-left:0" data-aksi="lampiran-pilih">📎 Lampirkan foto struk / bukti transfer</button>';
@@ -3211,12 +3212,13 @@ let sumberStruk = 'cepat'; // 'form' kalau foto dipilih dari dalam form transaks
  * struk panjang (1:4) atau screenshot panjang ikut menyempit sampai angkanya tidak terbaca.
  */
 const PIKSEL_BACA = 5e6;   // untuk dibaca AI/OCR: cukup tajam untuk angka kecil di struk
-const PIKSEL_ARSIP = 2e6;  // lampiran yang disimpan ke Drive: cukup untuk dilihat, hemat penyimpanan
+const PIKSEL_ARSIP = 2e6;  // dikirim ke AI: cukup tajam, unggahan tetap kecil
+const PIKSEL_LAMPIRAN = 1.2e6; // disimpan ke Drive sebagai lampiran: cukup untuk dilihat, cepat diunggah (±150–300 KB)
 const SISI_MAKS = 4096;
 
 /**
- * Menyiapkan foto. Hasil: { base64 (untuk dibaca), arsip (untuk lampiran), thumb (data URL kecil) };
- * base64/arsip berupa JPEG tanpa awalan data URL.
+ * Menyiapkan foto. Hasil: { base64 (untuk OCR), arsip (untuk AI), lampiran (disimpan ke Drive), thumb (data URL kecil) };
+ * base64/arsip/lampiran berupa JPEG tanpa awalan data URL.
  */
 function kecilkanGambar(file) {
   return new Promise((ok, gagal) => {
@@ -3242,6 +3244,7 @@ function kecilkanGambar(file) {
       ok({
         base64: jpeg(skalaPiksel(PIKSEL_BACA), 0.88).split(',')[1],
         arsip: jpeg(skalaPiksel(PIKSEL_ARSIP), 0.8).split(',')[1],
+        lampiran: jpeg(skalaPiksel(PIKSEL_LAMPIRAN), 0.72).split(',')[1],
         thumb: jpeg(Math.min(1, 120 / Math.max(w, h)), 0.7),
       });
     };
@@ -3274,7 +3277,7 @@ async function jalankanStruk(job) {
     tulisTahap(job, 'Menyiapkan foto…');
     const g = await kecilkanGambar(job.file);
     job.thumb = g.thumb;
-    job.base64 = g.arsip; // versi lebih kecil yang disimpan sebagai lampiran transaksi
+    job.base64 = g.lampiran; // versi kecil yang disimpan sebagai lampiran transaksi
     renderAntrian();
     // AI cukup versi ~2 MP (sama dengan lampiran) supaya unggahan dari HP kecil; OCR Drive tetap memakai versi tajam.
     job.hasil = await api('bacaStruk', g.base64, 'image/jpeg', { base64Ai: g.arsip, kabar: t => tulisTahap(job, t) });
@@ -3336,7 +3339,8 @@ function simpanDiLatar(t, pesan) {
   toast('⏳ Menyimpan di latar belakang. Silakan lanjut pakai aplikasi.');
   (async () => {
     try {
-      await api('simpanTransaksi', t);
+      const idTrx = await api('simpanTransaksi', t);
+      FOTO_TRX[idTrx || t.id] = 'data:image/jpeg;base64,' + t.lampiranData;
       hapusJob(job.id);
       toast(pesan);
       await muat();
@@ -4128,7 +4132,7 @@ const AKSI = {
       try {
         const g = await kecilkanGambar(file);
         bacaFieldTrx();
-        F.lampiranData = g.arsip;
+        F.lampiranData = g.lampiran;
         F.lampiranThumb = g.thumb;
         renderFormTrx();
       } catch (e) {
@@ -6297,6 +6301,38 @@ function lihatFoto(src) {
   setTimeout(() => el.querySelector('.tutup-foto').focus(), 50);
 }
 
+/** Foto lampiran yang sudah pernah dibuka / baru disimpan dari HP ini (data URL / object URL), supaya langsung tampil. */
+const FOTO_TRX = {};   // ID transaksi → foto (yang baru disimpan dari HP ini)
+const FOTO_DRIVE = {}; // ID file Drive → object URL (sudah pernah diunduh)
+function fotoLampiranHp(idFile, idTrx) {
+  return FOTO_DRIVE[idFile] || (idTrx && FOTO_TRX[idTrx]) || '';
+}
+
+/**
+ * Membuka foto lampiran di aplikasi: diunduh lewat API Drive dengan login aplikasi (tanpa ditanya akun Google lagi).
+ * Kalau gagal (mis. foto milik anggota lain yang belum bisa dibaca aplikasi), baru dibuka di Google Drive.
+ */
+async function lihatLampiranDrive(idFile, idTrx) {
+  const ada = fotoLampiranHp(idFile, idTrx);
+  if (ada) return lihatFoto(ada);
+  lihatFoto('');
+  const el = $('#lihat-foto');
+  el.insertAdjacentHTML('afterbegin', '<p class="muat-foto">Memuat foto…</p>');
+  el.querySelector('img').remove();
+  try {
+    const blob = await api('ambilLampiran', idFile);
+    FOTO_DRIVE[idFile] = URL.createObjectURL(blob);
+    if (el.hidden) return; // sudah ditutup pengguna
+    lihatFoto(FOTO_DRIVE[idFile]);
+    if ($('#form-trx') && F && F.lampiran === idFile) renderFormTrx(); // tampilkan foto kecilnya di form
+  } catch (e) {
+    if (el.hidden) return;
+    tutupFoto();
+    if (e.jaringan) return toast('Butuh internet untuk membuka foto struk.', true);
+    window.open('https://drive.google.com/file/d/' + encodeURIComponent(idFile) + '/view', '_blank', 'noopener');
+  }
+}
+
 function tutupFoto() {
   const el = $('#lihat-foto');
   if (!el || el.hidden) return false;
@@ -6308,6 +6344,7 @@ function tutupFoto() {
 Object.assign(AKSI, {
   'lihat-lampiran': () => {
     if (F && F.lampiranData) lihatFoto('data:image/jpeg;base64,' + F.lampiranData);
+    else if (F && F.lampiran) lihatLampiranDrive(F.lampiran, F.id);
     else if (F && F.lampiranThumb) lihatFoto(F.lampiranThumb);
   },
   'tutup-foto': () => tutupFoto(),
