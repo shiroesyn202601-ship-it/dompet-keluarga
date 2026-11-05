@@ -403,6 +403,7 @@ function render() {
   $('#view').innerHTML = bannerStatus() + view();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
   simpanPosisi();
+  if (S.tab !== 'laporan') kunciAnimasiGrafik = ''; // kembali ke Laporan nanti: animasi diputar lagi
   pasangGeserGrafik();
   if (luncurTertunda) setTimeout(jalankanLuncur); // pintasan ikon / berbagi: tunggu data pertama tampil
 }
@@ -1013,15 +1014,22 @@ const TEMPLAT_BUKU = ['Pribadi', 'Usaha', 'Orang Tua', 'Arisan', 'Kos / Kontraka
 function bukaDaftarBuku() {
   const daftar = S.data.buku || [];
   bukaSheet('Buku Keuangan', `
+    ${tombolCekUndangan()}
     <p class="info-kecil" style="text-align:left;margin:0 0 8px">Tiap buku punya dompet, kategori, dan catatan sendiri (spreadsheet terpisah),
       dan bisa dibagikan ke orang yang berbeda. Mis. Keluarga dengan pasangan, Usaha dengan rekan.</p>
     ${daftar.map(b => `
-      <div class="baris">
-        <button type="button" class="isi tombol-buku" data-aksi="pindah-buku" data-id="${esc(b.id)}" ${b.aktif ? 'disabled' : ''}>
-          <span class="ikon-bulat">📒</span>
-          <span><b>${esc(b.nama)}</b><small>${b.aktif ? '✅ Sedang dibuka' : 'Ketuk untuk membuka'}</small></span>
+      <div class="kartu-buku ${b.aktif ? 'aktif' : ''}">
+        <div class="baris">
+          <button type="button" class="isi tombol-buku" data-aksi="pindah-buku" data-id="${esc(b.id)}" ${b.aktif ? 'disabled' : ''}>
+            <span class="ikon-bulat">${/(^| - )deleted$/i.test(b.nama) ? '🗑️' : '📒'}</span>
+            <span><b>${esc(b.nama)}</b><small>${b.aktif ? '✅ Sedang dibuka' : /(^| - )deleted$/i.test(b.nama) ? 'Sudah dihapus pemiliknya' : 'Ketuk untuk membuka'}</small></span>
+          </button>
+          <span class="slot-hapus" data-buku-hapus="${esc(b.id)}"></span>
+        </div>
+        <button type="button" class="anggota-buku" data-aksi="anggota-buku" data-id="${esc(b.id)}">
+          <span class="ringkas-anggota" data-buku-anggota="${esc(b.id)}">👥 Memuat siapa saja yang bisa mencatat…</span>
+          <span class="undang-buku">＋ Undang</span>
         </button>
-        ${b.aktif ? '' : `<button type="button" class="tombol-ikon" data-aksi="lupakan-buku" data-id="${esc(b.id)}" aria-label="Hapus ${esc(b.nama)} dari daftar">✕</button>`}
       </div>`).join('')}
     <div class="grup-form" style="margin-top:16px">
       <label class="label" for="b-nama">Buku baru</label>
@@ -1031,8 +1039,62 @@ function bukaDaftarBuku() {
         <button type="button" class="btn btn-utama" style="flex:none" data-aksi="buat-buku">Buat</button>
       </div>
     </div>
-    <button type="button" class="tombol-teks" data-aksi="pilih-db">Diundang ke buku orang lain? Pilih dari Google Drive</button>
-    <p class="info-kecil" style="text-align:left">✕ hanya menghapus dari daftar di sini; spreadsheet-nya tetap ada di Google Drive.</p>`);
+    <p class="info-kecil" style="text-align:left">🗑️ Hapus buku hanya bisa oleh pemiliknya: buku hilang dari daftar, dan spreadsheet-nya di Google Drive
+      diberi nama "… - deleted" (datanya tidak hilang). ✕ pada buku milik orang lain hanya menghapusnya dari daftar Anda.
+      Buku yang sedang dibuka tidak bisa dihapus, pindah ke buku lain dulu.</p>`);
+  muatRingkasAnggota(daftar);
+}
+
+/** Kartu "Cek undangan": membuka daftar spreadsheet yang dibagikan orang lain ke akun ini. */
+function tombolCekUndangan() {
+  return `<button type="button" class="kartu-undangan" data-aksi="cek-undangan">
+      <span class="ikon-bulat">📩</span>
+      <span class="isi"><b>Diundang ke buku orang lain?</b><small>Cek undangan, lalu pilih satu atau beberapa buku</small></span>
+      <span class="panah">›</span>
+    </button>`;
+}
+
+/**
+ * Ringkasan anggota tiap buku ("👑 Anda · Rina, Budi"), dimuat bersamaan setelah lembar terbuka.
+ * Sekalian menentukan tombol di kanan: 🗑️ Hapus buku (pemilik) atau ✕ Keluarkan dari daftar (bukan pemilik).
+ */
+function muatRingkasAnggota(daftar) {
+  const saya = String(GOOGLE.email() || '').toLowerCase();
+  daftar.forEach(async b => {
+    const el = () => document.querySelector(`[data-buku-anggota="${CSS.escape(b.id)}"]`);
+    const slot = () => document.querySelector(`[data-buku-hapus="${CSS.escape(b.id)}"]`);
+    let teks, milikSaya = null;
+    try {
+      const anggota = await api('daftarAnggota', b.aktif ? '' : b.id);
+      const nama = a => (a.email.toLowerCase() === saya ? 'Anda' : (a.nama || a.email).split(/[ @]/)[0]);
+      const pemilik = anggota.find(a => a.peran === 'owner');
+      milikSaya = !!pemilik && pemilik.email.toLowerCase() === saya;
+      const lain = anggota.filter(a => a !== pemilik).map(nama);
+      teks = (pemilik ? '👑 ' + nama(pemilik) : '👥') + (lain.length ? ' · ' + lain.join(', ') : '')
+        + (anggota.length > 1 ? ` (${anggota.length} orang)` : ' · belum dibagikan');
+    } catch (e) {
+      if (e instanceof GOOGLE.PerluMasuk) return;
+      teks = '👥 Daftar anggota tidak bisa dimuat';
+    }
+    if (el()) el().textContent = teks;
+    if (!slot() || b.aktif) return;
+    slot().innerHTML = milikSaya
+      ? `<button type="button" class="tombol-ikon" data-aksi="hapus-buku" data-id="${esc(b.id)}" aria-label="Hapus buku ${esc(b.nama)}">🗑️</button>`
+      : `<button type="button" class="tombol-ikon" data-aksi="lupakan-buku" data-id="${esc(b.id)}" aria-label="Hapus ${esc(b.nama)} dari daftar Anda">✕</button>`;
+  });
+}
+
+/** Setelah "Cek undangan" menambah beberapa buku sekaligus: pilih mana yang dibuka dulu. */
+function bukaPilihBukuUndangan(buku) {
+  bukaSheet('Buka buku yang mana?', `
+    <p class="info-kecil" style="text-align:left;margin:0 0 8px">${buku.length} buku sudah masuk ke daftar Anda.
+      Pilih yang mau dibuka sekarang; yang lain bisa dibuka kapan saja dari Lainnya → Buku Keuangan.</p>
+    ${buku.map(b => `
+      <button type="button" class="baris" data-aksi="buka-undangan" data-id="${esc(b.id)}" data-nama="${esc(b.nama)}">
+        <span class="ikon-bulat">📒</span>
+        <span class="isi"><b>${esc(b.nama)}</b><small>Ketuk untuk membuka</small></span>
+        <span class="panah">›</span>
+      </button>`).join('')}`);
 }
 
 /** Setelah pindah/buat buku: semua yang terkait buku lama dibuang, lalu muat ulang. */
@@ -1366,8 +1428,8 @@ function grafikBulanan(bulan, data, pilih) {
     const aktif = k === pilih;
     return `
       ${aktif ? `<rect class="pilih" x="${x0 + 1}" y="${atas}" width="${lebarGrup - 2}" height="${tinggi}" rx="6"/>` : ''}
-      ${batang(cx - 1 - bw, y(d.masuk), bw, dasar, 'seri-1')}
-      ${batang(cx + 1, y(d.keluar), bw, dasar, 'seri-2')}
+      ${batang(cx - 1 - bw, y(d.masuk), bw, dasar, 'seri-1', i * 35)}
+      ${batang(cx + 1, y(d.keluar), bw, dasar, 'seri-2', i * 35 + 20)}
       <text class="sumbu ${aktif ? 'aktif' : ''}" x="${cx}" y="${H - 6}" text-anchor="middle">${NAMA_BULAN_PENDEK[i]}</text>
       <rect class="hit" x="${x0}" y="0" width="${lebarGrup}" height="${H}" data-aksi="lap-bulan" data-bulan="${k}">
         <title>${namaBulan(k)}: pemasukan ${rp(d.masuk)}, pengeluaran ${rp(d.keluar)}</title></rect>`;
@@ -1387,9 +1449,16 @@ function grafikGaris(bulan, data, pilih) {
   const cx = i => kiri + i * lebarGrup + lebarGrup / 2;
   // Bulan setelah bulan ini (tahun berjalan) belum terjadi: garis berhenti di bulan terakhir yang ada datanya.
   const akhir = data.reduce((a, d, i) => (d.masuk || d.keluar ? i : a), -1);
-  const garis = (f, kelas) => akhir < 0 ? '' : `
-    <polyline class="garis ${kelas}" points="${data.slice(0, akhir + 1).map((d, i) => cx(i) + ',' + y(d[f])).join(' ')}"/>
-    ${data.slice(0, akhir + 1).map((d, i) => `<circle class="titik ${kelas}" cx="${cx(i)}" cy="${y(d[f])}" r="${bulan[i] === pilih ? 4.5 : 2.8}"/>`).join('')}`;
+  const garis = (f, kelas) => {
+    if (akhir < 0) return '';
+    const titik = data.slice(0, akhir + 1).map((d, i) => [cx(i), y(d[f])]);
+    const jalur = jalurHalus(titik);
+    const area = titik.length > 1 ? `${jalur} L${titik[titik.length - 1][0]},${y(0)} L${titik[0][0]},${y(0)} Z` : '';
+    return `
+      ${area ? `<path class="area ${kelas}" d="${area}"/>` : ''}
+      <path class="garis ${kelas}" d="${jalur}" pathLength="1"/>
+      ${titik.map(([x, yy], i) => `<circle class="titik ${kelas}" cx="${x}" cy="${yy}" r="${bulan[i] === pilih ? 4.5 : 2.8}" style="animation-delay:${(0.35 + i * 0.05).toFixed(2)}s"/>`).join('')}`;
+  };
 
   const grid = [skala / 2, skala].map(v => `
     <line class="grid" x1="${kiri}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/>
@@ -1401,6 +1470,31 @@ function grafikGaris(bulan, data, pilih) {
   return `<svg class="grafik" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tren pemasukan dan pengeluaran per bulan">
     ${grid}${label}<line class="dasar" x1="${kiri}" x2="${W}" y1="${y(0)}" y2="${y(0)}"/>
     ${garis('masuk', 'seri-1')}${garis('keluar', 'seri-2')}${areaKetuk(bulan, data, kiri, lebarGrup, H)}</svg>`;
+}
+
+/**
+ * Kurva halus melewati semua titik (spline kubik monoton, Fritsch–Carlson): melengkung tanpa "melampaui"
+ * nilai aslinya, jadi tidak pernah tergambar di bawah nol atau di atas nilai tertinggi.
+ */
+function jalurHalus(t) {
+  const f = v => Math.round(v * 10) / 10;
+  if (t.length < 3) return t.map(([x, y], i) => (i ? 'L' : 'M') + f(x) + ',' + f(y)).join(' ');
+  const n = t.length, dx = [], s = [], m = [];
+  for (let i = 0; i < n - 1; i++) { dx[i] = t[i + 1][0] - t[i][0]; s[i] = (t[i + 1][1] - t[i][1]) / dx[i]; }
+  m[0] = s[0];
+  m[n - 1] = s[n - 2];
+  for (let i = 1; i < n - 1; i++) m[i] = s[i - 1] * s[i] <= 0 ? 0 : (s[i - 1] + s[i]) / 2;
+  for (let i = 0; i < n - 1; i++) {
+    if (s[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+    const a = m[i] / s[i], b = m[i + 1] / s[i], h = a * a + b * b;
+    if (h > 9) { const k = 3 / Math.sqrt(h); m[i] = k * a * s[i]; m[i + 1] = k * b * s[i]; }
+  }
+  let d = 'M' + f(t[0][0]) + ',' + f(t[0][1]);
+  for (let i = 0; i < n - 1; i++) {
+    const h = dx[i] / 3;
+    d += ` C${f(t[i][0] + h)},${f(t[i][1] + m[i] * h)} ${f(t[i + 1][0] - h)},${f(t[i + 1][1] - m[i + 1] * h)} ${f(t[i + 1][0])},${f(t[i + 1][1])}`;
+  }
+  return d;
 }
 
 /** Selisih (pemasukan − pengeluaran) per bulan: batang ke atas = surplus, ke bawah = defisit. */
@@ -1426,7 +1520,7 @@ function grafikSelisih(bulan, data, pilih) {
     const h = Math.abs(y(v) - nol);
     return `
       ${k === pilih ? `<rect class="pilih" x="${x0 + 1}" y="${atas}" width="${lebarGrup - 2}" height="${tinggi}" rx="6"/>` : ''}
-      ${h >= 0.5 ? `<rect class="${v >= 0 ? 'surplus' : 'defisit'}" x="${cx - bw / 2}" y="${Math.min(y(v), nol)}" width="${bw}" height="${h}" rx="${Math.min(4, h / 2, bw / 2)}"/>` : ''}
+      ${h >= 0.5 ? `<rect class="${v >= 0 ? 'surplus' : 'defisit'} tumbuh" style="animation-delay:${i * 35}ms" x="${cx - bw / 2}" y="${Math.min(y(v), nol)}" width="${bw}" height="${h}" rx="${Math.min(5, h / 2, bw / 2)}"/>` : ''}
       <text class="sumbu ${k === pilih ? 'aktif' : ''}" x="${cx}" y="${H - 6}" text-anchor="middle">${NAMA_BULAN_PENDEK[i]}</text>`;
   }).join('');
 
@@ -1447,10 +1541,15 @@ const JENIS_GRAFIK = [
   { judul: 'Selisih', legenda: '<span><i class="sw surplus"></i>Surplus</span><span><i class="sw defisit"></i>Defisit</span>', gambar: grafikSelisih },
 ];
 
+/** Grafik hanya beranimasi saat Laporan dibuka / tahun diganti, bukan setiap digambar ulang (mis. ketuk bulan). */
+let kunciAnimasiGrafik = '';
+
 function geserGrafik(bulan, data, pilih) {
   const aktif = S.grafikLaporan || 0;
+  const diam = kunciAnimasiGrafik === String(S.tahun);
+  kunciAnimasiGrafik = String(S.tahun);
   return `
-    <div class="geser-grafik" id="geser-grafik" aria-roledescription="carousel" aria-label="Grafik per bulan, geser untuk ganti jenis">
+    <div class="geser-grafik ${diam ? 'diam' : ''}" id="geser-grafik" aria-roledescription="carousel" aria-label="Grafik per bulan, geser untuk ganti jenis">
       ${JENIS_GRAFIK.map((j, i) => `
         <div class="slide-grafik" role="group" aria-label="${j.judul} (${i + 1} dari ${JENIS_GRAFIK.length})">
           <div class="legenda">${j.legenda}</div>
@@ -1483,12 +1582,12 @@ function pasangGeserGrafik() {
   }, { passive: true });
 }
 
-/** Batang vertikal dengan sudut atas membulat, menempel di garis dasar. */
-function batang(x, yAtas, w, yDasar, kelas) {
+/** Batang vertikal dengan sudut atas membulat, menempel di garis dasar; tumbuh dari bawah setelah `jeda` ms. */
+function batang(x, yAtas, w, yDasar, kelas, jeda = 0) {
   const h = yDasar - yAtas;
   if (h < 0.5) return '';
-  const r = Math.min(4, h, w / 2);
-  return `<path class="${kelas}" d="M${x},${yDasar} V${yAtas + r} Q${x},${yAtas} ${x + r},${yAtas} H${x + w - r} Q${x + w},${yAtas} ${x + w},${yAtas + r} V${yDasar} Z"/>`;
+  const r = Math.min(5, h, w / 2);
+  return `<path class="${kelas} tumbuh" style="animation-delay:${jeda}ms" d="M${x},${yDasar} V${yAtas + r} Q${x},${yAtas} ${x + r},${yAtas} H${x + w - r} Q${x + w},${yAtas} ${x + w},${yAtas + r} V${yDasar} Z"/>`;
 }
 
 /** Membulatkan ke atas ke angka "rapi" untuk batas sumbu: 1, 2, 2,5, 5 × 10^n. */
@@ -1568,7 +1667,8 @@ function viewSetup() {
   const dipilih = semua.filter(([n]) => st.pilih.includes(n));
   return `
     <div class="kepala"><div><small>Selamat datang,</small><h1>${esc(namaPendek(S.data.user))} 👋</h1></div></div>
-    <p class="setup-intro">Tiga langkah singkat, lalu langsung bisa mencatat.</p>
+    ${tombolCekUndangan()}
+    <p class="setup-intro">Atau buat buku sendiri: tiga langkah singkat, lalu langsung bisa mencatat.</p>
 
     <section class="kartu">
       <h3>1. Dompet apa saja yang dipakai?</h3>
@@ -1605,7 +1705,7 @@ function viewSetup() {
       <p class="info-kecil">Catatan disimpan di spreadsheet <b>Dompet Keluarga</b> yang dibuat di Google Drive ${esc(S.data.user)}.</p>
     </section>
 
-    <p class="info-kecil">Diundang keluarga, atau sudah punya spreadsheet Dompet Keluarga?</p>
+    <p class="info-kecil">Sudah punya spreadsheet Dompet Keluarga sendiri?</p>
     <div style="text-align:center"><button type="button" class="tombol-teks" data-aksi="pilih-db">Pilih dari Google Drive</button></div>
     <button type="button" class="tombol-tambah" data-aksi="keluar">Keluar dari ${esc(S.data.user)}</button>`;
 }
@@ -1742,44 +1842,69 @@ function kartuPasang() {
 // ---------- Anggota keluarga ----------
 
 /** Daftar akun yang punya akses ke buku ini (dimuat setelah lembar terbuka) + form undangan. */
-async function bukaAnggota() {
-  bukaSheet('Anggota Keluarga', `
-    <div id="daftar-anggota"><p class="info-kecil">Memuat anggota…</p></div>
+const linkUndanganBuku = id => location.origin + location.pathname + '#gabung=' + id;
+const PERAN_ANGGOTA = { owner: 'Pemilik', writer: 'Bisa mencatat', reader: 'Hanya lihat', commenter: 'Hanya lihat' };
+
+/**
+ * Anggota sebuah buku + form undangan. idBuku kosong = buku yang sedang dibuka; selain itu buku lain dari
+ * daftar Buku Keuangan (tidak perlu pindah buku dulu untuk mengundang).
+ */
+async function bukaAnggota(idBuku) {
+  const buku = idBuku ? (S.data.buku || []).find(b => b.id === idBuku) : null;
+  if (!buku || buku.aktif) return bukaAnggotaAktif();
+  bukaSheet('Anggota · ' + buku.nama, `
+    <div id="daftar-anggota" data-buku="${esc(buku.id)}"><p class="info-kecil">Memuat anggota…</p></div>
+    ${formUndangan(buku.id, buku.linkUndangan || linkUndanganBuku(buku.id))}`);
+  isiDaftarAnggota(buku.id);
+}
+
+function formUndangan(idBuku, link) {
+  return `
     <span class="label" style="margin-top:16px">Undang anggota baru</span>
     <div class="grup-form">
       <label class="label" for="u-email">Email Google</label>
-      <input class="field" id="u-email" type="email" inputmode="email" placeholder="nama@gmail.com">
-      <p class="info-kecil" style="text-align:left">Akun ini akan jadi Editor spreadsheet, dan Google mengirim email berisi link undangan.</p>
+      <input class="field" id="u-email" type="email" inputmode="email" autocomplete="email" placeholder="nama@gmail.com">
+      <p class="info-kecil" style="text-align:left">Akun ini akan bisa ikut mencatat (Editor spreadsheet), dan Google mengirim email berisi link undangan.</p>
     </div>
-    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="kirim-undangan">Undang</button></div>
     <div class="grup-form" style="margin-top:20px">
       <label class="label" for="u-link">Atau kirim link undangan ini (mis. lewat WhatsApp)</label>
       <div class="salin">
-        <input class="field" id="u-link" readonly value="${esc(S.data.linkUndangan)}">
+        <input class="field" id="u-link" readonly value="${esc(link)}">
         <button type="button" class="btn btn-hapus" data-aksi="salin-link">Salin</button>
       </div>
-      <p class="info-kecil" style="text-align:left">Link ini hanya bisa dipakai akun yang sudah diberi akses ke spreadsheet.</p>
-    </div>`);
+      <p class="info-kecil" style="text-align:left">Link ini hanya bisa dipakai akun yang sudah diundang lewat email di atas.</p>
+    </div>
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="kirim-undangan" data-buku="${esc(idBuku || '')}">Undang</button></div>`;
+}
+
+/** Mengisi #daftar-anggota (dimuat setelah lembar terbuka). */
+async function isiDaftarAnggota(idBuku) {
   const kotak = () => $('#daftar-anggota'); // null kalau lembar sudah ditutup
   let anggota;
   try {
-    anggota = await api('daftarAnggota');
+    anggota = await api('daftarAnggota', idBuku || '');
   } catch (e) {
     if (kotak()) kotak().innerHTML = `<p class="info-kecil">Daftar anggota tidak bisa dimuat: ${esc(pesanError(e))}</p>`;
     return;
   }
   if (!kotak()) return;
   const saya = String(GOOGLE.email() || '').toLowerCase();
-  const peran = { owner: 'Pemilik', writer: 'Bisa mencatat', reader: 'Hanya lihat', commenter: 'Hanya lihat' };
-  kotak().innerHTML = anggota.map(a => {
+  kotak().innerHTML = `<span class="label">Yang bisa membuka buku ini (${anggota.length})</span>` + anggota.map(a => {
     const sendiri = a.email.toLowerCase() === saya;
     return `
     <div class="baris">
       <span class="ikon-bulat">${a.peran === 'owner' ? '👑' : '👤'}</span>
-      <span class="isi"><b>${esc(a.nama || a.email)}${sendiri ? ' (Anda)' : ''}</b><small>${esc(a.email)} · ${esc(peran[a.peran] || a.peran)}</small></span>
-      ${sendiri || a.peran === 'owner' ? '' : `<button type="button" class="tombol-ikon" data-aksi="keluarkan-anggota" data-id="${esc(a.id)}" data-email="${esc(a.email)}" aria-label="Keluarkan ${esc(a.email)}">✕</button>`}
+      <span class="isi"><b>${esc(a.nama || a.email)}${sendiri ? ' (Anda)' : ''}</b><small>${esc(a.email)} · ${esc(PERAN_ANGGOTA[a.peran] || a.peran)}</small></span>
+      ${sendiri || a.peran === 'owner' ? '' : `<button type="button" class="tombol-ikon" data-aksi="keluarkan-anggota" data-id="${esc(a.id)}" data-email="${esc(a.email)}" data-buku="${esc(idBuku || '')}" aria-label="Keluarkan ${esc(a.email)}">✕</button>`}
     </div>`;
   }).join('');
+}
+
+async function bukaAnggotaAktif() {
+  bukaSheet('Anggota · ' + (S.data.namaBuku || 'Keluarga'), `
+    <div id="daftar-anggota"><p class="info-kecil">Memuat anggota…</p></div>
+    ${formUndangan('', S.data.linkUndangan)}`);
+  isiDaftarAnggota('');
 }
 
 // ---------- Unduh & cadangan ----------
@@ -3201,9 +3326,38 @@ const AKSI = {
   },
   'lupakan-buku': async el => {
     const b = (S.data.buku || []).find(x => x.id === el.dataset.id);
-    if (!await tanya('Hapus "' + (b ? b.nama : 'buku ini') + '" dari daftar? Spreadsheet-nya tetap ada di Google Drive.', 'Hapus dari daftar')) return;
+    if (!await tanya('Hapus "' + (b ? b.nama : 'buku ini') + '" dari daftar Anda? Buku ini milik orang lain, jadi isinya tidak berubah. Anda bisa menambahkannya lagi lewat "Cek undangan" selama masih diberi akses.', 'Hapus dari daftar')) return;
     if (await kirim(el, 'lupakanBuku', [el.dataset.id], 'Dihapus dari daftar')) bukaDaftarBuku();
   },
+  'hapus-buku': async el => {
+    const b = (S.data.buku || []).find(x => x.id === el.dataset.id);
+    const nama = b ? b.nama : 'buku ini';
+    if (!await tanya(`Hapus buku "${nama}"? Buku hilang dari daftar Anda, dan spreadsheet-nya di Google Drive diberi nama "… - deleted". Datanya tidak hilang dan masih bisa dipulihkan dari Drive. Anggota lain akan melihat buku ini sebagai "dihapus".`, 'Hapus buku')) return;
+    if (await kirim(el, 'hapusBuku', [el.dataset.id], 'Buku ' + nama + ' dihapus')) bukaDaftarBuku();
+  },
+  'cek-undangan': async el => {
+    el.disabled = true;
+    try {
+      const ids = await GOOGLE.pilihSpreadsheet('', { undangan: true, banyak: true });
+      if (!ids.length) return;
+      loading(true);
+      const hasil = await api('tambahBuku', ids);
+      loading(false);
+      const ok = hasil.filter(h => !h.pesan);
+      const lewat = hasil.filter(h => h.pesan);
+      if (lewat.length) toast((lewat.length > 1 ? lewat.length + ' file dilewati. ' : '') + lewat[0].pesan + '.', true);
+      if (ok.length === 1) await gantiBuku('hubungkanDatabase', [ok[0].id], 'Bergabung ke buku ' + ok[0].nama + ' ✔');
+      else if (ok.length > 1) bukaPilihBukuUndangan(ok);
+    } catch (e) {
+      // Sesi habis sebelum jendela Google terbuka (bukan lewat api): tampilkan kartu "Lanjutkan sebagai …".
+      if (e instanceof GOOGLE.PerluMasuk) perluMasukLagi();
+      else toast(pesanError(e), true);
+    } finally {
+      el.disabled = false;
+      loading(false);
+    }
+  },
+  'buka-undangan': el => gantiBuku('hubungkanDatabase', [el.dataset.id], 'Buku ' + el.dataset.nama + ' dibuka ✔'),
   'buka-zakat': () => bukaZakat(),
   'hitung-zakat': () => { tulisHp('dk_harga_emas', String(angka($('#z-emas').value) || '') || null); bukaZakat(); },
   'catat-zakat': el => {
@@ -3451,13 +3605,14 @@ const AKSI = {
   'tutup-tips': () => { tandaiTips('tutup'); render(); },
   'keluarkan-anggota': async el => {
     if (!await tanya(`Keluarkan ${el.dataset.email}? Akun ini tidak bisa lagi membuka buku ini, melihat foto struknya, atau mencatat lewat bot Telegram. Transaksi yang sudah dicatatnya tetap ada.`, 'Keluarkan')) return;
-    kirim(el, 'keluarkanAnggota', [el.dataset.id, el.dataset.email], 'Anggota dikeluarkan');
+    kirim(el, 'keluarkanAnggota', [el.dataset.id, el.dataset.email, el.dataset.buku || ''], 'Anggota dikeluarkan');
   },
   'kirim-undangan': el => {
     const email = $('#u-email').value.trim();
     if (!email) return toast('Isi emailnya dulu.', true);
-    kirim(el, 'bagikanKe', [email], 'Undangan terkirim ✔');
+    kirim(el, 'bagikanKe', [email, el.dataset.buku || ''], 'Undangan terkirim ✔ ' + email + ' akan menerima email dari Google.');
   },
+  'anggota-buku': el => bukaAnggota(el.dataset.id),
   'salin-link': async () => {
     const input = $('#u-link');
     try {
@@ -3489,7 +3644,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'cek-undangan',
 ]);
 
 /**

@@ -362,11 +362,22 @@ const SERVER = (() => {
     return true;
   }
 
-  /** Memberi akses Editor ke anggota keluarga, lalu Google mengirim email berisi link undangan. */
-  async function bagikanKe(email) {
+  /**
+   * Buku yang dikelola anggotanya: idBuku kosong = buku aktif; selain itu harus ada di daftar buku akun ini,
+   * supaya fungsi anggota tidak dipakai untuk file Drive lain.
+   */
+  async function idBuku_(idBuku) {
+    if (!idBuku) return db_();
+    const c = (await bacaConfig_()) || {};
+    if (!(c.buku || []).some(b => b.id === idBuku)) throw new Error('Buku ini tidak ada di daftar buku Anda.');
+    return idBuku;
+  }
+
+  /** Memberi akses Editor ke anggota keluarga, lalu Google mengirim email berisi link undangan. idBuku kosong = buku aktif. */
+  async function bagikanKe(email, idBuku) {
     email = teks_(email);
     if (!POLA_EMAIL.test(email)) throw new Error('Format email tidak valid.');
-    await bagikan_(await db_(), email);
+    await bagikan_(await idBuku_(idBuku), email);
     return true;
   }
 
@@ -386,8 +397,8 @@ const SERVER = (() => {
   }
 
   /** Akun yang punya akses ke spreadsheet buku ini: [{ id (ID izin Drive), email, nama, peran: owner|writer|reader }]. */
-  async function daftarAnggota() {
-    const r = await GOOGLE.api(DRIVE + '/files/' + (await db_()) + '/permissions?fields=permissions(id,type,role,emailAddress,displayName)');
+  async function daftarAnggota(idBuku) {
+    const r = await GOOGLE.api(DRIVE + '/files/' + (await idBuku_(idBuku)) + '/permissions?fields=permissions(id,type,role,emailAddress,displayName)');
     return (r.permissions || []).filter(p => p.type === 'user')
       .map(p => ({ id: p.id, email: p.emailAddress || '', nama: p.displayName || '', peran: p.role }));
   }
@@ -396,8 +407,8 @@ const SERVER = (() => {
    * Mencabut akses satu anggota: spreadsheet, foto struk buku ini yang diunggah akun ini, dan akun Telegram-nya
    * (bot berjalan sebagai pemilik, jadi tanpa ini anggota yang dikeluarkan masih bisa mencatat lewat bot).
    */
-  async function keluarkanAnggota(idIzin, email) {
-    const id = await db_();
+  async function keluarkanAnggota(idIzin, email, idBuku) {
+    const id = await idBuku_(idBuku);
     email = teks_(email).toLowerCase();
     if (email && email === String(GOOGLE.email() || '').toLowerCase()) throw new Error('Tidak bisa mengeluarkan akun sendiri.');
     try {
@@ -735,7 +746,7 @@ const SERVER = (() => {
       c.buku = daftarBukuDengan_(c, id);
       try { await tulisConfig_(c); } catch (e) { console.warn('Daftar buku tidak tersimpan:', e); }
     }
-    return (c.buku || []).map(b => ({ id: b.id, nama: b.nama, aktif: b.id === id }));
+    return (c.buku || []).map(b => ({ id: b.id, nama: b.nama, aktif: b.id === id, linkUndangan: linkUndangan_(b.id) }));
   }
 
   /** Buku baru (spreadsheet baru) dengan satu dompet Tunai, langsung jadi buku aktif. */
@@ -753,6 +764,51 @@ const SERVER = (() => {
     c.buku = (c.buku || []).filter(b => b.id !== id);
     await tulisConfig_(c);
     return true;
+  }
+
+  /** Akhiran nama file spreadsheet buku yang sudah dihapus pemiliknya. */
+  const AKHIRAN_DIHAPUS = ' - deleted';
+  const sudahDihapus_ = judul => /\s-\s*deleted$/i.test(teks_(judul));
+
+  /**
+   * Hanya pemilik: buku dilepas dari daftar, dan file spreadsheet di Google Drive TIDAK dihapus, hanya diberi
+   * akhiran " - deleted" (data tetap bisa dipulihkan dari Drive).
+   */
+  async function hapusBuku(id) {
+    if (id === dbId) throw new Error('Buku yang sedang dibuka tidak bisa dihapus. Pindah ke buku lain dulu.');
+    await idBuku_(id);
+    const f = await GOOGLE.api(DRIVE + '/files/' + encodeURIComponent(id) + '?fields=name,ownedByMe');
+    if (!f.ownedByMe) throw new Error('Hanya pemilik buku yang bisa menghapusnya.');
+    if (!sudahDihapus_(f.name)) {
+      await GOOGLE.api(DRIVE + '/files/' + encodeURIComponent(id) + '?fields=id', { method: 'PATCH', json: { name: f.name + AKHIRAN_DIHAPUS } });
+    }
+    return lupakanBuku(id);
+  }
+
+  /**
+   * "Cek undangan": buku yang dipilih lewat Google Picker dimasukkan ke daftar buku akun ini, tanpa dibuka.
+   * Hasil per file: { id, nama } kalau berhasil, atau { id, pesan } kalau dilewati.
+   */
+  async function tambahBuku(ids) {
+    const c = (await bacaConfig_()) || {};
+    c.buku = c.buku || [];
+    const hasil = [];
+    for (const id of [].concat(ids || []).slice(0, 10)) {
+      try {
+        const r = await GOOGLE.api(SHEETS + '/' + encodeURIComponent(id) + '?fields=properties.title,sheets.properties.title');
+        const judul = (r.properties && r.properties.title) || '';
+        const ada = new Set((r.sheets || []).map(s => s.properties.title));
+        if (!['transaksi', 'kategori', 'dompet'].every(k => ada.has(TABEL[k].nama))) throw new Error('"' + judul + '" bukan buku Dompet Keluarga');
+        if (sudahDihapus_(judul)) throw new Error('"' + judul + '" sudah dihapus pemiliknya');
+        const nama = namaBuku_(judul);
+        if (!c.buku.some(b => b.id === id)) c.buku.push({ id, nama });
+        hasil.push({ id, nama });
+      } catch (e) {
+        hasil.push({ id, pesan: e.message });
+      }
+    }
+    if (hasil.some(h => !h.pesan)) await tulisConfig_(c);
+    return hasil;
   }
 
   // ---------- Lampiran foto struk (Google Drive) ----------
@@ -1341,7 +1397,7 @@ const SERVER = (() => {
   }
 
   return {
-    getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku,
+    getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,

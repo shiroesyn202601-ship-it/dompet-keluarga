@@ -195,26 +195,36 @@ const GOOGLE = (() => {
 
   /**
    * Pengguna memilih spreadsheet lewat Google Picker; sejak itu aplikasi boleh membukanya (scope drive.file).
-   * idFile: tampilkan hanya file itu (link undangan / izin ulang). Hasil: ID file, atau null kalau dibatalkan.
+   * idFile: tampilkan hanya file itu (link undangan / izin ulang).
+   * opsi.undangan: hanya spreadsheet yang dibagikan orang lain ke akun ini ("Cek undangan").
+   * opsi.banyak: boleh memilih beberapa sekaligus → hasilnya array ID (kosong kalau dibatalkan).
+   * Tanpa opsi.banyak: ID file, atau null kalau dibatalkan.
    */
-  async function pilihSpreadsheet(idFile) {
+  async function pilihSpreadsheet(idFile, opsi = {}) {
     if (!sudahMasuk()) throw new PerluMasuk('Sesi login sudah habis. Silakan masuk lagi.');
     await muatPicker();
     const P = google.picker;
     const view = new P.DocsView(P.ViewId.SPREADSHEETS).setMode(P.DocsViewMode.LIST);
     if (idFile) view.setFileIds(idFile);
+    else if (opsi.undangan) view.setOwnedByMe(false);
+    const judul = idFile ? 'Ketuk spreadsheet Dompet Keluarga, lalu Pilih'
+      : opsi.undangan ? (opsi.banyak ? 'Buku yang dibagikan ke Anda · pilih satu atau beberapa' : 'Buku yang dibagikan ke Anda')
+      : 'Pilih spreadsheet Dompet Keluarga';
     return new Promise(ok => {
       const b = new P.PickerBuilder()
         .setOAuthToken(sesi.token)
         .setAppId(KONFIG.clientId.split('-')[0]) // nomor project Google Cloud
         .setLocale('id')
-        .setTitle(idFile ? 'Ketuk spreadsheet Dompet Keluarga, lalu Pilih' : 'Pilih spreadsheet Dompet Keluarga')
+        .setTitle(judul)
         .addView(view)
         .setCallback(d => {
           const aksi = d[P.Response.ACTION];
-          if (aksi === P.Action.PICKED) ok(d[P.Response.DOCUMENTS][0][P.Document.ID]);
-          else if (aksi === P.Action.CANCEL) ok(null);
+          if (aksi === P.Action.PICKED) {
+            const id = d[P.Response.DOCUMENTS].map(x => x[P.Document.ID]);
+            ok(opsi.banyak ? id : id[0]);
+          } else if (aksi === P.Action.CANCEL) ok(opsi.banyak ? [] : null);
         });
+      if (opsi.banyak) b.enableFeature(P.Feature.MULTISELECT_ENABLED);
       if (KONFIG.pickerApiKey) b.setDeveloperKey(KONFIG.pickerApiKey);
       b.build().setVisible(true);
     });
