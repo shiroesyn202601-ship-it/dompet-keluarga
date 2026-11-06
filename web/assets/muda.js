@@ -304,10 +304,12 @@ function htmlTujuhHari() {
   return `<div class="tujuh-hari">${Array.from({ length: 7 }, (_, i) => geserHari(kini, i - 6)).map(t => {
     const ada = hariTercatat(t);
     const label = keTanggal(t).toLocaleDateString(LOKAL, { weekday: 'short' });
-    const bisaTandai = !ada; // belum ada transaksi sama sekali → boleh ditandai tanpa belanja
-    return `<button type="button" class="hari-streak ${ada ? 'ada' : ''} ${t === kini ? 'kini' : ''}" ${bisaTandai ? `data-aksi="tandai-kosong" data-tgl="${t}"` : 'disabled'}
-      aria-label="${esc(labelTanggal(t))}: ${ada ? T('tercatat') : T('belum tercatat, ketuk untuk menandai tanpa belanja')}">
-      <i aria-hidden="true">${ada ? (hariKosong().has(t) ? '✋' : '🔥') : ''}</i><small>${esc(label)}</small></button>`;
+    const ditandai = hariKosong().has(t);
+    // Belum tercatat → ketuk untuk menandai tanpa belanja; sudah ditandai ✋ → ketuk untuk membatalkan; ada transaksi (🔥) → tetap.
+    const aksi = !ada ? `data-aksi="tandai-kosong" data-tgl="${t}"` : ditandai ? `data-aksi="batal-kosong" data-tgl="${t}"` : 'disabled';
+    return `<button type="button" class="hari-streak ${ada ? 'ada' : ''} ${t === kini ? 'kini' : ''}" ${aksi}
+      aria-label="${esc(labelTanggal(t))}: ${!ada ? T('belum tercatat, ketuk untuk menandai tanpa belanja') : ditandai ? T('ditandai tanpa belanja, ketuk untuk membatalkan') : T('tercatat')}">
+      <i aria-hidden="true">${ada ? (ditandai ? '✋' : '🔥') : ''}</i><small>${esc(label)}</small></button>`;
   }).join('')}</div>`;
 }
 
@@ -328,7 +330,7 @@ function htmlKebiasaan() {
         <button type="button" class="btn btn-kedua" data-aksi="tandai-kosong" data-tgl="${hariIni()}">${T('Tandai hari ini tanpa belanja')}</button>
         <button type="button" class="btn btn-utama" data-aksi="tambah-trx">${T('＋ Catat')}</button>
       </div>`}
-    <p class="info-kecil" style="text-align:left">${T('Satu hari dihitung kalau ada transaksi yang dicatat (oleh siapa pun di buku ini), atau ditandai tanpa belanja. Hari tanpa catatan di 7 hari terakhir bisa diketuk untuk ditandai.')}</p>
+    <p class="info-kecil" style="text-align:left">${T('Satu hari dihitung kalau ada transaksi yang dicatat (oleh siapa pun di buku ini), atau ditandai tanpa belanja. Hari tanpa catatan di 7 hari terakhir bisa diketuk untuk ditandai; ketuk ✋ lagi untuk membatalkan.')}</p>
 
     <h4 class="sub-laporan">${T('🏁 Tantangan')}</h4>
     ${aktif.length ? aktif.map(t => {
@@ -900,6 +902,18 @@ Object.assign(AKSI, {
     if (!baru) return;
     getarHalus([12, 50, 12]);
     toast(T('✋ {hari} ditandai tanpa belanja. Streak aman 🔥', { hari: labelTanggal(tgl) }));
+    segarkanKebiasaan();
+  },
+  'batal-kosong': async el => {
+    const tgl = el.dataset.tgl;
+    if (!tgl || !hariKosong().has(tgl)) return;
+    if (!(await tanya(T('Batalkan tanda tanpa belanja di {hari}?', { hari: labelTanggal(tgl) }), T('Batalkan tanda')))) return;
+    const baru = await ubahTantanganLalu(isi => {
+      isi.hariKosong = (isi.hariKosong || []).filter(x => x !== tgl);
+      return isi;
+    });
+    if (!baru) return;
+    toast(T('Tanda tanpa belanja di {hari} dibatalkan.', { hari: labelTanggal(tgl) }));
     segarkanKebiasaan();
   },
   'mulai-tantangan': el => bukaFormTantangan(el.dataset.jenis),
