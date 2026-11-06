@@ -1,0 +1,1003 @@
+/**
+ * Fitur untuk pengguna muda & pasangan baru. Dimuat SESUDAH app.js (memakai S, AKSI, T, render, dll.).
+ *   1. Mikro-animasi: getar halus saat tersimpan, konfeti, angka saldo bergulir, lembar menutup mulus
+ *   2. Maskot "Dompi" (kartu kosong) & kalimat insight di atas kartu saldo Beranda
+ *   3. Streak mencatat, tantangan (hari tanpa belanja, 52 minggu menabung, seminggu tanpa kategori X), lencana
+ *   4. Cek sebelum beli ("Bisa beli nggak?")
+ *   5. Rangkuman bulanan format story 9:16 (bisa tanpa nominal, aman dibagikan ke IG/WA)
+ *   6. Kartu dompet bergaya kartu fisik di tab Dompet (geser ke samping)
+ * Data streak & tantangan: S.data.jejak (jejak harian, dihitung db.js) dan S.data.tantangan (sheet Pengaturan).
+ */
+
+// ---------- 1. Mikro-animasi ----------
+
+const kurangiGerak = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Getar sangat singkat sebagai tanda "berhasil" (Android). Getar pola panjang dipakai untuk galat (app.js). */
+function getarHalus(pola) {
+  try { if (navigator.vibrate && !kurangiGerak()) navigator.vibrate(pola || 12); } catch (e) { /* abaikan */ }
+}
+
+function konfeti(emoji) {
+  const daftar = emoji || ['🎉', '✨', '💰', '🎊', '⭐'];
+  const el = document.createElement('div');
+  el.className = 'konfeti';
+  el.innerHTML = Array.from({ length: 28 }, (_, i) => `<i style="--x:${Math.round(Math.random() * 100)}%;--t:${(Math.random() * .6).toFixed(2)}s;--r:${Math.round(Math.random() * 720 - 360)}deg">${daftar[i % daftar.length]}</i>`).join('');
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+// Perayaan target tabungan memakai konfeti bersama (isi fungsinya sama, hanya dipindah ke sini).
+rayakanTabungan = function (w) { // eslint-disable-line no-func-assign
+  if (!w.target || w.saldo < w.target) return;
+  const kunci = 'dk_tercapai_' + (S.data.spreadsheetId || '') + '_' + w.nama;
+  if (bacaHp(kunci)) return;
+  tulisHp(kunci, '1');
+  konfeti();
+  getar();
+  toast(T('🎉 Selamat! Target {nama} tercapai!', { nama: namaT(w.nama) }));
+};
+
+/** Angka besar ([data-gulir="kunci"][data-nilai]) bergulir dari nilai sebelumnya saat berubah, mis. setelah mencatat. */
+const ANGKA_LALU = {};
+function gulirkanAngka() {
+  document.querySelectorAll('[data-gulir]').forEach(el => {
+    const k = el.dataset.gulir, akhir = Number(el.dataset.nilai) || 0;
+    const awal = ANGKA_LALU[k];
+    ANGKA_LALU[k] = akhir;
+    if (awal == null || awal === akhir || kurangiGerak() || document.body.classList.contains('samar')) return;
+    const mulai = performance.now(), lama = 750;
+    el.classList.add('bergulir');
+    const langkah = kini => {
+      if (!el.isConnected) return;
+      const p = Math.min(1, (kini - mulai) / lama), e = 1 - Math.pow(1 - p, 3);
+      el.innerHTML = rpBesar(Math.round(awal + (akhir - awal) * e));
+      if (p < 1) requestAnimationFrame(langkah);
+      else el.classList.remove('bergulir');
+    };
+    requestAnimationFrame(langkah);
+  });
+}
+
+// Tersimpan → getar halus (kirim dipakai hampir semua tombol simpan; simpanTertunda = tersimpan di HP saat offline).
+const kirimAsli = kirim;
+kirim = async function (...args) { // eslint-disable-line no-func-assign
+  const ok = await kirimAsli.apply(this, args);
+  if (ok) getarHalus();
+  return ok;
+};
+const simpanTertundaAsli = simpanTertunda;
+simpanTertunda = function (...args) { // eslint-disable-line no-func-assign
+  getarHalus();
+  return simpanTertundaAsli.apply(this, args);
+};
+
+// Lembar bawah menutup dengan meluncur turun (sebelumnya langsung hilang). Lembar asli langsung disembunyikan seperti
+// biasa (semua pengecekan `#sheet.hidden` tetap benar); yang meluncur turun hanyalah salinan tampilannya.
+let hantuSheet = null;
+function hapusHantuSheet() {
+  if (hantuSheet) { hantuSheet.remove(); hantuSheet = null; }
+}
+const tutupSheetAsli = tutupSheet;
+tutupSheet = function (...args) { // eslint-disable-line no-func-assign
+  const sheet = $('#sheet');
+  const panel = sheet && sheet.querySelector('.sheet-panel');
+  let klon = null;
+  // Sudah digeser ke bawah (gestur) → animasinya sudah jalan, tidak perlu salinan.
+  if (sheet && !sheet.hidden && panel && !panel.style.transform && !kurangiGerak()) {
+    klon = sheet.cloneNode(true);
+    const asli = sheet.querySelectorAll('input, textarea, select');
+    klon.querySelectorAll('input, textarea, select').forEach((x, i) => { if (asli[i] && x.type !== 'file') x.value = asli[i].value; });
+    klon.removeAttribute('id');
+    klon.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    klon.classList.add('sheet-hantu');
+    klon.setAttribute('aria-hidden', 'true');
+    klon.inert = true;
+  }
+  const hasil = tutupSheetAsli.apply(this, args);
+  if (klon) {
+    hapusHantuSheet();
+    const gulir = panel.scrollTop;
+    document.body.appendChild(klon);
+    klon.querySelector('.sheet-panel').scrollTop = gulir;
+    hantuSheet = klon;
+    setTimeout(() => { if (hantuSheet === klon) hapusHantuSheet(); }, 260);
+  }
+  return hasil;
+};
+const bukaSheetAsli = bukaSheet;
+bukaSheet = function (...args) { // eslint-disable-line no-func-assign
+  hapusHantuSheet(); // lembar baru langsung dibuka: salinan lama tidak boleh menutupinya
+  return bukaSheetAsli.apply(this, args);
+};
+
+// ---------- 2. Maskot & insight Beranda ----------
+
+const maskot = mood => (typeof ILUSTRASI !== 'undefined' && ILUSTRASI.maskot ? ILUSTRASI.maskot(mood) : '');
+
+// Kartu kosong: maskot yang sedang tidur + ikon kecil keterangannya.
+kosong = function (ikon, teks) { // eslint-disable-line no-func-assign
+  return `<div class="kosong"><span class="kosong-maskot">${maskot('tidur')}<i aria-hidden="true">${ikon}</i></span>${teks}</div>`;
+};
+
+// geserHari(iso, n) sudah ada di app.js.
+const selisihTanggal = (a, b) => Math.round((keTanggal(b) - keTanggal(a)) / 864e5); // b − a, dalam hari
+
+/** Pengeluaran minggu ini (Senin s.d. hari ini) dibanding rata-rata rentang hari yang sama 4 minggu sebelumnya. */
+function bandingMingguan() {
+  const j = S.data && S.data.jejak;
+  if (!j) return null;
+  const hariKe = (keTanggal(hariIni()).getDay() + 6) % 7; // 0 = Senin
+  if (hariKe < 1) return null; // Senin pagi belum bisa dibandingkan
+  const senin = geserHari(hariIni(), -hariKe);
+  const jumlah = awal => { let t = 0; for (let i = 0; i <= hariKe; i++) t += (j[geserHari(awal, i)] || {}).k || 0; return t; };
+  const lalu = [1, 2, 3, 4].map(w => jumlah(geserHari(senin, -7 * w))).filter(x => x > 0);
+  if (lalu.length < 2) return null;
+  const rata = lalu.reduce((a, b) => a + b, 0) / lalu.length;
+  if (rata < 20000) return null;
+  return { persen: Math.round((jumlah(senin) - rata) / rata * 100) };
+}
+
+/** Satu kalimat paling relevan untuk Beranda: { mood, teks (sudah aman HTML), aksi, tab? }. */
+function insightBeranda() {
+  const d = S.data;
+  if (!d || d.perluSetup || S.bulan !== periodeSekarang()) return null;
+  const a = hitungSisaAman();
+  const per = pengeluaranPerKategori();
+  if (a && a.pakaiAnggaran && a.sisa <= 0) {
+    return { mood: 'sedih', teks: T('Anggaran periode ini sudah terlewati. Tahan dulu belanja yang tidak penting.'), aksi: 'rincian-anggaran' };
+  }
+  const lewat = kategoriBeranggaran().filter(k => (per[k.nama] || 0) > k.batas)
+    .sort((x, y) => (per[y.nama] - y.batas) - (per[x.nama] - x.batas))[0];
+  if (lewat) {
+    return { mood: 'cemas', teks: T('{kategori} sudah lewat batas {jumlah}. Coba rem dulu, ya.', { kategori: esc(namaT(lewat.nama)), jumlah: rp(per[lewat.nama] - lewat.batas) }), aksi: 'rincian-anggaran' };
+  }
+  const s = hitungStreak();
+  if (s.n >= 3 && !s.hariIni && new Date().getHours() >= 12) {
+    return { mood: 'cemas', teks: T('Streak {n} hari bisa putus! Catat hari ini, ya 🔥', { n: s.n }), aksi: 'buka-kebiasaan' };
+  }
+  const m = bandingMingguan();
+  if (m && m.persen <= -10) return { mood: 'bangga', teks: T('Minggu ini Anda {persen}% lebih hemat dari biasanya 👏', { persen: -m.persen }), aksi: 'tab', tab: 'laporan' };
+  if (m && m.persen >= 25) return { mood: 'cemas', teks: T('Minggu ini belanja {persen}% lebih banyak dari biasanya. Rem sedikit, ya.', { persen: m.persen }), aksi: 'tab', tab: 'laporan' };
+  const p = d.pembanding;
+  if (p && p.lalu) {
+    const persen = Math.round((p.ini - p.lalu) / p.lalu * 100);
+    if (persen <= -10) return { mood: 'senang', teks: T('Sampai hari ini pengeluaran Anda {persen}% lebih hemat dari periode lalu 👏', { persen: -persen }), aksi: 'ringkas-periode' };
+  }
+  if (s.n >= 3) return { mood: 'senang', teks: T('{n} hari beruntun mencatat. Pertahankan! 🔥', { n: s.n }), aksi: 'buka-kebiasaan' };
+  if (!s.hariIni && new Date().getHours() >= 12 && d.transaksi.length) {
+    return { mood: 'biasa', teks: T('Belum ada catatan hari ini. Catat sebelum lupa ✍️'), aksi: 'tambah-trx' };
+  }
+  const top = Object.keys(per).sort((x, y) => per[y] - per[x])[0];
+  const keluar = total(d.transaksi, TIPE.KELUAR);
+  if (top && per[top] >= keluar * 0.3 && per[top] >= 50000) {
+    return { mood: 'biasa', teks: T('Pengeluaran {kategori} sudah {jumlah} periode ini.', { kategori: esc(namaT(top)), jumlah: rp(per[top]), emoji: emojiIkon(ikonKategori(top, TIPE.KELUAR)) }), aksi: 'tab', tab: 'laporan' };
+  }
+  if (a && a.sisa > 0 && a.perHari > 0) return { mood: 'senang', teks: T('Hari ini masih aman belanja {jumlah}. Santai saja 😌', { jumlah: rp(a.perHari) }), aksi: 'rincian-aman' };
+  return null;
+}
+
+function barisInsight() {
+  let x = null;
+  try { x = insightBeranda(); } catch (e) { return ''; } // data lama di HP yang belum lengkap: lewati saja
+  if (!x) return '';
+  return `<button type="button" class="insight insight-${x.mood}" data-aksi="${x.aksi}"${x.tab ? ` data-tab="${x.tab}"` : ''}>
+    <span class="insight-maskot">${maskot(x.mood)}</span>
+    <span class="insight-teks">${x.teks}</span>
+    <span class="panah">${svg('maju')}</span>
+  </button>`;
+}
+
+// ---------- 3. Streak, tantangan & lencana ----------
+
+const tantanganData = () => (S.data && S.data.tantangan) || {};
+const hariKosong = () => new Set(tantanganData().hariKosong || []);
+const MILESTONE_STREAK = [3, 7, 14, 30, 60, 100, 200, 365];
+const MAKS_TANTANGAN = 3;
+
+let cacheStreak = null;
+/**
+ * Hari "tercatat" = ada transaksi bertanggal / dicatat hari itu (oleh siapa pun di buku ini), atau ditandai
+ * "tanpa belanja". Streak tidak putus selama hari ini belum berakhir (dihitung sampai kemarin).
+ */
+function hitungStreak() {
+  const j = S.data && S.data.jejak;
+  if (!j) return { n: 0, hariIni: false, terbaik: 0, ada: false };
+  const kosong = hariKosong();
+  const kunci = hariIni() + '|' + kosong.size;
+  if (cacheStreak && cacheStreak.j === j && cacheStreak.kunci === kunci) return cacheStreak.hasil;
+  const ada = t => (j[t] && j[t].n > 0) || kosong.has(t);
+  const kini = hariIni();
+  const hariIniAda = ada(kini);
+  let t = hariIniAda ? kini : geserHari(kini, -1), n = 0;
+  while (ada(t) && n < 400) { n++; t = geserHari(t, -1); }
+  let terbaik = 0, jalan = 0;
+  for (let i = 399; i >= 0; i--) {
+    if (ada(geserHari(kini, -i))) { jalan++; terbaik = Math.max(terbaik, jalan); } else jalan = 0;
+  }
+  const simpan = Number(bacaHp('dk_streak_terbaik_' + (S.data.spreadsheetId || ''))) || 0; // lebih dari 400 hari lalu
+  const hasil = { n, hariIni: hariIniAda, terbaik: Math.max(terbaik, n, simpan), ada: true };
+  if (hasil.terbaik > simpan) tulisHp('dk_streak_terbaik_' + (S.data.spreadsheetId || ''), String(hasil.terbaik));
+  cacheStreak = { j, kunci, hasil };
+  return hasil;
+}
+const hariTercatat = t => ((S.data.jejak || {})[t] && S.data.jejak[t].n > 0) || hariKosong().has(t);
+
+function chipStreak() {
+  const s = hitungStreak();
+  if (!s.ada) return '';
+  return `<button type="button" class="chip-streak ${s.hariIni ? '' : 'redup'}" data-aksi="buka-kebiasaan"
+    aria-label="${T('{n} hari beruntun mencatat. Ketuk untuk tantangan & lencana', { n: s.n })}"><span aria-hidden="true">🔥</span>${s.n}</button>`;
+}
+
+const JENIS_TANTANGAN = {
+  hemat: { ikon: '🌱', judul: T('Hari tanpa belanja'), ket: T('Kumpulkan beberapa hari tanpa pengeluaran dalam 30 hari.') },
+  52: { ikon: '🐷', judul: T('52 minggu menabung'), ket: T('Minggu ke-1 setor 1×, minggu ke-2 setor 2×, dan seterusnya. Setahun terkumpul 1.378×.') },
+  tanpa: { ikon: '🙅', judul: T('Seminggu tanpa…'), ket: T('Tujuh hari tanpa satu kategori pengeluaran, mis. jajan kopi atau ojek online.') },
+};
+const judulTantangan = t => (t.jenis === 'tanpa' ? T('Seminggu tanpa {kategori}', { kategori: namaT(t.kategori) })
+  : t.jenis === 'hemat' ? T('{n} hari tanpa belanja', { n: t.target }) : T('52 minggu menabung'));
+
+/** Kemajuan satu tantangan: { persen, teks, selesai?: 'berhasil' | 'gagal', setorMingguIni? }. */
+function statusTantangan(t) {
+  const j = S.data.jejak || {};
+  const kini = hariIni();
+  if (t.jenis === 'hemat') {
+    const akhir = geserHari(t.mulai, 29);
+    const kosong = hariKosong();
+    let n = 0;
+    for (let x = t.mulai; x <= kini && x <= akhir; x = geserHari(x, 1)) {
+      // Hari ini baru dihitung kalau ditandai; hari yang lewat dihitung kalau tercatat & tanpa pengeluaran.
+      if (!((j[x] || {}).k > 0) && hariTercatat(x) && (x < kini || kosong.has(x))) n++;
+    }
+    if (n >= t.target) return { persen: 100, selesai: 'berhasil', teks: T('{n} hari tanpa belanja terkumpul 🎉', { n }) };
+    if (kini > akhir) return { persen: n / t.target * 100, selesai: 'gagal', teks: T('Terkumpul {n} dari {target} hari', { n, target: t.target }) };
+    return { persen: n / t.target * 100, teks: T('{n} dari {target} hari · sisa {sisa} hari', { n, target: t.target, sisa: selisihTanggal(kini, akhir) + 1 }) };
+  }
+  if (t.jenis === 'tanpa') {
+    const akhir = geserHari(t.mulai, 6);
+    for (let x = t.mulai; x <= kini && x <= akhir; x = geserHari(x, 1)) {
+      if (((j[x] || {}).kat || {})[t.kategori] > 0) {
+        return { persen: (selisihTanggal(t.mulai, x)) / 7 * 100, selesai: 'gagal', teks: T('Bocor di hari ke-{n}', { n: selisihTanggal(t.mulai, x) + 1 }) };
+      }
+    }
+    if (kini > akhir) return { persen: 100, selesai: 'berhasil', teks: T('Tujuh hari tanpa {kategori} 🎉', { kategori: namaT(t.kategori) }) };
+    const hari = selisihTanggal(t.mulai, kini) + 1;
+    return { persen: (hari - 1) / 7 * 100, teks: T('Hari ke-{n} dari 7 · belum ada {kategori} 💪', { n: hari, kategori: namaT(t.kategori) }) };
+  }
+  // 52 minggu menabung
+  const lewat = selisihTanggal(t.mulai, kini);
+  const minggu = Math.min(52, Math.floor(Math.max(0, lewat) / 7) + 1);
+  let setor = 0;
+  Object.keys(j).forEach(x => { if (x >= t.mulai && j[x].tab && j[x].tab[t.tabungan]) setor += j[x].tab[t.tabungan]; });
+  const totalTarget = t.unit * 1378;
+  const jadwal = t.unit * minggu * (minggu + 1) / 2;
+  const persen = Math.max(0, Math.min(100, setor / totalTarget * 100));
+  if (setor >= totalTarget) return { persen: 100, selesai: 'berhasil', teks: T('{jumlah} terkumpul dalam 52 minggu 🎉', { jumlah: rp(setor) }) };
+  if (lewat > 52 * 7 + 6) return { persen, selesai: 'gagal', teks: T('Terkumpul {jumlah} dari {target}', { jumlah: rp(setor), target: rp(totalTarget) }) };
+  return {
+    persen, setorMingguIni: t.unit * minggu,
+    teks: T('Minggu ke-{minggu} · setor {jumlah}', { minggu, jumlah: rp(t.unit * minggu) }) + ' · '
+      + (setor >= jadwal ? T('✅ sesuai jadwal') : T('kurang {jumlah} dari jadwal', { jumlah: rp(jadwal - setor) })),
+  };
+}
+
+/** Lencana: diraih dari streak terbaik dan tantangan yang berhasil. */
+function daftarLencana() {
+  const s = hitungStreak();
+  const berhasil = (tantanganData().selesai || []).filter(x => x.hasil === 'berhasil');
+  const punya = jenis => berhasil.some(x => x.jenis === jenis);
+  return [
+    ['🔥', T('3 hari'), s.terbaik >= 3, T('Mencatat 3 hari beruntun')],
+    ['⚡', T('Seminggu'), s.terbaik >= 7, T('Mencatat 7 hari beruntun')],
+    ['🌟', T('Sebulan'), s.terbaik >= 30, T('Mencatat 30 hari beruntun')],
+    ['💯', T('100 hari'), s.terbaik >= 100, T('Mencatat 100 hari beruntun')],
+    ['👑', T('Setahun'), s.terbaik >= 365, T('Mencatat 365 hari beruntun')],
+    ['🌱', T('Si Hemat'), punya('hemat'), T('Menyelesaikan tantangan hari tanpa belanja')],
+    ['🙅', T('Kuat Iman'), punya('tanpa'), T('Menyelesaikan seminggu tanpa satu kategori')],
+    ['🐷', T('Jago Nabung'), punya('52'), T('Menyelesaikan 52 minggu menabung')],
+  ];
+}
+
+function htmlTujuhHari() {
+  const kini = hariIni();
+  return `<div class="tujuh-hari">${Array.from({ length: 7 }, (_, i) => geserHari(kini, i - 6)).map(t => {
+    const ada = hariTercatat(t);
+    const label = keTanggal(t).toLocaleDateString(LOKAL, { weekday: 'short' });
+    const bisaTandai = !ada; // belum ada transaksi sama sekali → boleh ditandai tanpa belanja
+    return `<button type="button" class="hari-streak ${ada ? 'ada' : ''} ${t === kini ? 'kini' : ''}" ${bisaTandai ? `data-aksi="tandai-kosong" data-tgl="${t}"` : 'disabled'}
+      aria-label="${esc(labelTanggal(t))}: ${ada ? T('tercatat') : T('belum tercatat, ketuk untuk menandai tanpa belanja')}">
+      <i aria-hidden="true">${ada ? (hariKosong().has(t) ? '✋' : '🔥') : ''}</i><small>${esc(label)}</small></button>`;
+  }).join('')}</div>`;
+}
+
+function htmlKebiasaan() {
+  const s = hitungStreak();
+  const td = tantanganData();
+  const aktif = td.aktif || [];
+  const lencana = daftarLencana();
+  const selesai = (td.selesai || []).slice(-5).reverse();
+  return `
+    <div class="streak-besar">
+      <span class="api ${s.hariIni ? 'nyala' : ''}" aria-hidden="true">🔥</span>
+      <div><b>${T('{n} hari beruntun', { n: s.n })}</b><small>${T('Terbaik: {n} hari', { n: s.terbaik })}</small></div>
+    </div>
+    ${htmlTujuhHari()}
+    ${s.hariIni ? `<p class="info-kecil" style="margin-top:6px">${T('Hari ini sudah tercatat ✔ Sampai jumpa besok!')}</p>` : `
+      <div class="aksi-form" style="margin-top:12px">
+        <button type="button" class="btn btn-kedua" data-aksi="tandai-kosong" data-tgl="${hariIni()}">${T('Tandai hari ini tanpa belanja')}</button>
+        <button type="button" class="btn btn-utama" data-aksi="tambah-trx">${T('＋ Catat')}</button>
+      </div>`}
+    <p class="info-kecil" style="text-align:left">${T('Satu hari dihitung kalau ada transaksi yang dicatat (oleh siapa pun di buku ini), atau ditandai tanpa belanja. Hari tanpa catatan di 7 hari terakhir bisa diketuk untuk ditandai.')}</p>
+
+    <h4 class="sub-laporan">${T('🏁 Tantangan')}</h4>
+    ${aktif.length ? aktif.map(t => {
+      const st = statusTantangan(t);
+      return `<div class="kartu-tantangan">
+        <div class="kt-atas"><span class="kt-ikon" aria-hidden="true">${JENIS_TANTANGAN[t.jenis] ? JENIS_TANTANGAN[t.jenis].ikon : '🏁'}</span>
+          <b>${esc(judulTantangan(t))}</b>
+          <button type="button" class="tombol-teks" data-aksi="lepas-tantangan" data-id="${esc(t.id)}">${T('Lepas')}</button></div>
+        <span class="meter" role="meter" aria-label="${esc(judulTantangan(t))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(st.persen)}"><i style="width:${Math.max(2, Math.round(st.persen))}%"></i></span>
+        <small>${esc(st.teks)}</small>
+        ${st.setorMingguIni ? `<button type="button" class="btn btn-utama kecil" style="margin-top:8px" data-aksi="setor-52" data-id="${esc(t.id)}">${T('🐷 Setor {jumlah}', { jumlah: rp(st.setorMingguIni) })}</button>` : ''}
+      </div>`;
+    }).join('') : `<p class="info-kecil" style="text-align:left;margin-top:0">${T('Belum ada tantangan. Pilih satu untuk mulai, bisa dikerjakan bareng pasangan.')}</p>`}
+    ${aktif.length < MAKS_TANTANGAN ? `<div class="pilih-tantangan">${Object.keys(JENIS_TANTANGAN).map(k => `
+      <button type="button" class="baris" data-aksi="mulai-tantangan" data-jenis="${k}">
+        <span class="ikon-bulat">${JENIS_TANTANGAN[k].ikon}</span>
+        <span class="isi"><b>${JENIS_TANTANGAN[k].judul}</b><small>${JENIS_TANTANGAN[k].ket}</small></span>
+        <span class="panah">${svg('maju')}</span>
+      </button>`).join('')}</div>` : ''}
+
+    <h4 class="sub-laporan">${T('🏅 Lencana · {n}/{total}', { n: lencana.filter(x => x[2]).length, total: lencana.length })}</h4>
+    <div class="grid-lencana">${lencana.map(([ikon, nama, dapat, ket]) => `
+      <div class="lencana ${dapat ? 'dapat' : ''}" title="${esc(ket)}"><span aria-hidden="true">${dapat ? ikon : '🔒'}</span><b>${esc(nama)}</b>
+        <small class="sr-only">${esc(ket)}${dapat ? '' : ' · ' + T('belum diraih')}</small></div>`).join('')}</div>
+    ${selesai.length ? `<h4 class="sub-laporan">${T('Riwayat tantangan')}</h4>${selesai.map(x => `
+      <div class="baris-rincian"><span>${x.hasil === 'berhasil' ? '🏆' : '💪'} ${esc(x.judul)}</span><span>${esc(tanggalPendek(x.selesai))}</span></div>`).join('')}` : ''}`;
+}
+
+function bukaKebiasaan() {
+  bukaSheet(T('Kebiasaan & Tantangan'), `<div id="isi-kebiasaan">${htmlKebiasaan()}</div>`);
+}
+function segarkanKebiasaan() {
+  if ($('#isi-kebiasaan')) $('#isi-kebiasaan').innerHTML = htmlKebiasaan();
+  if (S.tab === 'beranda') render();
+}
+
+let TG = null; // isian form mulai tantangan
+function bukaFormTantangan(jenis) {
+  TG = { jenis, target: 5, unit: 10000, kategori: '', tabungan: '' };
+  if (jenis === 'tanpa') {
+    const per = {};
+    Object.values(S.data.jejak || {}).forEach(h => Object.keys(h.kat || {}).forEach(k => { per[k] = (per[k] || 0) + 1; }));
+    TG.urutKategori = S.data.kategori.filter(k => k.tipe === TIPE.KELUAR).sort((a, b) => (per[b.nama] || 0) - (per[a.nama] || 0));
+    TG.kategori = (TG.urutKategori[0] || {}).nama || '';
+  }
+  if (jenis === '52') TG.tabungan = (daftarTabungan()[0] || {}).nama || '';
+  bukaSheet(JENIS_TANTANGAN[jenis].ikon + ' ' + JENIS_TANTANGAN[jenis].judul, '<div id="form-tantangan"></div>');
+  renderFormTantangan();
+}
+function renderFormTantangan() {
+  const el = $('#form-tantangan');
+  if (!el || !TG) return;
+  const chip = (aksi, nilai, label, aktif) => `<button type="button" class="chip ${aktif ? 'aktif' : ''}" data-aksi="${aksi}" data-v="${esc(nilai)}">${label}</button>`;
+  let isi = `<p style="margin-top:0">${JENIS_TANTANGAN[TG.jenis].ket}</p>`;
+  if (TG.jenis === 'hemat') {
+    isi += `<label class="label">${T('Target dalam 30 hari')}</label>
+      <div class="chips">${[3, 5, 8, 12].map(n => chip('tg-target', n, T('{n} hari', { n }), TG.target === n)).join('')}</div>
+      <p class="info-kecil" style="text-align:left">${T('Hari dihitung kalau tidak ada pengeluaran. Tandai "tanpa belanja" di hari itu supaya ikut terhitung.')}</p>`;
+  } else if (TG.jenis === '52') {
+    const tab = daftarTabungan();
+    isi += `<label class="label">${T('Setoran minggu pertama')}</label>
+      <div class="chips">${[5000, 10000, 20000, 50000].map(n => chip('tg-unit', n, rp(n), TG.unit === n)).join('')}</div>
+      <p class="info-kecil" style="text-align:left">${T('Minggu ke-52 setor {akhir}. Total setahun: <b>{total}</b>.', { akhir: rp(TG.unit * 52), total: rp(TG.unit * 1378) })}</p>
+      <label class="label" style="margin-top:14px">${T('Ditabung ke')}</label>
+      <div class="grid-pilih">${tab.map(w => `<button type="button" class="pilihan ${TG.tabungan === w.nama ? 'aktif' : ''}" data-aksi="tg-tabungan" data-v="${esc(w.nama)}"><span>${ilus(w.ikon)}</span>${esc(namaT(w.nama))}</button>`).join('')}
+        <button type="button" class="pilihan ${TG.tabungan === '' ? 'aktif' : ''}" data-aksi="tg-tabungan" data-v=""><span>＋</span>${T('Tabungan baru')}</button></div>
+      ${TG.tabungan === '' ? `<p class="info-kecil" style="text-align:left">${T('Dibuat tabungan baru "{nama}" dengan target {total}.', { nama: esc(T('52 Minggu Menabung')), total: rp(TG.unit * 1378) })}</p>` : ''}`;
+  } else {
+    isi += `<label class="label">${T('Kategori yang mau ditahan')}</label>
+      <div class="grid-pilih">${(TG.urutKategori || []).map(k => `<button type="button" class="pilihan ${TG.kategori === k.nama ? 'aktif' : ''}" data-aksi="tg-kategori" data-v="${esc(k.nama)}"><span>${ilus(k.ikon)}</span>${esc(namaT(k.nama))}</button>`).join('')}</div>`;
+  }
+  isi += `<div class="aksi-form"><button type="button" class="btn btn-hapus" data-aksi="buka-kebiasaan">${T('Kembali')}</button>
+    <button type="button" class="btn btn-utama" data-aksi="simpan-tantangan">${T('Mulai tantangan')}</button></div>`;
+  el.innerHTML = isi;
+}
+
+/** Ubah data tantangan di spreadsheet, lalu langsung pakai hasilnya tanpa memuat ulang semua data. */
+async function ubahTantanganLalu(ubah) {
+  if (S.offline || !navigator.onLine) { toast(T('Butuh sinyal untuk menyimpan tantangan.'), true); return null; }
+  loading(true);
+  try {
+    const baru = await api('ubahTantangan', ubah);
+    S.data.tantangan = baru;
+    tulisLokal('data', S.data);
+    return baru;
+  } catch (e) {
+    if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
+    return null;
+  } finally {
+    loading(false);
+  }
+}
+
+/** Tantangan yang baru saja selesai dipindah ke riwayat (sekali), dengan perayaan kalau berhasil. */
+let cekTantanganJalan = false;
+async function cekTantanganSelesai() {
+  if (cekTantanganJalan || !S.data || S.offline || S.sesiHabis || !navigator.onLine) return;
+  const beres = (tantanganData().aktif || []).map(t => ({ t, st: statusTantangan(t) })).filter(x => x.st.selesai);
+  if (!beres.length) return;
+  cekTantanganJalan = true;
+  try {
+    const id = new Set(beres.map(x => x.t.id));
+    const baru = await api('ubahTantangan', isi => {
+      isi.aktif = (isi.aktif || []).filter(t => !id.has(t.id));
+      isi.selesai = (isi.selesai || []).concat(beres.map(x => ({ id: x.t.id, jenis: x.t.jenis, judul: judulTantangan(x.t), mulai: x.t.mulai, selesai: hariIni(), hasil: x.st.selesai }))).slice(-30);
+      return isi;
+    });
+    S.data.tantangan = baru;
+    tulisLokal('data', S.data);
+    const menang = beres.find(x => x.st.selesai === 'berhasil');
+    if (menang) {
+      konfeti(['🏆', '🎉', '✨', '🔥', '⭐']);
+      getar();
+      toast(T('🏆 Tantangan "{judul}" berhasil!', { judul: judulTantangan(menang.t) }));
+    } else {
+      toast(T('Tantangan "{judul}" belum berhasil. Coba lagi, ya 💪', { judul: judulTantangan(beres[0].t) }));
+    }
+    if (S.tab === 'beranda') render();
+  } catch (e) { /* dicoba lagi saat Beranda dibuka berikutnya */ } finally {
+    cekTantanganJalan = false;
+  }
+}
+
+/** Sekali per pencapaian: konfeti saat streak mencapai 3, 7, 14, 30, … hari. */
+function cekPencapaianStreak() {
+  const s = hitungStreak();
+  if (!s.hariIni) return;
+  const capai = MILESTONE_STREAK.filter(m => s.n >= m).pop();
+  if (!capai) return;
+  // Disimpan "tanggal mulai streak|milestone": streak baru (tanggal mulai beda) boleh dirayakan lagi dari awal.
+  const kunci = 'dk_streak_rayakan_' + (S.data.spreadsheetId || '');
+  const [mulaiLalu, capaiLalu] = (bacaHp(kunci) || '').split('|');
+  const mulaiStreak = geserHari(hariIni(), -(s.n - 1));
+  if (mulaiLalu === mulaiStreak && Number(capaiLalu) >= capai) return;
+  tulisHp(kunci, mulaiStreak + '|' + capai);
+  setTimeout(() => {
+    konfeti(['🔥', '✨', '⭐', '🎉']);
+    getarHalus([15, 60, 15]);
+    toast(T('🔥 {n} hari beruntun mencatat! Keren!', { n: capai }));
+  }, 600);
+}
+
+function kartuTantangan() {
+  const aktif = tantanganData().aktif || [];
+  if (!aktif.length || !S.data.jejak) return '';
+  const t = aktif[0], st = statusTantangan(t);
+  return `<button type="button" class="kartu kartu-tantangan-beranda" data-aksi="buka-kebiasaan">
+    <span class="kt-ikon" aria-hidden="true">${JENIS_TANTANGAN[t.jenis] ? JENIS_TANTANGAN[t.jenis].ikon : '🏁'}</span>
+    <span class="isi"><small>${T('Tantangan')}${aktif.length > 1 ? ' · ' + T('{n} aktif', { n: aktif.length }) : ''}</small><b>${esc(judulTantangan(t))}</b>
+      <span class="meter"><i style="width:${Math.max(2, Math.round(st.persen))}%"></i></span><small>${esc(st.teks)}</small></span>
+    <span class="panah">${svg('maju')}</span>
+  </button>`;
+}
+
+/** Sekali saja: tawarkan gaya bahasa santai kepada pengguna berbahasa Indonesia yang belum memilih. */
+function kartuGaya() {
+  if (BAHASA !== 'id' || GAYA === 'santai' || bacaHp('dk_gaya_ditawarkan') || !S.data.transaksi.length) return '';
+  return `<section class="kartu kartu-gaya">
+    <span class="insight-maskot">${maskot('senang')}</span>
+    <div><b>${T('Mau ngobrol lebih santai?')}</b><small>${T('Aplikasi bisa menyapa dengan "kamu" dan bahasa sehari-hari. Bisa diganti kapan saja di ⚙️.')}</small>
+      <div class="aksi-gaya"><button type="button" class="btn btn-utama kecil" data-aksi="gaya-santai">${T('Coba gaya santai')}</button>
+      <button type="button" class="tombol-teks" data-aksi="gaya-tolak">${T('Tetap formal')}</button></div></div>
+  </section>`;
+}
+
+// ---------- 4. Cek sebelum beli ----------
+
+const IKON_TAS = '<path d="M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9z"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/>';
+IKON.tas = IKON_TAS;
+const IKON_API = '<path d="M12 22c4 0 7-2.7 7-6.7 0-3.3-2.3-5.6-3.6-7.3-.4 1.8-1.4 3-2.6 3.6.2-3.4-1.4-6.6-4.3-8.6.2 3-1.4 5-3 6.8C4.3 11.2 5 13.6 5 15.3 5 19.3 8 22 12 22z"/>';
+IKON.api = IKON_API;
+PINTASAN.cekbeli = ['tas', T('Cek beli'), 'cek-beli'];
+PINTASAN.kebiasaan = ['api', T('Tantangan'), 'buka-kebiasaan'];
+FITUR.push(
+  ['🤔', T('Cek sebelum beli'), 'bisa beli nggak cek beli mampu belanja barang impulsif afford buy check', 'cek-beli'],
+  ['🔥', T('Kebiasaan & Tantangan'), 'streak beruntun tantangan challenge lencana badge hemat no spend 52 minggu menabung', 'buka-kebiasaan'],
+  ['💬', T('Gaya bahasa'), 'gaya bahasa santai formal kamu anda casual', 'tab', 'lainnya'],
+);
+
+let CB = null; // state "Cek sebelum beli": { manual } = harga diketik sendiri (jangan ditimpa hasil ketik cepat)
+
+async function bukaCekBeli() {
+  if (S.bulan !== periodeSekarang()) { // dihitung dari periode berjalan
+    S.bulan = periodeSekarang();
+    loading(true);
+    try { await muat(); } finally { loading(false); }
+  }
+  CB = { manual: false };
+  bukaSheet(T('Cek sebelum beli 🤔'), `
+    <p style="margin-top:0">${T('Tulis barang & harganya, mis. <b>sepatu 1,2jt</b>. Dihitung dari sisa anggaran, tagihan yang belum dibayar, dan kebiasaan belanja Anda.')}</p>
+    <div class="grup-form">
+      <label class="label" for="cb-teks">${T('Mau beli apa?')}</label>
+      <input class="field" id="cb-teks" maxlength="80" autocomplete="off" placeholder="${T('mis. sepatu lari 1,2jt')}">
+    </div>
+    <label class="label" for="cb-harga">${T('Harga')}</label>
+    <label class="input-jumlah"><span>Rp</span><input id="cb-harga" class="input-rp" inputmode="numeric" autocomplete="off" placeholder="0"></label>
+    <div id="cb-hasil" aria-live="polite"></div>`);
+  setTimeout(() => $('#cb-teks') && $('#cb-teks').focus(), 250);
+  gambarCekBeli();
+}
+
+/** Rata-rata pengeluaran per hari, 30 hari sebelum hari ini. */
+function rataHarian() {
+  const j = S.data.jejak || {};
+  let t = 0;
+  for (let i = 1; i <= 30; i++) t += (j[geserHari(hariIni(), -i)] || {}).k || 0;
+  return Math.round(t / 30);
+}
+/** Rata-rata pemasukan & sisa (pemasukan − pengeluaran) per periode, dari ≤ 3 periode selesai terakhir. */
+function rataPeriodeSelesai() {
+  const kini = periodeSekarang();
+  const daftar = Object.keys(S.data.bulanan || {}).filter(k => k < kini).sort().slice(-3).map(ringkasBulan).filter(adaIsi);
+  if (!daftar.length) return { masuk: 0, sisa: 0 };
+  return {
+    masuk: Math.round(daftar.reduce((a, x) => a + x.masuk, 0) / daftar.length),
+    sisa: Math.round(daftar.reduce((a, x) => a + x.masuk - x.keluar, 0) / daftar.length),
+  };
+}
+
+/** Penilaian: { vonis: 'aman'|'irit'|'jangan', alasan: [html], fakta } untuk harga & nama barang. */
+function nilaiBeli(harga, nama) {
+  const a = hitungSisaAman();
+  const harian = rataHarian();
+  const saldo = dompetBiasa().reduce((x, w) => x + w.saldo, 0);
+  const rata = rataPeriodeSelesai();
+  const kategori = nama ? tebakKategori(TIPE.KELUAR, nama) : '';
+  const per = pengeluaranPerKategori();
+  const kb = kategori && kategoriBeranggaran().find(k => k.nama === kategori);
+  const alasan = [];
+  let vonis = 'aman', perHariSetelah = null;
+  if (a) {
+    const setelah = a.sisa - harga;
+    perHariSetelah = setelah > 0 ? Math.floor(setelah / a.hari / 500) * 500 : 0;
+    alasan.push(T('💰 Sisa aman periode ini {sisa} → setelah beli <b>{setelah}</b>', { sisa: rp(a.sisa), setelah: rp(setelah) }));
+    if (setelah >= 0) alasan.push(T('📅 Jatah harian {lama} → <b>{baru}/hari</b> sampai {tanggal}', { lama: rp(a.perHari), baru: rp(perHariSetelah), tanggal: esc(tanggalPendek(a.akhir)) }));
+    if (a.tagihan) alasan.push(T('🧾 Sudah disisihkan {jumlah} untuk tagihan rutin yang belum dibayar', { jumlah: rp(a.tagihan) }));
+    if (setelah < 0) vonis = 'jangan';
+    else if (harian && perHariSetelah < harian * 0.7) vonis = 'irit';
+    else if (perHariSetelah < a.perHari * 0.5) vonis = 'irit';
+  } else {
+    const setelah = saldo - harga;
+    alasan.push(T('👛 Saldo semua dompet {saldo} → setelah beli <b>{setelah}</b>', { saldo: rp(saldo), setelah: rp(setelah) }));
+    if (setelah < 0) vonis = 'jangan';
+    else if (harian && setelah < harian * 14) vonis = 'irit';
+    alasan.push(T('ℹ️ Belum ada anggaran atau pemasukan di periode ini, jadi dihitung dari saldo dompet. Atur anggaran supaya lebih tepat.'));
+  }
+  if (harga > saldo && vonis !== 'jangan') {
+    vonis = 'jangan';
+    alasan.push(T('👛 Saldo semua dompet hanya {saldo}', { saldo: rp(saldo) }));
+  }
+  if (harian) alasan.push(T('🍜 Biasanya Anda belanja {jumlah}/hari (30 hari terakhir)', { jumlah: rp(harian) }));
+  if (kb) {
+    const sisaKat = kb.batas - (per[kategori] || 0);
+    alasan.push(T('🎯 Anggaran {kategori}: sisa {sisa} → <b>{setelah}</b>', { kategori: esc(namaT(kategori)), sisa: rp(sisaKat), setelah: rp(sisaKat - harga) }));
+    if (sisaKat - harga < 0 && vonis === 'aman') vonis = 'irit';
+  }
+  if (rata.masuk && harga >= rata.masuk * 0.3) {
+    alasan.push(T('⚖️ Harganya {persen}% dari pemasukan sebulan. Barang sebesar ini lebih aman ditabung dulu daripada dicicil paylater.', { persen: Math.round(harga / rata.masuk * 100) }));
+    if (vonis === 'aman' && harga >= rata.masuk * 0.5) vonis = 'irit';
+  }
+  if (vonis !== 'aman' && rata.sisa > 0) {
+    const bulan = Math.max(1, Math.ceil(harga / rata.sisa));
+    alasan.push(T('🐷 Dengan sisa rata-rata {jumlah}/bulan, bisa terkumpul dalam ±{n} bulan.', { jumlah: rp(rata.sisa), n: bulan }));
+  }
+  const fakta = {
+    barang: nama || null, harga, kategoriTebakan: kategori || null,
+    sisaAmanPeriode: a ? a.sisa : null, hariSampaiAkhirPeriode: a ? a.hari : null, jatahHarianSekarang: a ? a.perHari : null,
+    jatahHarianSetelahBeli: perHariSetelah, tagihanBelumDibayar: a ? a.tagihan : null, saldoSemuaDompet: saldo,
+    rataBelanjaHarian30Hari: harian, rataPemasukanPerBulan: rata.masuk, rataSisaPerBulan: rata.sisa,
+    sisaAnggaranKategori: kb ? kb.batas - (per[kategori] || 0) : null, penilaianAplikasi: vonis,
+  };
+  return { vonis, alasan, fakta, kategori };
+}
+
+const VONIS = {
+  aman: ['senang', () => T('✅ Aman dibeli')],
+  irit: ['cemas', () => T('⚠️ Bisa, tapi harus berhemat')],
+  jangan: ['sedih', () => T('⛔ Sebaiknya jangan dulu')],
+};
+
+function gambarCekBeli() {
+  const el = $('#cb-hasil');
+  if (!el || !CB) return;
+  const harga = angka($('#cb-harga').value);
+  const nama = $('#cb-teks').value.trim();
+  if (!harga) {
+    el.innerHTML = `<div class="cb-tunggu">${maskot('biasa')}<span>${T('Isi harganya untuk melihat hasilnya.')}</span></div>`;
+    return;
+  }
+  const n = nilaiBeli(harga, nama);
+  CB.hasil = n;
+  CB.harga = harga;
+  CB.nama = nama;
+  const [mood, judul] = VONIS[n.vonis];
+  el.innerHTML = `
+    <div class="cb-vonis cb-${n.vonis}">
+      <span class="cb-maskot">${maskot(mood)}</span>
+      <div><b>${judul()}</b><small>${esc(nama || T('Barang ini'))} · ${rp(harga)}</small></div>
+    </div>
+    <ul class="cb-alasan">${n.alasan.map(x => `<li>${x}</li>`).join('')}</ul>
+    <div id="cb-ai"></div>
+    ${S.data.kunciGemini && S.data.kunciGemini.length ? `<button type="button" class="tombol-tambah" style="margin:4px 0 0" data-aksi="cb-ai">${T('✨ Minta pendapat AI')}</button>` : ''}
+    <div class="aksi-form">
+      <button type="button" class="btn btn-kedua" data-aksi="cb-tabung">${T('🎯 Jadikan target')}</button>
+      <button type="button" class="btn btn-utama" data-aksi="cb-catat">${n.vonis === 'jangan' ? T('Tetap catat') : T('Catat pembelian')}</button>
+    </div>`;
+}
+
+document.addEventListener('input', e => {
+  if (!CB || !e.target.id || !e.target.id.startsWith('cb-')) return;
+  if (e.target.id === 'cb-harga') CB.manual = !!e.target.value;
+  if (e.target.id === 'cb-teks' && !CB.manual) {
+    const h = bacaKetikCepat(e.target.value);
+    $('#cb-harga').value = h.jumlah ? formatAngka(h.jumlah) : '';
+  }
+  gambarCekBeli();
+});
+
+/** Nama barang tanpa harganya: "sepatu lari 1,2jt" → "Sepatu lari". */
+const namaBarang = teks => (teks ? bacaKetikCepat(teks).catatan || teks : '');
+
+// ---------- 5. Rangkuman bulanan format story (9:16) ----------
+
+const PERSONA = [
+  [/makan|minum|kuliner|jajan|kopi|food|drink/i, '🍜', T('Si Pecinta Kuliner')],
+  [/belanja harian|grocer|dapur|pasar|sayur/i, '🛒', T('Si Rajin Belanja')],
+  [/transport|bensin|ojek|parkir|tol|kendaraan/i, '🛵', T('Si Anak Jalan')],
+  [/hiburan|nonton|game|liburan|healing|entertain|langganan/i, '🎬', T('Si Paling Healing')],
+  [/pakaian|fashion|baju|skincare|kecantikan|cloth/i, '👕', T('Si Fashionable')],
+  [/tagihan|utilitas|listrik|internet|cicilan|bill/i, '💡', T('Si Taat Tagihan')],
+  [/anak|bayi|sekolah|kid|baby/i, '👶', T('Orang Tua Juara')],
+  [/kesehatan|obat|dokter|health|gym/i, '💊', T('Si Jaga Kesehatan')],
+  [/pendidikan|kursus|buku|education|kuliah/i, '📚', T('Si Rajin Belajar')],
+  [/sosial|donasi|sedekah|zakat|kado|giving|donation/i, '🤲', T('Si Dermawan')],
+  [/rumah|household|perabot|kos|kontrakan/i, '🏠', T('Si Anak Rumahan')],
+];
+/** Julukan bulan itu: { emoji, nama, ket }. Sisa ≥ 30% pemasukan → "Si Jago Nabung"; selain itu dari kategori terbesar. */
+// berjalan: periode belum selesai → "Si Jago Nabung" belum bisa dinilai (pengeluaran masih akan bertambah).
+function personaBulan(r, berjalan) {
+  const rasio = r.masuk ? Math.round((r.masuk - r.keluar) / r.masuk * 100) : null;
+  const top = Object.keys(r.kategori).sort((a, b) => r.kategori[b] - r.kategori[a])[0];
+  const persen = top && r.keluar ? Math.round(r.kategori[top] / r.keluar * 100) : 0;
+  if (!berjalan && rasio !== null && rasio >= 30) return { emoji: '🏆', nama: T('Si Jago Nabung'), ket: T('{persen}% pemasukan berhasil disisihkan', { persen: rasio }) };
+  if (top) {
+    const p = PERSONA.find(([pola]) => pola.test(top) || pola.test(namaT(top)));
+    return { emoji: p ? p[1] : emojiIkon(ikonKategori(top, TIPE.KELUAR)), nama: p ? p[2] : T('Si Penggemar {kategori}', { kategori: namaT(top) }), ket: T('Paling banyak untuk {kategori} · {persen}%', { kategori: namaT(top), persen }) };
+  }
+  return { emoji: '📒', nama: T('Si Rajin Mencatat'), ket: T('Terus mencatat supaya rangkumannya makin lengkap') };
+}
+
+/** Hari tanpa pengeluaran (yang tercatat) dalam periode k, sampai kemarin. */
+function hariTanpaBelanja(k) {
+  const j = S.data.jejak || {};
+  const r = SERVER.rentangPeriode(k, S.data.mulaiPeriode || 1);
+  let n = 0;
+  for (let x = r.awal; x <= r.akhir && x < hariIni(); x = geserHari(x, 1)) if (hariTercatat(x) && !((j[x] || {}).k > 0)) n++;
+  return n;
+}
+
+/** Gambar story 1080×1920. aman: tanpa nominal rupiah sama sekali (hanya persen & emoji). */
+async function gambarStory(k, aman) {
+  const r = ringkasBulan(k);
+  const top = Object.keys(r.kategori).map(n => ({ n, v: r.kategori[n] })).sort((a, b) => b.v - a.v).slice(0, 3);
+  const berjalan = k === periodeSekarang();
+  const ps = personaBulan(r, berjalan);
+  const rasio = r.masuk ? Math.round((r.masuk - r.keluar) / r.masuk * 100) : null;
+  // Periode berjalan dibanding periode lalu sampai hari ke-N yang sama (bukan dengan periode lalu yang sudah penuh).
+  const b = bandingPeriode(k, 'lalu');
+  const adil = b.sebagian || k < periodeSekarang();
+  const banding = adil && b.lalu.keluar && b.kini.keluar ? Math.round((b.kini.keluar - b.lalu.keluar) / b.lalu.keluar * 100) : null;
+  const tanpa = hariTanpaBelanja(k);
+  const streak = k >= bulanSebelum(periodeSekarang()) ? hitungStreak().n : 0;
+
+  const W = 1080, H = 1920, P = 84;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  if (!g.roundRect) g.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); };
+  try { await document.fonts.ready; } catch (e) { /* font cadangan */ }
+  const teks = (s, x, y, ukuran, warna, tebal, rata, lebarMaks) => {
+    g.font = `${tebal || 700} ${ukuran}px "Plus Jakarta Sans", system-ui, sans-serif`;
+    g.fillStyle = warna; g.textAlign = rata || 'left';
+    let t = String(s);
+    if (lebarMaks && g.measureText(t).width > lebarMaks) {
+      while (t.length > 1 && g.measureText(t + '…').width > lebarMaks) t = t.slice(0, -1);
+      t = t.trimEnd() + '…';
+    }
+    g.fillText(t, x, y);
+  };
+  const kotak = (x, y, w, h, isi, rad) => { g.fillStyle = isi; g.beginPath(); g.roundRect(x, y, w, h, rad || 36); g.fill(); };
+
+  // Latar: gradien ungu → merah muda → oranye dengan lingkaran cahaya.
+  const latar = g.createLinearGradient(0, 0, W, H);
+  latar.addColorStop(0, '#312e81'); latar.addColorStop(.45, '#7c3aed'); latar.addColorStop(.8, '#db2777'); latar.addColorStop(1, '#f97316');
+  g.fillStyle = latar; g.fillRect(0, 0, W, H);
+  [[900, 260, 340, 'rgba(255,255,255,.10)'], [120, 1500, 420, 'rgba(255,255,255,.07)'], [1000, 1700, 260, 'rgba(255,255,255,.08)']].forEach(([x, y, rad, w]) => {
+    g.fillStyle = w; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+  });
+
+  teks('👛  Dompet Keluarga', P, 150, 36, 'rgba(255,255,255,.8)', 700);
+  teks(T('RANGKUMAN BULAN'), P, 250, 34, 'rgba(255,255,255,.7)', 800);
+  teks(namaBulan(k), P, 340, 78, '#ffffff', 800, 'left', W - P * 2);
+
+  // Julukan
+  kotak(P, 410, W - P * 2, 380, 'rgba(255,255,255,.14)', 48);
+  teks(ps.emoji, W / 2, 590, 150, '#ffffff', 400, 'center');
+  teks(T('Julukan bulan ini'), W / 2, 660, 30, 'rgba(255,255,255,.75)', 700, 'center');
+  teks(ps.nama, W / 2, 730, 62, '#ffffff', 800, 'center', W - P * 2 - 60);
+
+  // Dua angka utama
+  const lebar = (W - P * 2 - 28) / 2;
+  const stat = (x, label, nilai, ket) => {
+    kotak(x, 830, lebar, 250, 'rgba(255,255,255,.14)');
+    teks(label, x + 36, 900, 30, 'rgba(255,255,255,.75)', 700, 'left', lebar - 60);
+    teks(nilai, x + 36, 990, 72, '#ffffff', 800, 'left', lebar - 60);
+    if (ket) teks(ket, x + 36, 1045, 28, 'rgba(255,255,255,.75)', 600, 'left', lebar - 60);
+  };
+  stat(P, T('Disisihkan'), rasio === null ? '—' : rasio + '%', berjalan ? T('sejauh ini') : aman ? T('dari pemasukan') : (r.masuk ? rp(r.masuk - r.keluar) : ''));
+  stat(P + lebar + 28, T('vs bulan lalu'), banding === null ? '—' : (banding > 0 ? '▲' : banding < 0 ? '▼' : '') + Math.abs(banding) + '%',
+    banding === null ? '' : banding <= 0 ? T('lebih hemat 🎉') : T('lebih boros'));
+
+  // Kategori terbesar
+  teks(T('Uangnya ke mana?'), P, 1170, 40, '#ffffff', 800);
+  const maks = Math.max(1, ...top.map(x => x.v));
+  top.forEach((x, i) => {
+    const y = 1230 + i * 120;
+    const persen = r.keluar ? Math.round(x.v / r.keluar * 100) : 0;
+    teks(emojiIkon(ikonKategori(x.n, TIPE.KELUAR)) + '  ' + namaT(x.n), P, y + 36, 38, '#ffffff', 700, 'left', W - P * 2 - 260);
+    teks(aman ? persen + '%' : 'Rp' + rpPendek(x.v) + ' · ' + persen + '%', W - P, y + 36, 36, 'rgba(255,255,255,.9)', 800, 'right');
+    kotak(P, y + 62, W - P * 2, 18, 'rgba(255,255,255,.18)', 9);
+    kotak(P, y + 62, Math.max(18, (W - P * 2) * x.v / maks), 18, '#ffffff', 9);
+  });
+  if (!top.length) teks(T('Belum ada pengeluaran.'), P, 1260, 34, 'rgba(255,255,255,.8)', 600);
+
+  // Lencana kecil
+  const lencana = [];
+  if (tanpa) lencana.push(T('🌱 {n} hari tanpa belanja', { n: tanpa }));
+  if (streak >= 3) lencana.push(T('🔥 {n} hari beruntun mencatat', { n: streak }));
+  if (!aman) lencana.push(T('💸 Keluar {jumlah}', { jumlah: 'Rp' + rpPendek(r.keluar) }));
+  let ly = 1640;
+  lencana.slice(0, 3).forEach(s => {
+    g.font = `700 34px "Plus Jakarta Sans", system-ui, sans-serif`;
+    const w = Math.min(W - P * 2, g.measureText(s).width + 64);
+    kotak(P, ly - 52, w, 76, 'rgba(255,255,255,.18)', 38);
+    teks(s, P + 32, ly, 34, '#ffffff', 700, 'left', W - P * 2 - 64);
+    ly += 96;
+  });
+  teks(T('Dicatat dengan Dompet Keluarga'), W / 2, H - 60, 28, 'rgba(255,255,255,.65)', 600, 'center');
+  return c;
+}
+
+let STORY = null; // { k, aman, c }
+async function bukaBagikanStory(k) {
+  STORY = { k, aman: true, c: null };
+  bukaSheet(T('Bagikan ke Story'), `
+    <div class="chips">
+      <button type="button" class="chip aktif" data-aksi="story-mode" data-aman="1">${T('🔒 Tanpa nominal')}</button>
+      <button type="button" class="chip" data-aksi="story-mode" data-aman="0">${T('Dengan nominal')}</button>
+    </div>
+    <div class="pratinjau-story" id="pratinjau-story" aria-busy="true"></div>
+    <p class="info-kecil" id="ket-story">${T('Aman dibagikan: hanya persen & emoji, tanpa angka rupiah.')}</p>
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="story-bagikan">${T('📤 Bagikan')}</button></div>`);
+  await gambarPratinjauStory();
+}
+async function gambarPratinjauStory() {
+  if (!STORY) return;
+  const s = STORY;
+  try {
+    s.c = await gambarStory(s.k, s.aman);
+  } catch (e) {
+    toast(T('Gambar tidak bisa dibuat: {pesan}', { pesan: pesanError(e) }), true);
+    return;
+  }
+  const el = $('#pratinjau-story');
+  if (!el || STORY !== s) return;
+  el.removeAttribute('aria-busy');
+  el.innerHTML = `<img src="${s.c.toDataURL('image/png')}" alt="${esc(T('Pratinjau rangkuman {bulan}', { bulan: namaBulan(s.k) }))}">`;
+}
+
+// ---------- 6. Kartu dompet bergaya kartu fisik ----------
+
+function warnaKartu(w) {
+  const c = typeof ILUSTRASI !== 'undefined' && ILUSTRASI.warna ? ILUSTRASI.warna(w.ikon) : null;
+  return c || { bg: '#4F46E5', fg: '#FFFFFF', label: '' };
+}
+
+function deretKartuDompet(dompet) {
+  if (!dompet.length) return `<section class="kartu" style="padding:4px 16px">${kosong('👛', T('Belum ada dompet.'))}</section>`;
+  return `<div class="deret-kartu" id="deret-kartu" role="list" aria-label="${T('Dompet||jamak')}">
+    ${dompet.map(w => {
+      const c = warnaKartu(w);
+      return `<button type="button" class="kartu-dompet" role="listitem" data-aksi="edit-dompet" data-nama="${esc(w.nama)}" style="--c:${c.bg};--fg:${c.fg}"
+        aria-label="${esc(namaT(w.nama))}: ${rp(w.saldo)}">
+        <span class="kd-atas">${c.label ? `<b class="kd-merek">${esc(c.label)}</b>` : `<span class="kd-ilus">${ilus(w.ikon)}</span>`}
+          <span class="kd-nirkontak" aria-hidden="true"><i></i><i></i><i></i></span></span>
+        <span class="kd-chip" aria-hidden="true"></span>
+        <span class="kd-bawah"><small class="kd-nama">${esc(namaT(w.nama))}</small>
+          <b class="kd-saldo nominal ${w.saldo < 0 ? 'minus' : ''}">${rpBesar(w.saldo)}</b></span>
+      </button>`;
+    }).join('')}
+  </div>
+  ${dompet.length > 1 ? `<div class="titik-kartu" aria-hidden="true">${dompet.map((_, i) => `<i class="${i === 0 ? 'aktif' : ''}"></i>`).join('')}</div>` : ''}`;
+}
+
+// Titik penanda kartu yang sedang terlihat.
+document.addEventListener('scroll', e => {
+  const d = e.target;
+  if (!d || d.id !== 'deret-kartu') return;
+  const kartu = d.querySelector('.kartu-dompet');
+  if (!kartu) return;
+  const i = Math.round(d.scrollLeft / (kartu.offsetWidth + 12));
+  document.querySelectorAll('.titik-kartu i').forEach((t, n) => t.classList.toggle('aktif', n === i));
+}, true);
+
+// ---------- Sambungan ke app.js ----------
+
+const renderAsli = render;
+render = function (...args) { // eslint-disable-line no-func-assign
+  const hasil = renderAsli.apply(this, args);
+  gulirkanAngka();
+  if (S.tab === 'beranda' && S.data && !S.data.perluSetup && S.data.jejak) {
+    setTimeout(() => { cekPencapaianStreak(); cekTantanganSelesai(); }, 1200);
+  }
+  return hasil;
+};
+
+// Kilas balik: slide julukan setelah slide kategori terbesar.
+const slideKilasAsli = slideKilas;
+slideKilas = function (k) { // eslint-disable-line no-func-assign
+  const slide = slideKilasAsli(k);
+  const r = ringkasBulan(k);
+  if (r.keluar || r.masuk) {
+    const ps = personaBulan(r);
+    const tanpa = S.data.jejak ? hariTanpaBelanja(k) : 0;
+    slide.splice(Math.max(1, slide.length - 1), 0, `<div class="kilas-isi tengah"><span class="kilas-emoji">${ps.emoji}</span>
+      <small>${T('Julukan Anda bulan itu')}</small><h2>${esc(ps.nama)}</h2><p>${esc(ps.ket)}</p>
+      ${tanpa ? `<div class="kilas-baris"><span>${T('🌱 Hari tanpa belanja')}</span><b>${tanpa}</b></div>` : ''}</div>`);
+  }
+  return slide;
+};
+
+Object.assign(AKSI, {
+  'buka-kebiasaan': () => bukaKebiasaan(),
+  'tandai-kosong': async el => {
+    const tgl = el.dataset.tgl;
+    if (!tgl || hariTercatat(tgl)) return;
+    if (tgl !== hariIni() && !(await tanya(T('Tandai {hari} sebagai hari tanpa belanja?', { hari: labelTanggal(tgl) }), T('Tandai'), true))) return;
+    const baru = await ubahTantanganLalu(isi => {
+      isi.hariKosong = Array.from(new Set((isi.hariKosong || []).concat(tgl))).sort().slice(-120);
+      return isi;
+    });
+    if (!baru) return;
+    getarHalus([12, 50, 12]);
+    toast(T('✋ {hari} ditandai tanpa belanja. Streak aman 🔥', { hari: labelTanggal(tgl) }));
+    segarkanKebiasaan();
+  },
+  'mulai-tantangan': el => bukaFormTantangan(el.dataset.jenis),
+  'tg-target': el => { TG.target = Number(el.dataset.v); renderFormTantangan(); },
+  'tg-unit': el => { TG.unit = Number(el.dataset.v); renderFormTantangan(); },
+  'tg-tabungan': el => { TG.tabungan = el.dataset.v; renderFormTantangan(); },
+  'tg-kategori': el => { TG.kategori = el.dataset.v; renderFormTantangan(); },
+  'simpan-tantangan': async el => {
+    if (!TG) return;
+    if (TG.jenis === 'tanpa' && !TG.kategori) return toast(T('Pilih kategorinya dulu.'), true);
+    if ((tantanganData().aktif || []).length >= MAKS_TANTANGAN) return toast(T('Maksimal {n} tantangan sekaligus.', { n: MAKS_TANTANGAN }), true);
+    el.disabled = true;
+    const t = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), jenis: TG.jenis, mulai: hariIni(), oleh: S.data.user };
+    if (TG.jenis === 'hemat') t.target = TG.target;
+    if (TG.jenis === 'tanpa') t.kategori = TG.kategori;
+    if (TG.jenis === '52') {
+      t.unit = TG.unit;
+      t.tabungan = TG.tabungan;
+      if (!t.tabungan) { // tabungan baru khusus tantangan ini
+        let nama = T('52 Minggu Menabung');
+        while (S.data.dompet.some(w => w.nama === nama)) nama += ' ' + (new Date().getFullYear());
+        loading(true);
+        try {
+          await api('simpanDompet', { namaLama: '', nama, ikon: '🐷', jenis: JENIS.TABUNGAN, saldoAwal: 0, target: TG.unit * 1378, tenggat: geserHari(hariIni(), 364) });
+          t.tabungan = nama;
+        } catch (e) {
+          loading(false);
+          el.disabled = false;
+          return toast(pesanError(e), true);
+        }
+        loading(false);
+      }
+    }
+    const baru = await ubahTantanganLalu(isi => { isi.aktif = (isi.aktif || []).concat(t); return isi; });
+    el.disabled = false;
+    if (!baru) return;
+    if (TG.jenis === '52') await muat(); // tabungan baru ikut tampil
+    TG = null;
+    getarHalus([12, 50, 12]);
+    toast(T('🏁 Tantangan dimulai. Semangat!'));
+    bukaKebiasaan();
+    if (S.tab === 'beranda') render();
+  },
+  'lepas-tantangan': async el => {
+    const t = (tantanganData().aktif || []).find(x => x.id === el.dataset.id);
+    if (!t || !(await tanya(T('Lepas tantangan "{judul}"?', { judul: judulTantangan(t) }), T('Lepas')))) return;
+    const baru = await ubahTantanganLalu(isi => { isi.aktif = (isi.aktif || []).filter(x => x.id !== t.id); return isi; });
+    if (baru) { toast(T('Tantangan dilepas')); segarkanKebiasaan(); }
+  },
+  'setor-52': el => {
+    const t = (tantanganData().aktif || []).find(x => x.id === el.dataset.id);
+    const pertama = dompetBiasa()[0];
+    if (!t || !pertama) return toast(T('Buat dompet dulu sebagai sumber setoran.'), true);
+    bukaFormTrx(null, { tipe: TIPE.TRANSFER, dompet: pertama.nama, dompetTujuan: t.tabungan, jumlah: statusTantangan(t).setorMingguIni || t.unit, catatan: T('52 minggu menabung') },
+      T('Setor ke {nama}', { nama: namaT(t.tabungan) }));
+  },
+  'gaya-santai': () => { tulisHp('dk_gaya_ditawarkan', '1'); gantiGaya('santai'); },
+  'gaya-tolak': () => { tulisHp('dk_gaya_ditawarkan', '1'); render(); },
+
+  'cek-beli': () => bukaCekBeli(),
+  'cb-catat': () => {
+    if (!CB || !CB.harga) return;
+    const { harga, nama, hasil } = CB;
+    CB = null;
+    bukaFormTrx(null, { tipe: TIPE.KELUAR, jumlah: harga, catatan: namaBarang(nama), kategori: hasil ? hasil.kategori : '' });
+  },
+  'cb-tabung': () => {
+    if (!CB || !CB.harga) return;
+    const { harga, nama } = CB;
+    CB = null;
+    bukaFormDompet(null, JENIS.TABUNGAN);
+    if ($('#d-nama')) $('#d-nama').value = namaBarang(nama) || T('Barang impian');
+    if ($('#d-target')) $('#d-target').value = formatAngka(harga);
+  },
+  'cb-ai': async el => {
+    if (!CB || !CB.hasil) return;
+    if (!navigator.onLine) return toast(T('Pendapat AI butuh sinyal.'), true);
+    const kotakAi = $('#cb-ai');
+    el.disabled = true;
+    kotakAi.innerHTML = `<p class="info-kecil" style="text-align:left">${T('✨ Sedang menimbang…')}</p>`;
+    try {
+      const s = await api('saranBeli', CB.hasil.fakta, BAHASA, GAYA === 'santai');
+      if ($('#cb-ai')) $('#cb-ai').innerHTML = s ? `<div class="ringkas-ai"><p>${esc(s)}</p><small>${T('✨ Ditulis AI Gemini dari angka di atas, bisa keliru.')}</small></div>` : '';
+      el.remove();
+    } catch (e) {
+      if ($('#cb-ai')) $('#cb-ai').innerHTML = '';
+      el.disabled = false;
+      toast(pesanError(e), true);
+    }
+  },
+
+  'bagikan-story': el => bukaBagikanStory(el.dataset.bulan),
+  'story-mode': async el => {
+    if (!STORY) return;
+    STORY.aman = el.dataset.aman === '1';
+    document.querySelectorAll('[data-aksi="story-mode"]').forEach(b => b.classList.toggle('aktif', b === el));
+    $('#ket-story').textContent = STORY.aman ? T('Aman dibagikan: hanya persen & emoji, tanpa angka rupiah.') : T('Nominal rupiah ikut tampil. Bagikan hanya ke orang yang Anda percaya.');
+    $('#pratinjau-story').setAttribute('aria-busy', 'true');
+    await gambarPratinjauStory();
+  },
+  'story-bagikan': async el => {
+    if (!STORY || !STORY.c) return;
+    el.disabled = true;
+    const { k, aman, c } = STORY;
+    const r = ringkasBulan(k);
+    const ket = aman ? T('Rangkuman {bulan} saya: {persona} {emoji}', { bulan: namaBulan(k), persona: personaBulan(r, k === periodeSekarang()).nama, emoji: personaBulan(r, k === periodeSekarang()).emoji })
+      : T('Ringkasan keuangan {bulan}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}.', { bulan: namaBulan(k), masuk: rp(r.masuk), keluar: rp(r.keluar), selisih: rp(r.masuk - r.keluar) });
+    try { await bagikanKanvas(c, 'story-' + k + '.png', T('Rangkuman {bulan}', { bulan: namaBulan(k) }), ket); } catch (e) { toast(pesanError(e), true); }
+    el.disabled = false;
+  },
+  // Dari kilas balik: tutup story lalu buka pilihan bagikan (story tanpa nominal / dengan nominal).
+  'kilas-bagikan': () => {
+    const k = kilas && kilas.k;
+    if (!k) return;
+    tutupKilasBalik();
+    bukaBagikanStory(k);
+  },
+});

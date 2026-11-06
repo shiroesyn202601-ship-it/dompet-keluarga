@@ -310,8 +310,62 @@ const ILUSTRASI = (() => {
     if (!x) return esc(emoji || '');
     return `<svg class="ilus" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><rect class="ilus-ubin" width="48" height="48" rx="14" style="--c:${x[0]}"/>${x[1]}</svg>`;
   }
+  /**
+   * Warna kartu dompet bergaya kartu fisik: { bg, fg, label }. Ubin merek → warna khas merek & namanya;
+   * ilustrasi biasa → warna dasar ubinnya; lainnya → null (pakai warna aksen aplikasi).
+   */
+  function warna(emoji) {
+    const kunci = String(emoji || '').trim();
+    if (M[kunci]) return { bg: M[kunci].bg, fg: M[kunci].fg, label: M[kunci].label };
+    if (I[kunci]) return { bg: I[kunci][0], fg: '#FFFFFF', label: '' };
+    return null;
+  }
+
+  /**
+   * Maskot dompet "Dompi" dengan ekspresi: 'senang' | 'bangga' | 'biasa' | 'cemas' | 'sedih' | 'tidur'.
+   * Dipakai di kartu kosong, kalimat insight Beranda, dan hasil "Cek sebelum beli".
+   */
+  function maskot(mood) {
+    const tua = '#1E1B4B';
+    const mata = {
+      senang: `<path d="M19 37q3-4 6 0M31 37q3-4 6 0" stroke="${tua}" stroke-width="2.6" fill="none" ${R}/>`,
+      bangga: `<path d="M19 37q3-4 6 0M31 37q3-4 6 0" stroke="${tua}" stroke-width="2.6" fill="none" ${R}/>`,
+      biasa: `<circle cx="22" cy="36" r="2.6" fill="${tua}"/><circle cx="34" cy="36" r="2.6" fill="${tua}"/>`,
+      cemas: `<circle cx="22" cy="37" r="2.4" fill="${tua}"/><circle cx="34" cy="37" r="2.4" fill="${tua}"/><path d="M18 31.5l6 1.8M38 31.5l-6 1.8" stroke="${tua}" stroke-width="2.2" ${R}/>`,
+      sedih: `<circle cx="22" cy="37.5" r="2.4" fill="${tua}"/><circle cx="34" cy="37.5" r="2.4" fill="${tua}"/><path d="M18.5 33l5-1.5M37.5 33l-5-1.5" stroke="${tua}" stroke-width="2.2" ${R}/>`,
+      tidur: `<path d="M19 37h6M31 37h6" stroke="${tua}" stroke-width="2.6" ${R}/>`,
+    };
+    const mulut = {
+      senang: `<path d="M23 43q5 5 10 0" stroke="${tua}" stroke-width="2.6" fill="none" ${R}/>`,
+      bangga: `<path d="M22 42h12q0 7-6 7t-6-7z" fill="${tua}"/><path d="M25 46.5q3 1.6 6 0" stroke="#FB7185" stroke-width="2" fill="none" ${R}/>`,
+      biasa: `<path d="M25 44q3 2 6 0" stroke="${tua}" stroke-width="2.4" fill="none" ${R}/>`,
+      cemas: `<path d="M23 46q2.5-2 5 0t5 0" stroke="${tua}" stroke-width="2.3" fill="none" ${R}/>`,
+      sedih: `<path d="M23 47q5-4.5 10 0" stroke="${tua}" stroke-width="2.5" fill="none" ${R}/>`,
+      tidur: `<circle cx="28" cy="45" r="2" fill="${tua}"/>`,
+    };
+    const hiasan = {
+      senang: `<circle cx="17" cy="42" r="2.6" fill="#FDA4AF" opacity=".8"/><circle cx="39" cy="42" r="2.6" fill="#FDA4AF" opacity=".8"/>`,
+      bangga: `<circle cx="17" cy="42" r="2.6" fill="#FDA4AF" opacity=".8"/><circle cx="39" cy="42" r="2.6" fill="#FDA4AF" opacity=".8"/><path d="M56 6l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6z" fill="#FACC15"/>`,
+      biasa: '',
+      cemas: `<path d="M43 22c2 3 2.6 4.6 1 6a2.4 2.4 0 0 1-3.4-3c.4-1 1.4-2 2.4-3z" fill="#7DD3FC"/>`,
+      sedih: `<path d="M20 41c1.4 2.2 1.8 3.4.7 4.4a1.8 1.8 0 0 1-2.6-2.2c.3-.8 1.1-1.5 1.9-2.2z" fill="#7DD3FC"/>`,
+      tidur: `<text x="50" y="14" font-size="9" font-weight="800" font-family="system-ui,sans-serif" fill="#A5B4FC">z</text><text x="56" y="8" font-size="7" font-weight="800" font-family="system-ui,sans-serif" fill="#A5B4FC">z</text>`,
+    };
+    const m = mata[mood] ? mood : 'biasa';
+    return `<svg class="maskot maskot-${m}" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <circle cx="25" cy="14" r="8" fill="#FACC15" stroke="#CA8A04" stroke-width="2"/><path d="M25 10v8" stroke="#CA8A04" stroke-width="2" ${R}/>
+      <g class="maskot-badan">
+        <rect x="6" y="18" width="50" height="38" rx="13" fill="#6366F1"/>
+        <path d="M6 31V28a10 10 0 0 1 10-10h30a10 10 0 0 1 10 10v3z" fill="#818CF8"/>
+        <rect x="44" y="31" width="16" height="13" rx="6.5" fill="#A5B4FC"/><circle cx="51" cy="37.5" r="2.4" fill="#4338CA"/>
+        <rect x="11" y="28" width="30" height="24" rx="10" fill="#EEF2FF"/>
+        ${mata[m]}${mulut[m]}${hiasan[m]}
+      </g>
+    </svg>`;
+  }
+
   return {
-    html, tebakMerek,
+    html, tebakMerek, warna, maskot,
     ada: e => !!(I[String(e || '').trim()] || M[String(e || '').trim()]),
     semua: () => Object.keys(I),
     /** Kunci ubin merek per kelompok, untuk pemilih ikon dompet. */

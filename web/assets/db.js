@@ -561,6 +561,8 @@ const SERVER = (() => {
       cepat: kebiasaan_(d.transaksi),
       saranRutin: saranRutin_(d.transaksi, olahRutin_(rut)),
       setoranTabungan: setoranTabungan_(d.transaksi, d.dompet),
+      jejak: jejak_(d.transaksi, d.dompet),
+      tantangan: bacaJson_(pengaturan_(set).TANTANGAN, {}),
       bulanan,
       transaksi: d.transaksi
         .filter(t => periodeDari_(t.tanggal, mulai) === bulan)
@@ -630,6 +632,50 @@ const SERVER = (() => {
       hasil[n] = Math.round(bersih / 3);
     });
     return hasil;
+  }
+
+  /**
+   * Jejak harian 400 hari terakhir untuk streak mencatat & tantangan: { 'yyyy-mm-dd': { n, k, kat?, tab? } }
+   *   n   : jumlah transaksi yang tanggalnya ATAU waktu dicatatnya jatuh di hari itu (hari "mencatat")
+   *   k   : total pengeluaran bertanggal hari itu; kat: { kategori: jumlah } pengeluarannya
+   *   tab : { namaTabungan: setoran − penarikan } bertanggal hari itu
+   * Hanya hari yang ada isinya yang disimpan, supaya ringan disimpan di HP.
+   */
+  function jejak_(semua, dompet) {
+    const d = new Date(); d.setDate(d.getDate() - 400);
+    const batas = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const tabungan = new Set(dompet.filter(w => w.jenis === JENIS.TABUNGAN).map(w => w.nama));
+    const j = {};
+    const hari = tgl => j[tgl] || (j[tgl] = { n: 0, k: 0 });
+    semua.forEach(t => {
+      if (t.tanggal >= batas) {
+        const h = hari(t.tanggal);
+        h.n++;
+        if (t.tipe === TIPE.KELUAR) {
+          h.k += t.jumlah;
+          tambah_(h.kat || (h.kat = {}), t.kategori, t.jumlah);
+        } else if (t.tipe === TIPE.TRANSFER && tabungan.has(t.dompetTujuan) !== tabungan.has(t.dompet)) {
+          const masuk = tabungan.has(t.dompetTujuan);
+          tambah_(h.tab || (h.tab = {}), masuk ? t.dompetTujuan : t.dompet, masuk ? t.jumlah : -t.jumlah);
+        }
+      }
+      const dicatat = String(t.dibuat || '').slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dicatat) && dicatat !== t.tanggal && dicatat >= batas) hari(dicatat).n++;
+    });
+    return j;
+  }
+
+  /**
+   * Tantangan & tanda "hari tanpa belanja" (sheet Pengaturan, kunci TANTANGAN, JSON; dipakai bersama satu buku).
+   * ubah(isi) mengubah isi terbaru dari spreadsheet (dibaca ulang dulu supaya isian anggota lain tidak tertimpa).
+   */
+  async function ubahTantangan(ubah) {
+    const id = await db_();
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    const isi = bacaJson_(pengaturan_(set).TANTANGAN, {});
+    const baru = ubah(isi) || isi;
+    await simpanPengaturan_(id, set, 'TANTANGAN', JSON.stringify(baru));
+    return baru;
   }
 
   function kebiasaan_(semua) {
@@ -1702,6 +1748,30 @@ const SERVER = (() => {
     return r && r.ringkasan ? String(r.ringkasan).trim() : null;
   }
 
+  /** Pendapat AI untuk "Cek sebelum beli": fakta = angka yang sudah dihitung aplikasi. null kalau tanpa kunci Gemini. */
+  async function saranBeli(fakta, bahasa, santai) {
+    if (!kunciAi.length) {
+      const [set] = await bacaTabel_(await db_(), ['pengaturan']);
+      kunciAi = kunciGemini_(set);
+      modelAi = pengaturan_(set).GEMINI_MODEL;
+    }
+    if (!kunciAi.length) return null;
+    const prompt = [
+      bahasa === 'en'
+        ? 'You are a friendly money coach for young Indonesian adults and newly married couples. Write in plain, warm English.'
+        : santai
+          ? 'Kamu teman yang paham keuangan untuk anak muda & pasangan baru di Indonesia. Tulis dalam bahasa Indonesia santai (pakai "kamu"), hangat, tidak menggurui.'
+          : 'Anda penasihat keuangan yang ramah untuk anak muda & pasangan baru di Indonesia. Tulis dalam bahasa Indonesia yang sopan dan hangat (pakai "Anda").',
+      'Seseorang ingin membeli barang di bawah ini. Dari data, tulis 2–3 kalimat pendek: layak dibeli sekarang atau tidak, alasannya',
+      '(pakai angka dari data), lalu satu saran praktis (mis. tunggu gajian, menabung dulu, cari yang lebih murah, hindari paylater/cicilan berbunga).',
+      'Jangan mengarang angka yang tidak ada di data. Nominal ditulis seperti Rp25.000. Tanpa salam pembuka, tanpa daftar berpoin, tanpa markdown.',
+      'Data (JSON): ' + JSON.stringify(fakta).slice(0, 4000),
+    ].join('\n');
+    const skema = { type: 'OBJECT', properties: { saran: { type: 'STRING' } }, required: ['saran'] };
+    const r = await STRUK.tanyaAI([{ text: prompt }], skema, kunciAi, modelAi);
+    return r && r.saran ? String(r.saran).trim() : null;
+  }
+
   // ---------- Baca struk ----------
 
   /** tambahan (opsional): { base64Ai, kabar } — lihat STRUK.baca. */
@@ -1881,7 +1951,7 @@ const SERVER = (() => {
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
-    tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
-    uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
+    tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
+    uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };
 })();

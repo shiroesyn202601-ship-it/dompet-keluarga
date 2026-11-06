@@ -64,6 +64,10 @@ function keTanggal(s) {
 function rp(n) {
   return (n < 0 ? '−Rp' : 'Rp') + new Intl.NumberFormat('id-ID').format(Math.abs(n));
 }
+/** Nominal besar (kartu saldo, kartu dompet): "Rp" kecil di depan angka tebal. Hasilnya HTML. */
+function rpBesar(n) {
+  return `${n < 0 ? '−' : ''}<span class="mata-uang">Rp</span>${new Intl.NumberFormat('id-ID').format(Math.abs(n))}`;
+}
 /** Nominal ringkas untuk sumbu grafik: 1,5jt, 250rb. */
 function rpPendek(n) {
   const f = (x, s) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(x) + s;
@@ -745,11 +749,13 @@ function viewBeranda() {
   return `
     <div class="kepala">
       <div class="sapa">
-        <span class="avatar" aria-hidden="true">${esc(nama.charAt(0))}</span>
+        <span class="avatar-bungkus"><span class="avatar" aria-hidden="true">${esc(nama.charAt(0))}</span>${typeof chipStreak === 'function' ? chipStreak() : ''}</span>
         <div style="min-width:0"><small>${T('Halo,')}</small><h1>${esc(nama)}</h1></div>
       </div>
       <div class="kepala-kanan">${pemilihBulan(true)}<button type="button" class="tombol-ikon tombol-cari" data-aksi="cari-global" aria-label="${T('Cari transaksi, catatan & fitur')}">${svg('cari')}</button><button type="button" class="tombol-ikon tombol-cari" data-aksi="tab" data-tab="lainnya" aria-label="${T('Pengaturan')}">${svg('gear')}</button></div>
     </div>
+
+    ${typeof barisInsight === 'function' ? barisInsight() : ''}
 
     <section class="kartu kartu-saldo">
       <div class="atas-saldo">
@@ -761,7 +767,7 @@ function viewBeranda() {
         </button>
       </div>
       <div class="baris-saldo">
-        <div class="besar">${rp(saldo)}</div>
+        <div class="besar" data-gulir="saldo-beranda" data-nilai="${saldo}">${rpBesar(saldo)}</div>
         <button type="button" class="tombol-mata" data-aksi="samar" aria-label="${modeSamar() ? T('Tampilkan nominal') : T('Sembunyikan nominal')}" aria-pressed="${modeSamar()}">${modeSamar()
           ? '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 4.2A10 10 0 0 1 12 4c6.5 0 10 8 10 8a17 17 0 0 1-2.2 3.2M6.6 6.6A17 17 0 0 0 2 12s3.5 8 10 8a9.7 9.7 0 0 0 5.4-1.6"/><path d="M14.1 14.1a3 3 0 1 1-4.2-4.2"/><path d="m2 2 20 20"/></svg>'
           : '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-8 10-8 10 8 10 8-3.5 8-10 8-10-8-10-8z"/><circle cx="12" cy="12" r="3"/></svg>'}</button>
@@ -875,7 +881,8 @@ function simpanPintasan(daftar) {
  */
 const MAKS_KARTU_DINAMIS = 2;
 function kartuDinamis() {
-  return [kartuTagihan, kartuMulai, kartuSaranRutin, kartuAktivitasBaru]
+  return [kartuTagihan, kartuMulai, kartuSaranRutin, kartuAktivitasBaru, window.kartuGaya, window.kartuTantangan]
+    .filter(f => typeof f === 'function') // kartuGaya & kartuTantangan ada di muda.js
     .map(f => f()).filter(h => h && h.trim()).slice(0, MAKS_KARTU_DINAMIS).join('');
 }
 
@@ -1024,19 +1031,19 @@ function viewDompet() {
     <div class="kepala"><h1>${T('Dompet & Tabungan')}</h1></div>
     <section class="kartu kartu-saldo">
       <small>${T('Total saldo dompet')}</small>
-      <div class="besar" style="margin-bottom:0">${rp(saldo)}</div>
+      <div class="besar" style="margin-bottom:0" data-gulir="saldo-dompet" data-nilai="${saldo}">${rpBesar(saldo)}</div>
       ${tabungan.length ? `<div class="selisih">${T('🐷 Total tabungan: <b>{jumlah}</b>', { jumlah: rp(totalTabungan) })}</div>` : ''}
     </section>
 
-    <h2 class="judul-bagian">${T('Dompet||jamak')}</h2>
-    <section class="kartu" style="padding:4px 16px">
+    <h2 class="judul-bagian">${T('Dompet||jamak')}${dompet.length > 1 ? ` <small class="ket-geser">${T('geser ›')}</small>` : ''}</h2>
+    ${typeof deretKartuDompet === 'function' ? deretKartuDompet(dompet) : `<section class="kartu" style="padding:4px 16px">
       ${dompet.map(w => `
         <button class="baris" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">
           <span class="ikon-bulat">${ilus(w.ikon)}</span>
           <span class="isi"><b>${esc(namaT(w.nama))}</b></span>
           <b class="nominal ${w.saldo < 0 ? 'minus' : ''}">${rp(w.saldo)}</b>
         </button>`).join('') || kosong('👛', T('Belum ada dompet.'))}
-    </section>
+    </section>`}
     ${dompet.length ? `<p class="info-kecil" style="margin-top:8px">${T('Saldo tidak cocok dengan aslinya? Ketuk dompetnya, lalu ganti angka saldo sekarang.')}</p>` : ''}
     <button class="tombol-tambah" data-aksi="tambah-dompet">${T('＋ Tambah dompet')}</button>
 
@@ -1570,6 +1577,7 @@ function viewLaporan() {
       <p class="detail-bulan"><b>${esc(namaBulan(pilih))}</b> · ${T('Pemasukan {jumlah}', { jumlah: rp(r.masuk) })} · ${T('Pengeluaran {jumlah}', { jumlah: rp(r.keluar) })}
         <br><small>${T('Ketuk bulan di grafik untuk melihat rinciannya.')}</small></p>
       <button type="button" class="tombol-tambah" style="margin:0 0 12px" data-aksi="bagikan-laporan" data-bulan="${esc(pilih)}">${T('📤 Bagikan ringkasan {bulan}', { bulan: esc(namaBulan(pilih)) })}</button>
+      <button type="button" class="tombol-tambah" style="margin:0 0 12px" data-aksi="bagikan-story" data-bulan="${esc(pilih)}">${T('📱 Bagikan ke Story (bisa tanpa nominal)')}</button>
       <details class="tabel-data">
         <summary>${T('Lihat sebagai tabel')}</summary>
         <table>
@@ -2563,6 +2571,14 @@ function viewLainnya() {
         <span class="isi"><b>${BAHASA === 'en' ? 'Language · Bahasa' : 'Bahasa · Language'}</b><small>${T('Bahasa tampilan aplikasi di HP ini')}</small></span>
         <span class="pilih-kecil">${pilihBahasa()}</span>
       </label>
+      ${BAHASA === 'id' ? `<label class="baris baris-pilih">
+        <span class="ikon-bulat">💬</span>
+        <span class="isi"><b>${T('Gaya bahasa')}</b><small>${GAYA === 'santai' ? T('Santai · menyapa dengan "kamu"') : T('Formal · menyapa dengan "Anda"')}</small></span>
+        <span class="pilih-kecil">
+          <select id="pilih-gaya" aria-label="${T('Gaya bahasa')}">${[['', T('Formal')], ['santai', T('Santai')]].map(([g, l]) =>
+            `<option value="${g}" ${(GAYA === 'santai' ? 'santai' : '') === g ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        </span>
+      </label>` : ''}
       <label class="baris baris-pilih">
         <span class="ikon-bulat">${temaDipilih() === 'dark' ? '🌙' : temaDipilih() === 'light' ? '☀️' : '🌓'}</span>
         <span class="isi"><b>${T('Tema')}</b><small>${temaDipilih() ? (temaDipilih() === 'dark' ? T('Tetap gelap') : T('Tetap terang')) : T('Ikut pengaturan HP')}</small></span>
@@ -3572,6 +3588,7 @@ function bukaRincianAman() {
     <p class="info-kecil" style="text-align:left">${a.pakaiAnggaran
       ? T('Dihitung dari anggaran per kategori. Pengeluaran di kategori tanpa anggaran tidak ikut dihitung.')
       : T('Belum ada anggaran, jadi dihitung dari pemasukan yang dicatat di periode ini. Atur anggaran supaya lebih tepat.')}</p>
+    <button type="button" class="tombol-tambah" style="margin-top:4px" data-aksi="cek-beli">${T('🤔 Mau beli sesuatu? Cek dulu di sini')}</button>
     <div class="aksi-form">
       <button type="button" class="btn btn-hapus" data-aksi="atur-periode">${T('Periode gajian')}</button>
       <button type="button" class="btn btn-utama" data-aksi="atur-anggaran">${T('Atur anggaran')}</button>
@@ -6745,6 +6762,7 @@ Object.assign(AKSI, {
 // Pilihan tema (dropdown di Pengaturan).
 document.addEventListener('change', e => {
   if (e.target.id === 'pilih-bahasa') gantiBahasa(e.target.value);
+  if (e.target.id === 'pilih-gaya') { tulisHp('dk_gaya_ditawarkan', '1'); gantiGaya(e.target.value); }
   if (e.target.id === 'pilih-tema') { aturTema(e.target.value); render(); }
   if (e.target.id === 'pilih-ukuran') { aturUkuran(e.target.value); render(); }
 });
@@ -8287,4 +8305,6 @@ document.addEventListener('contextmenu', e => {
 });
 
 if (ukuranDipilih()) document.documentElement.dataset.ukuran = ukuranDipilih();
-mulai();
+// Dimulai setelah semua skrip (termasuk muda.js yang menambah fitur ke AKSI, PINTASAN, render) selesai dimuat.
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mulai);
+else mulai();
