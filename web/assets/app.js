@@ -585,16 +585,22 @@ function kosong(ikon, teks) {
   return `<div class="kosong"><span>${ikon}</span>${teks}</div>`;
 }
 
-/** Bar horizontal berperingkat, satu warna. items: [{ ikon, nama, nilai }] sudah terurut besar → kecil. */
+/**
+ * Bar horizontal berperingkat, satu warna. items: [{ ikon, nama, nilai, atribut? }] sudah terurut besar → kecil.
+ * atribut (opsional, sudah di-escape): mis. 'data-aksi="..." data-nama="..."' → barisnya jadi tombol yang bisa diketuk.
+ */
 function barBerperingkat(items, totalUntukPersen) {
   const maks = Math.max(1, ...items.map(x => x.nilai));
-  return items.map(x => `
-    <div class="bar-item">
+  return items.map(x => {
+    const tag = x.atribut ? 'button' : 'div';
+    return `
+    <${tag} class="bar-item${x.atribut ? ' bisa-ketuk' : ''}" ${x.atribut ? 'type="button" ' + x.atribut : ''}>
       <span class="ikon">${ilus(x.ikon)}</span>
       <span class="nama">${esc(x.nama)}</span>
       <span class="nilai">${rp(x.nilai)}${totalUntukPersen ? ` <small>${Math.round(x.nilai / totalUntukPersen * 100)}%</small>` : ''}</span>
-      <div class="bar"><i style="width:${Math.max(2, x.nilai / maks * 100)}%"></i></div>
-    </div>`).join('');
+      <span class="bar"><i style="width:${Math.max(2, x.nilai / maks * 100)}%"></i></span>
+    </${tag}>`;
+  }).join('');
 }
 
 /** Status anggaran selalu berupa ikon + teks, tidak hanya warna. */
@@ -1500,10 +1506,29 @@ const NAMA_BULAN_PENDEK = Array.from({ length: 12 }, (_, i) => new Date(2000, i,
 const RINGKAS_KOSONG = { masuk: 0, keluar: 0, ditabung: 0, kategori: {}, oleh: {} };
 const ringkasBulan = k => S.data.bulanan[k] || RINGKAS_KOSONG;
 
-function bulanSebelum(k) {
+/** Kunci periode digeser n bulan: geserPeriode('2026-01', -1) → '2025-12'. */
+function geserPeriode(k, n) {
   const d = keTanggal(k);
-  d.setMonth(d.getMonth() - 1);
+  d.setMonth(d.getMonth() + n);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function bulanSebelum(k) { return geserPeriode(k, -1); }
+function tahunLaluDari(k) { return geserPeriode(k, -12); }
+function adaIsi(x) { return !!(x.masuk || x.keluar); }
+
+/**
+ * Pembanding pengeluaran yang adil. Untuk periode berjalan: kedua periode dihitung sampai hari ke-N yang sama
+ * (dari S.data.setara); periode yang sudah selesai: dibanding penuh. mode: 'lalu' (periode sebelumnya) | 'tahun'.
+ * → { kini: { keluar, kategori }, lalu: { keluar, kategori }, bulanLalu, sebagian, hariKe }
+ */
+function bandingPeriode(pilih, mode) {
+  const st = S.data.setara;
+  if (st && st.bulan === pilih) {
+    const b = mode === 'tahun' ? st.tahunLalu : st.lalu;
+    return { kini: st.ini, lalu: b, bulanLalu: b.bulan, sebagian: true, hariKe: st.hariKe };
+  }
+  const bulanLalu = mode === 'tahun' ? tahunLaluDari(pilih) : bulanSebelum(pilih);
+  return { kini: ringkasBulan(pilih), lalu: ringkasBulan(bulanLalu), bulanLalu, sebagian: false };
 }
 
 function viewLaporan() {
@@ -1514,10 +1539,10 @@ function viewLaporan() {
   const masuk = jumlah('masuk');
   const keluar = jumlah('keluar');
   const ditabung = jumlah('ditabung');
-  const bulanAktif = data.filter(x => x.masuk || x.keluar).length;
   const rasio = masuk ? Math.round((masuk - keluar) / masuk * 100) : null;
   const pilih = S.bulan.slice(0, 4) === String(th) ? S.bulan : bulan[11];
   const r = ringkasBulan(pilih);
+  const rata = rataPengeluaran(bulan, data);
   const tile = (label, nilai, ket) => `<div class="tile"><small>${label}</small><b>${nilai}</b>${ket ? `<span>${ket}</span>` : ''}</div>`;
 
   return `
@@ -1529,12 +1554,13 @@ function viewLaporan() {
         <button data-aksi="tahun" data-geser="1" aria-label="${T('Tahun berikutnya')}">${svg('maju')}</button>
       </div>
     </div>
+    <p class="judul-cetak">${T('Laporan keuangan {tahun}', { tahun: th })}${S.data.namaBuku ? ' · ' + esc(namaT(S.data.namaBuku)) : ''} · ${T('dicetak {tanggal}', { tanggal: esc(tanggalPendek(hariIni())) })}</p>
 
     <div class="kpi">
       ${tile(T('Pemasukan {tahun}', { tahun: th }), rp(masuk))}
       ${tile(T('Pengeluaran {tahun}', { tahun: th }), rp(keluar))}
       ${tile(T('Selisih'), rp(masuk - keluar), rasio !== null ? T('{persen}% dari pemasukan', { persen: rasio }) : '')}
-      ${tile(T('Rata-rata pengeluaran'), rp(Math.round(keluar / Math.max(1, bulanAktif))), T('per bulan'))}
+      ${tile(T('Rata-rata pengeluaran'), rp(rata.nilai), rata.ket)}
       ${ditabung ? tile(T('Masuk tabungan'), rp(ditabung), T('setoran − penarikan')) : ''}
     </div>
 
@@ -1553,13 +1579,113 @@ function viewLaporan() {
       </details>
     </section>
 
+    ${kartuKekayaan(bulan)}
+
+    ${pemilihPeriodeLaporan(pilih)}
     ${kartuSorotan(pilih)}
     ${kartuKategoriLaporan(pilih, data)}
-    ${kartuPolaBelanja(pilih)}
-    ${kartuTerbesar(pilih)}
+    ${kartuAnggaranLaporan(bulan, data, pilih)}
+    ${trxLaporan(pilih) ? kartuPolaBelanja(pilih) + kartuTerbesar(pilih) : kartuRincianMenunggu(pilih)}
     ${kartuBanding(pilih)}
     ${kartuAnggota(pilih)}
-    ${kartuLabelLaporan()}`;
+    ${kartuLabelLaporan(pilih)}
+
+    <div class="aksi-laporan">
+      <button type="button" class="tombol-tambah" data-aksi="bagikan-tahunan">${T('📤 Bagikan kilas balik {tahun}', { tahun: th })}</button>
+      <button type="button" class="tombol-tambah" data-aksi="cetak-laporan">${T('🖨️ Cetak / simpan PDF')}</button>
+    </div>`;
+}
+
+/**
+ * Rata-rata pengeluaran per bulan dari periode yang sudah selesai saja: periode berjalan belum penuh dan akan
+ * menurunkan rata-ratanya. Kalau belum ada periode yang selesai di tahun ini, pakai periode berjalan apa adanya.
+ */
+function rataPengeluaran(bulan, data) {
+  const kini = periodeSekarang();
+  const selesai = data.filter((x, i) => bulan[i] < kini && adaIsi(x));
+  if (selesai.length) {
+    return { nilai: Math.round(selesai.reduce((a, x) => a + x.keluar, 0) / selesai.length), ket: T('per bulan · {n} periode selesai', { n: selesai.length }) };
+  }
+  const berjalan = data.filter((x, i) => bulan[i] === kini && adaIsi(x));
+  return { nilai: berjalan.length ? berjalan[0].keluar : 0, ket: berjalan.length ? T('periode berjalan, belum penuh') : T('per bulan') };
+}
+
+/** Pemilih periode untuk kartu-kartu rincian di bawahnya (selain mengetuk grafik). */
+function pemilihPeriodeLaporan(pilih) {
+  const bisaMaju = pilih < periodeSekarang();
+  return `<div class="pemilih-periode-lap">
+    <button type="button" data-aksi="lap-geser" data-geser="-1" aria-label="${T('Periode sebelumnya')}">${svg('kembali')}</button>
+    <span><small>${T('Rincian periode')}</small><b>${esc(namaBulan(pilih))}</b></span>
+    <button type="button" data-aksi="lap-geser" data-geser="1" aria-label="${T('Periode berikutnya')}" ${bisaMaju ? '' : 'disabled'}>${svg('maju')}</button>
+  </div>`;
+}
+
+/** Pengganti kartu pola belanja & transaksi terbesar selama transaksi periode terpilih belum dimuat. */
+function kartuRincianMenunggu(pilih) {
+  if (S.offline || S.sesiHabis || !navigator.onLine) {
+    return `<section class="kartu"><p class="info-kecil" style="margin:0">${T('Pola belanja harian & transaksi terbesar {bulan} butuh sinyal untuk dimuat.', { bulan: esc(namaBulan(pilih)) })}</p>
+      <button type="button" class="tombol-tambah" style="margin-top:10px" data-aksi="lap-bulan" data-bulan="${esc(pilih)}">${T('Coba lagi')}</button></section>`;
+  }
+  return `<section class="kartu" aria-busy="true"><h3>${T('Memuat rincian {bulan}…', { bulan: esc(namaBulan(pilih)) })}</h3>${KERANGKA_DAFTAR}</section>`;
+}
+
+/**
+ * Kekayaan bersih di akhir tiap periode, dihitung mundur dari kekayaan bersih sekarang: transfer antar dompet,
+ * tabungan, aset, dan utang tidak mengubah totalnya, jadi akhir periode k = sekarang − Σ (masuk − keluar) setelah k.
+ */
+function deretKekayaan(bulan) {
+  const kini = periodeSekarang();
+  const semua = Object.keys(S.data.bulanan || {}).sort();
+  if (!semua.length) return [];
+  const pertama = semua[0];
+  const sekarang = hitungKekayaan().bersih;
+  return bulan.map(k => {
+    if (k > kini || k < pertama) return null;
+    const sesudah = semua.filter(p => p > k).reduce((a, p) => a + ringkasBulan(p).masuk - ringkasBulan(p).keluar, 0);
+    return sekarang - sesudah;
+  });
+}
+
+function kartuKekayaan(bulan) {
+  const deret = deretKekayaan(bulan);
+  const ada = deret.map((v, i) => ({ v, i })).filter(x => x.v !== null);
+  if (ada.length < 2) return '';
+  const W = 340, H = 150, kiri = 40, bawah = 22, atas = 10;
+  const tinggi = H - bawah - atas;
+  const nilai = ada.map(x => x.v);
+  let lo = Math.min(0, ...nilai), hi = Math.max(...nilai);
+  if (hi === lo) hi = lo + 1;
+  const skala = angkaBulat(Math.max(Math.abs(hi), Math.abs(lo)));
+  const atasSkala = hi > 0 ? skala : 0, bawahSkala = lo < 0 ? -skala : 0;
+  const y = v => atas + (atasSkala - v) / ((atasSkala - bawahSkala) || 1) * tinggi;
+  const lebarGrup = (W - kiri) / 12;
+  const cx = i => kiri + i * lebarGrup + lebarGrup / 2;
+  const titik = ada.map(x => [cx(x.i), y(x.v)]);
+  const jalur = jalurHalus(titik);
+  const awal = ada[0], akhir = ada[ada.length - 1];
+  const naik = akhir.v - awal.v;
+  const grid = [atasSkala, bawahSkala].filter(v => v).map(v => `
+    <line class="grid" x1="${kiri}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/>
+    <text class="sumbu" x="${kiri - 6}" y="${y(v) + 3}" text-anchor="end">${v < 0 ? '−' : ''}${rpPendek(Math.abs(v))}</text>`).join('');
+  const label = bulan.map((k, i) => `<text class="sumbu" x="${cx(i)}" y="${H - 6}" text-anchor="middle">${NAMA_BULAN_PENDEK[i]}</text>`).join('');
+  const ketuk = ada.map(x => `<rect class="hit" x="${kiri + x.i * lebarGrup}" y="0" width="${lebarGrup}" height="${H}">
+    <title>${T('Akhir {bulan}: {jumlah}', { bulan: namaBulan(bulan[x.i]), jumlah: rp(x.v) })}</title></rect>`).join('');
+  return `<section class="kartu">
+    <h3>${T('Kekayaan bersih')}</h3>
+    <div class="banding" style="border:0;padding-top:0">
+      <span class="isi"><b>${rp(akhir.v)}</b><small>${T('akhir {bulan}', { bulan: esc(namaBulan(bulan[akhir.i])) })}</small></span>
+      ${naik ? `<span class="${naik > 0 ? 'turun' : 'naik'}">${naik > 0 ? '▲' : '▼'} ${rp(Math.abs(naik))}<small>${T('sejak {bulan}', { bulan: esc(NAMA_BULAN_PENDEK[awal.i]) })}</small></span>` : ''}
+    </div>
+    <div class="slide-grafik diam" style="padding:0">
+      <svg class="grafik" viewBox="0 0 ${W} ${H}" role="img" aria-label="${T('Tren kekayaan bersih per bulan')}">
+        ${grid}${label}<line class="dasar" x1="${kiri}" x2="${W}" y1="${y(0)}" y2="${y(0)}"/>
+        <path class="area seri-1" d="${jalur} L${titik[titik.length - 1][0]},${y(0)} L${titik[0][0]},${y(0)} Z"/>
+        <path class="garis seri-1" d="${jalur}" pathLength="1"/>
+        ${titik.map(([x, yy]) => `<circle class="titik seri-1" cx="${x}" cy="${yy}" r="2.8"/>`).join('')}${ketuk}
+      </svg>
+    </div>
+    <p class="info-kecil" style="text-align:left;margin-top:6px">${T('Dompet + tabungan + aset + piutang − utang. Dihitung mundur dari saldo sekarang, jadi perubahan nilai aset atau saldo yang disesuaikan tidak tercatat per bulan.')}</p>
+  </section>`;
 }
 
 /**
@@ -1610,13 +1736,17 @@ async function bagikanLaporan(k) {
   if (!top.length) teks(T('Belum ada pengeluaran.'), P, 900, 32, 'rgba(255,255,255,.7)', 600);
   teks(T('Dicatat dengan Dompet Keluarga'), W / 2, H - 70, 28, 'rgba(255,255,255,.5)', 600, 'center');
 
-  const blob = await new Promise(ok => c.toBlob(ok, 'image/png'));
-  const nama = 'ringkasan-' + k + '.png';
-  const file = new File([blob], nama, { type: 'image/png' });
   const keterangan = T('Ringkasan keuangan {bulan}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}.', { bulan: namaBulan(k), masuk: rp(r.masuk), keluar: rp(r.keluar), selisih: rp(r.masuk - r.keluar) });
+  await bagikanKanvas(c, 'ringkasan-' + k + '.png', T('Ringkasan {bulan}', { bulan: namaBulan(k) }), keterangan);
+}
+
+/** Kanvas → PNG → menu berbagi HP; kalau browser tidak mendukung berbagi file, gambarnya diunduh. */
+async function bagikanKanvas(c, nama, judul, keterangan) {
+  const blob = await new Promise(ok => c.toBlob(ok, 'image/png'));
+  const file = new File([blob], nama, { type: 'image/png' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title: T('Ringkasan {bulan}', { bulan: namaBulan(k) }), text: keterangan });
+      await navigator.share({ files: [file], title: judul, text: keterangan });
     } catch (e) { /* dibatalkan pengguna */ }
     return;
   }
@@ -1626,6 +1756,82 @@ async function bagikanLaporan(k) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   toast(T('Gambar ringkasan diunduh ✔'));
+}
+
+/** Kilas balik satu tahun sebagai gambar 1080×1350: angka utama, grafik 12 bulan, bulan terhemat/terboros, kategori terbesar. */
+async function bagikanTahunan(th) {
+  const bulan = Array.from({ length: 12 }, (_, i) => th + '-' + String(i + 1).padStart(2, '0'));
+  const data = bulan.map(ringkasBulan);
+  const masuk = data.reduce((a, x) => a + x.masuk, 0), keluar = data.reduce((a, x) => a + x.keluar, 0);
+  const per = {};
+  data.forEach(x => Object.keys(x.kategori).forEach(n => { per[n] = (per[n] || 0) + x.kategori[n]; }));
+  const top = Object.keys(per).map(n => ({ n, v: per[n] })).sort((a, b) => b.v - a.v).slice(0, 4);
+  const kini = periodeSekarang();
+  const selesai = bulan.map((k, i) => ({ k, x: data[i] })).filter(o => o.k < kini && o.x.keluar);
+  const hemat = selesai.slice().sort((a, b) => a.x.keluar - b.x.keluar)[0];
+  const boros = selesai.slice().sort((a, b) => b.x.keluar - a.x.keluar)[0];
+  const rata = rataPengeluaran(bulan, data);
+
+  const W = 1080, H = 1350, P = 80;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  if (!g.roundRect) g.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); };
+  try { await document.fonts.ready; } catch (e) { /* font cadangan */ }
+  const teks = (s, x, y, ukuran, warna, tebal, rata2) => {
+    g.font = `${tebal || 700} ${ukuran}px "Plus Jakarta Sans", system-ui, sans-serif`; g.fillStyle = warna; g.textAlign = rata2 || 'left'; g.fillText(s, x, y);
+  };
+  const latar = g.createLinearGradient(0, 0, W, H);
+  latar.addColorStop(0, '#0c111d'); latar.addColorStop(1, '#1f1b4d');
+  g.fillStyle = latar; g.fillRect(0, 0, W, H);
+
+  teks('👛  Dompet Keluarga', P, 120, 32, 'rgba(255,255,255,.7)', 600);
+  teks(T('Kilas balik'), P, 200, 44, '#ffffff', 600);
+  teks(String(th), P, 280, 84, '#ffffff', 800);
+
+  const kotak = (x, y, w, label, nilai, warna) => {
+    g.fillStyle = 'rgba(255,255,255,.08)'; g.beginPath(); g.roundRect(x, y, w, 150, 28); g.fill();
+    teks(label, x + 30, y + 56, 28, 'rgba(255,255,255,.7)', 600);
+    teks(nilai, x + 30, y + 116, 42, warna, 800);
+  };
+  const lebar = (W - P * 2 - 24) / 2;
+  kotak(P, 330, lebar, T('Pemasukan'), rp(masuk), '#3ccb8b');
+  kotak(P + lebar + 24, 330, lebar, T('Pengeluaran'), rp(keluar), '#fb7593');
+  kotak(P, 504, lebar, T('Selisih') + (masuk ? ` · ${Math.round((masuk - keluar) / masuk * 100)}%` : ''), rp(masuk - keluar), '#ffffff');
+  kotak(P + lebar + 24, 504, lebar, T('Rata-rata / bulan'), rp(rata.nilai), '#ffffff');
+
+  // Grafik batang 12 bulan: pemasukan (hijau) & pengeluaran (merah muda).
+  const gx = P, gy = 700, gw = W - P * 2, gh = 170;
+  const maks = Math.max(1, ...data.map(x => Math.max(x.masuk, x.keluar)));
+  const kolom = gw / 12, bw = Math.min(22, (kolom - 14) / 2);
+  data.forEach((x, i) => {
+    const cx = gx + i * kolom + kolom / 2;
+    [[x.masuk, '#3ccb8b', cx - bw - 2], [x.keluar, '#fb7593', cx + 2]].forEach(([v, warna, bx]) => {
+      const h = v / maks * gh;
+      if (h < 1) return;
+      g.fillStyle = warna; g.beginPath(); g.roundRect(bx, gy + gh - h, bw, h, 6); g.fill();
+    });
+    teks(NAMA_BULAN_PENDEK[i], cx, gy + gh + 40, 24, 'rgba(255,255,255,.6)', 600, 'center');
+  });
+
+  let y = 985;
+  if (hemat && boros && hemat.k !== boros.k) {
+    teks(T('🌱 Paling hemat: {bulan} ({jumlah})', { bulan: NAMA_BULAN_PENDEK[bulan.indexOf(hemat.k)], jumlah: rpPendek(hemat.x.keluar) }), P, y, 30, '#ffffff', 600);
+    teks(T('🔥 Paling boros: {bulan} ({jumlah})', { bulan: NAMA_BULAN_PENDEK[bulan.indexOf(boros.k)], jumlah: rpPendek(boros.x.keluar) }), P, y + 50, 30, '#ffffff', 600);
+    y += 105;
+  }
+  if (top.length) {
+    teks(T('Pengeluaran terbesar'), P, y, 32, '#ffffff', 700);
+    top.forEach((x, i) => {
+      const yy = y + 50 + i * 44;
+      teks(ikonKategori(x.n, TIPE.KELUAR) + '  ' + namaT(x.n), P, yy, 28, 'rgba(255,255,255,.9)', 600);
+      teks(rp(x.v) + (keluar ? `  ${Math.round(x.v / keluar * 100)}%` : ''), W - P, yy, 28, 'rgba(255,255,255,.85)', 700, 'right');
+    });
+  }
+  teks(T('Dicatat dengan Dompet Keluarga'), W / 2, H - 36, 26, 'rgba(255,255,255,.5)', 600, 'center');
+
+  const keterangan = T('Kilas balik keuangan {tahun}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}.', { tahun: th, masuk: rp(masuk), keluar: rp(keluar), selisih: rp(masuk - keluar) });
+  await bagikanKanvas(c, 'kilas-balik-' + th + '.png', T('Kilas balik {tahun}', { tahun: th }), keterangan);
 }
 
 /** Grafik batang berkelompok: 2 seri, satu sumbu, ujung atas membulat 4px, celah 2px antar batang. */
@@ -1834,21 +2040,130 @@ function angkaBulat(v) {
   return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
 }
 
+/** Per kategori dari ringkasan periode: pengeluaran (kategori) atau pemasukan (kategoriMasuk). */
+function kategoriRingkas(x, tipe) {
+  return (tipe === TIPE.MASUK ? x.kategoriMasuk : x.kategori) || {};
+}
+
 function kartuKategoriLaporan(pilih, data) {
   const setahun = S.lapKategori === 'tahun';
+  const tipe = S.lapTipe === TIPE.MASUK ? TIPE.MASUK : TIPE.KELUAR;
   const per = {};
   (setahun ? data : [ringkasBulan(pilih)]).forEach(x => {
-    Object.keys(x.kategori).forEach(n => { per[n] = (per[n] || 0) + x.kategori[n]; });
+    const k = kategoriRingkas(x, tipe);
+    Object.keys(k).forEach(n => { per[n] = (per[n] || 0) + k[n]; });
   });
-  const urut = Object.keys(per).map(n => ({ ikon: ikonKategori(n, TIPE.KELUAR), nama: namaT(n), nilai: per[n] })).sort((a, b) => b.nilai - a.nilai);
+  const urut = Object.keys(per).map(n => ({
+    ikon: ikonKategori(n, tipe), nama: namaT(n), nilai: per[n],
+    atribut: `data-aksi="tren-kategori" data-nama="${esc(n)}" data-tipe="${esc(tipe)}"`,
+  })).sort((a, b) => b.nilai - a.nilai);
   const total = urut.reduce((a, x) => a + x.nilai, 0);
+  const chip = (aksi, nilai, aktif, label) => `<button class="chip ${aktif ? 'aktif' : ''}" data-aksi="${aksi}" data-mode="${esc(nilai)}">${label}</button>`;
   return `<section class="kartu">
-    <h3>${T('Pengeluaran per kategori')}</h3>
+    <h3>${tipe === TIPE.MASUK ? T('Pemasukan per kategori') : T('Pengeluaran per kategori')}</h3>
     <div class="chips">
-      <button class="chip ${setahun ? '' : 'aktif'}" data-aksi="lap-kategori" data-mode="bulan">${esc(namaBulan(pilih))}</button>
-      <button class="chip ${setahun ? 'aktif' : ''}" data-aksi="lap-kategori" data-mode="tahun">${T('Setahun {tahun}', { tahun: S.tahun })}</button>
+      ${chip('lap-tipe', TIPE.KELUAR, tipe === TIPE.KELUAR, T('Pengeluaran'))}
+      ${chip('lap-tipe', TIPE.MASUK, tipe === TIPE.MASUK, T('Pemasukan'))}
+      <span class="pemisah-chip" aria-hidden="true"></span>
+      ${chip('lap-kategori', 'bulan', !setahun, esc(namaBulan(pilih)))}
+      ${chip('lap-kategori', 'tahun', setahun, T('Setahun {tahun}', { tahun: S.tahun }))}
     </div>
-    ${urut.length ? donatKategori(urut, total) + barBerperingkat(urut, total) : kosong('🧾', T('Belum ada pengeluaran.'))}
+    ${urut.length
+      ? donatKategori(urut, total) + barBerperingkat(urut, total) + `<p class="info-kecil" style="margin-top:4px">${T('Ketuk kategori untuk melihat trennya & transaksinya.')}</p>`
+      : kosong('🧾', tipe === TIPE.MASUK ? T('Belum ada pemasukan.') : T('Belum ada pengeluaran.'))}
+  </section>`;
+}
+
+/** Lembar tren satu kategori: 12 bulan di tahun yang dilihat, garis anggaran, dan pintu ke transaksinya di Riwayat. */
+function bukaTrenKategori(nama, tipe) {
+  const th = S.tahun;
+  const bulan = Array.from({ length: 12 }, (_, i) => th + '-' + String(i + 1).padStart(2, '0'));
+  const nilai = bulan.map(k => kategoriRingkas(ringkasBulan(k), tipe)[nama] || 0);
+  const pilih = S.bulan.slice(0, 4) === String(th) ? S.bulan : bulan[11];
+  const kini = periodeSekarang();
+  const selesai = nilai.filter((v, i) => bulan[i] < kini && adaIsi(ringkasBulan(bulan[i])));
+  const rata = selesai.length ? Math.round(selesai.reduce((a, v) => a + v, 0) / selesai.length) : 0;
+  const totalTahun = nilai.reduce((a, v) => a + v, 0);
+  const kat = tipe === TIPE.KELUAR ? S.data.kategori.find(k => k.nama === nama && k.tipe === tipe) : null;
+  const batas = kat && kat.anggaran > 0 ? kat.anggaran : 0;
+
+  const W = 340, H = 170, kiri = 36, bawah = 22, atas = 8;
+  const tinggi = H - bawah - atas;
+  const skala = angkaBulat(Math.max(1, batas, ...nilai));
+  const y = v => atas + tinggi - v / skala * tinggi;
+  const lebarGrup = (W - kiri) / 12;
+  const bw = Math.min(14, lebarGrup - 8);
+  const kelas = tipe === TIPE.MASUK ? 'seri-1' : 'seri-2';
+  const grafik = `<svg class="grafik" viewBox="0 0 ${W} ${H}" role="img" aria-label="${T('Tren {nama} per bulan', { nama: esc(namaT(nama)) })}">
+    ${[skala / 2, skala].map(v => `<line class="grid" x1="${kiri}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/>
+      <text class="sumbu" x="${kiri - 6}" y="${y(v) + 3}" text-anchor="end">${rpPendek(v)}</text>`).join('')}
+    <line class="dasar" x1="${kiri}" x2="${W}" y1="${y(0)}" y2="${y(0)}"/>
+    ${bulan.map((k, i) => {
+      const cx = kiri + i * lebarGrup + lebarGrup / 2;
+      const lewat = batas && nilai[i] > batas;
+      return `${k === pilih ? `<rect class="pilih" x="${kiri + i * lebarGrup + 1}" y="${atas}" width="${lebarGrup - 2}" height="${tinggi}" rx="6"/>` : ''}
+        ${batang(cx - bw / 2, y(nilai[i]), bw, y(0), lewat ? 'defisit' : kelas, i * 35)}
+        <text class="sumbu ${k === pilih ? 'aktif' : ''}" x="${cx}" y="${H - 6}" text-anchor="middle">${NAMA_BULAN_PENDEK[i]}</text>
+        <rect class="hit" x="${kiri + i * lebarGrup}" y="0" width="${lebarGrup}" height="${H}"><title>${esc(namaBulan(k))}: ${rp(nilai[i])}</title></rect>`;
+    }).join('')}
+    ${batas ? `<line class="garis-batas" x1="${kiri}" x2="${W}" y1="${y(batas)}" y2="${y(batas)}"/>` : ''}
+  </svg>`;
+  const tile = (label, isi, ket) => `<div class="tile"><small>${label}</small><b>${isi}</b>${ket ? `<span>${ket}</span>` : ''}</div>`;
+  const lewatKali = batas ? nilai.filter(v => v > batas).length : 0;
+  bukaSheet(`${ikonKategori(nama, tipe)} ${namaT(nama)}`, `
+    <div class="kpi" style="margin-bottom:10px">
+      ${tile(esc(namaBulan(pilih)), rp(kategoriRingkas(ringkasBulan(pilih), tipe)[nama] || 0), batas ? T('anggaran {jumlah}', { jumlah: rp(batas) }) : '')}
+      ${tile(T('Rata-rata per bulan'), rp(rata), selesai.length ? T('{n} periode selesai', { n: selesai.length }) : '')}
+      ${tile(T('Setahun {tahun}', { tahun: th }), rp(totalTahun), batas ? (lewatKali ? T('lewat anggaran {n}×', { n: lewatKali }) : T('selalu dalam anggaran 👍')) : '')}
+    </div>
+    <div class="slide-grafik main" style="padding:0">${grafik}</div>
+    ${batas ? `<p class="info-kecil" style="text-align:left;margin-top:6px">${T('Garis putus-putus = anggaran saat ini. Batang merah = lewat anggaran.')}</p>` : ''}
+    <div class="aksi-form" style="flex-direction:column;gap:8px;margin-top:14px">
+      <button type="button" class="btn btn-utama" data-aksi="lap-riwayat" data-nama="${esc(nama)}" data-tipe="${esc(tipe)}" data-rentang="periode" data-bulan="${esc(pilih)}">${T('Lihat transaksi {bulan}', { bulan: esc(namaBulan(pilih)) })}</button>
+      <button type="button" class="btn" data-aksi="lap-riwayat" data-nama="${esc(nama)}" data-tipe="${esc(tipe)}" data-rentang="tahun" data-bulan="${esc(pilih)}">${T('Lihat transaksi setahun {tahun}', { tahun: th })}</button>
+    </div>`);
+}
+
+/**
+ * Laporan → Anggaran vs realisasi: tiap kategori beranggaran, 12 kotak kecil (aman / hampir / lewat) untuk
+ * tahun yang dilihat, dan berapa kali lewat. Memakai anggaran yang berlaku sekarang (riwayat anggaran tidak disimpan).
+ */
+function kartuAnggaranLaporan(bulan, data, pilih) {
+  const kat = S.data.kategori.filter(k => k.tipe === TIPE.KELUAR && k.anggaran > 0);
+  if (!kat.length) {
+    return `<section class="kartu" style="padding:4px 16px">
+      <button class="baris" data-aksi="atur-anggaran"><span class="ikon-bulat">🎯</span>
+        <span class="isi"><b>${T('Anggaran vs realisasi')}</b><small>${T('Atur anggaran per kategori untuk melihat bulan mana yang kebablasan')}</small></span>
+        <span class="panah">${svg('maju')}</span></button></section>`;
+  }
+  const kini = periodeSekarang();
+  const baris = kat.map(k => {
+    const sel = bulan.map((b, i) => {
+      const v = data[i].kategori[k.nama] || 0;
+      if (b > kini) return { b, v, st: 'nanti' };
+      if (!adaIsi(data[i])) return { b, v, st: 'kosong' };
+      return { b, v, st: v > k.anggaran ? 'lewat' : v >= k.anggaran * 0.8 ? 'hampir' : 'aman' };
+    });
+    const dihitung = sel.filter(s => s.st !== 'nanti' && s.st !== 'kosong');
+    const lewat = dihitung.filter(s => s.st === 'lewat').length;
+    const kiniV = ringkasBulan(pilih).kategori[k.nama] || 0;
+    return { k, sel, lewat, n: dihitung.length, kiniV };
+  }).sort((a, b) => b.lewat - a.lewat || b.kiniV / b.k.anggaran - a.kiniV / a.k.anggaran);
+  const namaSt = { aman: T('aman'), hampir: T('hampir habis'), lewat: T('lewat anggaran'), kosong: T('belum ada data'), nanti: T('belum terjadi') };
+  return `<section class="kartu">
+    <h3>${T('Anggaran vs realisasi · {tahun}', { tahun: S.tahun })}</h3>
+    <div class="daftar-anggaran-lap">${baris.map(x => `
+      <button type="button" class="baris-anggaran-lap" data-aksi="tren-kategori" data-nama="${esc(x.k.nama)}" data-tipe="${esc(TIPE.KELUAR)}">
+        <span class="ikon">${ilus(ikonKategori(x.k.nama, TIPE.KELUAR))}</span>
+        <span class="isi"><b>${esc(namaT(x.k.nama))}</b>
+          <small>${x.n ? (x.lewat ? T('Lewat {n} dari {m} bulan', { n: x.lewat, m: x.n }) : T('Aman {m} bulan 👍', { m: x.n })) : T('Belum ada data')}</small></span>
+        <span class="nilai">${rp(x.kiniV)}<small>/ ${rp(x.k.anggaran)}</small></span>
+        <span class="strip-anggaran" aria-hidden="true">${x.sel.map((s, i) => `<i class="${s.st} ${s.b === pilih ? 'dipilih' : ''}" title="${esc(NAMA_BULAN_PENDEK[i])}: ${rp(s.v)} · ${namaSt[s.st]}"></i>`).join('')}</span>
+      </button>`).join('')}</div>
+    <div class="legenda-anggaran">
+      <i class="aman"></i><small>${T('aman')}</small><i class="hampir"></i><small>${T('≥80%')}</small><i class="lewat"></i><small>${T('lewat')}</small>
+    </div>
+    <p class="info-kecil" style="text-align:left;margin-top:6px">${T('Dibanding anggaran yang berlaku sekarang; tambahan sisa amplop tidak dihitung.')}</p>
   </section>`;
 }
 
@@ -1862,7 +2177,6 @@ const NAMA_HARI_SEMINGGU = [T('Sen'), T('Sel'), T('Rab'), T('Kam'), T('Jum'), T(
 /** Wawasan otomatis untuk periode terpilih, disusun dari yang paling berguna. */
 function kartuSorotan(pilih) {
   const r = ringkasBulan(pilih);
-  const lalu = ringkasBulan(bulanSebelum(pilih));
   const trx = trxLaporan(pilih);
   const rentang = SERVER.rentangPeriode(pilih, S.data.mulaiPeriode || 1);
   const hari = hariIni();
@@ -1878,10 +2192,16 @@ function kartuSorotan(pilih) {
       rasio >= 20 ? T('Bagus! Di atas 20% yang biasa disarankan') : rasio >= 0 ? T('Coba sisihkan minimal 20% untuk ditabung') : T('Pengeluaran lebih besar dari pemasukan'),
       rasio >= 20 ? 'baik' : rasio < 0 ? 'buruk' : '');
   }
-  if (r.keluar && lalu.keluar) {
-    const p = Math.round((r.keluar - lalu.keluar) / lalu.keluar * 100);
-    if (p) tambah(p > 0 ? '📈' : '📉', p > 0 ? T('Pengeluaran naik {persen}%', { persen: Math.abs(p) }) : T('Pengeluaran turun {persen}%', { persen: Math.abs(p) }), T('Dibanding {bulan} ({jumlah})', { bulan: namaBulan(bulanSebelum(pilih)), jumlah: rp(lalu.keluar) }), p > 0 ? 'buruk' : 'baik');
+  const pb = bandingPeriode(pilih, 'lalu');
+  if (pb.kini.keluar && pb.lalu.keluar) {
+    const p = Math.round((pb.kini.keluar - pb.lalu.keluar) / pb.lalu.keluar * 100);
+    const ket = pb.sebagian
+      ? T('Dibanding {bulan} di hari ke-{n} yang sama ({jumlah})', { bulan: namaBulan(pb.bulanLalu), n: pb.hariKe, jumlah: rp(pb.lalu.keluar) })
+      : T('Dibanding {bulan} ({jumlah})', { bulan: namaBulan(pb.bulanLalu), jumlah: rp(pb.lalu.keluar) });
+    if (p) tambah(p > 0 ? '📈' : '📉', p > 0 ? T('Pengeluaran naik {persen}%', { persen: Math.abs(p) }) : T('Pengeluaran turun {persen}%', { persen: Math.abs(p) }), ket, p > 0 ? 'buruk' : 'baik');
   }
+  const ramal = perkiraanAkhir(pilih);
+  if (ramal) butir.unshift({ ikon: '🔮', judul: T('Perkiraan akhir periode: {jumlah}', { jumlah: rp(ramal.nilai) }), ket: ramal.ket, kelas: ramal.kelas });
   const kat = Object.keys(r.kategori).map(n => ({ n, v: r.kategori[n] })).sort((a, b) => b.v - a.v)[0];
   if (kat && r.keluar) tambah(ilus(ikonKategori(kat.n, TIPE.KELUAR)), T('{nama} paling besar', { nama: esc(namaT(kat.n)) }), T('{jumlah} · {persen}% dari pengeluaran', { jumlah: rp(kat.v), persen: Math.round(kat.v / r.keluar * 100) }));
   if (trx) {
@@ -1894,13 +2214,78 @@ function kartuSorotan(pilih) {
     if (keluar.length && tanpa > 0) tambah('🌱', T('{n} hari tanpa pengeluaran', { n: tanpa }), T('Hari tanpa jajan bikin saldo awet'), 'baik');
   }
   if (!butir.length) return '';
+  const ai = (S.ringkasAi || {})[pilih];
+  const bisaAi = S.data.kunciGemini && S.data.kunciGemini.length;
   return `<section class="kartu">
     <div class="kepala-kartu"><h3>${T('✨ Sorotan · {bulan}', { bulan: esc(namaBulan(pilih)) })}</h3>
       <button type="button" class="chip chip-kilas" data-aksi="kilas-putar" data-bulan="${esc(pilih)}">${T('▶ Kilas balik')}</button></div>
+    <div id="ringkas-ai">${ai ? kotakRingkasAi(ai, pilih) : ''}</div>
     <div class="sorotan">${butir.map(b => `
       <div class="butir-sorotan ${b.kelas}"><span class="ikon-sorotan">${b.ikon}</span>
         <span class="isi"><b>${b.judul}</b><small>${esc(b.ket)}</small></span></div>`).join('')}</div>
+    ${bisaAi && !ai ? `<button type="button" class="tombol-tambah" style="margin-top:10px" data-aksi="ai-laporan" data-bulan="${esc(pilih)}">${T('✨ Jelaskan periode ini dengan AI')}</button>` : ''}
   </section>`;
+}
+
+/**
+ * Perkiraan pengeluaran di akhir periode berjalan, dari laju sejauh ini (mulai hari ke-5 supaya tidak liar).
+ * Dibanding total anggaran kalau ada, kalau tidak dengan pemasukan periode ini.
+ */
+function perkiraanAkhir(pilih) {
+  const st = S.data.setara;
+  if (!st || st.bulan !== pilih || st.hariKe < 5) return null;
+  const rentang = SERVER.rentangPeriode(pilih, S.data.mulaiPeriode || 1);
+  const totalHari = Math.round((keTanggal(rentang.akhir) - keTanggal(rentang.awal)) / 864e5) + 1;
+  if (st.hariKe >= totalHari || !st.ini.keluar) return null;
+  const perHari = st.ini.keluar / st.hariKe;
+  const nilai = Math.round(perHari * totalHari / 1000) * 1000;
+  const anggaran = S.data.kategori.filter(k => k.tipe === TIPE.KELUAR && k.anggaran > 0).reduce((a, k) => a + k.anggaran, 0);
+  const masuk = ringkasBulan(pilih).masuk;
+  const dasar = T('Kalau laju belanja tetap {jumlah}/hari', { jumlah: rp(Math.round(perHari)) });
+  if (anggaran) {
+    return { nilai, kelas: nilai > anggaran ? 'buruk' : 'baik',
+      ket: dasar + ' · ' + (nilai > anggaran ? T('lewat {jumlah} dari total anggaran', { jumlah: rp(nilai - anggaran) }) : T('masih di bawah total anggaran {jumlah}', { jumlah: rp(anggaran) })) };
+  }
+  if (masuk) return { nilai, kelas: nilai > masuk ? 'buruk' : '', ket: dasar + ' · ' + (nilai > masuk ? T('melebihi pemasukan periode ini') : T('pemasukan periode ini {jumlah}', { jumlah: rp(masuk) })) };
+  return { nilai, kelas: '', ket: dasar };
+}
+
+function kotakRingkasAi(teks, pilih) {
+  return `<div class="ringkas-ai"><p>${esc(teks)}</p>
+    <small>${T('✨ Ditulis AI Gemini dari angka ringkasan, bisa keliru.')}
+      <button type="button" class="tombol-teks" data-aksi="ai-laporan" data-bulan="${esc(pilih)}" data-ulang="1">${T('Tulis ulang')}</button></small></div>`;
+}
+
+/** Angka ringkasan satu periode untuk dijelaskan AI. Catatan transaksi hanya dari 5 pengeluaran terbesar. */
+function faktaLaporan(pilih) {
+  const r = ringkasBulan(pilih);
+  const pb = bandingPeriode(pilih, 'lalu');
+  const pt = bandingPeriode(pilih, 'tahun');
+  const atas = (o, n) => Object.keys(o || {}).map(k => ({ kategori: k, jumlah: o[k] })).sort((a, b) => b.jumlah - a.jumlah).slice(0, n);
+  const trx = trxLaporan(pilih);
+  const fakta = {
+    periode: namaBulan(pilih),
+    masihBerjalan: !!(S.data.setara && S.data.setara.bulan === pilih),
+    hariKe: S.data.setara && S.data.setara.bulan === pilih ? S.data.setara.hariKe : undefined,
+    pemasukan: r.masuk, pengeluaran: r.keluar, masukTabungan: r.ditabung,
+    pengeluaranPerKategori: atas(r.kategori, 8),
+    pemasukanPerKategori: atas(r.kategoriMasuk, 4),
+    periodeLalu: { periode: namaBulan(pb.bulanLalu), pengeluaran: pb.lalu.keluar, hariYangSama: pb.sebagian, perKategori: atas(pb.lalu.kategori, 8) },
+    tahunLalu: pt.lalu.keluar ? { periode: namaBulan(pt.bulanLalu), pengeluaran: pt.lalu.keluar, perKategori: atas(pt.lalu.kategori, 5) } : undefined,
+    anggaran: S.data.kategori.filter(k => k.tipe === TIPE.KELUAR && k.anggaran > 0).map(k => ({ kategori: k.nama, anggaran: k.anggaran, terpakai: r.kategori[k.nama] || 0 })),
+  };
+  const ramal = perkiraanAkhir(pilih);
+  if (ramal) fakta.perkiraanPengeluaranAkhirPeriode = ramal.nilai;
+  if (trx) {
+    const keluar = trx.filter(t => t.tipe === TIPE.KELUAR);
+    fakta.pengeluaranTerbesar = keluar.slice().sort((a, b) => b.jumlah - a.jumlah).slice(0, 5)
+      .map(t => ({ tanggal: t.tanggal, kategori: t.kategori, jumlah: t.jumlah, catatan: t.catatan.slice(0, 40) }));
+    const perHari = [0, 0, 0, 0, 0, 0, 0];
+    keluar.forEach(t => { perHari[(keTanggal(t.tanggal).getDay() + 6) % 7] += t.jumlah; });
+    fakta.pengeluaranPerHariSeminggu = { Senin: perHari[0], Selasa: perHari[1], Rabu: perHari[2], Kamis: perHari[3], Jumat: perHari[4], Sabtu: perHari[5], Minggu: perHari[6] };
+    fakta.jumlahTransaksiPengeluaran = keluar.length;
+  }
+  return fakta;
 }
 
 /** Donat komposisi pengeluaran: 5 kategori terbesar + "Lainnya", total di tengah. */
@@ -1980,14 +2365,15 @@ function kartuPolaBelanja(pilih) {
   </section>`;
 }
 
-/** Laporan: pintu ke Label & acara (#lebaran), dengan label periode ini kalau ada. */
-function kartuLabelLaporan() {
-  const daftar = ringkasLabel(S.data.transaksi).slice(0, 3);
+/** Laporan: pintu ke Label & acara (#lebaran), dengan label di periode terpilih kalau ada. */
+function kartuLabelLaporan(pilih) {
+  const trx = trxLaporan(pilih);
+  const daftar = trx ? ringkasLabel(trx).sort((a, b) => b.keluar - a.keluar).slice(0, 3) : [];
   return `<section class="kartu" style="padding:4px 16px">
     <button class="baris" data-aksi="buka-label">
       <span class="ikon-bulat">🏷️</span>
       <span class="isi"><b>${T('Label & acara')}</b><small>${daftar.length
-        ? daftar.map(g => '#' + esc(g.label) + ' ' + rpPendek(g.keluar)).join(' · ')
+        ? esc(NAMA_BULAN_PENDEK[Number(pilih.slice(5, 7)) - 1]) + ': ' + daftar.map(g => '#' + esc(g.label) + ' ' + rpPendek(g.keluar)).join(' · ')
         : T('Kumpulkan pengeluaran lintas kategori, mis. #lebaran')}</small></span>
       <span class="panah">${svg('maju')}</span>
     </button>
@@ -2007,9 +2393,19 @@ function kartuTerbesar(pilih) {
 
 
 function kartuBanding(pilih) {
-  const lalu = bulanSebelum(pilih);
-  const a = ringkasBulan(pilih).kategori;
-  const b = ringkasBulan(lalu).kategori;
+  const mode = S.lapBanding === 'tahun' ? 'tahun' : 'lalu';
+  const pb = bandingPeriode(pilih, mode);
+  const lalu = pb.bulanLalu;
+  const a = pb.kini.kategori;
+  const b = pb.lalu.kategori;
+  const pilihan = `<div class="chips">
+      <button class="chip ${mode === 'lalu' ? 'aktif' : ''}" data-aksi="lap-banding" data-mode="lalu">${T('Periode lalu')}</button>
+      <button class="chip ${mode === 'tahun' ? 'aktif' : ''}" data-aksi="lap-banding" data-mode="tahun">${T('Sama, tahun lalu')}</button>
+    </div>`;
+  if (!pb.lalu.keluar && !adaIsi(ringkasBulan(lalu))) {
+    return `<section class="kartu"><h3>${T('Dibanding {bulan}', { bulan: esc(namaBulan(lalu)) })}</h3>${pilihan}
+      ${kosong('🗓️', T('Belum ada catatan di {bulan}.', { bulan: esc(namaBulan(lalu)) }))}</section>`;
+  }
   const baris = Array.from(new Set(Object.keys(a).concat(Object.keys(b))))
     .map(n => ({ nama: n, kini: a[n] || 0, lalu: b[n] || 0 }))
     .map(x => Object.assign(x, { selisih: x.kini - x.lalu }))
@@ -2021,10 +2417,12 @@ function kartuBanding(pilih) {
     const persen = dasar ? ` (${s > 0 ? '+' : '−'}${Math.abs(Math.round(s / dasar * 100))}%)` : ' ' + T('(baru)');
     return `<span class="${s > 0 ? 'naik' : 'turun'}">${s > 0 ? '▲' : '▼'} ${rp(Math.abs(s))}${persen}</span>`;
   };
-  const totKini = ringkasBulan(pilih).keluar;
-  const totLalu = ringkasBulan(lalu).keluar;
+  const totKini = pb.kini.keluar;
+  const totLalu = pb.lalu.keluar;
   return `<section class="kartu">
     <h3>${T('Dibanding {bulan}', { bulan: esc(namaBulan(lalu)) })}</h3>
+    ${pilihan}
+    ${pb.sebagian ? `<p class="info-kecil" style="text-align:left;margin:-6px 0 4px">${T('Periode ini baru berjalan {n} hari, jadi keduanya dihitung sampai hari ke-{n} saja.', { n: pb.hariKe })}</p>` : ''}
     <div class="banding"><span class="isi"><b>${T('Total pengeluaran')}</b><small>${rp(totLalu)} → ${rp(totKini)}</small></span>${delta(totKini - totLalu, totLalu)}</div>
     ${baris.map(x => `
       <div class="banding">
@@ -4778,6 +5176,70 @@ const AKSI = {
     muat();
   },
   'lap-kategori': el => { S.lapKategori = el.dataset.mode; render(); },
+  'lap-tipe': el => { S.lapTipe = el.dataset.mode; render(); },
+  'lap-banding': el => { S.lapBanding = el.dataset.mode; render(); },
+  // ‹ › di atas kartu rincian: pindah periode (boleh melewati pergantian tahun), tidak melewati periode berjalan.
+  'lap-geser': el => {
+    const pilih = S.bulan.slice(0, 4) === String(S.tahun) ? S.bulan : S.tahun + '-12';
+    const k = geserPeriode(pilih, Number(el.dataset.geser));
+    if (k > periodeSekarang()) return;
+    S.bulan = k;
+    S.tahun = Number(k.slice(0, 4));
+    render();
+    muat();
+  },
+  'tren-kategori': el => bukaTrenKategori(el.dataset.nama, el.dataset.tipe),
+  // Dari lembar tren kategori: buka Riwayat dengan filter kategori + periode itu (atau setahun).
+  'lap-riwayat': el => {
+    const { nama, tipe, rentang, bulan } = el.dataset;
+    const mulai = S.data.mulaiPeriode || 1;
+    const f = Object.assign({}, FILTER_KOSONG, { kategori: nama });
+    if (rentang === 'tahun') {
+      Object.assign(f, { rentang: 'kustom', dari: SERVER.rentangPeriode(S.tahun + '-01', mulai).awal, sampai: SERVER.rentangPeriode(S.tahun + '-12', mulai).akhir });
+    } else if (S.data.bulan !== bulan) {
+      const r = SERVER.rentangPeriode(bulan, mulai);
+      Object.assign(f, { rentang: 'kustom', dari: r.awal, sampai: r.akhir });
+    }
+    S.filter = f;
+    S.filterTipe = tipe;
+    S.cari = '';
+    S.batasRiwayat = 200;
+    tutupSheet();
+    S.tab = 'riwayat';
+    render();
+    window.scrollTo(0, 0);
+  },
+  'ai-laporan': async el => {
+    const pilih = el.dataset.bulan;
+    const asli = el.textContent;
+    el.disabled = true;
+    el.textContent = T('✨ Sedang menulis…');
+    try {
+      const teks = await api('ringkasLaporan', faktaLaporan(pilih), BAHASA);
+      if (!teks) { toast(T('Belum ada kunci Gemini. Tambahkan di ⚙️ → Baca struk lebih akurat.'), true); return; }
+      S.ringkasAi = Object.assign({}, S.ringkasAi, { [pilih]: teks });
+      const kotak = $('#ringkas-ai');
+      if (kotak && S.tab === 'laporan') {
+        kotak.innerHTML = kotakRingkasAi(teks, pilih);
+        const tombol = document.querySelector('#view .tombol-tambah[data-aksi="ai-laporan"]');
+        if (tombol) tombol.remove();
+      }
+    } catch (e) {
+      if (!(e instanceof GOOGLE.PerluMasuk)) toast(e.jaringan || !navigator.onLine ? T('Ringkasan AI butuh sinyal.') : pesanError(e), true);
+    } finally {
+      if (el.isConnected) { el.disabled = false; el.textContent = asli; }
+    }
+  },
+  'bagikan-tahunan': async el => {
+    el.disabled = true;
+    try { await bagikanTahunan(S.tahun); } catch (e) { toast(T('Gambar tidak bisa dibuat: {galat}', { galat: pesanError(e) }), true); }
+    el.disabled = false;
+  },
+  // Cetak lewat dialog browser (pilih "Simpan sebagai PDF"); tampilan cetak diatur di @media print (styles.css).
+  'cetak-laporan': () => {
+    document.querySelectorAll('#view details').forEach(d => { d.open = true; });
+    window.print();
+  },
 
   'kelola-kategori': () => bukaDaftarKategori(TIPE.KELUAR),
   'daftar-kategori': el => bukaDaftarKategori(el.dataset.tipe),
@@ -4942,7 +5404,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'cepat-suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'bagikan-tahunan', 'cetak-laporan','salin-link', 'pasang-aplikasi', 'suara', 'cepat-suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
 ]);
 
 /**

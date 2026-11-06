@@ -515,14 +515,16 @@ const SERVER = (() => {
     const jenis = {};
     d.dompet.forEach(w => { saldo[w.nama] = w.saldoAwal; jenis[w.nama] = w.jenis; });
 
-    // Ringkasan per periode untuk laporan: { 'yyyy-mm': { masuk, keluar, ditabung, kategori: {nama: n}, oleh: {email: n} } }
+    // Ringkasan per periode untuk laporan:
+    // { 'yyyy-mm': { masuk, keluar, ditabung, kategori: {nama: n} (pengeluaran), kategoriMasuk: {nama: n}, oleh: {email: n} } }
     const bulanan = {};
     d.transaksi.forEach(t => {
       const b = periodeDari_(t.tanggal, mulai);
-      const r = bulanan[b] || (bulanan[b] = { masuk: 0, keluar: 0, ditabung: 0, kategori: {}, oleh: {} });
+      const r = bulanan[b] || (bulanan[b] = { masuk: 0, keluar: 0, ditabung: 0, kategori: {}, kategoriMasuk: {}, oleh: {} });
       if (t.tipe === TIPE.MASUK) {
         tambah_(saldo, t.dompet, t.jumlah);
         r.masuk += t.jumlah;
+        tambah_(r.kategoriMasuk, t.kategori, t.jumlah);
       } else if (t.tipe === TIPE.KELUAR) {
         tambah_(saldo, t.dompet, -t.jumlah);
         r.keluar += t.jumlah;
@@ -554,6 +556,7 @@ const SERVER = (() => {
       bisaCatatan: adaCatatan,
       log: lg.filter(r => r[0] !== '').slice(-200).map(r => ({ waktu: dariSerial_(r[0]), oleh: String(r[1]), aksi: String(r[2]), ringkasan: String(r[3]), idTrx: String(r[4] || '') })).reverse(),
       pembanding: pembanding_(d.transaksi, bulan, mulai),
+      setara: setara_(d.transaksi, mulai),
       anggaranLabel: anggaranLabel_(set),
       cepat: kebiasaan_(d.transaksi),
       saranRutin: saranRutin_(d.transaksi, olahRutin_(rut)),
@@ -1223,6 +1226,37 @@ const SERVER = (() => {
     return { hariKe: hari + 1, ini, lalu: sebelum, bulanLalu: lalu };
   }
 
+  /**
+   * Untuk Laporan: periode berjalan (sampai hari ini) dibanding periode lalu dan periode yang sama tahun lalu,
+   * masing-masing hanya sampai hari ke-N yang sama, supaya periode yang baru berjalan tidak dibandingkan dengan
+   * periode yang sudah penuh. { bulan, hariKe, ini, lalu, tahunLalu }; tiap bagian { bulan, batas, keluar, kategori }.
+   */
+  function setara_(semua, mulai) {
+    const kini = tanggalLokal_();
+    const bulan = periodeDari_(kini, mulai);
+    const ms = s => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
+    const iso = t => new Date(t).toISOString().slice(0, 10);
+    const hari = Math.round((ms(kini) - ms(rentangPeriode_(bulan, mulai).awal)) / 864e5);
+    const [y, m] = bulan.split('-').map(Number);
+    const kunci = (Y, M) => { const d = new Date(Date.UTC(Y, M - 1, 1)); return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0'); };
+    const bagian = k => {
+      const r = rentangPeriode_(k, mulai);
+      return { bulan: k, awal: r.awal, batas: iso(Math.min(ms(r.awal) + hari * 864e5, ms(r.akhir))), keluar: 0, kategori: {} };
+    };
+    const hasil = { bulan, hariKe: hari + 1, ini: bagian(bulan), lalu: bagian(kunci(y, m - 1)), tahunLalu: bagian(kunci(y - 1, m)) };
+    const isi = [hasil.ini, hasil.lalu, hasil.tahunLalu];
+    semua.forEach(t => {
+      if (t.tipe !== TIPE.KELUAR) return;
+      isi.forEach(b => {
+        if (t.tanggal < b.awal || t.tanggal > b.batas) return;
+        b.keluar += t.jumlah;
+        tambah_(b.kategori, t.kategori, t.jumlah);
+      });
+    });
+    isi.forEach(b => { delete b.awal; });
+    return hasil;
+  }
+
   /** baris: hasil hapusTransaksi. Ditambah lagi apa adanya (pencatat & waktu asli tetap), foto diambil dari Sampah. */
   async function kembalikanTransaksi(baris) {
     const id = await db_();
@@ -1642,6 +1676,32 @@ const SERVER = (() => {
     return STRUK.tanyaAI([{ text: prompt }], skema, kunciAi, modelAi);
   }
 
+  /**
+   * Ringkasan Laporan satu periode dalam 2–4 kalimat, ditulis AI dari angka ringkasan (bukan daftar transaksi).
+   * null kalau belum ada kunci Gemini. bahasa: 'id' | 'en'.
+   */
+  async function ringkasLaporan(fakta, bahasa) {
+    if (!kunciAi.length) {
+      const [set] = await bacaTabel_(await db_(), ['pengaturan']);
+      kunciAi = kunciGemini_(set);
+      modelAi = pengaturan_(set).GEMINI_MODEL;
+    }
+    if (!kunciAi.length) return null;
+    const prompt = [
+      bahasa === 'en'
+        ? 'You help an Indonesian family understand their finances. Write in plain, warm English.'
+        : 'Kamu membantu keluarga Indonesia memahami keuangannya. Tulis dalam bahasa Indonesia yang santai dan hangat.',
+      'Dari data ringkasan di bawah, tulis 2–4 kalimat pendek: apa yang paling menonjol periode ini, penyebab yang paling mungkin',
+      '(sebut kategori, hari, atau transaksi yang relevan beserta nominalnya), lalu satu saran praktis.',
+      'Jangan mengarang angka yang tidak ada di data. Kalau periode masih berjalan, jangan menyimpulkan seolah sudah selesai.',
+      'Nominal ditulis seperti Rp25.000. Tanpa salam pembuka, tanpa daftar berpoin, tanpa markdown.',
+      'Data (JSON): ' + JSON.stringify(fakta).slice(0, 6000),
+    ].join('\n');
+    const skema = { type: 'OBJECT', properties: { ringkasan: { type: 'STRING' } }, required: ['ringkasan'] };
+    const r = await STRUK.tanyaAI([{ text: prompt }], skema, kunciAi, modelAi);
+    return r && r.ringkasan ? String(r.ringkasan).trim() : null;
+  }
+
   // ---------- Baca struk ----------
 
   /** tambahan (opsional): { base64Ai, kabar } — lihat STRUK.baca. */
@@ -1821,7 +1881,7 @@ const SERVER = (() => {
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
-    tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ambilLampiran, buatKodeTelegram, putuskanTelegram,
+    tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_ },
   };
 })();

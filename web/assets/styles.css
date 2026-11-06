@@ -1470,3 +1470,69 @@ body.sedang-seret .hari-kal { transition: transform .12s, box-shadow .12s; }
 /* Lapisan pudar di bawah layar: daftar yang bergulir di belakang bar tidak bertabrakan dengannya */
 body.mode-pilih::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; pointer-events: none;
   height: calc(var(--nav-h) + 190px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 45%, transparent); }
+
+/* ---------- Laporan: periode rincian, kategori bisa diketuk, anggaran vs realisasi, AI, cetak ---------- */
+.pemilih-periode-lap { display: flex; align-items: center; gap: 8px; margin: 22px 0 12px; padding: 6px; border-radius: 18px;
+  background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.pemilih-periode-lap span { flex: 1; min-width: 0; text-align: center; }
+.pemilih-periode-lap small { display: block; font-size: 11px; font-weight: 600; color: var(--muted); }
+.pemilih-periode-lap b { display: block; font-size: 15px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pemilih-periode-lap button { flex: none; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; color: var(--text); background: var(--card-2); }
+.pemilih-periode-lap button:disabled { opacity: .35; }
+.bar-item.bisa-ketuk { width: 100%; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: 12px; }
+.bar-item.bisa-ketuk:active { background: var(--card-2); }
+.pemisah-chip { flex: none; width: 1px; margin: 6px 2px; background: var(--line); }
+.grafik .garis-batas { stroke: var(--text); stroke-width: 1.2; stroke-dasharray: 4 3; opacity: .55; }
+.banding > span:last-child small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+
+.daftar-anggaran-lap { display: flex; flex-direction: column; }
+.baris-anggaran-lap { display: grid; grid-template-columns: 36px 1fr auto; gap: 4px 12px; align-items: center; width: 100%; padding: 10px 0;
+  border: 0; border-bottom: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.baris-anggaran-lap:last-child { border-bottom: 0; }
+.baris-anggaran-lap .ikon { grid-row: span 2; width: 36px; height: 36px; border-radius: 12px; background: var(--card-2); display: grid; place-items: center; font-size: 18px; }
+.baris-anggaran-lap .ikon:has(> .ilus) { background: none; }
+.baris-anggaran-lap .isi { min-width: 0; }
+.baris-anggaran-lap .isi b { display: block; font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.baris-anggaran-lap .isi small { display: block; font-size: 12px; color: var(--muted); }
+.baris-anggaran-lap .nilai { font-size: 13px; font-weight: 700; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.baris-anggaran-lap .nilai small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); }
+.strip-anggaran { grid-column: 2 / 4; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 3px; }
+.strip-anggaran i, .legenda-anggaran i { display: block; height: 10px; border-radius: 3px; background: var(--card-2); }
+.strip-anggaran i.aman, .legenda-anggaran i.aman { background: color-mix(in srgb, var(--masuk) 70%, var(--card)); }
+.strip-anggaran i.hampir, .legenda-anggaran i.hampir { background: var(--status-warning); }
+.strip-anggaran i.lewat, .legenda-anggaran i.lewat { background: var(--keluar); }
+.strip-anggaran i.nanti { background: none; border: 1px dashed var(--line); }
+.strip-anggaran i.dipilih { outline: 2px solid var(--text); outline-offset: 1px; }
+.legenda-anggaran { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 11px; color: var(--muted); }
+.legenda-anggaran i { width: 14px; flex: none; }
+.legenda-anggaran small { margin-right: 6px; }
+
+.ringkas-ai { margin: 0 0 10px; padding: 12px 14px; border-radius: 14px; background: var(--primary-soft); }
+.ringkas-ai p { margin: 0; font-size: 14px; line-height: 1.55; }
+.ringkas-ai small { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--muted); }
+.ringkas-ai .tombol-teks { min-height: 32px; padding: 4px 0; font-size: 12px; }
+body.samar #view .ringkas-ai p, body.samar #view .baris-anggaran-lap .nilai, body.samar #view .butir-sorotan b { filter: blur(6px); }
+
+.aksi-laporan { display: grid; gap: 10px; margin: 18px 0 8px; }
+.aksi-laporan .tombol-tambah { margin: 0; }
+.judul-cetak { display: none; }
+
+@media print {
+  @page { margin: 14mm; }
+  :root { --bg: #fff; --card: #fff; --card-2: #f1f2f6; --text: #0c111d; --muted: #555; --line: #ddd; --shadow: none; }
+  html, body { background: #fff !important; color: #000; }
+  body * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  #nav, .fab, #sheet, #toast, .loading, .aksi-laporan, .pemilih-bulan button, .pemilih-periode-lap button, .titik-grafik, .chip-kilas,
+  #view .tombol-tambah, #view [data-aksi="buka-label"], #view [data-aksi="atur-anggaran"], .ringkas-ai .tombol-teks, .kerangka { display: none !important; }
+  #view { padding: 0 !important; max-width: none !important; }
+  .judul-cetak { display: block; margin: 0 0 10px; font-size: 12px; color: #555; }
+  .kartu, .tile, .pemilih-periode-lap { box-shadow: none !important; break-inside: avoid; }
+  .geser-grafik { overflow: visible !important; display: block !important; }
+  .slide-grafik:not(:first-child) { display: none !important; }
+  .grafik * { animation: none !important; }
+  .grafik .tumbuh { transform: none !important; }
+  .grafik .garis { stroke-dashoffset: 0 !important; }
+  .grafik .area { opacity: .1 !important; }
+  .grafik .titik { opacity: 1 !important; }
+  body.samar #view * { filter: none !important; }
+}
