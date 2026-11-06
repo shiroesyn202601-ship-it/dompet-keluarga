@@ -570,7 +570,17 @@ function infoTrx(t) {
 }
 
 function itemTrx(t) {
-  const { judul, ikon, kelas, tanda, sub } = infoTrx(t);
+  const info = infoTrx(t);
+  const { ikon, kelas, tanda } = info;
+  let { judul, sub } = info;
+  // Catatan lebih menonjol daripada kategori: kalau ada catatan, catatan jadi judul tebal dan kategori pindah ke baris kecil.
+  const catatan = String(t.catatan || '').trim();
+  if (catatan) {
+    judul = catatan;
+    sub = t.tipe === TIPE.TRANSFER
+      ? [info.judul, `${namaT(t.dompet)} → ${namaT(t.dompetTujuan)}`].join(' · ')
+      : [info.judul, namaT(t.dompet)].filter(Boolean).join(' · ');
+  }
   const dipilih = S.pilih && S.pilih.has(t.id);
   // 📎 bisa diketuk langsung untuk melihat foto (tanpa membuka detail).
   const klip = t.lampiran ? `<span class="klip-trx" role="button" tabindex="-1" data-aksi="lihat-foto-trx" data-id="${esc(t.id)}" aria-label="${T('Lihat foto struk')}">📎</span>` : '';

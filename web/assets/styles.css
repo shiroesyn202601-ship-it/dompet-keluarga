@@ -193,7 +193,7 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .trx-geser:last-child > .trx { border-bottom: 0; }
 .ikon-bulat { width: 44px; height: 44px; border-radius: 15px; background: var(--card-2); display: grid; place-items: center; font-size: 21px; flex: none; }
 .trx-isi { flex: 1; min-width: 0; }
-.trx-isi b { display: block; font-weight: 700; font-size: 14px; }
+.trx-isi b { display: block; font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .trx-isi small { display: block; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nominal { font-weight: 800; font-size: 14px; white-space: nowrap; }
 .nominal.masuk { color: var(--masuk); }
