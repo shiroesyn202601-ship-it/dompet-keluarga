@@ -1691,9 +1691,29 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
 .kd-nama { font-size: 13px; font-weight: 700; opacity: .85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kd-saldo { font-size: 26px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; color: inherit !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kd-saldo.minus::after { content: " ⚠️"; font-size: .6em; }
-.titik-kartu { display: flex; justify-content: center; gap: 6px; margin: -4px 0 10px; }
-.titik-kartu i { width: 6px; height: 6px; border-radius: 99px; background: var(--line); transition: width .2s, background .2s; }
-.titik-kartu i.aktif { width: 18px; background: var(--primary); }
+/* Dompet bertumpuk: strip ringkas (semua saldo terlihat), ketuk → kartu penuh. */
+.tumpuk-dompet { display: flex; flex-direction: column; gap: 8px; }
+.kd-item { position: relative; }
+.kd-strip { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 58px; padding: 10px 16px; border-radius: 18px; text-align: left;
+  color: var(--fg, #fff); overflow: hidden; max-height: 80px;
+  background: radial-gradient(120% 160% at 100% 0%, rgba(255, 255, 255, .22), transparent 55%), linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 62%, #000));
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--c) 25%, transparent), inset 0 0 0 1px rgba(255, 255, 255, .12);
+  transition: max-height .28s ease, opacity .2s ease, padding .28s ease, min-height .28s ease; }
+.kd-logo { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: rgba(255, 255, 255, .16); overflow: hidden; }
+.kd-logo .kd-ilus { width: 26px; height: 26px; }
+.kd-strip .kd-nama { flex: 1; font-size: 14.5px; opacity: .95; }
+.kd-saldo-strip { flex: none; font-size: 16px; font-weight: 800; color: inherit !important; font-feature-settings: "tnum" 1, "lnum" 1; }
+.kd-saldo-strip.minus::after { content: " ⚠️"; font-size: .8em; }
+.kd-penuh { position: relative; max-height: 0; opacity: 0; overflow: hidden; transition: max-height .32s ease, opacity .25s ease; }
+.kd-penuh .kartu-dompet { width: 100%; }
+.kd-item.buka .kd-strip { max-height: 0; min-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; pointer-events: none; box-shadow: none; }
+.kd-item.buka .kd-penuh { max-height: 440px; opacity: 1; padding: 0 0 22px; margin-bottom: -14px; }
+.kd-penuh .kartu-dompet { box-shadow: 0 8px 16px color-mix(in srgb, var(--c) 30%, transparent), inset 0 0 0 1px rgba(255, 255, 255, .12); }
+.kd-tutup { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 99px; display: grid; place-items: center;
+  background: rgba(0, 0, 0, .22); color: #fff; }
+.kd-tutup svg.ik { width: 18px; height: 18px; transform: rotate(-90deg); }
+.kd-penuh .kd-nirkontak { margin-right: 44px; }
+@media (prefers-reduced-motion: reduce) { .kd-strip, .kd-penuh { transition: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   .maskot-badan, .streak-besar .api.nyala, .insight, .cb-vonis, .pratinjau-story[aria-busy="true"] { animation: none !important; }

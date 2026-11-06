@@ -815,33 +815,49 @@ function warnaKartu(w) {
   return c || { bg: '#4F46E5', fg: '#FFFFFF', label: '' };
 }
 
+/**
+ * Dompet bertumpuk: semua dompet tampil sebagai strip ringkas (nama + saldo) supaya semua saldo terlihat sekaligus.
+ * Ketuk strip → kartu penuh muncul (satu kartu terbuka); ketuk kartu → ubah dompet; ⌃ di pojok kartu → kembali jadi strip.
+ */
+let KARTU_DOMPET_BUKA = '';
 function deretKartuDompet(dompet) {
   if (!dompet.length) return `<section class="kartu" style="padding:4px 16px">${kosong('👛', T('Belum ada dompet.'))}</section>`;
-  return `<div class="deret-kartu" id="deret-kartu" role="list" aria-label="${T('Dompet||jamak')}">
+  return `<div class="tumpuk-dompet" role="list" aria-label="${T('Dompet||jamak')}">
     ${dompet.map(w => {
       const c = warnaKartu(w);
-      return `<button type="button" class="kartu-dompet" role="listitem" data-aksi="edit-dompet" data-nama="${esc(w.nama)}" style="--c:${c.bg};--fg:${c.fg}"
-        aria-label="${esc(namaT(w.nama))}: ${rp(w.saldo)}">
-        <span class="kd-atas">${c.label ? `<b class="kd-merek">${esc(c.label)}</b>` : `<span class="kd-ilus">${ilus(w.ikon)}</span>`}
-          <span class="kd-nirkontak" aria-hidden="true"><i></i><i></i><i></i></span></span>
-        <span class="kd-chip" aria-hidden="true"></span>
-        <span class="kd-bawah"><small class="kd-nama">${esc(namaT(w.nama))}</small>
-          <b class="kd-saldo nominal ${w.saldo < 0 ? 'minus' : ''}">${rpBesar(w.saldo)}</b></span>
-      </button>`;
+      const nama = esc(namaT(w.nama));
+      const logo = c.label ? `<b class="kd-merek">${esc(c.label)}</b>` : `<span class="kd-ilus">${ilus(w.ikon)}</span>`;
+      return `<div class="kd-item ${KARTU_DOMPET_BUKA === w.nama ? 'buka' : ''}" role="listitem" data-nama="${esc(w.nama)}" style="--c:${c.bg};--fg:${c.fg}">
+        <button type="button" class="kd-strip" data-aksi="buka-kartu-dompet" data-nama="${esc(w.nama)}" aria-expanded="${KARTU_DOMPET_BUKA === w.nama}"
+          aria-label="${nama}: ${rp(w.saldo)}">
+          <span class="kd-logo"><span class="kd-ilus">${ilus(w.ikon)}</span></span>
+          <span class="kd-nama">${nama}</span>
+          <b class="kd-saldo-strip nominal ${w.saldo < 0 ? 'minus' : ''}">${rp(w.saldo)}</b>
+        </button>
+        <div class="kd-penuh">
+          <button type="button" class="kartu-dompet" data-aksi="edit-dompet" data-nama="${esc(w.nama)}" aria-label="${T('Ubah {nama}', { nama })}">
+            <span class="kd-atas">${logo}<span class="kd-nirkontak" aria-hidden="true"><i></i><i></i><i></i></span></span>
+            <span class="kd-chip" aria-hidden="true"></span>
+            <span class="kd-bawah"><small class="kd-nama">${nama}</small>
+              <b class="kd-saldo nominal ${w.saldo < 0 ? 'minus' : ''}">${rpBesar(w.saldo)}</b></span>
+          </button>
+          <button type="button" class="kd-tutup" data-aksi="buka-kartu-dompet" data-nama="" aria-label="${T('Tutup kartu')}">${svg('maju')}</button>
+        </div>
+      </div>`;
     }).join('')}
-  </div>
-  ${dompet.length > 1 ? `<div class="titik-kartu" aria-hidden="true">${dompet.map((_, i) => `<i class="${i === 0 ? 'aktif' : ''}"></i>`).join('')}</div>` : ''}`;
+  </div>`;
 }
 
-// Titik penanda kartu yang sedang terlihat.
-document.addEventListener('scroll', e => {
-  const d = e.target;
-  if (!d || d.id !== 'deret-kartu') return;
-  const kartu = d.querySelector('.kartu-dompet');
-  if (!kartu) return;
-  const i = Math.round(d.scrollLeft / (kartu.offsetWidth + 12));
-  document.querySelectorAll('.titik-kartu i').forEach((t, n) => t.classList.toggle('aktif', n === i));
-}, true);
+/** Buka satu kartu (yang lain kembali jadi strip) tanpa render ulang, supaya animasinya halus. */
+function bukaKartuDompet(nama) {
+  KARTU_DOMPET_BUKA = KARTU_DOMPET_BUKA === nama ? '' : nama;
+  document.querySelectorAll('.tumpuk-dompet .kd-item').forEach(el => {
+    const buka = el.dataset.nama === KARTU_DOMPET_BUKA;
+    el.classList.toggle('buka', buka);
+    const s = el.querySelector('.kd-strip');
+    if (s) s.setAttribute('aria-expanded', buka);
+  });
+}
 
 // ---------- Sambungan ke app.js ----------
 
@@ -871,6 +887,7 @@ slideKilas = function (k) { // eslint-disable-line no-func-assign
 };
 
 Object.assign(AKSI, {
+  'buka-kartu-dompet': el => bukaKartuDompet(el.dataset.nama || ''),
   'buka-kebiasaan': () => bukaKebiasaan(),
   'tandai-kosong': async el => {
     const tgl = el.dataset.tgl;

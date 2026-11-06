@@ -1352,7 +1352,7 @@ Object.assign(KAMUS, {
 
 // ---------- muda.js: gaya bahasa, insight, streak & tantangan, cek sebelum beli, story, kartu dompet ----------
 Object.assign(KAMUS, {
-  'geser ›': 'swipe ›',
+  'Tutup kartu': 'Close card',
   '📱 Bagikan ke Story (bisa tanpa nominal)': '📱 Share to Story (amounts can be hidden)',
   'Gaya bahasa': 'Tone',
   'Santai · menyapa dengan "kamu"': 'Casual · uses "kamu"',

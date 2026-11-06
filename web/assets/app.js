@@ -1038,7 +1038,7 @@ function viewDompet() {
       ${tabungan.length ? `<div class="selisih">${T('🐷 Total tabungan: <b>{jumlah}</b>', { jumlah: rp(totalTabungan) })}</div>` : ''}
     </section>
 
-    <h2 class="judul-bagian">${T('Dompet||jamak')}${dompet.length > 1 ? ` <small class="ket-geser">${T('geser ›')}</small>` : ''}</h2>
+    <h2 class="judul-bagian">${T('Dompet||jamak')}</h2>
     ${typeof deretKartuDompet === 'function' ? deretKartuDompet(dompet) : `<section class="kartu" style="padding:4px 16px">
       ${dompet.map(w => `
         <button class="baris" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">
