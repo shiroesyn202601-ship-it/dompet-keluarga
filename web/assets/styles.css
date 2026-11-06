@@ -1439,3 +1439,20 @@ button.ringkas:active > div { background: rgba(255, 255, 255, .15); }
 /* Cari fitur & kartu sesi */
 .baris-fitur { padding: 9px 0; }
 .sesi-ikon { font-size: 30px; line-height: 1; }
+
+/* Kalender Riwayat: seret transaksi ke hari lain */
+.hantu-seret { position: fixed; left: 0; top: 0; z-index: 90; pointer-events: none; display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  border-radius: 16px; background: var(--card); border: 1.5px solid var(--primary); box-shadow: 0 16px 36px rgba(0, 0, 0, .35); opacity: .97; will-change: transform; }
+.hantu-seret .trx-isi { flex: 1; min-width: 0; }
+.hantu-seret .tujuan-seret { position: absolute; left: 14px; top: -14px; padding: 3px 10px; border-radius: 99px; font-size: 12px; font-weight: 800;
+  background: var(--card-2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+.hantu-seret.ada-tujuan .tujuan-seret { background: var(--primary); color: #fff; border-color: var(--primary); }
+.trx-geser.diseret { opacity: .35; }
+body.sedang-seret { user-select: none; -webkit-user-select: none; }
+body.sedang-seret .hari-kal { transition: transform .12s, box-shadow .12s; }
+.hari-kal.tujuan { transform: scale(1.12); box-shadow: inset 0 0 0 2.5px var(--primary), 0 6px 16px rgba(0, 0, 0, .25); z-index: 2; }
+.daftar-hari-kal .trx-geser { -webkit-touch-callout: none; }
+.trx-geser.diseret .latar-geser { visibility: hidden; }
+.hantu-seret { padding: 8px 12px; gap: 10px; }
+.hantu-seret .ikon-bulat { width: 36px; height: 36px; }
+.hantu-seret .trx-isi small { display: none; }

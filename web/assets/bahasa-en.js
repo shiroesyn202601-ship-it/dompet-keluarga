@@ -1260,7 +1260,7 @@ Object.assign(KAMUS, {
   "Sekali ketuk": "One-tap entries",
   "Transaksi yang sering diulang (kopi, parkir, bensin) muncul sebagai tombol di Beranda. Sekali ketuk langsung tercatat hari ini.": "Frequent transactions (coffee, parking, fuel) appear as buttons on Home. One tap records them for today.",
   "Kalender di Riwayat": "Calendar in History",
-  "Ketuk ikon kalender di Riwayat untuk melihat pengeluaran per hari dalam sebulan.": "Tap the calendar icon in History to see spending per day across the month.",
+  "Ketuk ikon kalender di Riwayat untuk melihat pengeluaran per hari. Salah tanggal? Tekan lama transaksi di bawah kalender lalu seret ke hari yang benar.": "Tap the calendar icon in History to see spending per day. Wrong date? Long press a transaction below the calendar and drag it onto the right day.",
   "Foto lampiran": "Attached photos",
   "Ketuk 📎 di Riwayat untuk melihat foto struk. Filter <b>Ada lampiran</b> menampilkan semua transaksi berfoto.": "Tap 📎 in History to view the receipt photo. The <b>Has attachment</b> filter shows every transaction with a photo.",
   "Di form pengeluaran, buka <b>Opsi lain → Bagi tagihan</b>. Bagian Anda jadi pengeluaran, bagian teman jadi piutang.": "In the expense form, open <b>More options → Split bill</b>. Your share becomes an expense, your friends' shares become money owed to you.",
@@ -1278,4 +1278,12 @@ Object.assign(KAMUS, {
   "Maksimal {n} pintasan. Lepas salah satu dulu.": "Up to {n} shortcuts. Remove one first.",
   "sisa anggaran {kategori} {sisa}": "{kategori} budget left: {sisa}",
   "Atur||pintasan": "Edit",
+  // Kalender Riwayat: seret transaksi ke hari lain
+  "Seret ke tanggal": "Drag to a date",
+  "→ {tanggal}": "→ {tanggal}",
+  "Tanggal yang sama": "Same date",
+  "Memindah tanggal butuh sinyal. Coba lagi nanti.": "Moving the date needs a connection. Try again later.",
+  "Dipindah ke {tanggal} ✔": "Moved to {tanggal} ✔",
+  "Tanggal dikembalikan": "Date restored",
+  "✋ Tekan lama transaksi lalu seret ke tanggal lain di kalender untuk memindahkan tanggalnya.": "✋ Long press a transaction, then drag it onto another day in the calendar to change its date.",
 });

@@ -502,6 +502,8 @@ function render() {
   if (S.tab !== 'laporan') kunciAnimasiGrafik = ''; // kembali ke Laporan nanti: animasi diputar lagi
   pasangGeserGrafik();
   if (S.tab === 'catatan') pasangGeserKalender();
+  if (S.tab === 'riwayat') setTimeout(() => petunjukSekali('seret-kal', document.querySelector('.daftar-hari-kal .trx-geser'),
+    T('✋ Tekan lama transaksi lalu seret ke tanggal lain di kalender untuk memindahkan tanggalnya.')), 1500);
   document.body.classList.toggle('tanpa-nav', S.tab === 'catatan-edit'); // fokus menulis
   if (window.dikte && dikte.aktif) { if (S.tab !== 'catatan-edit') hentikanDikte(); else tampilDikte(); } // dikte dideklarasikan di bawah
   if (S.tab === 'catatan-edit') {
@@ -3333,7 +3335,7 @@ function bukaTips() {
     ['✋', T('Tekan lama di Riwayat'), T('Tekan lama satu transaksi untuk memilih banyak sekaligus, lalu ganti kategori/dompet atau hapus bersamaan.'), 'tab', 'riwayat'],
     ['#️⃣', T('Label acara'), T('Tulis <b>#lebaran</b> atau <b>#liburan</b> di catatan transaksi. Totalnya lintas kategori muncul di Laporan, dan bisa diberi anggaran sendiri.'), ''],
     ['⚡', T('Sekali ketuk'), T('Transaksi yang sering diulang (kopi, parkir, bensin) muncul sebagai tombol di Beranda. Sekali ketuk langsung tercatat hari ini.'), ''],
-    ['📅', T('Kalender di Riwayat'), T('Ketuk ikon kalender di Riwayat untuk melihat pengeluaran per hari dalam sebulan.'), 'tab', 'riwayat'],
+    ['📅', T('Kalender di Riwayat'), T('Ketuk ikon kalender di Riwayat untuk melihat pengeluaran per hari. Salah tanggal? Tekan lama transaksi di bawah kalender lalu seret ke hari yang benar.'), 'tab', 'riwayat'],
     ['📎', T('Foto lampiran'), T('Ketuk 📎 di Riwayat untuk melihat foto struk. Filter <b>Ada lampiran</b> menampilkan semua transaksi berfoto.'), ''],
     ['👥', T('Patungan'), T('Di form pengeluaran, buka <b>Opsi lain → Bagi tagihan</b>. Bagian Anda jadi pengeluaran, bagian teman jadi piutang.'), ''],
     ['📨', T('Anggaran amplop'), T('Centang Amplop di sebuah kategori supaya sisa anggaran bulan ini menambah anggaran bulan depan.'), 'atur-anggaran'],
@@ -6402,8 +6404,10 @@ let geserTrx = null;
 const BATAS_GESER = 90;
 document.addEventListener('pointerdown', e => {
   const kotak = e.target.closest && e.target.closest('.trx-geser');
-  if (!kotak || e.button > 0 || e.pointerType === 'mouse' || S.pilih) return;
-  const g = geserTrx = { kotak, x0: e.clientX, y0: e.clientY, dx: 0, arah: '' };
+  // Daftar di bawah kalender Riwayat: tekan lama = seret ke tanggal lain (juga dengan mouse di komputer).
+  const diKalender = !!(kotak && kotak.closest('.daftar-hari-kal'));
+  if (!kotak || e.button > 0 || (e.pointerType === 'mouse' && !diKalender) || S.pilih || seretKal) return;
+  const g = geserTrx = { kotak, x0: e.clientX, y0: e.clientY, dx: 0, arah: '', mouse: e.pointerType === 'mouse' };
   if (S.tab === 'riwayat') {
     g.timer = setTimeout(() => {
       if (geserTrx !== g || g.arah) return;
@@ -6411,14 +6415,19 @@ document.addEventListener('pointerdown', e => {
       abaikanKlikSampai = Infinity; // ketukan dari tekan lama ini tidak membuka detail
       document.addEventListener('pointerup', () => { abaikanKlikSampai = Date.now() + 350; }, { once: true });
       document.addEventListener('pointercancel', () => { abaikanKlikSampai = Date.now() + 350; }, { once: true });
-      mulaiPilih(kotak.querySelector('.trx').dataset.id);
-    }, 480);
+      if (diKalender) mulaiSeretKal(kotak, g.x0, g.y0);
+      else mulaiPilih(kotak.querySelector('.trx').dataset.id);
+    }, diKalender ? 380 : 480);
   }
 });
 document.addEventListener('pointermove', e => {
   const g = geserTrx;
   if (!g) return;
   const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+  if (g.mouse) { // mouse hanya untuk tekan lama → seret; digerakkan sebelum waktunya = batal
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) { clearTimeout(g.timer); geserTrx = null; }
+    return;
+  }
   if (!g.arah) {
     if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
     g.arah = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x' : 'y';
@@ -6463,6 +6472,99 @@ document.addEventListener('pointercancel', selesaiGeser);
 document.addEventListener('click', e => {
   if (e.target.closest && e.target.closest('.trx-geser[data-dicegah]')) { e.stopPropagation(); e.preventDefault(); }
 }, true);
+
+// ---------- Kalender Riwayat: tekan lama transaksi lalu seret ke hari lain = ganti tanggal ----------
+
+let seretKal = null; // { t, kotak, hantu, x, y, tujuan, gulir }
+function mulaiSeretKal(kotak, x, y) {
+  const id = kotak.querySelector('.trx').dataset.id;
+  const t = S.data.transaksi.find(v => v.id === id);
+  if (!t) return;
+  const hantu = kotak.querySelector('.trx').cloneNode(true);
+  hantu.className = 'trx hantu-seret';
+  hantu.removeAttribute('data-aksi');
+  hantu.style.width = Math.min(280, innerWidth - 32) + 'px';
+  hantu.insertAdjacentHTML('beforeend', `<span class="tujuan-seret">${T('Seret ke tanggal')}</span>`);
+  document.body.appendChild(hantu);
+  kotak.classList.remove('contoh-geser'); // animasi petunjuk geser tidak boleh jalan selagi diseret
+  kotak.classList.add('diseret');
+  document.body.classList.add('sedang-seret');
+  seretKal = { t, kotak, hantu, x, y, tujuan: '' };
+  getar();
+  geserHantu();
+  seretKal.gulir = requestAnimationFrame(gulirSeret);
+}
+function geserHantu() {
+  const s = seretKal;
+  // Melayang di atas jari (bukan di bawahnya), supaya sel hari yang dituju tetap terlihat.
+  const w = s.hantu.offsetWidth, h = s.hantu.offsetHeight;
+  const kiri = Math.max(12, Math.min(innerWidth - w - 12, s.x - w / 2));
+  s.hantu.style.transform = `translate(${kiri}px, ${Math.max(8, s.y - h - 44)}px)`;
+  // Hantu tidak menangkap pointer (CSS), jadi elemen di bawah jari bisa dicari langsung.
+  const sel = document.elementFromPoint(s.x, s.y);
+  const hari = sel && sel.closest && sel.closest('.hari-kal');
+  const tgl = hari ? hari.dataset.tgl : '';
+  if (tgl === s.tujuan) return;
+  document.querySelectorAll('.hari-kal.tujuan').forEach(h => h.classList.remove('tujuan'));
+  s.tujuan = tgl && tgl !== s.t.tanggal ? tgl : '';
+  if (s.tujuan) { hari.classList.add('tujuan'); if (navigator.vibrate) navigator.vibrate(8); }
+  s.hantu.querySelector('.tujuan-seret').textContent = s.tujuan
+    ? T('→ {tanggal}', { tanggal: tanggalPendek(s.tujuan) })
+    : tgl ? T('Tanggal yang sama') : T('Seret ke tanggal');
+  s.hantu.classList.toggle('ada-tujuan', !!s.tujuan);
+}
+/** Jari di dekat tepi atas/bawah layar: halaman ikut bergulir (kalender ada di atas daftar). */
+function gulirSeret() {
+  const s = seretKal;
+  if (!s) return;
+  const tepi = 90;
+  const v = s.y < tepi ? -Math.ceil((tepi - s.y) / 6) : s.y > innerHeight - tepi - 70 ? Math.ceil((s.y - (innerHeight - tepi - 70)) / 6) : 0;
+  if (v) { window.scrollBy(0, v); geserHantu(); }
+  s.gulir = requestAnimationFrame(gulirSeret);
+}
+function selesaiSeretKal(batal) {
+  const s = seretKal;
+  if (!s) return;
+  seretKal = null;
+  cancelAnimationFrame(s.gulir);
+  s.hantu.remove();
+  s.kotak.classList.remove('diseret');
+  document.body.classList.remove('sedang-seret');
+  document.querySelectorAll('.hari-kal.tujuan').forEach(h => h.classList.remove('tujuan'));
+  if (!batal && s.tujuan) pindahTanggalTrx(s.t, s.tujuan, s.kotak.querySelector('.trx'));
+}
+/** Simpan tanggal baru; Riwayat langsung menampilkan hari tujuan. Bisa diurungkan dari toast. */
+function pindahTanggalTrx(t, tgl, tombol) {
+  if (S.offline || !navigator.onLine) return toast(T('Memindah tanggal butuh sinyal. Coba lagi nanti.'), true);
+  const lama = t.tanggal;
+  S.hariKalender = tgl;
+  kirim(tombol, 'simpanTransaksi', [Object.assign({}, t, { tanggal: tgl })], () => {
+    S.pindahTerakhir = { id: t.id, tanggal: lama };
+    toast(T('Dipindah ke {tanggal} ✔', { tanggal: tanggalPendek(tgl) }), false, { label: T('Urungkan'), aksi: 'urungkan-pindah' });
+  });
+}
+document.addEventListener('pointermove', e => {
+  if (!seretKal) return;
+  seretKal.x = e.clientX;
+  seretKal.y = e.clientY;
+  geserHantu();
+});
+document.addEventListener('pointerup', () => selesaiSeretKal(false));
+document.addEventListener('pointercancel', () => selesaiSeretKal(true));
+// Selama menyeret, layar tidak boleh ikut bergulir oleh jari (bergulir hanya lewat tepi layar).
+document.addEventListener('touchmove', e => { if (seretKal && e.cancelable) e.preventDefault(); }, { passive: false });
+document.addEventListener('keydown', e => { if (seretKal && e.key === 'Escape') selesaiSeretKal(true); });
+Object.assign(AKSI, {
+  'urungkan-pindah': el => {
+    const p = S.pindahTerakhir;
+    const t = p && S.data.transaksi.find(v => v.id === p.id);
+    $('#toast').hidden = true;
+    if (!t) return;
+    S.pindahTerakhir = null;
+    S.hariKalender = p.tanggal;
+    kirim(el, 'simpanTransaksi', [Object.assign({}, t, { tanggal: p.tanggal })], T('Tanggal dikembalikan'));
+  },
+});
 
 // ---------- Kilas balik bulanan (gaya "story") ----------
 // Muncul sekali saat aplikasi pertama dibuka di periode baru, untuk periode sebelumnya. Bisa diputar lagi dari Laporan.
@@ -7545,7 +7647,7 @@ function htmlKalenderRiwayat(trx) {
       <div class="kal-legenda"><span>${T('Hemat')}</span><i class="t1"></i><i class="t2"></i><i class="t3"></i><i class="t4"></i><span>${T('Boros')}</span></div>
     </section>
     ${pilih ? `<div class="grup-tanggal"><span>${esc(labelTanggal(pilih))}</span><span>${daftarHari.length ? rp(total(daftarHari, TIPE.MASUK) - total(daftarHari, TIPE.KELUAR)) : ''}</span></div>
-      <section class="kartu" style="padding:4px 16px">${daftarHari.length ? daftarHari.map(itemTrx).join('') : kosong('🌤️', T('Tidak ada transaksi di hari ini.'))}</section>` : ''}`;
+      <section class="kartu daftar-hari-kal" style="padding:4px 16px">${daftarHari.length ? daftarHari.map(itemTrx).join('') : kosong('🌤️', T('Tidak ada transaksi di hari ini.'))}</section>` : ''}`;
 }
 
 // ---------- 8. Perbandingan dengan periode lalu di hari yang sama ----------
