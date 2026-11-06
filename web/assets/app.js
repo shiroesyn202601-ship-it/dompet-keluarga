@@ -3173,6 +3173,7 @@ document.addEventListener('input', e => {
 let petunjukTampil = false;
 function petunjukSekali(kunci, sasaran, teks) {
   if (!sasaran || petunjukTampil || bacaHp('dk_petunjuk_' + kunci)) return false;
+  if ($('#ringkas-suara') && !$('#ringkas-suara').hidden) return false; // kartu konfirmasi sedang terbuka
   const r = sasaran.getBoundingClientRect();
   if (!r.width || r.top > innerHeight - 60 || r.bottom < 0) return false;
   tulisHp('dk_petunjuk_' + kunci, '1');
@@ -6367,43 +6368,28 @@ async function tampilRingkasanSuara(teks) {
   if (daftar.length > 1) return tampilBanyakSuara(teks, daftar);
   if (!h) h = daftar[0] || Object.assign(bacaKetikCepat(teks.slice(0, 300)), { sumber: 'aturan' });
   bacaFieldTrx();
-  hasilSuara = { teks, h };
-  // Pratinjau = isian form setelah hasil ini diterapkan (aturan sama dengan isiFormCepat).
-  const x = Object.assign({}, F);
-  if (h.tipe && h.tipe !== x.tipe) { x.tipe = h.tipe; x.kategori = ''; }
-  if (h.jumlah) x.jumlah = h.jumlah;
-  if (h.kategori) x.kategori = h.kategori;
-  if (h.dompet && (x.tipe === TIPE.TRANSFER ? S.data.dompet : dompetBiasa()).some(w => w.nama === h.dompet)) x.dompet = h.dompet;
-  if (h.dompetTujuan && x.tipe === TIPE.TRANSFER) x.dompetTujuan = h.dompetTujuan;
-  if (h.tanggal) x.tanggal = h.tanggal;
-  if (h.catatan) x.catatan = h.catatan;
+  // Hasil langsung diterapkan ke form di belakang kartu; kartu menampilkan & bisa mengubah isian F.
+  // Isian sebelumnya disimpan, supaya "Ulangi bicara" mengembalikan form seperti semula.
+  const sebelum = { tipe: F.tipe, jumlah: F.jumlah, kategori: F.kategori, dompet: F.dompet, dompetTujuan: F.dompetTujuan, tanggal: F.tanggal, catatan: F.catatan };
+  isiFormCepat(h);
+  hasilSuara = { teks, h, sebelum };
+  ringkasEdit = '';
+  gambarRingkasSuara(true);
+  getar();
+}
 
-  const kurang = [];
-  if (!x.jumlah) kurang.push(T('Nominal belum terbaca'));
-  if (x.tipe !== TIPE.TRANSFER && !x.kategori) kurang.push(T('Kategori belum dipilih'));
-  if (x.tipe === TIPE.TRANSFER && (!x.dompetTujuan || x.dompetTujuan === x.dompet)) kurang.push(T('Pilih dompet tujuan di form'));
-  const dompet = S.data.dompet.find(w => w.nama === x.dompet);
-  const tujuan = S.data.dompet.find(w => w.nama === x.dompetTujuan);
-  const masuk = x.tipe === TIPE.MASUK;
-  const baris = (ikon, label, nilai, kosong) => `
-      <div class="baris-ringkas ${kosong ? 'belum' : ''}"><span class="ikon-ringkas">${ikon}</span>
-        <span class="isi"><small>${label}</small><b>${nilai}</b></span></div>`;
-
+function gambarRingkasSuara(pertama) {
+  if (!F || !hasilSuara || hasilSuara.banyak) return;
+  jenisRingkas = 'suara';
+  const kurang = kurangRingkas();
   const el = kartuRingkasSuara();
   el.innerHTML = `
-    <div class="sesi-kartu kartu-ringkas">
-      <span class="label-ringkas" id="ringkas-judul">${h.sumber === 'ai' ? T('🤖 Dipahami AI · yang akan dicatat') : T('🎤 Yang akan dicatat')}</span>
-      <p class="kutipan-suara">“${esc(teks)}”</p>
-      <div class="nominal-ringkas ${masuk ? 'masuk' : x.tipe === TIPE.TRANSFER ? '' : 'keluar'} ${x.jumlah ? '' : 'belum'}">
-        <small>${esc(namaT(x.tipe))}</small>${x.jumlah ? (masuk ? '+' : x.tipe === TIPE.TRANSFER ? '' : '−') + rp(x.jumlah) : 'Rp —'}</div>
-      <div class="daftar-ringkas">
-        ${x.tipe !== TIPE.TRANSFER ? baris(ilus(x.kategori ? ikonKategori(x.kategori, x.tipe) : '🏷️'), T('Kategori'), x.kategori ? esc(namaT(x.kategori)) : T('Belum dipilih'), !x.kategori) : ''}
-        ${baris(ilus(dompet ? dompet.ikon : '👛'), x.tipe === TIPE.TRANSFER ? T('Dari dompet') : T('Dompet'), x.dompet ? esc(namaT(x.dompet)) : T('Belum dipilih'), !x.dompet)}
-        ${x.tipe === TIPE.TRANSFER ? baris(ilus(tujuan ? tujuan.ikon : '👛'), T('Ke dompet'), x.dompetTujuan ? esc(namaT(x.dompetTujuan)) : T('Belum dipilih'), !x.dompetTujuan || x.dompetTujuan === x.dompet) : ''}
-        ${x.catatan ? baris('📝', T('Catatan'), esc(x.catatan)) : ''}
-        ${baris('📅', T('Tanggal'), esc(labelHariPendek(x.tanggal || hariIni())))}
-      </div>
-      ${kurang.length ? `<p class="peringatan-ringkas">⚠️ ${kurang.join(' · ')}</p>` : ''}
+    <div class="sesi-kartu kartu-ringkas ${pertama ? '' : 'diam'}">
+      <span class="label-ringkas" id="ringkas-judul">${hasilSuara.h.sumber === 'ai' ? T('🤖 Dipahami AI · yang akan dicatat') : T('🎤 Yang akan dicatat')}</span>
+      <p class="kutipan-suara">“${esc(hasilSuara.teks)}”</p>
+      ${nominalRingkas()}
+      ${isianRingkas()}
+      <p class="peringatan-ringkas" id="kurang-ringkas" ${kurang.length ? '' : 'hidden'}>⚠️ ${kurang.join(' · ')}</p>
       <div class="aksi-ringkas">
         <button type="button" class="btn btn-hapus" data-aksi="ringkas-koreksi">${T('✏️ Koreksi')}</button>
         <button type="button" class="btn btn-utama" data-aksi="ringkas-simpan" ${kurang.length ? 'disabled' : ''}>${T('✔ Simpan')}</button>
@@ -6411,9 +6397,161 @@ async function tampilRingkasanSuara(teks) {
       <button type="button" class="tombol-teks" data-aksi="ringkas-ulang">${T('🎤 Ulangi bicara')}</button>
     </div>`;
   el.hidden = false;
-  getar();
-  setTimeout(() => { const b = el.querySelector('[data-aksi="ringkas-simpan"]:not([disabled])') || el.querySelector('[data-aksi="ringkas-koreksi"]'); if (b) b.focus(); }, 50);
+  if (pertama) setTimeout(() => { const b = el.querySelector('#r-jumlah') || el.querySelector('[data-aksi="ringkas-simpan"]:not([disabled])') || el.querySelector('[data-aksi="ringkas-koreksi"]'); if (b) b.focus(); }, 50);
 }
+
+// ---------- Kartu konfirmasi (suara & struk): isian bisa dilengkapi langsung di kartu ----------
+
+let ringkasEdit = '';   // bagian yang sedang dibuka untuk diubah: 'jumlah' | 'kategori' | 'dompet' | 'tujuan' | 'tanggal' | 'label-baru'
+let jenisRingkas = '';  // 'suara' | 'struk'
+
+function kurangRingkas() {
+  const k = [];
+  if (!F.jumlah) k.push(T('Nominal belum terbaca'));
+  if (F.tipe !== TIPE.TRANSFER && !F.kategori) k.push(T('Kategori belum dipilih'));
+  if (!F.dompet) k.push(T('Dompet belum dipilih'));
+  if (F.tipe === TIPE.TRANSFER && (!F.dompetTujuan || F.dompetTujuan === F.dompet)) k.push(T('Dompet tujuan belum dipilih'));
+  return k;
+}
+
+/** Nominal besar (ketuk untuk mengubah); kosong → langsung kotak isian. */
+function nominalRingkas() {
+  const masuk = F.tipe === TIPE.MASUK, transfer = F.tipe === TIPE.TRANSFER;
+  const tanda = masuk ? '+' : transfer ? '' : '−';
+  const isi = !F.jumlah || ringkasEdit === 'jumlah';
+  return `<button type="button" class="nominal-ringkas ${masuk ? 'masuk' : transfer ? '' : 'keluar'} ${F.jumlah ? '' : 'belum'}" data-aksi="ringkas-edit" data-k="jumlah" aria-label="${T('Ubah nominal')}">
+      <small>${esc(namaT(F.tipe))}</small><span id="angka-ringkas">${F.jumlah ? tanda + rp(F.jumlah) : 'Rp —'}</span></button>
+    ${isi ? `<label class="isi-jumlah-ringkas"><span>Rp</span><input id="r-jumlah" class="input-rp" inputmode="numeric" autocomplete="off" placeholder="${T('Isi nominal')}" value="${F.jumlah ? formatAngka(F.jumlah) : ''}"></label>` : ''}`;
+}
+
+/** Baris kategori / dompet / tanggal / label: yang kosong langsung terbuka pilihannya, yang terisi bisa diketuk untuk diubah. */
+function isianRingkas() {
+  const transfer = F.tipe === TIPE.TRANSFER;
+  const baris = (k, ikon, label, nilai, kosong) => {
+    const buka = ringkasEdit === k || kosong;
+    return `<button type="button" class="baris-ringkas bisa-ubah ${kosong ? 'belum' : ''}" data-aksi="ringkas-edit" data-k="${k}" aria-expanded="${buka}">
+      <span class="ikon-ringkas">${ikon}</span><span class="isi"><small>${label}</small><b>${nilai}</b></span>
+      <span class="ubah-ringkas">${kosong ? T('Pilih') : buka ? T('Tutup') : T('Ubah')}</span></button>`;
+  };
+  const pilihan = (k, daftar, terpilih) => `<div class="pilih-ringkas">${daftar.map(([nama, ikon]) =>
+    `<button type="button" class="chip ${nama === terpilih ? 'aktif' : ''}" data-aksi="ringkas-isi" data-k="${k}" data-v="${esc(nama)}"><span class="ilus-chip">${ilus(ikon)}</span>${esc(namaT(nama))}</button>`).join('')}</div>`;
+  const dompet = S.data.dompet.find(w => w.nama === F.dompet);
+  const tujuan = S.data.dompet.find(w => w.nama === F.dompetTujuan);
+  const daftarDompet = (transfer ? S.data.dompet.filter(w => w.jenis !== JENIS.UTANG) : dompetBiasa()).map(w => [w.nama, w.ikon]);
+  const tujuanSalah = !F.dompetTujuan || F.dompetTujuan === F.dompet;
+  const label = labelDari(F.catatan)[0] || '';
+  const semuaLabel = Array.from(new Set((label ? [label] : []).concat(labelTerakhir())));
+  const tgl = F.tanggal || hariIni();
+  let h = '<div class="daftar-ringkas">';
+  if (!transfer) {
+    h += baris('kategori', ilus(F.kategori ? ikonKategori(F.kategori, F.tipe) : '🏷️'), T('Kategori'), F.kategori ? esc(namaT(F.kategori)) : T('Belum dipilih'), !F.kategori);
+    if (ringkasEdit === 'kategori' || !F.kategori) h += pilihan('kategori', S.data.kategori.filter(k => k.tipe === F.tipe).map(k => [k.nama, k.ikon]), F.kategori);
+  }
+  h += baris('dompet', ilus(dompet ? dompet.ikon : '👛'), transfer ? T('Dari dompet') : T('Dompet'), F.dompet ? esc(namaT(F.dompet)) : T('Belum dipilih'), !F.dompet);
+  if (ringkasEdit === 'dompet' || !F.dompet) h += pilihan('dompet', daftarDompet, F.dompet);
+  if (transfer) {
+    h += baris('tujuan', ilus(tujuan ? tujuan.ikon : '👛'), T('Ke dompet'), F.dompetTujuan ? esc(namaT(F.dompetTujuan)) : T('Belum dipilih'), tujuanSalah);
+    if (ringkasEdit === 'tujuan' || tujuanSalah) h += pilihan('tujuan', daftarDompet.filter(([n]) => n !== F.dompet), F.dompetTujuan);
+  }
+  if (F.catatan) h += `<div class="baris-ringkas"><span class="ikon-ringkas">📝</span><span class="isi"><small>${T('Catatan')}</small><b>${esc(F.catatan)}</b></span></div>`;
+  h += baris('tanggal', '📅', T('Tanggal'), esc(labelHariPendek(tgl)), false);
+  if (ringkasEdit === 'tanggal') h += `<div class="pilih-ringkas"><input class="field" type="date" id="r-tanggal" value="${esc(tgl)}" max="${geserHari(hariIni(), 1)}"></div>`;
+  h += `<div class="baris-ringkas"><span class="ikon-ringkas">🏷️</span><span class="isi"><small>${T('Label (opsional)')}</small>
+      <select id="r-label" class="pilih-label" aria-label="${T('Label (opsional)')}">
+        <option value="">${T('Tanpa label')}</option>
+        ${semuaLabel.map(l => `<option value="${esc(l)}" ${l === label ? 'selected' : ''}>#${esc(l)}</option>`).join('')}
+        <option value="__baru">${T('＋ Label baru…')}</option>
+      </select></span></div>`;
+  if (ringkasEdit === 'label-baru') {
+    h += `<div class="pilih-ringkas label-baru-ringkas"><span>#</span><input class="field" id="r-label-baru" maxlength="30" autocomplete="off" placeholder="${T('mis. lebaran')}">
+      <button type="button" class="btn btn-utama btn-kecil" data-aksi="ringkas-label-pakai">${T('Pakai')}</button></div>`;
+  }
+  return h + '</div>';
+}
+
+/** Gambar ulang kartu yang sedang tampil setelah isian diubah (tanpa animasi masuk). */
+function segarkanRingkas() {
+  if (!F) return;
+  renderFormTrx(); // form di belakang ikut berubah
+  if (jenisRingkas === 'struk') tampilRingkasanStruk(false);
+  else gambarRingkasSuara(false);
+}
+
+/** Nominal diketik di kartu: form & tombol Simpan ikut berubah tanpa menggambar ulang kartu (fokus tidak hilang). */
+document.addEventListener('input', e => {
+  if (e.target.id !== 'r-jumlah' || !F) return;
+  F.jumlah = angka(e.target.value);
+  if ($('#f-jumlah')) $('#f-jumlah').value = F.jumlah ? formatAngka(F.jumlah) : '';
+  const angkaEl = $('#angka-ringkas');
+  if (angkaEl) angkaEl.parentElement.classList.toggle('belum', !F.jumlah);
+  if (angkaEl) angkaEl.textContent = F.jumlah ? (F.tipe === TIPE.MASUK ? '+' : F.tipe === TIPE.TRANSFER ? '' : '−') + rp(F.jumlah) : 'Rp —';
+  const kurang = kurangRingkas();
+  const p = $('#kurang-ringkas');
+  if (p) { p.hidden = !kurang.length; p.textContent = '⚠️ ' + kurang.join(' · '); }
+  const tombol = document.querySelector('#ringkas-suara [data-aksi="ringkas-simpan"], #ringkas-suara [data-aksi="ringkas-struk-simpan"]');
+  if (tombol) tombol.disabled = !!kurang.length;
+});
+document.addEventListener('change', e => {
+  if (!F || !e.target.closest || !e.target.closest('#ringkas-suara')) return;
+  if (e.target.id === 'r-tanggal' && e.target.value) {
+    bacaFieldTrx();
+    F.tanggal = e.target.value;
+    ringkasEdit = '';
+    segarkanRingkas();
+  }
+  if (e.target.id === 'r-label') {
+    if (e.target.value === '__baru') {
+      ringkasEdit = 'label-baru';
+      segarkanRingkas();
+      setTimeout(() => $('#r-label-baru') && $('#r-label-baru').focus(), 50);
+      return;
+    }
+    bacaFieldTrx();
+    pasangLabel(e.target.value);
+    ringkasEdit = '';
+    segarkanRingkas();
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id === 'r-label-baru') { e.preventDefault(); AKSI['ringkas-label-pakai'](); }
+  if (e.key === 'Enter' && e.target.id === 'r-jumlah') { e.preventDefault(); e.target.blur(); }
+});
+
+/** Satu label per transaksi dari kartu: label lama di catatan diganti. */
+function pasangLabel(label) {
+  const bersih = String(F.catatan || '').replace(POLA_LABEL, '').replace(/\s{2,}/g, ' ').trim();
+  F.catatan = label ? (bersih ? bersih + ' ' : '') + '#' + label : bersih;
+}
+
+Object.assign(AKSI, {
+  'ringkas-edit': el => {
+    const k = el.dataset.k;
+    if (k === 'jumlah' && !F.jumlah) return $('#r-jumlah') && $('#r-jumlah').focus();
+    ringkasEdit = ringkasEdit === k ? '' : k;
+    bacaFieldTrx();
+    segarkanRingkas();
+    if (ringkasEdit === 'jumlah') setTimeout(() => { const i = $('#r-jumlah'); if (i) { i.focus(); i.select(); } }, 50);
+  },
+  'ringkas-isi': el => {
+    if (!F) return;
+    bacaFieldTrx();
+    const v = el.dataset.v;
+    if (el.dataset.k === 'kategori') F.kategori = v;
+    if (el.dataset.k === 'dompet') { F.dompet = v; if (F.dompetTujuan === v) F.dompetTujuan = ''; }
+    if (el.dataset.k === 'tujuan') F.dompetTujuan = v;
+    ringkasEdit = '';
+    segarkanRingkas();
+  },
+  'ringkas-label-pakai': () => {
+    const i = $('#r-label-baru');
+    const l = i ? i.value.replace(/^#/, '').replace(/[^\p{L}\p{N}_-]/gu, '').toLowerCase().slice(0, 30) : '';
+    if (l.length < 2) return toast(T('Label minimal 2 huruf, tanpa spasi.'), true);
+    bacaFieldTrx();
+    pasangLabel(l);
+    ringkasEdit = '';
+    segarkanRingkas();
+  },
+});
 
 /**
  * Aturan biasa untuk kalimat berisi beberapa transaksi: "bakso 25rb, parkir 5rb dan bensin 30rb pakai gopay".
@@ -6569,24 +6707,20 @@ Object.assign(AKSI, {
  * Kartu konfirmasi hasil foto struk (sama seperti hasil suara): Simpan langsung, Koreksi di form, atau Foto ulang.
  * Form transaksi sudah diisi terapkanStruk(); kartu ini hanya menampilkan isian F.
  */
-function tampilRingkasanStruk() {
+function tampilRingkasanStruk(pertama = true) {
   if (!F || !F.struk) return;
   const h = F.struk;
-  const dompet = S.data.dompet.find(w => w.nama === F.dompet);
+  jenisRingkas = 'struk';
+  if (pertama) ringkasEdit = '';
   const kembar = teksStrukKembar();
-  const kurang = [];
-  if (!F.jumlah) kurang.push(T('Nominal belum terbaca'));
-  if (!F.kategori) kurang.push(T('Kategori belum dipilih'));
-  const baris = (ikon, label, nilai, kosong) => `
-      <div class="baris-ringkas ${kosong ? 'belum' : ''}"><span class="ikon-ringkas">${ikon}</span>
-        <span class="isi"><small>${label}</small><b>${nilai}</b></span></div>`;
+  const kurang = kurangRingkas();
 
   const el = kartuRingkasSuara();
   el.innerHTML = `
-    <div class="sesi-kartu kartu-ringkas">
+    <div class="sesi-kartu kartu-ringkas ${pertama ? '' : 'diam'}">
       <span class="label-ringkas" id="ringkas-judul">${T('🧾 Struk terbaca · yang akan dicatat')}</span>
       <div class="kepala-ringkas-struk">
-        <div class="nominal-ringkas keluar ${F.jumlah ? '' : 'belum'}"><small>${esc(namaT(F.tipe))}</small>${F.jumlah ? '−' + rp(F.jumlah) : 'Rp —'}</div>
+        <div class="nominal-struk">${nominalRingkas()}</div>
         ${F.lampiranThumb ? `<button type="button" class="thumb-ringkas" data-aksi="lihat-lampiran" aria-label="${T('Lihat foto struk')}"><img src="${F.lampiranThumb}" alt=""></button>` : ''}
       </div>
       ${h.pilihanJumlah.length > 1 ? `
@@ -6595,14 +6729,9 @@ function tampilRingkasanStruk() {
             `<button type="button" class="chip ${p.jumlah === F.jumlah ? 'aktif' : ''}" data-aksi="ringkas-struk-jumlah" data-jumlah="${p.jumlah}">${rp(p.jumlah)}</button>`).join('')}</div>
         </div>` : ''}
       <p class="status-ringkas">${statusStruk(h)}</p>
-      <div class="daftar-ringkas">
-        ${baris(ilus(F.kategori ? ikonKategori(F.kategori, F.tipe) : '🏷️'), T('Kategori'), F.kategori ? esc(namaT(F.kategori)) : T('Belum dipilih'), !F.kategori)}
-        ${baris(ilus(dompet ? dompet.ikon : '👛'), T('Dompet'), F.dompet ? esc(namaT(F.dompet)) : T('Belum dipilih'), !F.dompet)}
-        ${F.catatan ? baris('📝', T('Catatan'), esc(F.catatan)) : ''}
-        ${baris('📅', T('Tanggal'), esc(labelHariPendek(F.tanggal || hariIni())))}
-      </div>
+      ${isianRingkas()}
       ${kembar ? `<p class="peringatan-ringkas">${kembar}</p>` : ''}
-      ${kurang.length ? `<p class="peringatan-ringkas">⚠️ ${kurang.join(' · ')}</p>` : ''}
+      <p class="peringatan-ringkas" id="kurang-ringkas" ${kurang.length ? '' : 'hidden'}>⚠️ ${kurang.join(' · ')}</p>
       ${tombolPecahStruk(h)}
       <div class="aksi-ringkas">
         <button type="button" class="btn btn-hapus" data-aksi="ringkas-struk-koreksi">${T('✏️ Koreksi')}</button>
@@ -6611,7 +6740,7 @@ function tampilRingkasanStruk() {
       <button type="button" class="tombol-teks" data-aksi="ringkas-struk-ulang">${T('📷 Foto ulang')}</button>
     </div>`;
   el.hidden = false;
-  setTimeout(() => { const b = el.querySelector('[data-aksi="ringkas-struk-simpan"]:not([disabled])') || el.querySelector('[data-aksi="ringkas-struk-koreksi"]'); if (b) b.focus(); }, 50);
+  if (pertama) setTimeout(() => { const b = el.querySelector('[data-aksi="ringkas-struk-simpan"]:not([disabled])') || el.querySelector('[data-aksi="ringkas-struk-koreksi"]'); if (b) b.focus(); }, 50);
 }
 
 Object.assign(AKSI, {
@@ -6619,8 +6748,9 @@ Object.assign(AKSI, {
     if (!F) return;
     bacaFieldTrx();
     F.jumlah = Number(el.dataset.jumlah);
+    ringkasEdit = '';
     renderFormTrx();
-    tampilRingkasanStruk();
+    tampilRingkasanStruk(false);
   },
   'ringkas-struk-simpan': () => {
     tutupRingkasanSuara();
@@ -6724,7 +6854,6 @@ Object.assign(AKSI, {
   'ringkas-simpan': () => {
     if (!hasilSuara || !F) return tutupRingkasanSuara();
     tutupRingkasanSuara();
-    isiFormCepat(hasilSuara.h);
     hasilSuara = null;
     const tombol = document.querySelector('#form-trx [data-aksi="simpan-trx"], #sheet [data-aksi="simpan-trx"]');
     if (tombol) AKSI['simpan-trx'](tombol);
@@ -6733,11 +6862,12 @@ Object.assign(AKSI, {
     tutupRingkasanSuara();
     if (!hasilSuara || !F) return;
     $('#f-cepat') && ($('#f-cepat').value = hasilSuara.teks);
-    isiFormCepat(hasilSuara.h);
     hasilSuara = null;
+    setTimeout(() => $('#f-jumlah') && $('#f-jumlah').focus(), 50);
   },
   'ringkas-ulang': () => {
     tutupRingkasanSuara();
+    if (hasilSuara && hasilSuara.sebelum && F) { Object.assign(F, hasilSuara.sebelum); renderFormTrx(); }
     hasilSuara = null;
     const t = document.querySelector('.tombol-suara');
     if (t) AKSI.suara(t);
@@ -6894,13 +7024,14 @@ function cariTrxId(id) {
 
 // ---------- 1. Peringatan transaksi mirip (dobel) ----------
 
-/** Transaksi lain dengan tipe, nominal, kategori (atau dompet asal-tujuan) sama, selisih tanggal ≤ 1 hari. */
+/**
+ * Transaksi lain di TANGGAL YANG SAMA dengan tipe, nominal, kategori (atau dompet asal-tujuan) sama: kemungkinan
+ * tercatat dua kali. Transaksi serupa di hari-hari sebelumnya wajar (jajan rutin), jadi tidak diperingatkan.
+ */
 function trxMirip(f) {
-  const hari = s => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5;
   const tgl = f.tanggal || hariIni();
-  return S.data.transaksi.find(t => t.id !== f.id && t.tipe === f.tipe && t.jumlah === f.jumlah
-    && (f.tipe === TIPE.TRANSFER ? t.dompet === f.dompet && t.dompetTujuan === f.dompetTujuan : t.kategori === f.kategori)
-    && Math.abs(hari(t.tanggal) - hari(tgl)) <= 1) || null;
+  return S.data.transaksi.find(t => t.id !== f.id && t.tanggal === tgl && t.tipe === f.tipe && t.jumlah === f.jumlah
+    && (f.tipe === TIPE.TRANSFER ? t.dompet === f.dompet && t.dompetTujuan === f.dompetTujuan : t.kategori === f.kategori)) || null;
 }
 
 function htmlMirip(m) {
@@ -6908,7 +7039,7 @@ function htmlMirip(m) {
   const siapa = m.oleh && m.oleh !== S.data.user ? namaPendek(m.oleh) : T('Anda');
   return `<div class="peringatan-mirip" role="alert">
     <span class="ikon-bulat">${ilus(info.ikon)}</span>
-    <span class="isi"><b>${T('Mirip dengan catatan {nama} ({tanggal})', { nama: esc(siapa), tanggal: esc(labelTanggal(m.tanggal).toLowerCase()) })}</b>
+    <span class="isi"><b>${T('Sudah ada catatan {nama} yang sama di tanggal ini', { nama: esc(siapa) })}</b>
       <small>${esc(info.judul)} ${rp(m.jumlah)}${m.catatan ? ' · ' + esc(m.catatan) : ''}</small>
       <small>${T('Kalau memang transaksi yang berbeda, ketuk <b>Tetap simpan</b>.')}</small></span>
   </div>`;

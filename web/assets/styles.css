@@ -1362,3 +1362,30 @@ body.mode-pilih .antrian { display: none; }
 .aksi-tur { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .aksi-tur .btn { flex: 0 0 auto; padding: 13px 26px; }
 @media (prefers-reduced-motion: reduce) { .ilus-tur, .peringatan-mirip, .kartu-tur { animation: none; } }
+
+/* ---------- Kartu konfirmasi: isian bisa dilengkapi ---------- */
+.kartu-ringkas { max-height: calc(100dvh - 32px - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
+.kartu-ringkas.diam, .kartu-ringkas.diam .baris-ringkas, .kartu-ringkas.diam .nominal-ringkas { animation: none; }
+button.nominal-ringkas { display: block; width: 100%; text-align: left; padding: 0; background: none; color: inherit; }
+button.nominal-ringkas.keluar { color: var(--keluar); } button.nominal-ringkas.masuk { color: var(--masuk); } button.nominal-ringkas.belum { color: var(--muted); }
+.nominal-struk { flex: 1; min-width: 0; }
+.isi-jumlah-ringkas { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 14px; background: var(--card-2);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 45%, transparent); }
+.isi-jumlah-ringkas span { font-weight: 800; color: var(--muted); }
+.isi-jumlah-ringkas input { flex: 1; min-width: 0; border: 0; background: none; font-size: 20px; font-weight: 800; color: var(--text); outline: none; }
+.baris-ringkas.bisa-ubah { width: 100%; text-align: left; color: inherit; background: none; }
+.ubah-ringkas { flex: none; font-size: 12.5px; font-weight: 800; color: var(--primary); }
+.baris-ringkas.belum .ubah-ringkas { color: var(--keluar); }
+.pilih-ringkas { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 12px; border-bottom: 1px solid var(--line); max-height: 220px; overflow-y: auto; }
+.pilih-ringkas .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 6px; font-size: 13px; }
+.ilus-chip { width: 24px; height: 24px; display: grid; place-items: center; font-size: 15px; }
+.ilus-chip svg, .ilus-chip img { width: 24px; height: 24px; }
+.pilih-ringkas .field { width: 100%; }
+.pilih-label { width: 100%; margin-top: 2px; padding: 6px 28px 6px 0; border: 0; background: transparent; font: inherit; font-size: 15px; font-weight: 700; color: var(--text);
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 12px) 55%, calc(100% - 7px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
+.pilih-label option { color: #111; }
+.label-baru-ringkas { align-items: center; flex-wrap: nowrap; }
+.label-baru-ringkas > span { font-weight: 800; color: var(--primary); font-size: 17px; }
+.label-baru-ringkas .field { flex: 1; min-width: 0; }
