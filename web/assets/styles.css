@@ -158,7 +158,6 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
   scrollbar-width: none; -ms-overflow-style: none; padding: 4px 0 10px; margin: -4px 0 -10px; touch-action: pan-x pan-y; }
 .aksi-cepat-geser::-webkit-scrollbar { display: none; }
 .aksi-cepat-geser button { flex: 0 0 20%; scroll-snap-align: start; }
-.aksi-cepat > .atur-pintasan { padding-top: 4px; }
 .aksi-cepat button { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11.5px; min-width: 0; text-align: center; line-height: 1.2; font-weight: 600; color: var(--text); }
 .aksi-cepat .kotak { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); color: var(--primary); }
 .aksi-cepat button:active .kotak { transform: scale(.94); }
