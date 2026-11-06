@@ -1389,3 +1389,53 @@ button.nominal-ringkas.keluar { color: var(--keluar); } button.nominal-ringkas.m
 .label-baru-ringkas { align-items: center; flex-wrap: nowrap; }
 .label-baru-ringkas > span { font-weight: 800; color: var(--primary); font-size: 17px; }
 .label-baru-ringkas .field { flex: 1; min-width: 0; }
+
+/* ---------- Penyempurnaan UX (nav Dompet, Beranda ringkas, form pendek, Pengaturan, Tips) ---------- */
+/* Kartu saldo: Pemasukan/Pengeluaran bisa diketuk untuk rincian periode */
+button.ringkas { width: 100%; text-align: left; }
+button.ringkas:active > div { background: rgba(255, 255, 255, .15); }
+.ringkas > div { position: relative; }
+.lencana-banding { position: absolute; top: -8px; right: 10px; display: inline-block; padding: 0 6px; border-radius: 99px; font-size: 10.5px; font-weight: 800; line-height: 16px; opacity: 1; }
+.lencana-banding.hemat { background: #14523d; color: #86efc0; border: 1px solid #2f7d5f; }
+.lencana-banding.boros { background: #5c1f34; color: #fdb4c4; border: 1px solid #8a3550; }
+.kartu-saldo .tautan-putih, .kartu-saldo > .selisih { margin-top: 12px; }
+.kartu-saldo .tautan-putih { display: block; border-radius: 14px; line-height: 1.4; }
+
+/* Pintasan: tombol Atur lebih pudar daripada pintasan */
+.aksi-cepat .atur-pintasan { color: var(--muted); }
+.aksi-cepat .atur-pintasan .kotak { color: var(--muted); background: transparent; border-style: dashed; box-shadow: none; }
+.ikon-pintasan { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px; background: var(--card); color: var(--primary); }
+.ikon-pintasan .urutan { position: absolute; top: -5px; right: -7px; min-width: 18px; height: 18px; border-radius: 99px; background: var(--primary); color: #fff; font-style: normal; font-size: 11px; font-weight: 800; display: grid; place-items: center; }
+
+/* Form catat */
+.chips-struk { margin: -2px 0 14px; }
+.chips-struk .chip { min-height: 36px; padding: 6px 13px; }
+.chips-tanggal { margin-bottom: 8px; }
+.tanggal-lain { margin-top: 2px; }
+.tombol-opsi-lain { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left; padding: 12px 14px; margin: 0 0 14px; border-radius: 14px; border: 1.5px dashed var(--line); color: var(--primary); font-weight: 700; }
+.tombol-opsi-lain small { color: var(--muted); font-weight: 500; font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tombol-opsi-lain.buka { border: 0; padding: 4px 0 10px; margin: 0; }
+.tombol-opsi-lain:disabled { cursor: default; color: var(--text); }
+.opsi-lain { border-top: 1px solid var(--line); padding-top: 8px; margin-bottom: 6px; }
+
+/* Pemilih ikon dompet berkelompok */
+.sub-ikon { display: block; margin: 12px 0 -2px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.sub-ikon:first-child { margin-top: 2px; }
+
+/* Pengaturan → Akun */
+.kartu-akun { padding: 4px 16px 14px; }
+.kartu-akun .baris { border-bottom: 0; }
+.btn-keluar { width: 100%; flex: none; color: var(--keluar); background: color-mix(in srgb, var(--keluar) 10%, var(--card)); border: 1px solid color-mix(in srgb, var(--keluar) 30%, transparent); }
+.kartu-akun .info-kecil { margin: 8px 0 0; }
+
+/* Tips & trik */
+.daftar-tips { display: flex; flex-direction: column; }
+.tip { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.tip:last-child { border-bottom: 0; }
+.tip .isi { flex: 1; min-width: 0; }
+.tip .isi p { margin: 3px 0 0; font-size: 13.5px; color: var(--muted); line-height: 1.45; }
+.tip .tombol-teks { min-height: 36px; padding: 6px 0; }
+
+/* Cari fitur & kartu sesi */
+.baris-fitur { padding: 9px 0; }
+.sesi-ikon { font-size: 30px; line-height: 1; }

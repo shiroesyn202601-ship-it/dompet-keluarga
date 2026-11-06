@@ -115,7 +115,7 @@ const STRUK = (() => {
       const alasan = (gagal.filter(g => g && (g.gantiKunci || g instanceof GOOGLE.PerluMasuk))[0] || {}).message;
       throw new Error(alasan || (kunci.length
         ? T('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus.')
-        : T('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus, atau aktifkan "Baca struk lebih akurat" (AI Gemini) di menu Lainnya.')));
+        : T('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus, atau aktifkan "Baca struk lebih akurat" (AI Gemini) di ⚙️ Pengaturan.')));
     }
     return gabungHasil(terkumpul);
   }
@@ -281,9 +281,9 @@ const STRUK = (() => {
       try { pesan = JSON.parse(teks).error.message; } catch (e) { pesan = teks.slice(0, 200); }
       const kunciSalah = res.status === 400 && /API key/i.test(pesan);
       let err;
-      if (kunciSalah) err = new Error(T('Kunci API Gemini tidak valid. Periksa lagi di menu Lainnya.'));
-      else if (res.status === 429) err = new Error(T('Kuota semua kunci Gemini sedang habis. Coba lagi nanti, atau tambah kunci lain di menu Lainnya.'));
-      else if (res.status === 403) err = new Error(T('Kunci API Gemini ditolak (403). Periksa lagi di menu Lainnya.'));
+      if (kunciSalah) err = new Error(T('Kunci API Gemini tidak valid. Periksa lagi di ⚙️ Pengaturan.'));
+      else if (res.status === 429) err = new Error(T('Kuota semua kunci Gemini sedang habis. Coba lagi nanti, atau tambah kunci lain di ⚙️ Pengaturan.'));
+      else if (res.status === 403) err = new Error(T('Kunci API Gemini ditolak (403). Periksa lagi di ⚙️ Pengaturan.'));
       else if (res.status >= 500) err = new Error(T('Gemini sedang sibuk ({kode}), coba lagi sebentar lagi', { kode: res.status }));
       else if (res.status === 404) err = new Error(T('Model Gemini tidak ditemukan (404)'));
       else err = new Error('Gemini error ' + res.status + ': ' + pesan);

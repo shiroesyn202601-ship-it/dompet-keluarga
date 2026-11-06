@@ -1172,7 +1172,7 @@ function peringatanAnggaran_(d, t) {
 
 function teksSaldo_(d) {
   const s = saldo_(d);
-  const baris = jenis => d.dompet.filter(w => w.jenis === jenis).map(w => w.ikon + ' ' + html_(w.nama) + ': <b>' + rp_(s[w.nama]) + '</b>'
+  const baris = jenis => d.dompet.filter(w => w.jenis === jenis).map(w => String(w.ikon).replace(/^(\p{Extended_Pictographic}️?)[A-Za-z].*$/u, '$1') + ' ' + html_(w.nama) + ': <b>' + rp_(s[w.nama]) + '</b>'
     + (w.target ? ' / ' + rp_(w.target) + ' (' + Math.floor(Math.max(0, s[w.nama]) / w.target * 100) + '%)' : ''));
   const dompet = baris(JENIS.DOMPET);
   const tabungan = baris(JENIS.TABUNGAN);
@@ -1600,9 +1600,9 @@ function bacaJawabanGemini_(res) {
     let pesan = '';
     try { pesan = JSON.parse(res.getContentText()).error.message; } catch (e) { pesan = res.getContentText().slice(0, 200); }
     let err;
-    if (kode === 400 && /API key/i.test(pesan)) err = new Error('Kunci API Gemini tidak valid. Periksa lagi di menu Lainnya.');
-    else if (kode === 429) err = new Error('Kuota semua kunci Gemini sedang habis. Coba lagi nanti, atau tambah kunci lain di menu Lainnya.');
-    else if (kode === 403) err = new Error('Kunci API Gemini ditolak (403). Periksa lagi di menu Lainnya.');
+    if (kode === 400 && /API key/i.test(pesan)) err = new Error('Kunci API Gemini tidak valid. Periksa lagi di ⚙️ Pengaturan.');
+    else if (kode === 429) err = new Error('Kuota semua kunci Gemini sedang habis. Coba lagi nanti, atau tambah kunci lain di ⚙️ Pengaturan.');
+    else if (kode === 403) err = new Error('Kunci API Gemini ditolak (403). Periksa lagi di ⚙️ Pengaturan.');
     else if (kode >= 500) err = new Error('Gemini sedang sibuk (' + kode + '), coba lagi sebentar lagi');
     else if (kode === 404) err = new Error('Model Gemini tidak ditemukan (404)');
     else err = new Error('Gemini error ' + kode + ': ' + pesan);

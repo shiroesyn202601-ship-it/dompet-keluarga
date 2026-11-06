@@ -10,7 +10,7 @@ Catat keuangan keluarga bersama dari HP. Gratis, tanpa iklan, dan **semua data t
 1. Buka alamat di atas, ketuk **Masuk dengan Google**, lalu centang semua akses yang diminta.
 2. Pilih dompet yang Anda pakai (Tunai, BCA, GoPay, dan lain-lain), lalu isi **saldonya sekarang**. Boleh dikira-kira dulu.
 3. Ketuk **Mulai pakai**. Aplikasi membuat spreadsheet **Dompet Keluarga** di Google Drive Anda.
-4. Supaya terasa seperti aplikasi biasa, pasang ke layar utama HP: buka **⚙️**, lalu ikuti kartu **Pasang sebagai aplikasi**.
+4. Supaya terasa seperti aplikasi biasa, pasang ke layar utama HP: buka **⚙️** (pojok kanan atas Beranda), lalu ikuti kartu **Pasang sebagai aplikasi**.
 
 Selama aplikasi dipakai, sesi Google diperpanjang otomatis (jendela Google kadang berkedip sebentar). Kalau aplikasi lama tidak dibuka, Google meminta konfirmasi ulang: cukup ketuk **Lanjutkan sebagai …**, isian Anda tidak hilang.
 
@@ -20,17 +20,20 @@ Selama aplikasi dipakai, sesi Google diperpanjang otomatis (jendela Google kadan
 - **Diundang:** buka link undangan, masuk dengan akun Google yang diundang, ketuk **Pilih spreadsheet**, lalu pilih file **Dompet Keluarga**. Cukup sekali.
 
 ## Fitur
-- **Catat** pemasukan, pengeluaran, dan transfer antardompet lewat tombol **＋**.
+- **Navigasi:** Beranda · Riwayat · **＋** · Dompet · Laporan di bawah layar. Pengaturan ada di ikon **⚙️** di pojok kanan atas Beranda, di sebelah **🔍**.
+- **Catat** pemasukan, pengeluaran, dan transfer antardompet lewat tombol **＋**. Form dimulai dari nominal; tanggal cukup pilih **Hari ini / Kemarin**. Kategori yang paling sering Anda pakai tampil paling depan, dan dompet ikut kebiasaan kategori itu (mis. Transportasi → GoPay). Ulangi tiap bulan, label acara, lampiran foto, dan patungan ada di **＋ Opsi lain**.
+- **Pintasan Beranda:** ketuk **Atur** di ujung baris pintasan untuk memilih sampai 5 tombol (Foto struk, Suara, Transfer, Catatan, Sholat, Anggaran, Tabungan, Utang, Tagihan). Berlaku per HP.
 - **Catat lebih cepat:** di form catat, ketik saja `bakso 25rb gopay` lalu Enter, dan semua isian terisi sendiri. Transaksi yang sering diulang (kopi, parkir, bensin) muncul sebagai tombol **⚡** sekali ketuk.
 - **Foto struk:** ketuk **Foto struk**, nominal, tanggal, dan kategori terisi otomatis. Tetap periksa totalnya sebelum menyimpan.
-- **Lampiran foto:** foto struk otomatis tersimpan bersama transaksinya (📎), di folder "Dompet Keluarga - Struk" di Google Drive Anda. Bisa juga melampirkan bukti transfer lewat **📎 Lampirkan foto**.
+- **Lampiran foto:** foto struk otomatis tersimpan bersama transaksinya (📎), di folder "Dompet Keluarga - Struk" di Google Drive Anda. Bisa juga melampirkan bukti transfer lewat **＋ Opsi lain → 📎 Lampirkan foto**.
   Untuk hasil yang lebih akurat, isi kunci Gemini gratis di **⚙️ → Baca struk lebih akurat** (opsional).
 - **Tanpa sinyal?** Aplikasi tetap terbuka dengan data terakhir, dan transaksi baru disimpan di HP lalu dikirim otomatis begitu ada sinyal (📤 di atas layar menunjukkan berapa yang menunggu).
+- **Ikon bank & e-wallet:** saat menambah dompet, ketik namanya (mis. *BCA*, *Mandiri Ibu*, *GoPay*) dan ikon mereknya terpilih sendiri. Pilihan lengkap (bank, e-wallet, kartu & investasi) ada di bagian **Ikon**. Dompet lama bernama merek yang dikenal otomatis tampil dengan ikon mereknya.
 - **Saldo tidak cocok?** Buka tab **Dompet**, ketuk dompetnya, lalu ganti angka **Saldo sekarang** dengan saldo sebenarnya. Riwayat transaksi tidak berubah.
 - **Tabungan:** tab **Dompet → ＋ Tambah tabungan**. Boleh dengan target (mis. Dana Darurat Rp10 juta) atau tanpa batas. Ketuk tabungannya untuk **Setor** atau **Tarik**. Aplikasi menghitung berapa yang perlu disetor per bulan supaya target tercapai.
 - **Tagihan rutin:** saat mencatat listrik, internet, cicilan, atau gaji, pilih **🔁 Ulangi tiap bulan**. Menjelang jatuh tempo, tagihannya muncul di Beranda; ketuk untuk mencatat (nominal bisa diubah), atau **Lewati kali ini**. Kelola semuanya di **⚙️ → Tagihan & transaksi rutin**.
 - **Utang & piutang:** tab **Dompet → ＋ Catat utang / piutang**, pilih *Saya meminjamkan* atau *Saya meminjam*. Tidak dihitung sebagai pengeluaran/pemasukan. Ketuk nama orangnya untuk **Terima pembayaran**, **Bayar utang**, atau **Ingatkan lewat WhatsApp**. Kalau diberi jatuh tempo, muncul di Beranda menjelang tanggalnya.
-- **Patungan:** bayar makan bareng teman? Di form catat pengeluaran ketuk **👥 Bagi tagihan**. Bagian Anda jadi pengeluaran, bagian teman otomatis tercatat sebagai piutang.
+- **Patungan:** bayar makan bareng teman? Di form catat pengeluaran buka **＋ Opsi lain → 👥 Bagi tagihan**. Bagian Anda jadi pengeluaran, bagian teman otomatis tercatat sebagai piutang.
 - **Anggaran:** ketuk **Atur** di kartu Anggaran (Beranda), lalu isi batas belanja per kategori. Muncul **⚠️ Hampir habis** di 80% dan **⛔ Lewat** saat melebihi batas.
 - **Anggaran amplop:** centang **📨 Amplop** di sebuah kategori supaya sisa anggaran bulan ini menambah anggaran bulan depan.
 - **Gajian bukan tanggal 1?** Atur di **⚙️ → Periode gajian** (mis. tanggal 25). Ringkasan, anggaran, dan laporan lalu dihitung dari tanggal 25 sampai 24 bulan berikutnya.
@@ -42,6 +45,7 @@ Selama aplikasi dipakai, sesi Google diperpanjang otomatis (jendela Google kadan
 - **Zakat:** tab **Dompet → 🕌 Hitung zakat** untuk perkiraan zakat maal dan penghasilan.
 - **Beberapa buku:** pisahkan keuangan Keluarga, Pribadi, dan Usaha di **⚙️ → Buku keuangan**. Tiap buku bisa dibagikan ke orang berbeda.
 - **Privasi di HP:** ketuk **👁** di Beranda untuk menyamarkan angka, atau aktifkan **⚙️ → Kunci aplikasi** (PIN atau sidik jari). Tema gelap/terang bisa dipilih di **⚙️ → Tampilan & keamanan**.
+- **Lupa caranya?** **⚙️ → Tips & trik** merangkum fitur yang tidak kelihatan (ketik cepat, geser, tekan lama, label). Ikon **🔍** juga menemukan fitur, mis. ketik *zakat* atau *tema gelap*.
 - **Bahasa Inggris:** pilih **English** di **⚙️ → Tampilan & keamanan → Bahasa** (atau di layar masuk). Berlaku per HP, jadi tiap anggota keluarga bebas memilih bahasanya sendiri untuk buku yang sama.
 - **Bot Telegram:** catat cukup dengan chat, mis. *makan bakso 25rb* atau *bensin 30rb pakai gopay*, atau kirim foto struk. Buka **⚙️ → Bot Telegram → Hubungkan akun Telegram saya**, setujui, lalu ketuk **Buka Telegram & hubungkan**. Untuk itu spreadsheet buku Anda dibagikan ke akun bot; aksesnya dicabut otomatis saat semua akun Telegram diputus. (Menu ini muncul kalau pengelola aplikasi sudah memasang bot.)
 

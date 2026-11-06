@@ -22,8 +22,9 @@ const S = {
   batasRiwayat: 200,  // jumlah transaksi yang ditampilkan sebelum "Tampilkan lebih banyak"
 };
 /** Pilihan cepat di layar setup: [nama, ikon]. */
-const DOMPET_UMUM = [['Tunai', '💵'], ['BCA', '🏦'], ['BRI', '🏦'], ['Mandiri', '🏦'], ['BNI', '🏦'], ['BSI', '🏦'],
-  ['Jago', '🏦'], ['SeaBank', '🏦'], ['GoPay', '📱'], ['OVO', '📱'], ['DANA', '📱'], ['ShopeePay', '📱']];
+const DOMPET_UMUM = [['Tunai', '💵'], ['BCA', '🏦BCA'], ['BRI', '🏦BRI'], ['Mandiri', '🏦Mandiri'], ['BNI', '🏦BNI'], ['BSI', '🏦BSI'],
+  ['Jago', '🏦Jago'], ['SeaBank', '🏦SeaBank'], ['blu', '🏦blu'], ['GoPay', '📱GoPay'], ['OVO', '📱OVO'], ['DANA', '📱DANA'],
+  ['ShopeePay', '📱ShopeePay'], ['LinkAja', '📱LinkAja']];
 let F = null; // state form yang sedang terbuka
 terjemahkanHalaman(); // teks statis index.html (lihat bahasa.js)
 
@@ -88,6 +89,12 @@ const IKON = {
   kembali: '<path d="m15 18-6-6 6-6"/>',
   cari: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   maju: '<path d="m9 18 6-6-6-6"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+  pensil: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  celengan: '<path d="M19 9.5c-.5-3-3.6-5.5-7.5-5.5C7.4 4 4 7 4 10.7c0 2 1 3.8 2.6 5V19h3v-1.5h4V19h3v-3.2c1-.7 1.8-1.6 2.3-2.8H21v-3.5z"/><path d="M15.5 9.5h.01"/>',
+  tangan: '<path d="M11 14h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 16"/><path d="m7 20 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.8-2.8l-4.2 3.9"/><path d="m2 15 6 6"/>',
+  tagihan: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/>',
 };
 const svg = nama => `<svg class="ik" viewBox="0 0 24 24" aria-hidden="true">${IKON[nama]}</svg>`;
 
@@ -142,6 +149,24 @@ function ikonDompet(nama) {
 function $(sel) { return document.querySelector(sel); }
 /** Ikon kategori/dompet sebagai ilustrasi berwarna (ilustrasi.js); emoji lain tetap emoji. */
 const ilus = e => (typeof ILUSTRASI !== 'undefined' ? ILUSTRASI.html(e, esc) : esc(e));
+/** Ikon untuk teks biasa (mis. <option>): ubin merek '🏦BCA' → '🏦'. */
+const emojiIkon = e => String(e || '').replace(/^(\p{Extended_Pictographic}️?)[A-Za-z].*$/u, '$1');
+/** Ikon umum yang boleh diganti ubin merek saat ditampilkan (dompet lama yang dibuat sebelum ada ubin merek). */
+const IKON_UMUM_DOMPET = ['🏦', '📱', '💳', '👛', ''];
+/**
+ * Dompet lama ber-ikon umum yang namanya merek dikenal (mis. "BCA" + 🏦) tampil dengan ubin mereknya.
+ * Hanya di tampilan; spreadsheet baru berubah kalau dompetnya disimpan ulang.
+ */
+const sudahDiperkaya = new WeakSet();
+function perkayaIkonDompet(d) {
+  if (!d || !d.dompet || sudahDiperkaya.has(d.dompet) || typeof ILUSTRASI === 'undefined') return;
+  d.dompet.forEach(w => {
+    if (w.jenis !== JENIS.DOMPET || !IKON_UMUM_DOMPET.includes(w.ikon || '')) return;
+    const m = ILUSTRASI.tebakMerek(w.nama);
+    if (m) w.ikon = m;
+  });
+  sudahDiperkaya.add(d.dompet);
+}
 
 function loading(ya) { $('#loading').hidden = !ya; }
 let timerToast;
@@ -418,8 +443,10 @@ function perluMasukLagi() {
   loading(false);
   $('#sesi').innerHTML = `
     <div class="sesi-kartu">
-      <b id="sesi-judul">${T('Sesi login berakhir')}</b>
-      <p>${T('Demi keamanan, Google meminta konfirmasi sekitar tiap 1 jam. Isian Anda tidak hilang.')}</p>
+      <span class="sesi-ikon" aria-hidden="true">🔐</span>
+      <b id="sesi-judul">${T('Sambungkan lagi ke Google')}</b>
+      <p>${T('Ini bukan galat. Demi keamanan, Google meminta konfirmasi sekitar tiap 1 jam. Isian dan data Anda aman di HP ini.')}</p>
+      ${tertunda().length ? `<p class="info-kecil">${T('{n} transaksi menunggu dan akan terkirim setelah tersambung.', { n: tertunda().length })}</p>` : ''}
       <button type="button" class="btn btn-utama" data-aksi="lanjut-sesi">${T('Lanjutkan sebagai {email}', { email: esc(GOOGLE.email() || S.data.user) })}</button>
       <button type="button" class="tombol-teks" data-aksi="masuk" data-akun-lain="1">${T('Pakai akun lain')}</button>
     </div>`;
@@ -461,6 +488,7 @@ async function pilihDanHubungkan(idFile) {
 }
 
 function render() {
+  perkayaIkonDompet(S.data);
   if (S.tab !== 'riwayat') S.pilih = null;
   document.body.classList.toggle('mode-pilih', !!S.pilih);
   const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, laporan: viewLaporan, lainnya: viewLainnya, catatan: viewCatatan, sholat: viewSholat, 'catatan-edit': viewFormCatatan }[S.tab] || viewBeranda;
@@ -712,7 +740,7 @@ function viewBeranda() {
         <span class="avatar" aria-hidden="true">${esc(nama.charAt(0))}</span>
         <div style="min-width:0"><small>${T('Halo,')}</small><h1>${esc(nama)}</h1></div>
       </div>
-      <div class="kepala-kanan"><button type="button" class="tombol-ikon tombol-cari" data-aksi="cari-global" aria-label="${T('Cari transaksi & catatan')}">${svg('cari')}</button>${pemilihBulan(true)}</div>
+      <div class="kepala-kanan">${pemilihBulan(true)}<button type="button" class="tombol-ikon tombol-cari" data-aksi="cari-global" aria-label="${T('Cari transaksi, catatan & fitur')}">${svg('cari')}</button><button type="button" class="tombol-ikon tombol-cari" data-aksi="tab" data-tab="lainnya" aria-label="${T('Pengaturan')}">${svg('gear')}</button></div>
     </div>
 
     <section class="kartu kartu-saldo">
@@ -730,29 +758,17 @@ function viewBeranda() {
           ? '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.9 4.2A10 10 0 0 1 12 4c6.5 0 10 8 10 8a17 17 0 0 1-2.2 3.2M6.6 6.6A17 17 0 0 0 2 12s3.5 8 10 8a9.7 9.7 0 0 0 5.4-1.6"/><path d="M14.1 14.1a3 3 0 1 1-4.2-4.2"/><path d="m2 2 20 20"/></svg>'
           : '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-8 10-8 10 8 10 8-3.5 8-10 8-10-8-10-8z"/><circle cx="12" cy="12" r="3"/></svg>'}</button>
       </div>
-      <div class="ringkas">
+      <button type="button" class="ringkas" data-aksi="ringkas-periode" aria-label="${T('Rincian periode ini')}">
         <div><span class="panah-bulat masuk" aria-hidden="true">↓</span><span><small>${T('Pemasukan')}</small><b>${rp(masuk)}</b></span></div>
-        <div><span class="panah-bulat keluar" aria-hidden="true">↑</span><span><small>${T('Pengeluaran')}</small><b>${rp(keluar)}</b></span></div>
-      </div>
-      <div class="selisih">${T('Selisih {bulan}: <b>{jumlah}</b>', { bulan: esc(namaBulan(S.bulan)), jumlah: rp(masuk - keluar) })}</div>
-      ${barisPembanding()}
-      ${barisSisaAman()}
+        <div><span class="panah-bulat keluar" aria-hidden="true">↑</span><span><small>${T('Pengeluaran')} ${lencanaBanding()}</small><b>${rp(keluar)}</b></span></div>
+      </button>
+      ${barisSisaAman() || `<div class="selisih">${T('Selisih {bulan}: <b>{jumlah}</b>', { bulan: esc(namaBulan(S.bulan)), jumlah: rp(masuk - keluar) })}</div>`}
     </section>
 
-    <div class="aksi-cepat">
-      <button data-aksi="tambah-trx"><span class="kotak">${svg('plus')}</span>${T('Catat')}</button>
-      <button data-aksi="cepat-struk"><span class="kotak">${svg('kamera')}</span>${T('Foto struk')}</button>
-      <button data-aksi="cepat-transfer"><span class="kotak">${svg('transfer')}</span>${T('Transfer')}</button>
-      <button data-aksi="tab" data-tab="dompet"><span class="kotak">${svg('dompet')}</span>${T('Dompet||jamak')}</button>
-      <button data-aksi="kalender"><span class="kotak">${svg('kalender')}</span>${T('Catatan')}</button>
-      <button data-aksi="sholat"><span class="kotak">${svg('masjid')}</span>${T('Sholat')}</button>
-    </div>
+    ${aksiCepat()}
     ${bagianSekaliKetuk()}
 
-    ${kartuMulai()}
-    ${kartuTagihan()}
-    ${kartuSaranRutin()}
-    ${kartuAktivitasBaru()}
+    ${kartuDinamis()}
 
     <div class="bento">${tileAnggaran(per)}${tileTabungan()}</div>
 
@@ -765,6 +781,94 @@ function viewBeranda() {
     <section class="kartu" style="padding:4px 18px">
       ${trx.length ? trx.slice(0, 5).map(itemTrx).join('') : kosong('✍️', T('Belum ada transaksi. Ketuk tombol ＋ untuk mencatat.'))}
     </section>`;
+}
+
+/** Lencana kecil di samping "Pengeluaran": ▼12% (lebih hemat) / ▲8% dibanding periode lalu di hari yang sama. */
+function lencanaBanding() {
+  const p = S.data.pembanding;
+  if (!p || !p.lalu || S.bulan !== S.data.bulan) return '';
+  const persen = Math.round((p.ini - p.lalu) / p.lalu * 100);
+  if (Math.abs(persen) < 3) return '';
+  return `<span class="lencana-banding ${persen < 0 ? 'hemat' : 'boros'}">${persen < 0 ? '▼' : '▲'}${Math.abs(persen)}%</span>`;
+}
+
+/** Ketuk Pemasukan/Pengeluaran di kartu saldo: selisih + perbandingan dengan periode lalu. */
+function bukaRingkasPeriode() {
+  const trx = S.data.transaksi;
+  const masuk = total(trx, TIPE.MASUK), keluar = total(trx, TIPE.KELUAR);
+  const baris = (label, nilai, tebal) => `<div class="baris-rincian"><span>${label}</span>${tebal ? `<b>${nilai}</b>` : `<span>${nilai}</span>`}</div>`;
+  bukaSheet(namaBulan(S.bulan), `
+    ${baris(T('Pemasukan'), rp(masuk))}
+    ${baris(T('− Pengeluaran'), rp(keluar))}
+    ${baris(T('= Selisih'), rp(masuk - keluar), true)}
+    ${barisPembanding()}
+    <div class="aksi-form">
+      <button type="button" class="btn btn-hapus" data-aksi="tab" data-tab="riwayat">${T('Riwayat')}</button>
+      <button type="button" class="btn btn-utama" data-aksi="tab" data-tab="laporan">${T('Lihat laporan')}</button>
+    </div>`);
+}
+
+/**
+ * Pintasan di bawah kartu saldo, bisa diatur per HP (⚙️ di ujung baris). Catat & Dompet tidak perlu di sini:
+ * sudah ada tombol ＋ dan tab Dompet di bawah layar. [ikon, label, aksi, atribut tambahan, tersedia?]
+ */
+const PINTASAN = {
+  struk: ['kamera', T('Foto struk'), 'cepat-struk'],
+  suara: ['mic', T('Suara'), 'cepat-suara', '', () => !!PengenalSuara],
+  transfer: ['transfer', T('Transfer'), 'cepat-transfer'],
+  catatan: ['kalender', T('Catatan'), 'kalender'],
+  sholat: ['masjid', T('Sholat'), 'sholat'],
+  anggaran: ['target', T('Anggaran'), 'atur-anggaran'],
+  tabungan: ['celengan', T('Tabungan'), 'tambah-tabungan'],
+  utang: ['tangan', T('Utang'), 'tambah-utang'],
+  rutin: ['tagihan', T('Tagihan'), 'kelola-rutin'],
+  catat: ['plus', T('Catat'), 'tambah-trx'],
+};
+const PINTASAN_AWAL = ['struk', 'suara', 'transfer', 'catatan', 'sholat'];
+const MAKS_PINTASAN = 5;
+const pintasanAda = k => PINTASAN[k] && (!PINTASAN[k][4] || PINTASAN[k][4]());
+function pintasanDipilih() {
+  let p = null;
+  try { p = JSON.parse(bacaHp('dk_pintasan')); } catch (e) { /* abaikan */ }
+  return (Array.isArray(p) ? p : PINTASAN_AWAL).filter(pintasanAda).slice(0, MAKS_PINTASAN);
+}
+function aksiCepat() {
+  return `<div class="aksi-cepat">
+    ${pintasanDipilih().map(k => { const [ikon, label, aksi] = PINTASAN[k];
+      return `<button data-aksi="${aksi}"><span class="kotak">${svg(ikon)}</span>${label}</button>`; }).join('')}
+    <button data-aksi="atur-pintasan" class="atur-pintasan" aria-label="${T('Atur pintasan')}"><span class="kotak">${svg('pensil')}</span>${T('Atur||pintasan')}</button>
+  </div>`;
+}
+function isiAturPintasan() {
+  const dipilih = pintasanDipilih();
+  return `
+    <p style="margin-top:0">${T('Pilih sampai {n} pintasan untuk Beranda. Urutannya mengikuti urutan Anda memilih.', { n: MAKS_PINTASAN })}</p>
+    <div class="grid-pilih">${Object.keys(PINTASAN).filter(pintasanAda).map(k => {
+      const i = dipilih.indexOf(k);
+      return `<button type="button" class="pilihan ${i >= 0 ? 'aktif' : ''}" data-aksi="pilih-pintasan" data-k="${k}" aria-pressed="${i >= 0}">
+        <span class="ikon-pintasan">${svg(PINTASAN[k][0])}${i >= 0 ? `<i class="urutan">${i + 1}</i>` : ''}</span>${PINTASAN[k][1]}</button>`; }).join('')}</div>
+    <div class="aksi-form">
+      <button type="button" class="btn btn-hapus" data-aksi="pintasan-awal">${T('Kembalikan semula')}</button>
+      <button type="button" class="btn btn-utama" data-aksi="tutup-sheet">${T('Selesai')}</button>
+    </div>`;
+}
+function bukaAturPintasan() {
+  bukaSheet(T('Atur Pintasan'), `<div id="atur-pintasan">${isiAturPintasan()}</div>`);
+}
+function simpanPintasan(daftar) {
+  tulisHp('dk_pintasan', daftar ? JSON.stringify(daftar) : null);
+  if ($('#atur-pintasan')) $('#atur-pintasan').innerHTML = isiAturPintasan();
+  if (S.tab === 'beranda') render();
+}
+
+/**
+ * Kartu yang muncul menurut keadaan (tagihan jatuh tempo, panduan awal, saran rutin, aktivitas keluarga).
+ * Paling banyak dua sekaligus, menurut urutan pentingnya, supaya Beranda tidak menumpuk.
+ */
+const MAKS_KARTU_DINAMIS = 2;
+function kartuDinamis() {
+  return [kartuTagihan, kartuMulai, kartuSaranRutin, kartuAktivitasBaru]
+    .map(f => f()).filter(h => h && h.trim()).slice(0, MAKS_KARTU_DINAMIS).join('');
 }
 
 // ---------- Halaman: Riwayat ----------
@@ -893,7 +997,7 @@ function bukaFilter() {
       <div class="grup-form"><label class="label" for="fl-sampai">${T('Sampai')}</label><input class="field" id="fl-sampai" type="date" value="${esc(f.sampai)}"></div>
     </div>
     ${pilih('fl-kategori', T('Kategori'), T('Semua kategori'), namaKategori.map(n => [n, namaT(n)]), f.kategori)}
-    ${pilih('fl-dompet', T('Dompet'), T('Semua dompet'), S.data.dompet.map(w => [w.nama, w.ikon + ' ' + namaT(w.nama)]), f.dompet)}
+    ${pilih('fl-dompet', T('Dompet'), T('Semua dompet'), S.data.dompet.map(w => [w.nama, emojiIkon(w.ikon) + ' ' + namaT(w.nama)]), f.dompet)}
     ${anggota.length > 1 ? pilih('fl-oleh', T('Dicatat oleh'), T('Semua anggota'), anggota.map(e => [e, namaPendek(e)]), f.oleh) : ''}
     <div class="aksi-form">
       <button type="button" class="btn btn-hapus" data-aksi="reset-filter">${T('Reset')}</button>
@@ -1198,7 +1302,7 @@ function muatRingkasAnggota(daftar) {
 /** Setelah "Cek undangan" menambah beberapa buku sekaligus: pilih mana yang dibuka dulu. */
 function bukaPilihBukuUndangan(buku) {
   bukaSheet(T('Buka buku yang mana?'), `
-    <p class="info-kecil" style="text-align:left;margin:0 0 8px">${T('{n} buku sudah masuk ke daftar Anda. Pilih yang mau dibuka sekarang; yang lain bisa dibuka kapan saja dari Lainnya → Buku Keuangan.', { n: buku.length })}</p>
+    <p class="info-kecil" style="text-align:left;margin:0 0 8px">${T('{n} buku sudah masuk ke daftar Anda. Pilih yang mau dibuka sekarang; yang lain bisa dibuka kapan saja dari ⚙️ Pengaturan → Buku keuangan.', { n: buku.length })}</p>
     ${buku.map(b => `
       <button type="button" class="baris" data-aksi="buka-undangan" data-id="${esc(b.id)}" data-nama="${esc(b.nama)}">
         <span class="ikon-bulat">📒</span>
@@ -1286,7 +1390,7 @@ function renderFormPatungan() {
     <div class="grup-form">
       <label class="label" for="p-dompet">${T('Dibayar dari')}</label>
       <select class="field" id="p-dompet">${dompetBiasa().map(w =>
-        `<option value="${esc(w.nama)}" ${w.nama === F.dompet ? 'selected' : ''}>${esc(w.ikon + ' ' + namaT(w.nama))}</option>`).join('')}</select>
+        `<option value="${esc(w.nama)}" ${w.nama === F.dompet ? 'selected' : ''}>${esc(emojiIkon(w.ikon) + ' ' + namaT(w.nama))}</option>`).join('')}</select>
     </div>
     <div class="grup-form">
       <label class="label" for="p-tanggal">${T('Tanggal')}</label>
@@ -1943,7 +2047,7 @@ function kartuAnggota(pilih) {
 
 // ---------- Halaman: Setup pertama kali ----------
 
-const semuaDompetSetup = () => DOMPET_UMUM.concat(S.setup.lain.map(n => [n, '💳']));
+const semuaDompetSetup = () => DOMPET_UMUM.concat(S.setup.lain.map(n => [n, (typeof ILUSTRASI !== 'undefined' && ILUSTRASI.tebakMerek(n)) || '💳']));
 
 /** Wizard satu layar: pilih dompet → isi saldo sekarang → (opsional) undang anggota keluarga. */
 function viewSetup() {
@@ -2010,81 +2114,46 @@ function renderSetup() {
 
 function viewLainnya() {
   const d = S.data;
+  const baris = (aksi, ikon, judul, sub, attr = '') => `
+      <button class="baris" data-aksi="${aksi}" ${attr}>
+        <span class="ikon-bulat">${ikon}</span>
+        <span class="isi"><b>${judul}</b><small>${sub}</small></span>
+        <span class="panah">${svg('maju')}</span>
+      </button>`;
+  const tautan = (href, ikon, judul, sub, baru) => `
+      <a class="baris" href="${esc(href)}" ${baru ? 'target="_blank" rel="noopener"' : ''} style="color:inherit;text-decoration:none">
+        <span class="ikon-bulat">${ikon}</span>
+        <span class="isi"><b>${judul}</b><small>${sub}</small></span>
+        <span class="panah">${svg('maju')}</span>
+      </a>`;
+  const rutin = daftarRutin();
   return `
     <div class="kepala kepala-kembali">
       <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="${T('Kembali')}">${svg('kembali')}</button>
-      <h1>${T('Lainnya')}</h1>
+      <h1>${T('Pengaturan')}</h1>
     </div>
+
+    <h2 class="judul-bagian">${T('Keuangan')}</h2>
     <section class="kartu" style="padding:4px 16px">
-      <button class="baris" data-aksi="keluar">
-        <span class="ikon-bulat">👤</span>
-        <span class="isi"><b>${esc(namaPendek(d.user))}</b><small>${esc(d.user)}</small></span>
-        <span class="panah" style="font-size:13px">${T('Keluar')}</span>
-      </button>
-      <button class="baris" data-aksi="atur-anggaran">
-        <span class="ikon-bulat">🎯</span>
-        <span class="isi"><b>${T('Anggaran bulanan')}</b><small>${T('Batas belanja per kategori')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
-      <button class="baris" data-aksi="kelola-rutin">
-        <span class="ikon-bulat">🔁</span>
-        <span class="isi"><b>${T('Tagihan & transaksi rutin')}</b><small>${daftarRutin().length ? T('{n} rutin · berikutnya {nama}, {tanggal}', { n: daftarRutin().length, nama: esc(daftarRutin()[0].nama), tanggal: esc(tanggalPendek(daftarRutin()[0].berikutnya)) }) : T('Listrik, internet, cicilan, SPP, gaji…')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
-      <button class="baris" data-aksi="aktivitas">
-        <span class="ikon-bulat">👥</span>
-        <span class="isi"><b>${T('Aktivitas keluarga')}</b><small>${T('Siapa mencatat, mengubah, atau menghapus apa')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
-      <button class="baris" data-aksi="buku">
-        <span class="ikon-bulat">📒</span>
-        <span class="isi"><b>${T('Buku keuangan')}</b><small>${esc(namaT(d.namaBuku || 'Keluarga'))}${(d.buku || []).length > 1 ? ' · ' + T('{n} buku', { n: d.buku.length }) : ' · ' + T('pisahkan pribadi, keluarga, usaha')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
-      <button class="baris" data-aksi="atur-periode">
-        <span class="ikon-bulat">📅</span>
-        <span class="isi"><b>${T('Periode gajian')}</b><small>${(d.mulaiPeriode || 1) > 1 ? T('Mulai tanggal {tanggal} tiap bulan', { tanggal: d.mulaiPeriode }) : T('Bulan kalender (tanggal 1)')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
-      <button class="baris" data-aksi="kelola-kategori">
-        <span class="ikon-bulat">🏷️</span>
-        <span class="isi"><b>${T('Kelola kategori')}</b><small>${T('Tambah, ubah nama, atau hapus kategori')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
-      <button class="baris" data-aksi="undang">
-        <span class="ikon-bulat">👨‍👩‍👧</span>
-        <span class="isi"><b>${T('Anggota keluarga')}</b><small>${T('Undang atau keluarkan akun Google lain')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
+      ${baris('atur-anggaran', '🎯', T('Anggaran bulanan'), T('Batas belanja per kategori'))}
+      ${baris('kelola-rutin', '🔁', T('Tagihan & transaksi rutin'), rutin.length ? T('{n} rutin · berikutnya {nama}, {tanggal}', { n: rutin.length, nama: esc(rutin[0].nama), tanggal: esc(tanggalPendek(rutin[0].berikutnya)) }) : T('Listrik, internet, cicilan, SPP, gaji…'))}
+      ${baris('kelola-kategori', '🏷️', T('Kelola kategori'), T('Tambah, ubah nama, atau hapus kategori'))}
+      ${baris('atur-periode', '📅', T('Periode gajian'), (d.mulaiPeriode || 1) > 1 ? T('Mulai tanggal {tanggal} tiap bulan', { tanggal: d.mulaiPeriode }) : T('Bulan kalender (tanggal 1)'))}
+      ${baris('buku', '📒', T('Buku keuangan'), esc(namaT(d.namaBuku || 'Keluarga')) + ((d.buku || []).length > 1 ? ' · ' + T('{n} buku', { n: d.buku.length }) : ' · ' + T('pisahkan pribadi, keluarga, usaha')))}
     </section>
 
-    <h2 class="judul-bagian">${T('Fitur lanjutan')}</h2>
+    <h2 class="judul-bagian">${T('Keluarga & berbagi')}</h2>
     <section class="kartu" style="padding:4px 16px">
-      <button class="baris" data-aksi="gemini">
-        <span class="ikon-bulat">🤖</span>
-        <span class="isi"><b>${T('Baca struk lebih akurat')}</b><small>${d.kunciGemini.length ? T('Aktif · memakai AI Gemini') : T('Opsional · pakai kunci Gemini gratis dari Google')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
-      ${d.telegram.bot || d.telegram.pengguna.length ? `<button class="baris" data-aksi="telegram">
-        <span class="ikon-bulat">💬</span>
-        <span class="isi"><b>${T('Bot Telegram')}</b><small>${d.telegram.bot ? '@' + esc(d.telegram.bot) + ' · ' : ''}${T('{n} akun terhubung', { n: d.telegram.pengguna.length })}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>` : ''}
-      <a class="baris" href="${esc(d.urlSpreadsheet)}" target="_blank" style="color:inherit;text-decoration:none">
-        <span class="ikon-bulat">📊</span>
-        <span class="isi"><b>${T('Buka spreadsheet')}</b><small>${T('Lihat semua data di Google Sheets')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </a>
-      <button class="baris" data-aksi="cadangan">
-        <span class="ikon-bulat">💾</span>
-        <span class="isi"><b>${T('Unduh & cadangan data')}</b><small>${T('Simpan semua transaksi sebagai file Excel/CSV')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
-      <a class="baris" href="privasi.html" style="color:inherit;text-decoration:none">
-        <span class="ikon-bulat">🔒</span>
-        <span class="isi"><b>${T('Kebijakan privasi')}</b><small>${T('Data apa yang dipakai aplikasi ini')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </a>
+      ${baris('undang', '👨‍👩‍👧', T('Anggota keluarga'), T('Undang atau keluarkan akun Google lain'))}
+      ${baris('aktivitas', '👥', T('Aktivitas keluarga'), T('Siapa mencatat, mengubah, atau menghapus apa'))}
+      ${d.telegram.bot || d.telegram.pengguna.length ? baris('telegram', '💬', T('Bot Telegram'), (d.telegram.bot ? '@' + esc(d.telegram.bot) + ' · ' : '') + T('{n} akun terhubung', { n: d.telegram.pengguna.length })) : ''}
+    </section>
+
+    <h2 class="judul-bagian">${T('Data & AI')}</h2>
+    <section class="kartu" style="padding:4px 16px">
+      ${baris('gemini', '🤖', T('Baca struk lebih akurat'), d.kunciGemini.length ? T('Aktif · memakai AI Gemini') : T('Opsional · pakai kunci Gemini gratis dari Google'))}
+      ${tautan(d.urlSpreadsheet, '📊', T('Buka spreadsheet'), T('Lihat semua data di Google Sheets'), true)}
+      ${baris('cadangan', '💾', T('Unduh & cadangan data'), T('Simpan semua transaksi sebagai file Excel/CSV'))}
     </section>
 
     <h2 class="judul-bagian">${T('Tampilan & keamanan')}</h2>
@@ -2110,30 +2179,33 @@ function viewLainnya() {
             `<option value="${u}" ${ukuranDipilih() === u ? 'selected' : ''}>${l}</option>`).join('')}</select>
         </span>
       </label>
+      ${baris('atur-pintasan', '⚡', T('Pintasan di Beranda'), pintasanDipilih().map(k => PINTASAN[k][1]).join(' · ') || T('Belum ada pintasan'))}
       <button class="baris" data-aksi="samar" role="switch" aria-checked="${modeSamar()}">
         <span class="ikon-bulat">👁</span>
         <span class="isi"><b>${T('Sembunyikan nominal')}</b><small>${modeSamar() ? T('Angka disamarkan') : T('Samarkan angka saat HP dilihat orang lain')}</small></span>
         <span class="saklar ${modeSamar() ? 'nyala' : ''}" aria-hidden="true"></span>
       </button>
-      <button class="baris" data-aksi="atur-kunci">
-        <span class="ikon-bulat">🔒</span>
-        <span class="isi"><b>${T('Kunci aplikasi')}</b><small>${kunciTersimpan() ? (kunciTersimpan().bio ? T('Aktif · PIN + sidik jari/wajah') : T('Aktif · PIN')) : T('Minta PIN saat aplikasi dibuka')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
+      ${baris('atur-kunci', '🔒', T('Kunci aplikasi'), kunciTersimpan() ? (kunciTersimpan().bio ? T('Aktif · PIN + sidik jari/wajah') : T('Aktif · PIN')) : T('Minta PIN saat aplikasi dibuka'))}
     </section>
+
+    <h2 class="judul-bagian">${T('Bantuan')}</h2>
     <section class="kartu" style="padding:4px 16px">
-      <button class="baris" data-aksi="tur">
-        <span class="ikon-bulat">🧭</span>
-        <span class="isi"><b>${T('Tur singkat aplikasi')}</b><small>${T('Cara cepat mencatat, suara, foto struk, dan gestur')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
-      <button class="baris" data-aksi="log-update">
-        <span class="ikon-bulat">🆕</span>
-        <span class="isi"><b>${T('Apa yang baru')}</b><small>${labelVersi() ? T('Riwayat pembaruan aplikasi · sekarang {versi}', { versi: labelVersi() }) : T('Riwayat pembaruan aplikasi')}</small></span>
-        <span class="panah">${svg('maju')}</span>
-      </button>
+      ${baris('tips', '💡', T('Tips & trik'), T('Fitur tersembunyi: ketik cepat, geser, tekan lama, label, bot'))}
+      ${baris('tur', '🧭', T('Tur singkat aplikasi'), T('Cara cepat mencatat, suara, foto struk, dan gestur'))}
+      ${baris('log-update', '🆕', T('Apa yang baru'), labelVersi() ? T('Riwayat pembaruan aplikasi · sekarang {versi}', { versi: labelVersi() }) : T('Riwayat pembaruan aplikasi'))}
+      ${tautan('privasi.html', '🔐', T('Kebijakan privasi'), T('Data apa yang dipakai aplikasi ini'))}
     </section>
     ${kartuPasang()}
+
+    <h2 class="judul-bagian">${T('Akun')}</h2>
+    <section class="kartu kartu-akun">
+      <div class="baris">
+        <span class="ikon-bulat">👤</span>
+        <span class="isi"><b>${esc(namaPendek(d.user))}</b><small>${esc(d.user)}</small></span>
+      </div>
+      <button type="button" class="btn btn-keluar" data-aksi="keluar">${T('Keluar dari akun')}</button>
+      <p class="info-kecil">${T('Data yang tersimpan di HP ini ikut dihapus saat keluar. Data di Google Drive tetap aman.')}</p>
+    </section>
     ${!MODE_APLIKASI && labelVersi() ? `<p class="catatan-versi">Dompet Keluarga ${labelVersi()}</p>` : ''}`;
 }
 
@@ -2314,9 +2386,15 @@ async function kirim(tombol, fungsi, args, pesan, tanganiGagal) {
   }
 }
 
-function gridIkon(terpilih) {
-  return `<div class="grid-ikon">${PILIHAN_IKON.map(i =>
-    `<button type="button" class="${i === terpilih ? 'aktif' : ''}" data-aksi="pilih-ikon" data-ikon="${i}" aria-label="${i}">${ilus(i)}</button>`).join('')}</div>`;
+/** Ikon umum yang ditampilkan dulu di pemilih ikon dompet (sebelum ubin merek). */
+const IKON_DOMPET = ['💵', '👛', '🏦', '📱', '💳', '💰', '🐷', '🏪', '💼', '📈', '🎯', '🛡️'];
+/** dompet: true → pemilih ikon dompet, dikelompokkan Umum · Bank · E-wallet · Kartu & investasi. */
+function gridIkon(terpilih, dompet) {
+  const tombol = i => `<button type="button" class="${i === terpilih ? 'aktif' : ''}" data-aksi="pilih-ikon" data-ikon="${esc(i)}" aria-label="${esc((typeof ILUSTRASI !== 'undefined' && ILUSTRASI.namaMerek(i)) || i)}">${ilus(i)}</button>`;
+  if (!dompet || typeof ILUSTRASI === 'undefined' || !ILUSTRASI.merek) return `<div class="grid-ikon">${PILIHAN_IKON.map(tombol).join('')}</div>`;
+  const m = ILUSTRASI.merek();
+  return [[T('Umum'), IKON_DOMPET], [T('Bank'), m.bank], [T('E-wallet'), m.ewallet], [T('Kartu & investasi'), m.kartu]]
+    .map(([judul, daftar]) => `<small class="sub-ikon">${judul}</small><div class="grid-ikon">${daftar.map(tombol).join('')}</div>`).join('');
 }
 
 // ---------- Form transaksi ----------
@@ -2325,13 +2403,13 @@ function gridIkon(terpilih) {
 function bukaFormTrx(t, preset, judul) {
   const pertama = dompetBiasa()[0];
   F = t ? Object.assign({}, t) : Object.assign({
-    tipe: TIPE.KELUAR, jumlah: 0, kategori: '', dompet: pertama ? pertama.nama : '', dompetTujuan: '',
+    tipe: TIPE.KELUAR, jumlah: 0, kategori: '', dompet: dompetIngatan(TIPE.KELUAR, '') || (pertama ? pertama.nama : ''), dompetTujuan: '',
     tanggal: hariIni(), catatan: '',
   }, preset);
   bukaSheet(t ? T('Ubah Transaksi') : judul || T('Catat Transaksi'), '<div id="form-trx"></div>');
   renderFormTrx();
   // Tidak fokus kalau form langsung diisi hasil struk (kartu konfirmasi muncul di atasnya, keyboard jangan terbuka).
-  if (!t) setTimeout(() => F && !F.struk && $('#f-jumlah') && $('#f-jumlah').focus(), 250);
+  if (!t) setTimeout(() => F && !F.struk && !F.tanpaFokus && $('#f-jumlah') && $('#f-jumlah').focus(), 250);
 }
 
 function renderFormTrx() {
@@ -2356,8 +2434,6 @@ function renderFormTrx() {
       <div class="info-rutin">🔁 <span>${T('Setelah disimpan, jatuh tempo berikutnya <b>{tanggal}</b>.', { tanggal: esc(tanggalPendek(F.berikutRutin)) })}
         <button type="button" data-aksi="lewati-rutin">${T('Lewati kali ini')}</button></span></div>` : ''}
 
-    ${!rutin && !F.id && !F.dariRutin && !F.strukJob && !F.struk && F.tipe !== TIPE.TRANSFER ? bagianCepat() : ''}
-
     ${rutin && !F.idRutin ? chipTemplat(TEMPLAT_RUTIN, 'templat-rutin') : ''}
 
     ${rutin ? `
@@ -2371,29 +2447,30 @@ function renderFormTrx() {
         `<button type="button" class="${F.tipe === t ? 'aktif' : ''}" data-aksi="f-tipe" data-tipe="${t}">${namaT(t)}</button>`).join('')}
     </div>
 
+    <label class="input-jumlah">
+      <span>Rp</span>
+      <input id="f-jumlah" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="${T('Jumlah')}"
+        value="${F.jumlah ? new Intl.NumberFormat('id-ID').format(F.jumlah) : ''}">
+    </label>
+    ${F.struk ? infoStruk(F.struk) : ''}
+
+    ${!rutin && !F.id && !F.dariRutin && !F.strukJob && !F.struk && F.tipe !== TIPE.TRANSFER ? bagianCepat() : ''}
+
     ${F.strukJob ? `
       <div class="struk-proses" role="status"><span class="spinner kecil"></span>
         <span><b>${T('Membaca struk…')} <span class="detik" data-detik="${F.strukJob}"></span></b>
           <small class="tahap-struk" data-tahap="${F.strukJob}">${esc((ANTRIAN.find(j => j.id === F.strukJob) || {}).tahap || '')}</small>
           <small>${T('Isi lain boleh diisi dulu, atau tutup form ini. Hasilnya tetap muncul di bawah layar.')}</small></span></div>`
-    : !F.id && !rutin && F.tipe === TIPE.KELUAR ? `
-      <p class="label" style="margin:0 0 6px">${T('Isi otomatis dari foto struk')}</p>
-      <div style="display:flex;gap:8px;margin:0 0 16px">
-        <button type="button" class="tombol-tambah" style="margin:0" data-aksi="foto-struk" data-kamera="1">📷 ${T('Kamera')}</button>
-        <button type="button" class="tombol-tambah" style="margin:0" data-aksi="foto-struk">🖼️ ${T('Galeri')}</button>
+    : !F.id && !rutin && !F.struk && F.tipe === TIPE.KELUAR ? `
+      <div class="chips chips-struk" aria-label="${T('Isi otomatis dari foto struk')}">
+        <button type="button" class="chip" data-aksi="foto-struk" data-kamera="1">📷 ${T('Foto struk')}</button>
+        <button type="button" class="chip" data-aksi="foto-struk">🖼️ ${T('Dari galeri')}</button>
       </div>` : ''}
-
-    <label class="input-jumlah">
-      <span>Rp</span>
-      <input id="f-jumlah" inputmode="numeric" autocomplete="off" placeholder="0"
-        value="${F.jumlah ? new Intl.NumberFormat('id-ID').format(F.jumlah) : ''}">
-    </label>
-    ${F.struk ? infoStruk(F.struk) : ''}
 
     ${F.tipe !== TIPE.TRANSFER ? `
       <div class="grup-form">
         <span class="label">${T('Kategori')}</span>
-        <div class="grid-pilih">${kategori.map(k =>
+        <div class="grid-pilih">${urutKategori(kategori).map(k =>
           `<button type="button" class="pilihan ${k.nama === F.kategori ? 'aktif' : ''}" data-aksi="f-kategori" data-nama="${esc(k.nama)}">
             <span>${ilus(k.ikon)}</span>${esc(namaT(k.nama))}</button>`).join('')}</div>
       </div>` : ''}
@@ -2411,28 +2488,18 @@ function renderFormTrx() {
 
     <div class="grup-form">
       <label class="label" for="f-tanggal">${rutin ? T('Jatuh tempo berikutnya') : T('Tanggal')}</label>
-      ${inputTanggal('f-tanggal', F.tanggal)}
+      ${rutin ? inputTanggal('f-tanggal', F.tanggal) : pilihTanggalCepat()}
     </div>
 
-    ${bolehUlang ? `
-      <div class="grup-form">
-        <span class="label">🔁 ${rutin ? T('Berulang') : T('Ulangi (tagihan rutin)')}</span>
-        <div class="chips">${(rutin ? [] : [['', T('Tidak||ulang')]]).concat([['Bulanan', T('Tiap bulan')], ['Mingguan', T('Tiap minggu')], ['Tahunan', T('Tiap tahun')]]).map(([u, l]) =>
-          `<button type="button" class="chip ${(F.ulang || '') === u ? 'aktif' : ''}" data-aksi="f-ulang" data-ulang="${u}">${l}</button>`).join('')}</div>
-        ${berikutUlang ? `<p class="info-kecil" style="text-align:left">${T('Muncul lagi di Beranda menjelang {tanggal}, tinggal ketuk untuk mencatat.', { tanggal: esc(tanggalPendek(berikutUlang)) })}</p>` : ''}
-      </div>` : ''}
+    ${rutin ? bagianUlang(rutin, berikutUlang) : ''}
 
     <div class="grup-form">
       <label class="label" for="f-catatan">${T('Catatan (opsional)')}</label>
       <input class="field" id="f-catatan" maxlength="500" list="f-saran" autocomplete="off" placeholder="${T('mis. Belanja bulanan di Indomaret')}" value="${esc(F.catatan)}">
       <datalist id="f-saran">${kebiasaan().saran.filter(s => s.tipe === F.tipe).map(s => `<option value="${esc(s.catatan)}">`).join('')}</datalist>
-      ${rutin ? '' : chipLabelForm()}
     </div>
 
-    ${rutin ? '' : bagianLampiran()}
-
-    ${!F.id && !rutin && !F.dariRutin && F.tipe === TIPE.KELUAR
-      ? `<button type="button" class="tombol-teks" style="display:block;margin:-4px 0 8px;padding-left:0" data-aksi="buka-patungan">👥 ${T('Dibayar bareng teman? Bagi tagihan (patungan)')}</button>` : ''}
+    ${rutin ? '' : bagianOpsiLain(bolehUlang, berikutUlang)}
 
     ${F.oleh ? `<p class="info-kecil">${T('Dicatat oleh {nama}', { nama: esc(namaPendek(F.oleh)) })}</p>` : ''}
     ${F.mirip && !F.id ? htmlMirip(F.mirip) : ''}
@@ -2443,6 +2510,87 @@ function renderFormTrx() {
         : `${F.id ? `<button type="button" class="btn btn-hapus" data-aksi="hapus-trx">${T('Hapus')}</button>` : ''}
            <button type="button" class="btn btn-utama" data-aksi="simpan-trx">${F.mirip && !F.id ? T('Tetap simpan') : T('Simpan')}</button>`}
     </div>`;
+}
+
+/** Hari ini · Kemarin · Pilih tanggal. Input tanggal tetap ada di halaman (dibaca bacaFieldTrx), disembunyikan kalau tidak perlu. */
+function pilihTanggalCepat() {
+  const kini = hariIni();
+  const d = keTanggal(kini); d.setDate(d.getDate() - 1);
+  const kemarin = tanggalIso(d);
+  const tgl = F.tanggal || kini;
+  const lain = F.tanggalPilih || (tgl !== kini && tgl !== kemarin);
+  const chip = (nilai, label, aktif) => `<button type="button" class="chip ${aktif ? 'aktif' : ''}" data-aksi="f-tanggal-cepat" data-nilai="${nilai}" aria-pressed="${aktif}">${label}</button>`;
+  return `<div class="chips chips-tanggal">
+      ${chip(kini, T('Hari ini'), !lain && tgl === kini)}
+      ${chip(kemarin, T('Kemarin'), !lain && tgl === kemarin)}
+      ${chip('pilih', lain ? '📅 ' + esc(tanggalPendek(tgl)) : '📅 ' + T('Pilih tanggal'), lain)}
+    </div>
+    <div class="tanggal-lain" ${lain ? '' : 'hidden'}>${inputTanggal('f-tanggal', tgl)}</div>`;
+}
+
+function bagianUlang(rutin, berikutUlang) {
+  return `
+    <div class="grup-form">
+      <span class="label">🔁 ${rutin ? T('Berulang') : T('Ulangi (tagihan rutin)')}</span>
+      <div class="chips">${(rutin ? [] : [['', T('Tidak||ulang')]]).concat([['Bulanan', T('Tiap bulan')], ['Mingguan', T('Tiap minggu')], ['Tahunan', T('Tiap tahun')]]).map(([u, l]) =>
+        `<button type="button" class="chip ${(F.ulang || '') === u ? 'aktif' : ''}" data-aksi="f-ulang" data-ulang="${u}">${l}</button>`).join('')}</div>
+      ${berikutUlang ? `<p class="info-kecil" style="text-align:left">${T('Muncul lagi di Beranda menjelang {tanggal}, tinggal ketuk untuk mencatat.', { tanggal: esc(tanggalPendek(berikutUlang)) })}</p>` : ''}
+    </div>`;
+}
+
+/**
+ * Isian yang jarang dipakai (ulangi tiap bulan, label acara, lampiran foto, patungan) dilipat di bawah "Opsi lain",
+ * supaya form untuk pengeluaran sehari-hari pendek. Terbuka sendiri kalau salah satunya sudah terisi.
+ */
+function bagianOpsiLain(bolehUlang, berikutUlang) {
+  const patungan = !F.id && !F.dariRutin && F.tipe === TIPE.KELUAR;
+  const terisi = !!(F.ulang || F.lampiran || F.lampiranData || labelDari(F.catatan || '').length);
+  const buka = F.opsiLain || terisi;
+  const isi = [bolehUlang && T('ulangi'), T('label'), T('foto'), patungan && T('patungan')].filter(Boolean).join(' · ');
+  if (!buka) {
+    return `<button type="button" class="tombol-opsi-lain" data-aksi="f-opsi-lain" aria-expanded="false">
+      <span>＋ ${T('Opsi lain')}</span><small>${isi}</small></button>`;
+  }
+  return `
+    <div class="opsi-lain">
+      <button type="button" class="tombol-opsi-lain buka" data-aksi="f-opsi-lain" aria-expanded="true" ${terisi ? 'disabled' : ''}>
+        <span>${T('Opsi lain')}</span><small>${terisi ? '' : T('Sembunyikan')}</small></button>
+      ${bolehUlang ? bagianUlang(false, berikutUlang) : ''}
+      <div class="grup-form"><span class="label">${T('Label acara')}</span>${chipLabelForm()}</div>
+      ${bagianLampiran()}
+      ${patungan ? `<button type="button" class="tombol-teks" style="display:block;margin:-4px 0 8px;padding-left:0" data-aksi="buka-patungan">👥 ${T('Dibayar bareng teman? Bagi tagihan (patungan)')}</button>` : ''}
+    </div>`;
+}
+
+/** Kategori yang paling sering dipakai di HP ini & periode ini tampil lebih dulu; "Lainnya" selalu terakhir. */
+function urutKategori(daftar) {
+  let simpan = {};
+  try { simpan = JSON.parse(bacaHp('dk_pakai_kategori')) || {}; } catch (e) { /* abaikan */ }
+  const skor = {};
+  S.data.transaksi.forEach(t => { const k = t.tipe + '|' + t.kategori; skor[k] = (skor[k] || 0) + 1; });
+  const nilai = k => (k.nama === 'Lainnya' ? -1 : (skor[k.tipe + '|' + k.nama] || 0) + (simpan[k.tipe + '|' + k.nama] || 0));
+  return daftar.map((k, i) => ({ k, i, n: nilai(k) })).sort((a, b) => b.n - a.n || a.i - b.i).map(x => x.k);
+}
+
+/** Setelah transaksi baru disimpan: catat kategori yang dipakai & dompet terakhir per kategori (per HP). */
+function catatPemakaian(t) {
+  if (!t || t.id || t.tipe === TIPE.TRANSFER) return;
+  try {
+    const pakai = JSON.parse(bacaHp('dk_pakai_kategori')) || {};
+    const k = t.tipe + '|' + t.kategori;
+    pakai[k] = Math.min(999, (pakai[k] || 0) + 1);
+    tulisHp('dk_pakai_kategori', JSON.stringify(pakai));
+    const dompet = JSON.parse(bacaHp('dk_dompet_kategori')) || {};
+    dompet[k] = t.dompet;
+    tulisHp('dk_dompet_kategori', JSON.stringify(dompet));
+    tulisHp('dk_dompet_terakhir', t.dompet);
+  } catch (e) { /* abaikan */ }
+}
+/** Dompet yang terakhir dipakai untuk kategori ini (atau terakhir dipakai sama sekali), kalau masih ada. */
+function dompetIngatan(tipe, kategori) {
+  let nama = '';
+  try { nama = (kategori && (JSON.parse(bacaHp('dk_dompet_kategori')) || {})[tipe + '|' + kategori]) || (!kategori && bacaHp('dk_dompet_terakhir')) || ''; } catch (e) { /* abaikan */ }
+  return nama && dompetBiasa().some(w => w.nama === nama) ? nama : '';
 }
 
 /**
@@ -2925,7 +3073,8 @@ function isiFormCepat(h) {
   if (h.tipe && h.tipe !== F.tipe) { F.tipe = h.tipe; F.kategori = ''; }
   if (h.jumlah) F.jumlah = h.jumlah;
   if (h.kategori) F.kategori = h.kategori;
-  if (h.dompet && (F.tipe === TIPE.TRANSFER ? S.data.dompet : dompetBiasa()).some(w => w.nama === h.dompet)) F.dompet = h.dompet;
+  if (h.dompet && (F.tipe === TIPE.TRANSFER ? S.data.dompet : dompetBiasa()).some(w => w.nama === h.dompet)) { F.dompet = h.dompet; F.dompetDipilih = true; }
+  else if (h.kategori && !F.dompetDipilih && F.tipe !== TIPE.TRANSFER) F.dompet = dompetIngatan(F.tipe, F.kategori) || F.dompet;
   if (h.dompetTujuan && F.tipe === TIPE.TRANSFER) F.dompetTujuan = h.dompetTujuan;
   if (h.tanggal) F.tanggal = h.tanggal;
   if (h.catatan) F.catatan = h.catatan;
@@ -3124,14 +3273,90 @@ function bukaAktivitas() {
   if (S.tab === 'beranda') render();
 }
 
+// ---------- Cari fitur & Tips (fitur yang tidak kelihatan) ----------
+
+/**
+ * Fitur yang bisa ditemukan lewat 🔍: [ikon, judul, kata kunci (Indonesia + Inggris), aksi, tab?].
+ * Judul ikut dicocokkan, jadi kata kunci cukup berisi sinonim.
+ */
+const FITUR = [
+  ['🎯', T('Anggaran bulanan'), 'anggaran budget batas limit amplop envelope', 'atur-anggaran'],
+  ['🔁', T('Tagihan & transaksi rutin'), 'tagihan rutin langganan cicilan listrik internet spp gaji berulang recurring bill subscription', 'kelola-rutin'],
+  ['🏷️', T('Kelola kategori'), 'kategori category', 'kelola-kategori'],
+  ['📅', T('Periode gajian'), 'periode gajian tanggal gaji payday salary period', 'atur-periode'],
+  ['📒', T('Buku keuangan'), 'buku pribadi usaha bisnis book business personal', 'buku'],
+  ['👨‍👩‍👧', T('Anggota keluarga'), 'anggota undang keluarga pasangan istri suami share invite member family', 'undang'],
+  ['👥', T('Aktivitas keluarga'), 'aktivitas log siapa riwayat perubahan activity', 'aktivitas'],
+  ['💬', T('Bot Telegram'), 'telegram bot chat', 'telegram'],
+  ['🤖', T('Baca struk lebih akurat'), 'gemini ai struk kunci api receipt key', 'gemini'],
+  ['💾', T('Unduh & cadangan data'), 'unduh cadangan backup excel csv ekspor export download', 'cadangan'],
+  ['🌙', T('Tema'), 'tema gelap terang dark light mode theme', 'tab', 'lainnya'],
+  ['🌐', 'Bahasa · Language', 'bahasa inggris language english', 'tab', 'lainnya'],
+  ['🔠', T('Ukuran tampilan'), 'ukuran huruf besar font size zoom', 'tab', 'lainnya'],
+  ['🔒', T('Kunci aplikasi'), 'kunci pin sidik jari wajah lock fingerprint', 'atur-kunci'],
+  ['👁', T('Sembunyikan nominal'), 'samar sembunyi privasi hide privacy', 'samar'],
+  ['⚡', T('Pintasan di Beranda'), 'pintasan shortcut tombol beranda', 'atur-pintasan'],
+  ['🐷', T('Tambah tabungan'), 'tabungan target menabung savings goal', 'tambah-tabungan'],
+  ['🤝', T('Catat utang / piutang'), 'utang piutang pinjam hutang debt loan', 'tambah-utang'],
+  ['💎', T('Tambah aset'), 'aset emas reksadana kendaraan kekayaan asset gold net worth', 'tambah-aset'],
+  ['🕌', T('Hitung zakat'), 'zakat maal penghasilan', 'buka-zakat'],
+  ['🔁', T('Transfer'), 'transfer pindah saldo antar dompet', 'cepat-transfer'],
+  ['🧾', T('Foto struk'), 'foto struk kamera receipt scan', 'cepat-struk'],
+  ['📝', T('Catatan'), 'catatan kalender daftar belanja tugas pengingat notes calendar todo reminder', 'kalender'],
+  ['🕋', T('Sholat'), 'sholat jadwal kiblat adzan prayer qibla', 'sholat'],
+  ['📊', T('Laporan'), 'laporan grafik statistik report chart', 'tab', 'laporan'],
+  ['👛', T('Dompet & Tabungan'), 'dompet saldo bank e-wallet wallet balance', 'tab', 'dompet'],
+  ['💡', T('Tips & trik'), 'tips trik bantuan cara help how', 'tips'],
+  ['🧭', T('Tur singkat aplikasi'), 'tur panduan tutorial tour guide', 'tur'],
+  ['🆕', T('Apa yang baru'), 'baru update versi changelog new', 'log-update'],
+];
+function cariFitur(q) {
+  const kata = q.toLowerCase().split(/\s+/).filter(Boolean);
+  return FITUR.filter(f => (f[0] !== '💬' || S.data.telegram.bot || S.data.telegram.pengguna.length)
+    && kata.every(k => (f[1] + ' ' + f[2]).toLowerCase().includes(k))).slice(0, 5);
+}
+function htmlFitur(daftar) {
+  if (!daftar.length) return '';
+  return `<h4 class="sub-laporan">⚙️ ${T('Fitur')}</h4>` + daftar.map(([ikon, judul, , aksi, tab]) => `
+    <button type="button" class="baris baris-fitur" data-aksi="${aksi}" ${tab ? `data-tab="${tab}"` : ''}>
+      <span class="ikon-bulat">${ikon}</span><span class="isi"><b>${judul}</b></span><span class="panah">${svg('maju')}</span>
+    </button>`).join('');
+}
+
+/** Tips & trik: gestur dan fitur yang tidak kelihatan dari tampilan, masing-masing dengan tombol "Coba". */
+function bukaTips() {
+  const ada = S.data.telegram.bot || S.data.telegram.pengguna.length;
+  const tips = [
+    ['⚡', T('Ketik cepat'), T('Di form catat, ketik <b>bakso 25rb gopay</b> lalu Enter: nominal, kategori, dan dompet terisi sendiri. Bisa juga <b>gaji 5jt bca</b> atau <b>kemarin bensin 30rb</b>.'), 'tambah-trx'],
+    ['🎤', T('Catat dengan suara'), T('Ketuk mic lalu bicara, mis. <i>"makan siang 35 ribu pakai tunai, parkir 5 ribu"</i>. Beberapa transaksi sekaligus juga bisa.'), PengenalSuara ? 'cepat-suara' : ''],
+    ['👆', T('Geser transaksi'), T('Geser ke <b>kiri</b> untuk hapus (bisa diurungkan), ke <b>kanan</b> untuk mencatat lagi hari ini.'), 'tab', 'riwayat'],
+    ['✋', T('Tekan lama di Riwayat'), T('Tekan lama satu transaksi untuk memilih banyak sekaligus, lalu ganti kategori/dompet atau hapus bersamaan.'), 'tab', 'riwayat'],
+    ['#️⃣', T('Label acara'), T('Tulis <b>#lebaran</b> atau <b>#liburan</b> di catatan transaksi. Totalnya lintas kategori muncul di Laporan, dan bisa diberi anggaran sendiri.'), ''],
+    ['⚡', T('Sekali ketuk'), T('Transaksi yang sering diulang (kopi, parkir, bensin) muncul sebagai tombol di Beranda. Sekali ketuk langsung tercatat hari ini.'), ''],
+    ['📅', T('Kalender di Riwayat'), T('Ketuk ikon kalender di Riwayat untuk melihat pengeluaran per hari dalam sebulan.'), 'tab', 'riwayat'],
+    ['📎', T('Foto lampiran'), T('Ketuk 📎 di Riwayat untuk melihat foto struk. Filter <b>Ada lampiran</b> menampilkan semua transaksi berfoto.'), ''],
+    ['👥', T('Patungan'), T('Di form pengeluaran, buka <b>Opsi lain → Bagi tagihan</b>. Bagian Anda jadi pengeluaran, bagian teman jadi piutang.'), ''],
+    ['📨', T('Anggaran amplop'), T('Centang Amplop di sebuah kategori supaya sisa anggaran bulan ini menambah anggaran bulan depan.'), 'atur-anggaran'],
+    ['🔍', T('Cari apa saja'), T('Ikon 🔍 di Beranda mencari transaksi semua bulan, catatan, dan fitur aplikasi, mis. ketik "zakat" atau "tema gelap".'), 'cari-global'],
+    ['👁', T('Samarkan angka'), T('Ketuk ikon mata di kartu saldo saat HP dilihat orang lain.'), ''],
+    ada ? ['💬', T('Bot Telegram'), T('Catat cukup dengan chat ke bot, mis. <i>bensin 30rb pakai gopay</i>, atau kirim foto struknya.'), 'telegram'] : null,
+  ].filter(Boolean);
+  bukaSheet(T('Tips & Trik'), `<div class="daftar-tips">${tips.map(([ikon, judul, isi, aksi, tab]) => `
+    <div class="tip">
+      <span class="ikon-bulat">${ikon}</span>
+      <div class="isi"><b>${judul}</b><p>${isi}</p>
+        ${aksi ? `<button type="button" class="tombol-teks" data-aksi="${aksi}" ${tab ? `data-tab="${tab}"` : ''}>${T('Coba')} ›</button>` : ''}</div>
+    </div>`).join('')}</div>`);
+}
+
 // ---------- Pencarian global (transaksi semua bulan + catatan) ----------
 let semuaTrxCari = null; // dimuat sekali saat pencarian pertama
 function bukaCariGlobal() {
   S.hasilGlobal = [];
   bukaSheet(T('Cari'), `
     <div class="kotak-cari-global"><input class="field" id="cari-global" type="search" enterkeyhint="search" autocomplete="off"
-      placeholder="${T('mis. arisan, bpjs, 25000, GoPay')}"></div>
-    <div id="hasil-global"><p class="info-kecil">${T('Cari di semua transaksi (semua bulan) dan catatan.')}</p></div>`);
+      placeholder="${T('mis. arisan, bpjs, 25000, zakat')}"></div>
+    <div id="hasil-global"><p class="info-kecil">${T('Cari di semua transaksi (semua bulan), catatan, dan fitur aplikasi (mis. anggaran, zakat, tema gelap).')}</p></div>`);
   setTimeout(() => $('#cari-global') && $('#cari-global').focus(), 200);
 }
 let timerCari = 0;
@@ -3144,15 +3369,16 @@ async function jalankanCariGlobal(q) {
   const cocokTrx = t => [t.catatan, t.kategori, t.dompet, t.dompetTujuan].some(x => String(x || '').toLowerCase().includes(q))
     || (angkaQ.length >= 3 && String(t.jumlah).includes(angkaQ));
   const catatan = daftarCatatan().filter(c => (c.judul + ' ' + c.isi).toLowerCase().includes(q)).slice(0, 10);
+  const fitur = htmlFitur(cariFitur(q));
   if (!semuaTrxCari) {
-    kotak.innerHTML = KERANGKA_DAFTAR;
+    kotak.innerHTML = fitur + KERANGKA_DAFTAR;
     try { semuaTrxCari = await api('cariTransaksi', '', ''); } catch (e) { semuaTrxCari = null; }
     if (!$('#hasil-global')) return;
   }
   const sumber = semuaTrxCari || S.data.transaksi;
   const trx = sumber.filter(cocokTrx).slice(0, 40);
   S.hasilGlobal = trx;
-  $('#hasil-global').innerHTML = (catatan.length ? `<h4 class="sub-laporan">📝 ${T('Catatan ({n})', { n: catatan.length })}</h4>` + catatan.map(c => `
+  $('#hasil-global').innerHTML = fitur + (catatan.length ? `<h4 class="sub-laporan">📝 ${T('Catatan ({n})', { n: catatan.length })}</h4>` + catatan.map(c => `
       <button type="button" class="kal-item" data-aksi="ubah-catatan" data-id="${esc(c.id)}" style="--w:${warnaCatatan(c.warna)}">
         <span class="isi"><b>${esc(c.judul)}</b><small>${esc(labelHariPendek(c.tanggal))}${c.isi ? ' · ' + esc(c.isi.replace(/\[( |x)\] ?/gi, '').slice(0, 80)) : ''}</small></span>
       </button>`).join('') : '')
@@ -3160,13 +3386,24 @@ async function jalankanCariGlobal(q) {
       const tgl = `<small class="tgl-cari">${esc(labelHariPendek(t.tanggal))}</small>`;
       return tgl + itemTrx(t);
     }).join('') : '')
-    + (!catatan.length && !trx.length ? kosong('🔍', T('Tidak ditemukan.')) : '')
+    + (!fitur && !catatan.length && !trx.length ? kosong('🔍', T('Tidak ditemukan.')) : '')
     + (!semuaTrxCari ? `<p class="info-kecil">${T('Offline: hanya mencari di periode ini.')}</p>` : '');
 }
 document.addEventListener('input', e => {
   if (e.target.id !== 'cari-global') return;
   clearTimeout(timerCari);
   timerCari = setTimeout(() => jalankanCariGlobal(e.target.value), 250);
+});
+
+// Form dompet: mengetik "BCA", "GoPay Ayah", dst. langsung memilih ubin mereknya (kecuali ikon sudah dipilih sendiri).
+document.addEventListener('input', e => {
+  if (e.target.id !== 'd-nama' || !F || F.jenis !== JENIS.DOMPET || F.ikonDipilih || typeof ILUSTRASI === 'undefined') return;
+  const m = ILUSTRASI.tebakMerek(e.target.value);
+  const ikon = m || (F.ikonTebakan ? '👛' : F.ikon); // tebakan sebelumnya tidak cocok lagi → kembali ke ikon umum
+  if (ikon === F.ikon) return;
+  F.ikon = ikon;
+  F.ikonTebakan = !!m;
+  document.querySelectorAll('.grid-ikon button').forEach(b => b.classList.toggle('aktif', b.dataset.ikon === ikon));
 });
 
 // ---------- Petunjuk sekali lihat (fitur yang tidak kelihatan: geser, mic, sekali ketuk) ----------
@@ -3732,6 +3969,8 @@ function bukaFormDompet(w, jenis) {
   F = {
     namaLama: w ? w.nama : '', ikon: w ? w.ikon : (tab ? '🐷' : aset ? '💎' : '👛'), jenis,
     saldoAwal: w ? w.saldoAwal : 0, mutasi: w ? w.saldo - w.saldoAwal : 0, saldoTampil,
+    // Ikon khusus yang sudah dipilih (bukan ikon umum / ubin merek) tidak ditimpa tebakan dari nama.
+    ikonDipilih: !!w && !IKON_UMUM_DOMPET.includes(w.ikon || '') && !(typeof ILUSTRASI !== 'undefined' && ILUSTRASI.namaMerek(w.ikon)),
   };
   const ket = aset
     ? T('Perkiraan nilai jual saat ini. Perbarui sesekali (mis. ikuti harga emas atau nilai reksadana); riwayat transaksi tidak berubah.')
@@ -3763,7 +4002,7 @@ function bukaFormDompet(w, jenis) {
         <label class="label" for="d-tenggat">${T('Ingin tercapai pada (opsional)')}</label>
         <input class="field" id="d-tenggat" type="date" value="${esc(w ? w.tenggat : '')}">
       </div>` : ''}
-    <div class="grup-form"><span class="label">${T('Ikon')}</span>${gridIkon(F.ikon)}</div>
+    <div class="grup-form"><span class="label">${T('Ikon')}</span>${gridIkon(F.ikon, jenis === JENIS.DOMPET)}</div>
     <div class="aksi-form">
       ${w ? `<button type="button" class="btn btn-hapus" data-aksi="hapus-dompet">${T('Hapus')}</button>` : ''}
       <button type="button" class="btn btn-utama" data-aksi="simpan-dompet">${T('Simpan')}</button>
@@ -3901,7 +4140,10 @@ function bukaFormKategori(k, tipe) {
 // ---------- Aksi (event delegation) ----------
 
 const AKSI = {
-  'tab': el => { S.tab = el.dataset.tab; render(); window.scrollTo(0, 0); },
+  'tab': el => {
+    if (!$('#sheet').hidden) tutupSheet(); // dari tombol di dalam lembar (cari fitur, rincian periode)
+    S.tab = el.dataset.tab; render(); window.scrollTo(0, 0);
+  },
   'bulan': async el => {
     const d = keTanggal(S.bulan);
     d.setMonth(d.getMonth() + Number(el.dataset.geser));
@@ -4096,8 +4338,28 @@ const AKSI = {
     if (!await tanya(T('Hapus kunci API {kunci}?', { kunci: el.dataset.kunci }), T('Hapus'))) return;
     if (await kirim(el, 'hapusKunciGemini', [el.dataset.kunci], T('Kunci API dihapus'))) bukaFormGemini();
   },
-  'f-kategori': el => { bacaFieldTrx(); F.kategori = el.dataset.nama; renderFormTrx(); },
-  'f-dompet': el => { bacaFieldTrx(); F.dompet = el.dataset.nama; renderFormTrx(); },
+  'f-kategori': el => {
+    bacaFieldTrx();
+    F.kategori = el.dataset.nama;
+    // Dompet ikut kebiasaan kategori ini (mis. Transportasi → GoPay), kecuali dompet sudah dipilih sendiri.
+    if (!F.id && !F.dompetDipilih && F.tipe !== TIPE.TRANSFER) F.dompet = dompetIngatan(F.tipe, F.kategori) || F.dompet;
+    renderFormTrx();
+  },
+  'f-dompet': el => { bacaFieldTrx(); F.dompet = el.dataset.nama; F.dompetDipilih = true; renderFormTrx(); },
+  'f-tanggal-cepat': el => {
+    bacaFieldTrx();
+    if (el.dataset.nilai === 'pilih') {
+      F.tanggalPilih = true;
+      renderFormTrx();
+      const i = $('#f-tanggal');
+      if (i) { i.focus(); try { i.showPicker && i.showPicker(); } catch (e) { /* tidak didukung */ } }
+      return;
+    }
+    F.tanggal = el.dataset.nilai;
+    F.tanggalPilih = false;
+    renderFormTrx();
+  },
+  'f-opsi-lain': () => { bacaFieldTrx(); F.opsiLain = !F.opsiLain; renderFormTrx(); },
   'f-tujuan': el => { bacaFieldTrx(); F.dompetTujuan = el.dataset.nama; renderFormTrx(); },
   'simpan-trx': el => {
     bacaFieldTrx();
@@ -4119,6 +4381,7 @@ const AKSI = {
     }
     const t = F;
     t._menyimpan = true; // lembar ditutup karena tersimpan → bukan draf
+    catatPemakaian(t);
     tulisHp(kunciDrafTrx(), null);
     const dasar = F.id ? T('Transaksi diperbarui ✔') : T('Transaksi tersimpan ✔');
     const pesan = () => { const a = pesanAnggaran(t); toast(a ? dasar + ' · ' + a.teks : dasar, a && a.lewat); };
@@ -4459,6 +4722,23 @@ const AKSI = {
     $('#input-struk-kamera').click();
   },
   'cepat-transfer': () => bukaFormTrx(null, { tipe: TIPE.TRANSFER }, T('Transfer')),
+  'cepat-suara': () => {
+    // Buka form lalu langsung nyalakan mic (masih dalam ketukan pengguna, syarat izin mikrofon).
+    AKSI['tambah-trx']();
+    if (F) F.tanpaFokus = true; // keyboard jangan terbuka selagi mendengarkan
+    setTimeout(() => { const t = $('.tombol-suara'); if (t && !suaraAktif) AKSI.suara(t); }, 30);
+  },
+  'ringkas-periode': () => bukaRingkasPeriode(),
+  'atur-pintasan': () => bukaAturPintasan(),
+  'pilih-pintasan': el => {
+    const p = pintasanDipilih();
+    const i = p.indexOf(el.dataset.k);
+    if (i >= 0) p.splice(i, 1);
+    else if (p.length >= MAKS_PINTASAN) return toast(T('Maksimal {n} pintasan. Lepas salah satu dulu.', { n: MAKS_PINTASAN }), true);
+    else p.push(el.dataset.k);
+    simpanPintasan(p);
+  },
+  'pintasan-awal': () => simpanPintasan(null),
   'pakai-saran-anggaran': el => {
     const i = document.querySelector(`.input-anggaran[data-nama="${CSS.escape(el.dataset.nama)}"]`);
     if (i) { i.value = formatAngka(Number(el.dataset.n)); i.classList.add('terisi-otomatis'); hitungTotalAnggaran(); }
@@ -4649,6 +4929,7 @@ const AKSI = {
 
   'pilih-ikon': el => {
     F.ikon = el.dataset.ikon;
+    F.ikonDipilih = true; // dipilih sendiri: jangan ditimpa tebakan dari nama dompet
     document.querySelectorAll('.grid-ikon button').forEach(b => b.classList.toggle('aktif', b === el));
   },
 };
@@ -4659,7 +4940,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'salin-link', 'pasang-aplikasi', 'suara', 'cepat-suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
 ]);
 
 /**
@@ -5997,7 +6278,7 @@ Object.assign(AKSI, {
   },
 });
 
-// Pilihan tema (dropdown di Lainnya).
+// Pilihan tema (dropdown di Pengaturan).
 document.addEventListener('change', e => {
   if (e.target.id === 'pilih-bahasa') gantiBahasa(e.target.value);
   if (e.target.id === 'pilih-tema') { aturTema(e.target.value); render(); }
@@ -6111,7 +6392,8 @@ function pesanAnggaran(t) {
   const persen = Math.round(pakai / k.batas * 100);
   if (persen >= 100) return { lewat: true, teks: T('⛔ anggaran {kategori} lewat {jumlah}', { kategori: namaT(k.nama), jumlah: rp(pakai - k.batas) }) };
   if (persen >= 80) return { lewat: false, teks: T('⚠️ {kategori} sudah {persen}% anggaran (sisa {sisa})', { kategori: namaT(k.nama), persen, sisa: rp(k.batas - pakai) }) };
-  return null;
+  // Masih aman: tetap beri tahu sisanya, supaya terasa dampak transaksi barusan.
+  return { lewat: false, teks: T('sisa anggaran {kategori} {sisa}', { kategori: namaT(k.nama), sisa: rp(k.batas - pakai) }) };
 }
 
 // ---------- Geser transaksi: kiri = hapus, kanan = catat lagi ----------
@@ -7427,6 +7709,7 @@ Object.assign(AKSI, {
   'mode-riwayat': () => { S.modeRiwayat = S.modeRiwayat === 'kalender' ? 'daftar' : 'kalender'; tulisHp('dk_mode_riwayat', S.modeRiwayat); render(); },
   'pilih-hari-kal': el => { S.hariKalender = el.dataset.tgl; render(); },
   'tur': () => bukaTur(),
+  'tips': () => bukaTips(),
   'tur-lanjut': () => { if (tur) { tur.i = Math.min(SLIDE_TUR.length - 1, tur.i + 1); gambarTur(); } },
   'tur-tutup': () => tutupTur(),
 });

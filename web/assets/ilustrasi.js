@@ -240,11 +240,85 @@ const ILUSTRASI = (() => {
   I['🚕'] = I['🚗'];
   I['🍔'] = I['🍜'];
 
+  /**
+   * Ubin merek bank & e-wallet: warna khas + nama mereknya sebagai teks (bukan logo resmi). Disimpan di kolom Ikon
+   * sebagai emoji umum + nama, mis. '🏦BCA' / '📱GoPay', supaya tetap terbaca di spreadsheet & bot Telegram.
+   * [kunci, teks di ubin, warna ubin, warna teks, kata untuk mengenali nama dompet]
+   */
+  const MEREK = [
+    ['🏦BCA', 'BCA', '#0060AF', '#FFFFFF', ['bca', 'klikbca', 'mybca']],
+    ['🏦BRI', 'BRI', '#00529C', '#FFFFFF', ['bri', 'brimo', 'bank rakyat']],
+    ['🏦Mandiri', 'mandiri', '#003D79', '#FFC20E', ['mandiri', 'livin']],
+    ['🏦BNI', 'BNI', '#F26522', '#FFFFFF', ['bni', 'wondr']],
+    ['🏦BSI', 'BSI', '#00A19A', '#FFFFFF', ['bsi', 'syariah indonesia']],
+    ['🏦BTN', 'BTN', '#0055A4', '#FFD200', ['btn']],
+    ['🏦CIMB', 'CIMB', '#7A0019', '#FFFFFF', ['cimb', 'octo']],
+    ['🏦Danamon', 'Danamon', '#F47920', '#FFFFFF', ['danamon']],
+    ['🏦Permata', 'Permata', '#00894B', '#FFFFFF', ['permata']],
+    ['🏦OCBC', 'OCBC', '#E30613', '#FFFFFF', ['ocbc', 'nyala']],
+    ['🏦Muamalat', 'Muamalat', '#5B2C83', '#FFFFFF', ['muamalat']],
+    ['🏦BPD', 'BPD', '#1E3A8A', '#FACC15', ['bpd', 'bank dki', 'bjb', 'bank jatim', 'bank jateng', 'bank daerah']],
+    ['🏦Jago', 'Jago', '#FFB000', '#1F2937', ['jago']],
+    ['🏦SeaBank', 'SeaBank', '#FF6A13', '#FFFFFF', ['seabank', 'sea bank']],
+    ['🏦blu', 'blu', '#00AEEF', '#FFFFFF', ['blu', 'bca digital']],
+    ['🏦Jenius', 'Jenius', '#00A9E0', '#FFFFFF', ['jenius']],
+    ['🏦Neo', 'neo', '#FFC107', '#1F2937', ['neo', 'neobank', 'bank neo']],
+    ['🏦Allo', 'allo', '#E4002B', '#FFFFFF', ['allo', 'allo bank']],
+    ['🏦Superbank', 'super', '#4B1FA8', '#C6FF3D', ['superbank', 'super bank']],
+    ['📱GoPay', 'gopay', '#00AED6', '#FFFFFF', ['gopay', 'go-pay', 'gojek']],
+    ['📱OVO', 'OVO', '#4C2A86', '#FFFFFF', ['ovo']],
+    ['📱DANA', 'DANA', '#118EEA', '#FFFFFF', ['dana']],
+    ['📱ShopeePay', 'Shopee', '#EE4D2D', '#FFFFFF', ['shopeepay', 'shopee', 'spay', 'shopee pay']],
+    ['📱LinkAja', 'LinkAja', '#E82529', '#FFFFFF', ['linkaja', 'link aja']],
+    ['📱AstraPay', 'Astra', '#1C4DA1', '#FFFFFF', ['astrapay', 'astra pay']],
+    ['📱Flip', 'flip', '#FD6542', '#FFFFFF', ['flip']],
+    ['📱iSaku', 'i.saku', '#E2001A', '#FFFFFF', ['isaku', 'i.saku', 'i saku']],
+    ['💳Flazz', 'Flazz', '#0060AF', '#FFFFFF', ['flazz']],
+    ['💳eMoney', 'e-money', '#FFC20E', '#003D79', ['e-money', 'emoney', 'e money']],
+    ['💳Brizzi', 'Brizzi', '#00529C', '#FFFFFF', ['brizzi']],
+    ['💳TapCash', 'TapCash', '#F26522', '#FFFFFF', ['tapcash', 'tap cash']],
+    ['💳Kredit', 'Kartu Kredit', '#111827', '#FACC15', ['kartu kredit', 'credit card', 'paylater']],
+    ['📈RDN', 'RDN', '#0F766E', '#FFFFFF', ['rdn', 'sekuritas', 'saham', 'bibit', 'ajaib', 'stockbit', 'pluang']],
+  ];
+  const M = {};
+  MEREK.forEach(([k, label, bg, fg]) => { M[k] = { label, bg, fg }; });
+  /** Ukuran huruf supaya nama merek muat di ubin 48×48. */
+  const ukuran = n => (n <= 3 ? 15 : n <= 4 ? 13 : n <= 5 ? 11.5 : n <= 6 ? 10 : n <= 7 ? 8.6 : 7.4);
+  function ubinMerek(m, esc) {
+    const kata = m.label.length > 8 && m.label.includes(' ') ? m.label.split(' ') : [m.label]; // 'Kartu Kredit' → 2 baris
+    const fs = ukuran(Math.max(...kata.map(k => k.length)));
+    const teks = kata.map((k, i) => `<text x="24" y="${kata.length > 1 ? 22 + i * 10 : 24 + fs * 0.36}" text-anchor="middle" font-size="${fs}" font-weight="800" font-family="system-ui,-apple-system,'Segoe UI',Roboto,sans-serif" fill="${m.fg}">${esc(k)}</text>`).join('');
+    return `<svg class="ilus ilus-merek" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><rect width="48" height="48" rx="14" fill="${m.bg}"/>${teks}</svg>`;
+  }
+  /** Kunci ubin merek yang cocok dengan nama dompet ('Bank BCA', 'GoPay Ayah' → '🏦BCA' / '📱GoPay'), atau ''. */
+  function tebakMerek(nama) {
+    const n = ' ' + String(nama || '').toLowerCase().replace(/[^a-z0-9.\- ]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+    let terbaik = '', panjang = 0;
+    for (const [k, , , , kata] of MEREK) {
+      for (const w of kata) if (w.length > panjang && n.includes(' ' + w + ' ')) { terbaik = k; panjang = w.length; }
+    }
+    return terbaik;
+  }
+
   /** HTML ilustrasi untuk emoji ikon; emoji lain dikembalikan apa adanya (sudah di-escape). */
   function html(emoji, esc) {
-    const x = I[String(emoji || '').trim()];
+    const kunci = String(emoji || '').trim();
+    if (M[kunci]) return ubinMerek(M[kunci], esc);
+    const x = I[kunci];
     if (!x) return esc(emoji || '');
     return `<svg class="ilus" viewBox="0 0 48 48" aria-hidden="true" focusable="false"><rect class="ilus-ubin" width="48" height="48" rx="14" style="--c:${x[0]}"/>${x[1]}</svg>`;
   }
-  return { html, ada: e => !!I[String(e || '').trim()], semua: () => Object.keys(I) };
+  return {
+    html, tebakMerek,
+    ada: e => !!(I[String(e || '').trim()] || M[String(e || '').trim()]),
+    semua: () => Object.keys(I),
+    /** Kunci ubin merek per kelompok, untuk pemilih ikon dompet. */
+    merek: () => ({
+      bank: MEREK.filter(m => m[0].startsWith('🏦')).map(m => m[0]),
+      ewallet: MEREK.filter(m => m[0].startsWith('📱')).map(m => m[0]),
+      kartu: MEREK.filter(m => /^(💳|📈)/u.test(m[0])).map(m => m[0]),
+    }),
+    /** Nama merek, mis. '🏦BCA' → 'BCA' (label aksesibilitas). */
+    namaMerek: k => (M[k] ? M[k].label : ''),
+  };
 })();
