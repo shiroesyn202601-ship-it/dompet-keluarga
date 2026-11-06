@@ -1456,3 +1456,17 @@ body.sedang-seret .hari-kal { transition: transform .12s, box-shadow .12s; }
 .hantu-seret { padding: 8px 12px; gap: 10px; }
 .hantu-seret .ikon-bulat { width: 36px; height: 36px; }
 .hantu-seret .trx-isi small { display: none; }
+
+/* Bar aksi pilih banyak: warna gelap seperti kartu saldo supaya kontras dengan kartu transaksi di belakangnya */
+.bar-pilih { color: #fff; border: 1px solid rgba(255, 255, 255, .14);
+  background: radial-gradient(120% 120% at 100% 0%, rgba(139, 92, 246, .45), transparent 60%), linear-gradient(140deg, var(--hero-1), var(--hero-2));
+  box-shadow: 0 18px 40px rgba(15, 12, 45, .45), 0 2px 8px rgba(15, 12, 45, .25); }
+.atas-pilih small { color: rgba(255, 255, 255, .72); }
+.atas-pilih .tombol-ikon { background: rgba(255, 255, 255, .14); border: 0; color: #fff; }
+.atas-pilih .tombol-teks { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+.tombol-pilih button { background: rgba(255, 255, 255, .13); color: #fff; border: 1px solid rgba(255, 255, 255, .1); }
+.tombol-pilih button:active { background: rgba(255, 255, 255, .22); }
+.tombol-pilih button.hapus { background: #e3335c; border-color: transparent; color: #fff; }
+/* Lapisan pudar di bawah layar: daftar yang bergulir di belakang bar tidak bertabrakan dengannya */
+body.mode-pilih::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; z-index: 9; pointer-events: none;
+  height: calc(var(--nav-h) + 190px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 45%, transparent); }
