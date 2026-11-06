@@ -1218,7 +1218,7 @@ Object.assign(KAMUS, {
   "Utang": "Debts",
   "Tagihan": "Bills",
   "Atur pintasan": "Edit shortcuts",
-  "Pilih sampai {n} pintasan untuk Beranda. Urutannya mengikuti urutan Anda memilih.": "Choose up to {n} shortcuts for Home. They appear in the order you pick them.",
+  "Pilih sampai {n} pintasan yang tampil di Beranda. Urutannya mengikuti urutan Anda memilih. Pintasan lain tetap ada, geser ke samping untuk melihatnya.": "Choose up to {n} shortcuts to show on Home. They appear in the order you pick them. The others stay available, swipe sideways to see them.",
   "Kembalikan semula": "Reset",
   "Atur Pintasan": "Edit Shortcuts",
   "Keuangan": "Money",

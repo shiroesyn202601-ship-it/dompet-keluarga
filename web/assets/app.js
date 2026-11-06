@@ -846,17 +846,20 @@ function pintasanDipilih() {
   try { p = JSON.parse(bacaHp('dk_pintasan')); } catch (e) { /* abaikan */ }
   return (Array.isArray(p) ? p : PINTASAN_AWAL).filter(pintasanAda).slice(0, MAKS_PINTASAN);
 }
+/** 5 pintasan pilihan tampil lebih dulu; pintasan lain tetap ada sesudahnya, terlihat dengan geser ke samping (tanpa scrollbar). */
 function aksiCepat() {
+  const dipilih = pintasanDipilih();
+  const urut = dipilih.concat(Object.keys(PINTASAN).filter(k => pintasanAda(k) && !dipilih.includes(k)));
   return `<div class="aksi-cepat">
-    ${pintasanDipilih().map(k => { const [ikon, label, aksi] = PINTASAN[k];
-      return `<button data-aksi="${aksi}"><span class="kotak">${svg(ikon)}</span>${label}</button>`; }).join('')}
+    <div class="aksi-cepat-geser">${urut.map(k => { const [ikon, label, aksi] = PINTASAN[k];
+      return `<button data-aksi="${aksi}"><span class="kotak">${svg(ikon)}</span>${label}</button>`; }).join('')}</div>
     <button data-aksi="atur-pintasan" class="atur-pintasan" aria-label="${T('Atur pintasan')}"><span class="kotak">${svg('pensil')}</span>${T('Atur||pintasan')}</button>
   </div>`;
 }
 function isiAturPintasan() {
   const dipilih = pintasanDipilih();
   return `
-    <p style="margin-top:0">${T('Pilih sampai {n} pintasan untuk Beranda. Urutannya mengikuti urutan Anda memilih.', { n: MAKS_PINTASAN })}</p>
+    <p style="margin-top:0">${T('Pilih sampai {n} pintasan yang tampil di Beranda. Urutannya mengikuti urutan Anda memilih. Pintasan lain tetap ada, geser ke samping untuk melihatnya.', { n: MAKS_PINTASAN })}</p>
     <div class="grid-pilih">${Object.keys(PINTASAN).filter(pintasanAda).map(k => {
       const i = dipilih.indexOf(k);
       return `<button type="button" class="pilihan ${i >= 0 ? 'aktif' : ''}" data-aksi="pilih-pintasan" data-k="${k}" aria-pressed="${i >= 0}">
