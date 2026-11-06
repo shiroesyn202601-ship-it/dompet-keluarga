@@ -1642,6 +1642,12 @@ body.samar #view .insight-teks { filter: blur(6px); user-select: none; }
 /* ---------- Cek sebelum beli ---------- */
 .cb-tunggu { display: flex; align-items: center; gap: 12px; padding: 4px 2px 8px; color: var(--muted); font-size: 14px; }
 .cb-tunggu .maskot { width: 48px; height: 48px; flex: none; }
+.riwayat-cb { background: var(--card-2); border-radius: 16px; padding: 0 14px; }
+.riwayat-cb .baris { padding: 11px 0; }
+.riwayat-cb .isi b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.riwayat-cb .nominal { flex: none; font-size: 14px; }
+.ikon-vonis { flex: none; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; font-size: 17px; background: var(--card); }
+.riwayat-cb + .tombol-teks { display: block; margin: 8px auto 0; font-size: 13px; color: var(--muted); }
 .cb-vonis { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 18px; margin-bottom: 10px; animation: muncul .3s cubic-bezier(.2, .8, .2, 1); }
 .cb-maskot { width: 58px; height: 58px; flex: none; }
 .cb-vonis b { display: block; font-size: 18px; font-weight: 800; }

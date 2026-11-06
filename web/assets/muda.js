@@ -510,7 +510,53 @@ FITUR.push(
   ['💬', T('Gaya bahasa'), 'gaya bahasa santai formal kamu anda casual', 'tab', 'lainnya'],
 );
 
-let CB = null; // state "Cek sebelum beli": { manual } = harga diketik sendiri (jangan ditimpa hasil ketik cepat)
+let CB = null; // state "Cek sebelum beli": { id, manual } — manual = harga diketik sendiri (jangan ditimpa hasil ketik cepat)
+
+/**
+ * Riwayat "Cek sebelum beli" per HP & per buku: tiap cek yang sudah ada harganya disimpan otomatis (15 terakhir),
+ * termasuk pendapat AI. Lembar boleh ditutup saat AI masih menimbang: jawabannya tetap masuk riwayat.
+ */
+const MAKS_RIWAYAT_CB = 15;
+const kunciRiwayatCB = () => 'dk_cekbeli_' + ((S.data && S.data.spreadsheetId) || '');
+const AI_CB_JALAN = new Set(); // id cek yang pendapat AI-nya sedang diminta
+let timerRiwayatCB = null, tundaRiwayatCB = null;
+function riwayatCB() {
+  try { const r = JSON.parse(bacaHp(kunciRiwayatCB())); return Array.isArray(r) ? r : []; } catch (e) { return []; }
+}
+function tulisRiwayatCB(r) { tulisHp(kunciRiwayatCB(), r.length ? JSON.stringify(r.slice(0, MAKS_RIWAYAT_CB)) : null); }
+/** Simpan / perbarui satu cek (paling atas = terbaru). Pendapat AI lama dibuang kalau barang/harganya berubah. */
+function catatRiwayatCB(c) {
+  const r = riwayatCB();
+  const lama = r.find(x => x.id === c.id);
+  const ai = lama && lama.ai && lama.harga === c.harga && lama.teks === c.teks ? lama.ai : null;
+  tulisRiwayatCB([{ ...c, ai, tgl: hariIni(), jam: Date.now() }].concat(r.filter(x => x.id !== c.id)));
+}
+function simpanRiwayatCBSekarang() {
+  clearTimeout(timerRiwayatCB);
+  if (tundaRiwayatCB) catatRiwayatCB(tundaRiwayatCB);
+  tundaRiwayatCB = null;
+}
+function ubahRiwayatCB(id, ubah) {
+  const r = riwayatCB();
+  const x = r.find(y => y.id === id);
+  if (!x) return;
+  Object.assign(x, ubah);
+  tulisRiwayatCB(r);
+}
+const IKON_VONIS = { aman: '✅', irit: '⚠️', jangan: '⛔' };
+function htmlRiwayatCB() {
+  const r = riwayatCB();
+  if (!r.length) return '';
+  return `<h4 class="sub-laporan">${T('🕘 Riwayat cek')}</h4>
+    <div class="riwayat-cb">${r.map(x => `
+      <button type="button" class="baris" data-aksi="cb-riwayat" data-id="${esc(x.id)}">
+        <span class="ikon-vonis" aria-hidden="true">${IKON_VONIS[x.vonis] || '🤔'}</span>
+        <span class="isi"><b>${esc(namaBarang(x.teks) || T('Barang ini'))}</b>
+          <small>${esc(labelTanggal(x.tgl))} · ${new Date(x.jam).toLocaleTimeString(LOKAL, { hour: '2-digit', minute: '2-digit' })}${x.ai ? ' · ' + T('✨ ada pendapat AI') : AI_CB_JALAN.has(x.id) ? ' · ' + T('✨ AI sedang menimbang…') : ''}</small></span>
+        <b class="nominal">${rp(x.harga)}</b>
+      </button>`).join('')}</div>
+    <button type="button" class="tombol-teks" data-aksi="cb-hapus-riwayat">${T('Hapus riwayat')}</button>`;
+}
 
 async function bukaCekBeli() {
   if (S.bulan !== periodeSekarang()) { // dihitung dari periode berjalan
@@ -518,7 +564,7 @@ async function bukaCekBeli() {
     loading(true);
     try { await muat(); } finally { loading(false); }
   }
-  CB = { manual: false };
+  CB = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), manual: false };
   bukaSheet(T('Cek sebelum beli 🤔'), `
     <p style="margin-top:0">${T('Tulis barang & harganya, mis. <b>sepatu 1,2jt</b>. Dihitung dari sisa anggaran, tagihan yang belum dibayar, dan kebiasaan belanja Anda.')}</p>
     <div class="grup-form">
@@ -617,13 +663,20 @@ function gambarCekBeli() {
   const harga = angka($('#cb-harga').value);
   const nama = $('#cb-teks').value.trim();
   if (!harga) {
-    el.innerHTML = `<div class="cb-tunggu">${maskot('biasa')}<span>${T('Isi harganya untuk melihat hasilnya.')}</span></div>`;
+    el.innerHTML = `<div class="cb-tunggu">${maskot('biasa')}<span>${T('Isi harganya untuk melihat hasilnya.')}</span></div>${htmlRiwayatCB()}`;
     return;
   }
   const n = nilaiBeli(harga, nama);
   CB.hasil = n;
   CB.harga = harga;
   CB.nama = nama;
+  // Simpan ke riwayat setelah berhenti mengetik sebentar.
+  clearTimeout(timerRiwayatCB);
+  tundaRiwayatCB = { id: CB.id, teks: nama, harga, vonis: n.vonis };
+  timerRiwayatCB = setTimeout(simpanRiwayatCBSekarang, 1200);
+  const tersimpan = riwayatCB().find(x => x.id === CB.id);
+  const aiLama = tersimpan && tersimpan.ai && tersimpan.harga === harga && tersimpan.teks === nama ? tersimpan.ai : '';
+  const aiJalan = AI_CB_JALAN.has(CB.id);
   const [mood, judul] = VONIS[n.vonis];
   el.innerHTML = `
     <div class="cb-vonis cb-${n.vonis}">
@@ -631,13 +684,16 @@ function gambarCekBeli() {
       <div><b>${judul()}</b><small>${esc(nama || T('Barang ini'))} · ${rp(harga)}</small></div>
     </div>
     <ul class="cb-alasan">${n.alasan.map(x => `<li>${x}</li>`).join('')}</ul>
-    <div id="cb-ai"></div>
-    ${S.data.kunciGemini && S.data.kunciGemini.length ? `<button type="button" class="tombol-tambah" style="margin:4px 0 0" data-aksi="cb-ai">${T('✨ Minta pendapat AI')}</button>` : ''}
+    <div id="cb-ai">${aiLama ? htmlAiCB(aiLama) : aiJalan ? htmlAiCBMenimbang() : ''}</div>
+    ${!aiLama && !aiJalan && S.data.kunciGemini && S.data.kunciGemini.length ? `<button type="button" class="tombol-tambah" style="margin:4px 0 0" data-aksi="cb-ai">${T('✨ Minta pendapat AI')}</button>` : ''}
     <div class="aksi-form">
       <button type="button" class="btn btn-kedua" data-aksi="cb-tabung">${T('🎯 Jadikan target')}</button>
       <button type="button" class="btn btn-utama" data-aksi="cb-catat">${n.vonis === 'jangan' ? T('Tetap catat') : T('Catat pembelian')}</button>
     </div>`;
 }
+
+const htmlAiCB = s => `<div class="ringkas-ai"><p>${esc(s)}</p><small>${T('✨ Ditulis AI Gemini dari angka di atas, bisa keliru.')}</small></div>`;
+const htmlAiCBMenimbang = () => `<p class="info-kecil" style="text-align:left">${T('✨ Sedang menimbang… Boleh ditutup dulu, jawabannya tersimpan di riwayat.')}</p>`;
 
 document.addEventListener('input', e => {
   if (!CB || !e.target.id || !e.target.id.startsWith('cb-')) return;
@@ -976,12 +1032,14 @@ Object.assign(AKSI, {
   'cek-beli': () => bukaCekBeli(),
   'cb-catat': () => {
     if (!CB || !CB.harga) return;
+    simpanRiwayatCBSekarang();
     const { harga, nama, hasil } = CB;
     CB = null;
     bukaFormTrx(null, { tipe: TIPE.KELUAR, jumlah: harga, catatan: namaBarang(nama), kategori: hasil ? hasil.kategori : '' });
   },
   'cb-tabung': () => {
     if (!CB || !CB.harga) return;
+    simpanRiwayatCBSekarang();
     const { harga, nama } = CB;
     CB = null;
     bukaFormDompet(null, JENIS.TABUNGAN);
@@ -991,18 +1049,39 @@ Object.assign(AKSI, {
   'cb-ai': async el => {
     if (!CB || !CB.hasil) return;
     if (!navigator.onLine) return toast(T('Pendapat AI butuh sinyal.'), true);
-    const kotakAi = $('#cb-ai');
-    el.disabled = true;
-    kotakAi.innerHTML = `<p class="info-kecil" style="text-align:left">${T('✨ Sedang menimbang…')}</p>`;
+    simpanRiwayatCBSekarang(); // cek ini harus sudah ada di riwayat sebelum jawabannya datang
+    const { id, harga, nama } = CB;
+    const fakta = CB.hasil.fakta;
+    const lembarCB = () => !$('#sheet').hidden && $('#cb-hasil');
+    const masihDibuka = () => lembarCB() && CB && CB.id === id && CB.harga === harga && CB.nama === nama;
+    AI_CB_JALAN.add(id);
+    el.remove();
+    $('#cb-ai').innerHTML = htmlAiCBMenimbang();
+    let s = '';
     try {
-      const s = await api('saranBeli', CB.hasil.fakta, BAHASA, GAYA === 'santai');
-      if ($('#cb-ai')) $('#cb-ai').innerHTML = s ? `<div class="ringkas-ai"><p>${esc(s)}</p><small>${T('✨ Ditulis AI Gemini dari angka di atas, bisa keliru.')}</small></div>` : '';
-      el.remove();
+      s = await api('saranBeli', fakta, BAHASA, GAYA === 'santai');
+      if (s) ubahRiwayatCB(id, { ai: s });
+      if (!masihDibuka() && s) toast(T('✨ Pendapat AI untuk {nama} sudah siap. Lihat di Cek beli → Riwayat cek.', { nama: namaBarang(nama) || rp(harga) }));
     } catch (e) {
-      if ($('#cb-ai')) $('#cb-ai').innerHTML = '';
-      el.disabled = false;
       toast(pesanError(e), true);
+    } finally {
+      AI_CB_JALAN.delete(id);
+      // Tampilkan jawabannya (atau tombolnya lagi kalau gagal); daftar riwayat ikut diperbarui kalau sedang terlihat.
+      if (lembarCB() && CB && (CB.id === id || !CB.harga)) gambarCekBeli();
     }
+  },
+  'cb-riwayat': el => {
+    const x = riwayatCB().find(y => y.id === el.dataset.id);
+    if (!x || !CB) return;
+    CB = { id: x.id, manual: true };
+    $('#cb-teks').value = x.teks || '';
+    $('#cb-harga').value = formatAngka(x.harga);
+    gambarCekBeli(); // dihitung ulang dengan angka terbaru; pendapat AI yang tersimpan ikut tampil
+  },
+  'cb-hapus-riwayat': async () => {
+    if (!(await tanya(T('Hapus semua riwayat cek sebelum beli di HP ini?'), T('Hapus')))) return;
+    tulisRiwayatCB([]);
+    gambarCekBeli();
   },
 
   'bagikan-story': el => bukaBagikanStory(el.dataset.bulan),
