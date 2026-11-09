@@ -21,6 +21,7 @@ const DEMO = (() => {
   const EMAIL_PASANGAN = 'andi@coba.invalid';
 
   let nyala = false;
+  const VERSI_CONTOH = 2; // naikkan kalau data contoh ditambah fitur baru
   let st = null;          // { email, n, ss: { id: { sheets: [{ sheetId, title, rows, lindung }] } }, files: { id: {...} }, izin: { id: [...] } }
   const isiFoto = new Map(); // foto lampiran (Blob) hanya di memori; tidak muat di localStorage
   let asli = null;        // fungsi GOOGLE yang asli, dipasang lagi saat mode coba berakhir
@@ -486,6 +487,9 @@ const DEMO = (() => {
       }
     }
 
+    // Emas (dalam gram): beli 1 gram 40 hari lalu, dibayar dari BCA.
+    const beliEmas = catat(geser(hariIni, -40), TRANSFER, 2390000, '', 'BCA', EMAS, L('Beli emas 1 gram', 'Bought 1 gram of gold'), SAYA, 10);
+
     // Piutang: teman meminjam, jatuh tempo 10 hari lagi.
     catat(geser(hariIni, -12), TRANSFER, 500000, '', 'BCA', PEMINJAM, L('Pinjam untuk servis motor', 'Loan for motorbike repair'), SAYA);
 
@@ -551,15 +555,37 @@ const DEMO = (() => {
         '', '', 'hijau', DIA, kini],
       [idTrx(), serial(geser(hariIni, 5)), L('Bayar pajak motor', 'Pay motorbike tax'), L('Bawa STNK & KTP', 'Bring vehicle registration & ID'), 'Ya', '', 'merah', SAYA, kini],
       [idTrx(), serial(geser(hariIni, 12)), L('Ulang tahun Kakak', "Kakak's birthday"), L('Pesan kue di toko langganan', 'Order a cake'), 'Ya', 'Tahunan', 'ungu', DIA, kini],
+      [idTrx(), '', L('Ide kado & rencana belanja', 'Gift ideas & shopping plans'),
+        L('[ ] Sepatu sekolah Kakak\n[ ] Rak buku\n[x] Blender', '[ ] School shoes\n[ ] Bookshelf\n[x] Blender'), '', '', 'kuning', SAYA, kini],
     ];
 
     const diubah = trx.filter(r => r[2] === KELUAR && r[4] === 'Belanja Harian' && r[1] < serial(hariIni)).pop();
     const log = diubah ? [[serial(geser(hariIni, -1), 20.2), DIA, 'ubah',
       'Belanja Harian Rp' + new Intl.NumberFormat('id-ID').format(diubah[3]) + ': ' + L('catatan diubah', 'note changed'), diubah[0]]] : [];
 
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const pengaturan = [
+      ['EMAS', JSON.stringify({ [EMAS]: {
+        gram: 6, platform: 'antam', modal: 13390000, hargaBeli: 2470000, hargaJual: 2430000,
+        riwayat: [{ id: beliEmas[0], tgl: iso(geser(hariIni, -40)), gram: 1, rp: 2390000, dompet: 'BCA' }],
+      } })],
+      ['TANTANGAN', JSON.stringify({
+        aktif: [
+          { id: 'coba-t1', jenis: '52', mulai: iso(geser(hariIni, -20)), oleh: SAYA, unit: 50000, pola: 'tetap', tabungan: LIBURAN, sumber: 'BCA' },
+          { id: 'coba-t2', jenis: 'batas', mulai: iso(geser(hariIni, -9)), oleh: DIA, kategori: 'Makan & Minum', batas: 800000, minggu: 4 },
+        ],
+        selesai: [
+          { id: 'coba-t0', jenis: 'hemat', judul: L('5 hari tanpa belanja', '5 no-spend days'), mulai: iso(geser(hariIni, -75)), selesai: iso(geser(hariIni, -46)), hasil: 'berhasil', cfg: { target: 5, hari: 30 } },
+        ],
+        hariKosong: [],
+      })],
+      ['AVATAR:' + DIA, JSON.stringify({ p: 'pria' })],
+    ];
+
     const idDb = 'coba-' + acakId(28);
     const lembar = (title, sheetId, rows) => ({ sheetId, title, rows: [KOLOM[title]].concat(rows), lindung: 'Dompet Keluarga: dikelola aplikasi' });
     const s = {
+      versi: VERSI_CONTOH,
       email: SAYA,
       ss: {
         [idDb]: {
@@ -567,7 +593,7 @@ const DEMO = (() => {
             lembar('Transaksi', 0, trx),
             lembar('Kategori', 1, KATEGORI),
             lembar('Dompet', 2, DOMPET),
-            lembar('Pengaturan', 3, []),
+            lembar('Pengaturan', 3, pengaturan),
             lembar('Rutin', 4, rutin),
             lembar('Catatan', 5, catatan),
             lembar('Log', 6, log),
@@ -631,7 +657,9 @@ const DEMO = (() => {
   }
 
   if (nyala) {
-    st = bacaSimpanan() || buatContoh();
+    const lama = bacaSimpanan();
+    st = lama && lama.versi === VERSI_CONTOH ? lama : buatContoh();
+    if (st !== lama) simpan();
     pasang();
   }
 
