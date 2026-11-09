@@ -781,20 +781,21 @@ const SERVER = (() => {
       ulang: ULANG_CATATAN.includes(String(r[5])) ? String(r[5]) : '',
       warna: String(r[6] || ''),
       oleh: String(r[7]),
-    })).filter(c => /^\d{4}-\d{2}-\d{2}$/.test(c.tanggal));
+    })).filter(c => c.tanggal === '' || /^\d{4}-\d{2}-\d{2}$/.test(c.tanggal)); // '' = catatan tanpa tanggal
   }
 
-  /** input: { id?, tanggal 'yyyy-mm-dd', judul, isi, pengingat (bool), ulang, warna }. */
+  /** input: { id?, tanggal 'yyyy-mm-dd' atau '' (tanpa tanggal), judul, isi, pengingat (bool), ulang, warna }. */
   async function simpanCatatan(input) {
     const judul = teks_(input.judul).slice(0, 80);
     if (!judul) throw new Error(T('Isi judul catatannya dulu.'));
     const tanggal = teks_(input.tanggal);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) throw new Error(T('Pilih tanggalnya dulu.'));
-    const ulang = ULANG_CATATAN.includes(String(input.ulang || '')) ? String(input.ulang || '') : '';
+    if (tanggal && !/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) throw new Error(T('Pilih tanggalnya dulu.'));
+    // Tanpa tanggal: tidak bisa diingatkan atau diulang.
+    const ulang = tanggal && ULANG_CATATAN.includes(String(input.ulang || '')) ? String(input.ulang || '') : '';
     const id = await db_();
     if (!(TABEL.catatan.nama in idSheet)) throw new Error(T('Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).'));
     const idCatatan = teks_(input.id) || crypto.randomUUID();
-    const baris = [idCatatan, serialTanggal_(tanggal), judul, teks_(input.isi).slice(0, 2000), input.pengingat ? 'Ya' : '', ulang,
+    const baris = [idCatatan, tanggal ? serialTanggal_(tanggal) : '', judul, teks_(input.isi).slice(0, 2000), tanggal && input.pengingat ? 'Ya' : '', ulang,
       teks_(input.warna).slice(0, 12), GOOGLE.email(), serialSekarang_()];
     const [rows] = await bacaTabel_(id, ['catatan']);
     const i = input.id ? rows.findIndex(r => String(r[0]) === idCatatan) : -1;

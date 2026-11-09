@@ -3840,7 +3840,7 @@ async function jalankanCariGlobal(q) {
   S.hasilGlobal = trx;
   $('#hasil-global').innerHTML = fitur + (catatan.length ? `<h4 class="sub-laporan">📝 ${T('Catatan ({n})', { n: catatan.length })}</h4>` + catatan.map(c => `
       <button type="button" class="kal-item" data-aksi="ubah-catatan" data-id="${esc(c.id)}" style="--w:${warnaCatatan(c.warna)}">
-        <span class="isi"><b>${esc(c.judul)}</b><small>${esc(labelHariPendek(c.tanggal))}${c.isi ? ' · ' + esc(c.isi.replace(/\[( |x)\] ?/gi, '').slice(0, 80)) : ''}</small></span>
+        <span class="isi"><b>${esc(c.judul)}</b><small>${c.tanggal ? esc(labelHariPendek(c.tanggal)) : '📌 ' + T('Tanpa tanggal')}${c.isi ? ' · ' + esc(c.isi.replace(/\[( |x)\] ?/gi, '').slice(0, 80)) : ''}</small></span>
       </button>`).join('') : '')
     + (trx.length ? `<h4 class="sub-laporan">💳 ${T('Transaksi ({n})', { n: trx.length + (trx.length === 40 ? '+' : '') })}</h4>` + trx.map(t => {
       const tgl = `<small class="tgl-cari">${esc(labelHariPendek(t.tanggal))}</small>`;
@@ -5776,7 +5776,7 @@ const hariDalamBulan = (y, m) => new Date(y, m, 0).getDate(); // m: 1–12
 
 /** Apakah catatan ini terjadi di tanggal iso (memperhitungkan pengulangan)? */
 function terjadiPada(c, iso) {
-  if (iso < c.tanggal) return false;
+  if (!c.tanggal || iso < c.tanggal) return false; // catatan tanpa tanggal tidak tampil di kotak kalender
   if (!c.ulang) return iso === c.tanggal;
   const [y, m, d] = iso.split('-').map(Number);
   const [, m0, d0] = c.tanggal.split('-').map(Number);
@@ -5874,7 +5874,16 @@ function htmlKalender() {
       </button>`).join('')}
     ${dipilih.length || tagihanDipilih.length ? '' : '<p class="info-kecil" style="text-align:left;margin-top:0">' + T('Belum ada catatan di tanggal ini.') + '</p>'}
     ${S.data.bisaCatatan === false ? '<p class="info-kecil" style="text-align:left">' + T('⚠️ Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).') + '</p>' : ''}
-    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">${labelHariPendek(S.kal.pilih) === T('Hari ini') ? T('＋ Catatan di hari ini') : T('＋ Catatan di {hari}', { hari: esc(labelHariPendek(S.kal.pilih)) })}</button></div>`;
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">${labelHariPendek(S.kal.pilih) === T('Hari ini') ? T('＋ Catatan di hari ini') : T('＋ Catatan di {hari}', { hari: esc(labelHariPendek(S.kal.pilih)) })}</button></div>
+    ${htmlCatatanTanpaTanggal()}`;
+}
+
+/** Catatan tanpa tanggal: selalu tampil di bawah kalender, apa pun tanggal yang dipilih. */
+function htmlCatatanTanpaTanggal() {
+  const daftar = daftarCatatan().filter(c => !c.tanggal);
+  return `<h3 class="kal-judul-hari">📌 ${T('Tanpa tanggal')}</h3>
+    ${daftar.map(itemCatatan).join('') || '<p class="info-kecil" style="text-align:left;margin-top:0">' + T('Catatan tanpa tanggal selalu tampil di sini, mis. daftar belanja atau ide.') + '</p>'}
+    <button type="button" class="tombol-tambah" style="margin-top:4px" data-aksi="tambah-catatan-tanpa">${T('＋ Catatan tanpa tanggal')}</button>`;
 }
 
 /** Geser kiri/kanan di kalender untuk ganti bulan. */
@@ -6048,8 +6057,9 @@ document.addEventListener('keydown', e => {
  * Form catatan sebagai halaman penuh (tab 'catatan-edit'). c: catatan yang diubah (null = baru); tanggal: untuk catatan baru.
  * Isian disimpan di S.formCatatan & dibaca ulang dari layar sebelum render, supaya muat ulang data di latar tidak menghapus ketikan.
  */
+/** tanggal '' = catatan tanpa tanggal (tanpa pengingat & pengulangan). */
 function bukaFormCatatan(c, tanggal) {
-  const x = c || { judul: '', isi: '', tanggal: tanggal || hariIni(), pengingat: true, ulang: '', warna: 'biru' };
+  const x = c || { judul: '', isi: '', tanggal: tanggal === '' ? '' : tanggal || hariIni(), pengingat: tanggal !== '', ulang: '', warna: 'biru' };
   const tugas = bacaTugas(x.isi);
   S.formCatatan = {
     id: c ? c.id : '', oleh: c ? c.oleh : '', judul: x.judul, tanggal: x.tanggal, pengingat: x.pengingat, ulang: x.ulang,
@@ -6145,7 +6155,7 @@ function simpanDraftCatatan() {
   const f = S.formCatatan;
   if (!f || !$('#c-judul')) return;
   f.judul = $('#c-judul').value;
-  f.tanggal = $('#c-tanggal').value || f.tanggal;
+  if (f.tanggal) f.tanggal = $('#c-tanggal').value || f.tanggal; // tanpa tanggal tetap kosong
   f.isi = $('#c-isi').value;
   f.tugas = tugasDariForm();
 }
@@ -6186,11 +6196,12 @@ function viewFormCatatan() {
       <div class="bilah-catatan">
         <div class="pratinjau-dikte" id="pratinjau-dikte" role="status" aria-live="polite" hidden></div>
         <div class="opsi-catatan">
-          <label class="chip-opsi">📅 <span id="c-tanggal-label">${esc(labelHariPendek(f.tanggal))}</span>
+          <label class="chip-opsi">📅 <span id="c-tanggal-label">${f.tanggal ? esc(labelHariPendek(f.tanggal)) : T('Pilih tanggal')}</span>
             <input type="date" id="c-tanggal" value="${f.tanggal}" aria-label="${T('Tanggal')}"></label>
-          <button type="button" class="chip-opsi ${f.pengingat ? 'nyala' : ''}" data-aksi="c-pengingat" role="switch" aria-checked="${f.pengingat}">${f.pengingat ? T('🔔 Ingatkan') : T('🔕 Ingatkan')}</button>
+          <button type="button" class="chip-opsi ${f.tanggal ? '' : 'nyala'}" data-aksi="c-tanpa-tanggal" role="switch" aria-checked="${!f.tanggal}">📌 ${T('Tanpa tanggal')}</button>
+          ${f.tanggal ? `<button type="button" class="chip-opsi ${f.pengingat ? 'nyala' : ''}" data-aksi="c-pengingat" role="switch" aria-checked="${f.pengingat}">${f.pengingat ? T('🔔 Ingatkan') : T('🔕 Ingatkan')}</button>
           <label class="chip-opsi ${f.ulang ? 'nyala' : ''}">🔁 <span id="c-ulang-label">${LABEL_ULANG.find(u => u[0] === f.ulang)[1]}</span>
-            <select id="c-ulang" aria-label="${T('Ulangi')}">${LABEL_ULANG.map(([v, , l]) => `<option value="${v}" ${f.ulang === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+            <select id="c-ulang" aria-label="${T('Ulangi')}">${LABEL_ULANG.map(([v, , l]) => `<option value="${v}" ${f.ulang === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
           <button type="button" class="chip-opsi" data-aksi="c-warna" aria-label="${T('Ganti warna (sekarang {warna})', { warna: esc(NAMA_WARNA[f.warna] || f.warna) })}"><i class="titik-warna"></i></button>
         </div>
         <div class="aksi-catatan">
@@ -6311,7 +6322,9 @@ document.addEventListener('input', e => { if (e.target.id === 'c-isi') tinggiIsi
 document.addEventListener('change', e => {
   if (!S.formCatatan) return;
   if (e.target.id === 'c-tanggal' && e.target.value) {
+    const dariTanpa = !S.formCatatan.tanggal;
     S.formCatatan.tanggal = e.target.value;
+    if (dariTanpa) { simpanDraftCatatan(); render(); return; }
     $('#c-tanggal-label').textContent = labelHariPendek(e.target.value);
   }
   if (e.target.id === 'c-ulang') {
@@ -6655,6 +6668,14 @@ Object.assign(AKSI, {
   },
   'kal-bulan': el => gantiBulanKalender(Number(el.dataset.geser)),
   'tambah-catatan': () => bukaFormCatatan(null, S.kal && S.kal.pilih),
+  'tambah-catatan-tanpa': () => bukaFormCatatan(null, ''),
+  'c-tanpa-tanggal': () => {
+    simpanDraftCatatan();
+    const f = S.formCatatan;
+    if (f.tanggal) { f.tanggalLama = f.tanggal; f.tanggal = ''; f.pengingat = false; f.ulang = ''; }
+    else f.tanggal = f.tanggalLama || (S.kal && S.kal.pilih) || hariIni();
+    render();
+  },
   'ubah-catatan': el => {
     const c = daftarCatatan().find(x => x.id === el.dataset.id);
     if (c) bukaFormCatatan(c);
