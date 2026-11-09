@@ -8209,7 +8209,6 @@ function htmlKalenderRiwayat(trx) {
   const maks = Math.max(1, ...Object.values(keluar));
   const pilih = S.hariKalender && hari.includes(S.hariKalender) ? S.hariKalender : (hari.includes(hariIni()) ? hariIni() : '');
   const kosongAwal = (keTanggal(hari[0]).getDay() + 6) % 7; // Senin = kolom pertama
-  const namaHari = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(LOKAL, { weekday: 'narrow' }));
   const sel = tgl => {
     const k = keluar[tgl] || 0;
     const tingkat = k ? Math.min(4, 1 + Math.floor(k / maks * 3.999)) : 0;
@@ -8219,7 +8218,7 @@ function htmlKalenderRiwayat(trx) {
   };
   const daftarHari = pilih ? trx.filter(t => t.tanggal === pilih) : [];
   return `<section class="kartu kalender-riwayat">
-      <div class="kal-kepala">${namaHari.map(n => `<span>${esc(n)}</span>`).join('')}</div>
+      <div class="kal-hari">${NAMA_HARI_PENDEK.map(h => `<span>${h}</span>`).join('')}</div>
       <div class="kal-grid">${'<span></span>'.repeat(kosongAwal)}${hari.map(sel).join('')}</div>
       <div class="kal-legenda"><span>${T('Hemat')}</span><i class="t1"></i><i class="t2"></i><i class="t3"></i><i class="t4"></i><span>${T('Boros')}</span></div>
     </section>
