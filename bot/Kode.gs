@@ -1023,8 +1023,15 @@ function siapkanTransaksi_(d, x, pengguna) {
   const jumlah = Math.round(Number(x.jumlah) || 0);
   if (!(jumlah > 0)) throw new Error('Nominalnya belum jelas. Contoh: "makan bakso 25rb".');
 
-  const cariDompet = n => d.dompet.find(w => w.nama.toLowerCase() === String(n || '').toLowerCase());
+  // Aturan sama dengan aplikasi: pemasukan/pengeluaran hanya dompet biasa/tabungan; emas (dalam gram) tidak ikut transfer.
+  let emas = {};
+  try { emas = JSON.parse((d.pengaturan && d.pengaturan.EMAS) || '{}') || {}; } catch (e) { emas = {}; }
+  const bolehUntuk = w => w && (tipe === TIPE.TRANSFER ? !(emas[w.nama] && w.jenis === JENIS.ASET) : w.jenis === JENIS.DOMPET || w.jenis === JENIS.TABUNGAN);
+  const cariSemua = n => d.dompet.find(w => w.nama.toLowerCase() === String(n || '').toLowerCase());
+  const cariDompet = n => { const w = cariSemua(n); return bolehUntuk(w) ? w : null; };
   const biasa = d.dompet.filter(w => w.jenis === JENIS.DOMPET);
+  const pesanEmas = 'Emas dicatat dalam gram, jadi tidak bisa ditransfer lewat bot. Tambah atau kurangi emas dari aplikasi (Dompet → emas → Tambah gram).';
+  if (tipe === TIPE.TRANSFER && [x.dompet, x.dompetTujuan].some(n => { const w = cariSemua(n); return w && !bolehUntuk(w); })) throw new Error(pesanEmas);
   // Dompet default: yang terakhir dipakai pengguna ini untuk tipe yang sama, atau dompet pertama.
   const terakhir = d.transaksi.filter(t => t.oleh === pengguna.email && t.tipe === tipe && cariDompet(t.dompet))
     .sort((a, b) => b.dibuat.localeCompare(a.dibuat))[0];

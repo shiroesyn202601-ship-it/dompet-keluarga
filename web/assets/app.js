@@ -107,6 +107,11 @@ const daftarUtang = () => S.data.dompet.filter(w => w.jenis === JENIS.UTANG);
 const adalahUtang = nama => S.data.dompet.some(w => w.nama === nama && w.jenis === JENIS.UTANG);
 const daftarAset = () => S.data.dompet.filter(w => w.jenis === JENIS.ASET);
 const adalahAset = nama => S.data.dompet.some(w => w.nama === nama && w.jenis === JENIS.ASET);
+/** Aset emas dicatat dalam gram: tidak ikut transfer rupiah biasa (tambah/kurangi lewat detail emas). */
+const adalahEmas = nama => !!((S.data && S.data.emas) || {})[nama] && adalahAset(nama);
+const trxEmas = t => !!t && t.tipe === TIPE.TRANSFER && (adalahEmas(t.dompet) || adalahEmas(t.dompetTujuan));
+/** Dompet yang boleh dipilih untuk transfer: semua kecuali emas. */
+const dompetTransfer = () => S.data.dompet.filter(w => !adalahEmas(w.nama));
 const daftarTabungan = () => S.data.dompet.filter(w => w.jenis === JENIS.TABUNGAN);
 const adalahTabungan = nama => S.data.dompet.some(w => w.nama === nama && w.jenis === JENIS.TABUNGAN);
 function angka(s) {
@@ -2867,6 +2872,16 @@ function gridIkon(terpilih, dompet) {
 
 /** preset: isian awal untuk transaksi baru, mis. setor/tarik tabungan. */
 function bukaFormTrx(t, preset, judul) {
+  const sumberEmas = trxEmas(t) || trxEmas(Object.assign({ tipe: '' }, preset));
+  if (sumberEmas) {
+    const x = t || preset;
+    const nama = adalahEmas(x.dompet) ? x.dompet : x.dompetTujuan;
+    toast(t ? T('Transaksi emas tidak bisa diubah. Hapus transaksinya (gramnya ikut dikembalikan), lalu catat ulang dari detail emas.')
+      : T('Emas dicatat dalam gram. Pakai Tambah gram / Kurangi gram di detail emas.'), true);
+    const w = S.data.dompet.find(d => d.nama === nama);
+    if (w && !t) return bukaDetailEmas(w);
+    return;
+  }
   const pertama = dompetBiasa()[0];
   F = t ? Object.assign({}, t) : Object.assign({
     tipe: TIPE.KELUAR, jumlah: 0, kategori: '', dompet: dompetIngatan(TIPE.KELUAR, '') || (pertama ? pertama.nama : ''), dompetTujuan: '',
@@ -2883,7 +2898,7 @@ function renderFormTrx() {
   // Tabungan hanya muncul untuk Transfer (setor/tarik); pemasukan & pengeluaran memakai dompet biasa.
   const pilihDompet = (aksi, terpilih, termasukTabungan) => `<div class="grid-pilih">${S.data.dompet
     // Orang (utang-piutang) hanya muncul kalau sedang terpilih, mis. saat mencatat pelunasan.
-    .filter(w => w.jenis === JENIS.DOMPET || (termasukTabungan && (w.jenis === JENIS.TABUNGAN || w.jenis === JENIS.ASET)) || w.nama === terpilih).map(w =>
+    .filter(w => w.jenis === JENIS.DOMPET || (termasukTabungan && (w.jenis === JENIS.TABUNGAN || (w.jenis === JENIS.ASET && !adalahEmas(w.nama)))) || w.nama === terpilih).map(w =>
     `<button type="button" class="pilihan ${w.nama === terpilih ? 'aktif' : ''}" data-aksi="${aksi}" data-nama="${esc(w.nama)}">
       <span>${ilus(w.ikon)}</span>${esc(namaT(w.nama))}</button>`).join('')}</div>`;
 
@@ -3539,9 +3554,9 @@ function isiFormCepat(h) {
   if (h.tipe && h.tipe !== F.tipe) { F.tipe = h.tipe; F.kategori = ''; }
   if (h.jumlah) F.jumlah = h.jumlah;
   if (h.kategori) F.kategori = h.kategori;
-  if (h.dompet && (F.tipe === TIPE.TRANSFER ? S.data.dompet : dompetBiasa()).some(w => w.nama === h.dompet)) { F.dompet = h.dompet; F.dompetDipilih = true; }
+  if (h.dompet && (F.tipe === TIPE.TRANSFER ? dompetTransfer() : dompetBiasa()).some(w => w.nama === h.dompet)) { F.dompet = h.dompet; F.dompetDipilih = true; }
   else if (h.kategori && !F.dompetDipilih && F.tipe !== TIPE.TRANSFER) F.dompet = dompetIngatan(F.tipe, F.kategori) || F.dompet;
-  if (h.dompetTujuan && F.tipe === TIPE.TRANSFER) F.dompetTujuan = h.dompetTujuan;
+  if (h.dompetTujuan && F.tipe === TIPE.TRANSFER && dompetTransfer().some(w => w.nama === h.dompetTujuan)) F.dompetTujuan = h.dompetTujuan;
   if (h.tanggal) F.tanggal = h.tanggal;
   if (h.catatan) F.catatan = h.catatan;
   renderFormTrx();
@@ -5007,6 +5022,29 @@ const AKSI = {
   'tambah-aset': () => bukaFormDompet(null, JENIS.ASET),
   'lihat-emas': el => { const w = S.data.dompet.find(x => x.nama === el.dataset.nama); if (w) bukaDetailEmas(w); },
   'ubah-emas': el => bukaFormDompet(S.data.dompet.find(x => x.nama === el.dataset.nama)),
+  'mutasi-emas': el => { const w = S.data.dompet.find(x => x.nama === el.dataset.nama); if (w) bukaMutasiEmas(w, el.dataset.arah); },
+  'me-dompet': el => {
+    if (!ME) return;
+    ME.dompet = el.dataset.nama;
+    document.querySelectorAll('[data-aksi="me-dompet"]').forEach(b => b.classList.toggle('aktif', b === el));
+  },
+  'simpan-mutasi-emas': async el => {
+    if (!ME) return;
+    const gram = angkaGram($('#me-gram').value);
+    if (!(gram > 0)) return toast(T('Isi berat emasnya dalam gram (lebih dari 0).'), true);
+    const rpTotal = angka($('#me-rp').value);
+    if (ME.dompet && !rpTotal) return toast(T('Isi harga totalnya, atau pilih "Tanpa catat uang".'), true);
+    const w = S.data.dompet.find(x => x.nama === ME.nama);
+    const e = w && infoEmas(w);
+    if (!ME.beli && e && gram > e.gram + 1e-9) return toast(T('Emasnya hanya {gram} gram.', { gram: String(e.gram).replace('.', ',') }), true);
+    const input = { nama: ME.nama, gram: ME.beli ? gram : -gram, rp: rpTotal, dompet: ME.dompet, tanggal: $('#me-tgl').value || hariIni() };
+    const nama = ME.nama;
+    if (await kirim(el, 'mutasiEmas', [input], ME.beli ? T('Emas bertambah {gram} ✔', { gram: formatGram(gram) }) : T('Emas berkurang {gram} ✔', { gram: formatGram(gram) }))) {
+      ME = null;
+      const baru = S.data.dompet.find(x => x.nama === nama);
+      if (baru) bukaDetailEmas(baru);
+    }
+  },
   'perbarui-harga-emas': async el => {
     const w = S.data.dompet.find(x => x.nama === el.dataset.nama);
     const e = w && infoEmas(w);
@@ -7479,7 +7517,7 @@ function isianRingkas() {
     `<button type="button" class="chip ${nama === terpilih ? 'aktif' : ''}" data-aksi="ringkas-isi" data-k="${k}" data-v="${esc(nama)}"><span class="ilus-chip">${ilus(ikon)}</span>${esc(namaT(nama))}</button>`).join('')}</div>`;
   const dompet = S.data.dompet.find(w => w.nama === F.dompet);
   const tujuan = S.data.dompet.find(w => w.nama === F.dompetTujuan);
-  const daftarDompet = (transfer ? S.data.dompet.filter(w => w.jenis !== JENIS.UTANG) : dompetBiasa()).map(w => [w.nama, w.ikon]);
+  const daftarDompet = (transfer ? dompetTransfer().filter(w => w.jenis !== JENIS.UTANG) : dompetBiasa()).map(w => [w.nama, w.ikon]);
   const tujuanSalah = !F.dompetTujuan || F.dompetTujuan === F.dompet;
   const label = labelDari(F.catatan)[0] || '';
   const semuaLabel = Array.from(new Set((label ? [label] : []).concat(labelTerakhir())));
@@ -7831,8 +7869,8 @@ function rapikanHasilAi(r) {
     tipe,
     jumlah: Math.max(0, Math.round(Number(r.jumlah) || 0)),
     kategori: tipe === TIPE.TRANSFER ? '' : ada(S.data.kategori.filter(k => k.tipe === tipe), r.kategori),
-    dompet: ada(tipe === TIPE.TRANSFER ? S.data.dompet : dompetBiasa(), r.dompet),
-    dompetTujuan: tipe === TIPE.TRANSFER ? ada(S.data.dompet, r.dompetTujuan) : '',
+    dompet: ada(tipe === TIPE.TRANSFER ? dompetTransfer() : dompetBiasa(), r.dompet),
+    dompetTujuan: tipe === TIPE.TRANSFER ? ada(dompetTransfer(), r.dompetTujuan) : '',
     tanggal: tanggalOk ? r.tanggal : '',
     catatan: String(r.catatan || '').trim().slice(0, 100),
   };
@@ -8414,6 +8452,7 @@ Object.assign(AKSI, {
   },
   'pilih-dompet-banyak': () => {
     const daftar = trxDipilih();
+    if (daftar.some(trxEmas)) return toast(T('Transaksi emas tidak bisa dipindah dompetnya. Lepas pilihan transaksi emas dulu.'), true);
     bukaSheet(T('Ganti dompet {n} transaksi', { n: daftar.length }), `
       ${daftar.some(t => t.tipe === TIPE.TRANSFER) ? `<p class="info-kecil" style="text-align:left;margin-top:0">${T('Untuk transfer, yang diganti dompet asalnya.')}</p>` : ''}
       <div class="grid-pilih">${dompetBiasa().map(w =>
@@ -8775,6 +8814,64 @@ document.addEventListener('input', e => {
   if ($('#d-nilai-emas')) $('#d-nilai-emas').innerHTML = htmlNilaiFormEmas();
 });
 
+function htmlRiwayatEmas(e) {
+  const r = (e.riwayat || []).slice(-8).reverse();
+  if (!r.length) return '';
+  return `<h4 class="sub-laporan">${T('Riwayat berat')}</h4>${r.map(x => `
+    <div class="baris-rincian"><span>${x.gram > 0 ? '＋' : '−'} ${esc(formatGram(Math.abs(x.gram)))}<small class="ket-riwayat-emas">${esc(tanggalPendek(x.tgl))}${x.dompet ? ' · ' + esc(namaT(x.dompet)) : ' · ' + T('tanpa catat uang')}</small></span>
+      <span>${x.rp ? rp(x.rp) : '—'}</span></div>`).join('')}`;
+}
+
+/** Form tambah (beli) / kurangi (jual) gram. Harga total diisi otomatis dari harga hari ini, bisa diubah. */
+let ME = null;
+function bukaMutasiEmas(w, arah) {
+  const e = infoEmas(w);
+  if (!e) return;
+  const beli = arah === 'beli';
+  ME = { nama: w.nama, beli, dompet: dompetBiasa()[0] ? dompetBiasa()[0].nama : '', rpManual: false };
+  const pilihanDompet = dompetBiasa().concat(daftarTabungan());
+  bukaSheet(beli ? T('Tambah emas') : T('Kurangi emas'), `
+    <p class="info-kecil" style="text-align:left;margin-top:0">${esc(w.nama)} · ${T('sekarang {gram}', { gram: esc(formatGram(e.gram)) })}</p>
+    <div class="grup-form">
+      <label class="label" for="me-gram">${beli ? T('Tambah berapa gram') : T('Kurangi berapa gram')}</label>
+      <input class="field" id="me-gram" inputmode="decimal" autocomplete="off" placeholder="${T('mis. 5,25')}">
+    </div>
+    <div class="grup-form">
+      <label class="label" for="me-rp">${beli ? T('Harga total dibayar') : T('Uang yang diterima')}</label>
+      <input class="field input-rp" id="me-rp" inputmode="numeric" autocomplete="off" placeholder="0">
+      <p class="info-kecil" style="text-align:left" id="me-ket">${esc(keteranganMutasiEmas())}</p>
+    </div>
+    <div class="grup-form">
+      <span class="label">${beli ? T('Dibayar dari') : T('Uangnya masuk ke')}</span>
+      <div class="grid-pilih">${pilihanDompet.map(d => `<button type="button" class="pilihan ${d.nama === ME.dompet ? 'aktif' : ''}" data-aksi="me-dompet" data-nama="${esc(d.nama)}"><span>${ilus(d.ikon)}</span>${esc(namaT(d.nama))}</button>`).join('')}
+        <button type="button" class="pilihan" data-aksi="me-dompet" data-nama=""><span>🎁</span>${T('Tanpa catat uang')}</button></div>
+      <p class="info-kecil" style="text-align:left">${beli ? T('Uang dicatat sebagai transfer dari dompet ke emas ini, jadi tidak dihitung sebagai pengeluaran.') : T('Uang dicatat sebagai transfer dari emas ini ke dompet, jadi tidak dihitung sebagai pemasukan.')}</p>
+    </div>
+    <div class="grup-form">
+      <label class="label" for="me-tgl">${T('Tanggal')}</label>
+      <input class="field" id="me-tgl" type="date" value="${hariIni()}" max="${hariIni()}">
+    </div>
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-mutasi-emas">${T('Simpan')}</button></div>`);
+  setTimeout(() => $('#me-gram') && $('#me-gram').focus(), 250);
+}
+function keteranganMutasiEmas() {
+  const w = ME && S.data.dompet.find(d => d.nama === ME.nama);
+  const h = w && hargaEmasUntuk(infoEmas(w));
+  const perGram = h ? (ME.beli ? h.beli : (h.jual || h.beli)) : 0;
+  return perGram ? T('Otomatis dari harga {jenis} hari ini {harga}/gram. Ubah kalau harga sebenarnya beda.', { jenis: ME.beli ? T('beli') : T('jual'), harga: rp(perGram) })
+    : T('Isi harga totalnya.');
+}
+document.addEventListener('input', e => {
+  if (!ME) return;
+  if (e.target.id === 'me-rp') ME.rpManual = !!e.target.value;
+  if (e.target.id !== 'me-gram' || ME.rpManual) return;
+  const w = S.data.dompet.find(d => d.nama === ME.nama);
+  const h = w && hargaEmasUntuk(infoEmas(w));
+  const perGram = h ? (ME.beli ? h.beli : (h.jual || h.beli)) : 0;
+  const g = angkaGram(e.target.value);
+  if ($('#me-rp')) $('#me-rp').value = perGram && g > 0 ? formatAngka(Math.round(g * perGram)) : '';
+});
+
 /** Lembar detail emas: berat, harga beli & jual hari ini, nilai, dan untung/rugi terhadap modal. */
 function bukaDetailEmas(w) {
   const e = infoEmas(w);
@@ -8803,9 +8900,14 @@ function bukaDetailEmas(w) {
       ${b(T('Total modal'), rp(e.modal))}
       ${untung !== null ? b(untung >= 0 ? T('Untung') : T('Rugi'), (untung >= 0 ? '+' : '−') + rp(Math.abs(untung)) + ' (' + (Math.round(untung / e.modal * 1000) / 10).toLocaleString(LOKAL) + '%)', untung >= 0 ? 'masuk' : 'keluar') : ''}` : ''}
     <p class="info-kecil" style="text-align:left">${T('Harga beli = harga saat Anda membeli; harga jual = harga buyback saat Anda menjual. Sumber: data publik harga emas, bisa berbeda sedikit dengan aplikasi platform.')}</p>
+    <div class="aksi-form" style="margin-bottom:10px">
+      <button type="button" class="btn btn-kedua" data-aksi="mutasi-emas" data-arah="jual" data-nama="${esc(w.nama)}" ${e.gram > 0 ? '' : 'disabled'}>${T('− Kurangi gram')}</button>
+      <button type="button" class="btn btn-utama" data-aksi="mutasi-emas" data-arah="beli" data-nama="${esc(w.nama)}">${T('＋ Tambah gram')}</button>
+    </div>
+    ${htmlRiwayatEmas(e)}
     <div class="aksi-form">
       ${platformEmas(e.platform)[2] ? `<button type="button" class="btn btn-kedua" data-aksi="perbarui-harga-emas" data-nama="${esc(w.nama)}">${T('🔄 Perbarui harga')}</button>` : ''}
-      <button type="button" class="btn btn-utama" data-aksi="ubah-emas" data-nama="${esc(w.nama)}">${T('Ubah')}</button>
+      <button type="button" class="btn btn-hapus" data-aksi="ubah-emas" data-nama="${esc(w.nama)}">${T('Ubah')}</button>
     </div>`);
   if (platformEmas(e.platform)[2] && (!h || h.tgl !== hariIni())) {
     muatHargaEmas([e.platform]).then(ok => { if (ok && !$('#sheet').hidden && $('#sheet').textContent.includes(w.nama)) bukaDetailEmas(w); });

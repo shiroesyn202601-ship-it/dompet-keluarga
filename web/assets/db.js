@@ -874,6 +874,7 @@ const SERVER = (() => {
    */
   async function simpanRutin(input) {
     const t = validasiTransaksi_(Object.assign({}, input, { tanggal: input.berikutnya }));
+    await cekJenisDompet_(await db_(), t);
     const nama = teks_(input.nama).slice(0, 60) || t.catatan || t.kategori || 'Transfer';
     const ulang = String(input.ulang);
     if (!ULANG.includes(ulang)) throw new Error(T('Pilih jarak pengulangan.'));
@@ -917,6 +918,7 @@ const SERVER = (() => {
     const id = await db_();
     const sekarang = serialSekarang_();
     const tbl = TABEL.transaksi;
+    const aturan = await cekJenisDompet_(id, t, { izinEmas: !t.id && input.izinEmas === true });
     if (t.id) {
       // Baris dicari lewat ID sesaat sebelum menulis, dan hanya kolom yang berubah yang ditulis
       // (Dibuat Oleh/Pada tidak disentuh), supaya perubahan orang lain di saat bersamaan tidak tertimpa.
@@ -924,6 +926,9 @@ const SERVER = (() => {
       const lampiran = input.lampiranData ? await unggahStruk_(input.lampiranData, input.tanggal, input.kabarUnggah) : null;
       const baris = cariBaris_(await daftarId_(id), x => x === t.id) + 2;
       const lama = await bacaBarisTransaksi_(id, baris); // untuk log perubahan & foto lama
+      if (String(lama[2]) === TIPE.TRANSFER && (aturan.adalahEmas(String(lama[5])) || aturan.adalahEmas(String(lama[6])))) {
+        throw new Error(T('Transaksi emas tidak bisa diubah. Hapus transaksinya (gramnya ikut dikembalikan), lalu catat ulang dari detail emas.'));
+      }
       const lampiranLama = lampiran || input.hapusLampiran ? lama[11] : '';
       const data = [
         { range: "'" + tbl.nama + "'!B" + baris + ':H' + baris, values: [[t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan]] },
@@ -1167,7 +1172,91 @@ const SERVER = (() => {
     await hapusBaris_(id, TABEL.transaksi, i);
     await buangLampiran_(baris[11]);
     await catatLog_(id, 'hapus', ringkasBaris_(baris), baris[0]);
+    await lepasMutasiEmas_(id, [baris]);
     return baris;
+  }
+
+  // ---------- Emas: berat dalam gram ----------
+  // EMAS[nama] = { gram, platform, modal?, hargaBeli?, hargaJual?, riwayat?: [{ id, tgl, gram (±), rp, dompet }] }.
+  // Gram hanya berubah lewat form emas (simpanDompet) atau mutasiEmas; transaksi rupiahnya transfer dompet ↔ emas.
+
+  const bulat4_ = n => Math.round(n * 10000) / 10000;
+
+  /**
+   * Tambah (gram > 0, beli) atau kurangi (gram < 0, jual) emas. input: { nama, gram, rp, dompet?, tanggal }.
+   * Dengan dompet: dicatat transfer rupiah dompet → emas (beli) / emas → dompet (jual). Tanpa dompet: hanya gramnya.
+   */
+  async function mutasiEmas(input) {
+    const nama = teks_(input.nama);
+    const delta = bulat4_(Number(input.gram) || 0);
+    const rp = Math.max(0, Math.round(Number(input.rp) || 0));
+    const dompet = teks_(input.dompet);
+    const tanggal = teks_(input.tanggal);
+    if (!delta) throw new Error(T('Isi berat emasnya dalam gram (lebih dari 0).'));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) throw new Error(T('Tanggal tidak valid.'));
+    const id = await db_();
+    const [dom, set0] = await bacaTabel_(id, ['dompet', 'pengaturan']);
+    const e0 = bacaJson_(pengaturan_(set0).EMAS, {})[nama];
+    if (!e0 || String((dom.find(r => String(r[0]) === nama) || [])[3]) !== JENIS.ASET) throw new Error(T('Data emas tidak ditemukan. Coba muat ulang.'));
+    if (delta < 0 && -delta > e0.gram + 1e-9) throw new Error(T('Emasnya hanya {gram} gram.', { gram: String(e0.gram).replace('.', ',') }));
+    if (dompet) {
+      const j = String((dom.find(r => String(r[0]) === dompet) || [])[3] || '');
+      if (j !== JENIS.DOMPET && j !== JENIS.TABUNGAN) throw new Error(T('Pilih dompet biasa atau tabungan.'));
+      if (!rp) throw new Error(T('Isi harga totalnya, atau pilih "Tanpa catat uang".'));
+    }
+    const g = String(Math.abs(delta)).replace('.', ',');
+    const idTrx = dompet && rp ? await simpanTransaksi({
+      tipe: TIPE.TRANSFER, jumlah: rp, tanggal, izinEmas: true,
+      dompet: delta > 0 ? dompet : nama, dompetTujuan: delta > 0 ? nama : dompet,
+      catatan: (delta > 0 ? 'Beli emas ' : 'Jual emas ') + g + ' gram',
+    }) : '';
+    // Baca ulang sesaat sebelum menulis, supaya isian anggota lain tidak tertimpa.
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    const peta = bacaJson_(pengaturan_(set).EMAS, {});
+    const e = peta[nama] || e0;
+    const gramLama = Number(e.gram) || 0;
+    const modal = Number(e.modal) || 0;
+    e.gram = bulat4_(Math.max(0, gramLama + delta));
+    if (modal || delta > 0) e.modal = Math.max(0, Math.round(delta > 0 ? modal + rp : gramLama ? modal * (1 + delta / gramLama) : 0)) || undefined;
+    e.riwayat = (e.riwayat || []).concat([{ id: idTrx || crypto.randomUUID(), tgl: tanggal, gram: delta, rp, dompet: dompet || '' }]).slice(-60);
+    peta[nama] = e;
+    await simpanPengaturan_(id, set, 'EMAS', JSON.stringify(peta));
+    return true;
+  }
+
+  /** Transaksi emas dihapus → gramnya (dan modal) dikembalikan. Isian riwayat yang dilepas dititipkan di baris[12] untuk Urungkan. */
+  async function lepasMutasiEmas_(id, daftarBaris) {
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    const peta = bacaJson_(pengaturan_(set).EMAS, {});
+    let ubah = false;
+    daftarBaris.forEach(b => {
+      const nama = [String(b[5]), String(b[6])].find(n => peta[n] && (peta[n].riwayat || []).some(r => r.id === String(b[0])));
+      if (!nama) return;
+      const e = peta[nama];
+      const r = e.riwayat.find(x => x.id === String(b[0]));
+      e.riwayat = e.riwayat.filter(x => x !== r);
+      e.gram = bulat4_(Math.max(0, (Number(e.gram) || 0) - r.gram));
+      if (r.gram > 0 && e.modal) e.modal = Math.max(0, Math.round(e.modal - r.rp)) || undefined;
+      b[TABEL.transaksi.kolom.length] = JSON.stringify({ nama, r });
+      ubah = true;
+    });
+    if (ubah) await simpanPengaturan_(id, set, 'EMAS', JSON.stringify(peta));
+  }
+
+  /** Kebalikan lepasMutasiEmas_ (dipanggil saat transaksinya dikembalikan). */
+  async function pulihkanMutasiEmas_(id, daftarBaris) {
+    const titipan = daftarBaris.map(b => bacaJson_(b[TABEL.transaksi.kolom.length], null)).filter(x => x && x.nama && x.r);
+    if (!titipan.length) return;
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    const peta = bacaJson_(pengaturan_(set).EMAS, {});
+    titipan.forEach(({ nama, r }) => {
+      const e = peta[nama];
+      if (!e || (e.riwayat || []).some(x => x.id === r.id)) return;
+      e.gram = bulat4_((Number(e.gram) || 0) + r.gram);
+      if (r.gram > 0) e.modal = Math.round((Number(e.modal) || 0) + r.rp) || undefined;
+      e.riwayat = (e.riwayat || []).concat([r]).slice(-60);
+    });
+    await simpanPengaturan_(id, set, 'EMAS', JSON.stringify(peta));
   }
 
   /** Rupiah ringkas untuk log: 25000 → "Rp25.000". */
@@ -1196,6 +1285,18 @@ const SERVER = (() => {
     const kolom = ubah.kategori ? 'E' : 'F';
     const nilai = teks_(ubah.kategori || ubah.dompet);
     if (!nilai) throw new Error(T('Pilih kategori atau dompetnya dulu.'));
+    if (ubah.dompet) {
+      // Ganti dompet asal: tidak boleh ke aset/orang, tidak boleh jadi transfer ke dompet yang sama, dan transaksi emas tidak ikut.
+      const [trx, dom, set] = await bacaTabel_(id, ['transaksi', 'dompet', 'pengaturan']);
+      const jenisBaru = String((dom.find(r => String(r[0]) === nilai) || [])[3] || JENIS.DOMPET);
+      if (jenisBaru === JENIS.ASET || jenisBaru === JENIS.UTANG) throw new Error(T('Pilih dompet biasa atau tabungan.'));
+      const emas = bacaJson_(pengaturan_(set).EMAS, {});
+      const dipilih = trx.filter(r => ids.map(String).includes(String(r[0])));
+      if (dipilih.some(r => String(r[2]) === TIPE.TRANSFER && String(r[6]) === nilai)) {
+        throw new Error(T('Ada transfer yang tujuannya {nama}, jadi akan jadi transfer ke dompet yang sama. Lepas pilihan transfer itu dulu.', { nama: nilai }));
+      }
+      if (dipilih.some(r => emas[String(r[5])] || emas[String(r[6])])) throw new Error(T('Transaksi emas tidak bisa dipindah dompetnya. Lepas pilihan transaksi emas dulu.'));
+    }
     const sekarang = serialSekarang_();
     const data = [];
     ids.forEach(x => {
@@ -1222,6 +1323,7 @@ const SERVER = (() => {
       json: { requests: indeks.map(i => ({ deleteDimension: { range: { sheetId: idSheet[TABEL.transaksi.nama], dimension: 'ROWS', startIndex: i + 1, endIndex: i + 2 } } })) },
     });
     await Promise.all(baris.map(b => buangLampiran_(b[11])));
+    await lepasMutasiEmas_(id, baris);
     await catatLog_(id, 'hapus', baris.length + ' transaksi: ' + baris.slice(0, 3).map(ringkasBaris_).join('; ') + (baris.length > 3 ? '; …' : ''));
     return baris;
   }
@@ -1233,6 +1335,7 @@ const SERVER = (() => {
     if (!baru.length) return true;
     await tambahBaris_(id, TABEL.transaksi, baru.map(b => b.slice(0, TABEL.transaksi.kolom.length)));
     await Promise.all(baru.map(b => buangLampiran_(b[11], false)));
+    await pulihkanMutasiEmas_(id, baru);
     await catatLog_(id, 'kembalikan', baru.length + ' transaksi');
     return true;
   }
@@ -1320,6 +1423,7 @@ const SERVER = (() => {
     await tambahBaris_(id, TABEL.transaksi, [baris.slice(0, TABEL.transaksi.kolom.length)]);
     await catatLog_(id, 'kembalikan', ringkasBaris_(baris), baris[0]);
     await buangLampiran_(baris[11], false);
+    await pulihkanMutasiEmas_(id, [baris]);
     return true;
   }
 
@@ -1469,12 +1573,13 @@ const SERVER = (() => {
     const [set] = await bacaTabel_(id, ['pengaturan']);
     const peta = bacaJson_(pengaturan_(set).EMAS, {});
     const sebelum = JSON.stringify(peta);
-    if (namaLama && namaLama !== nama) delete peta[namaLama];
+    if (namaLama && namaLama !== nama && peta[namaLama]) { peta[nama] = Object.assign({}, peta[namaLama], peta[nama]); delete peta[namaLama]; }
     const gram = Math.round(Number(emas && emas.gram) * 10000) / 10000;
     if (emas && gram > 0 && gram <= 100000) {
       const rupiah = v => Math.max(0, Math.round(Number(v) || 0)) || undefined;
       peta[nama] = { gram, platform: /^[a-z0-9]{1,20}$/.test(String(emas.platform)) ? String(emas.platform) : 'lainnya',
-        modal: rupiah(emas.modal), hargaBeli: rupiah(emas.hargaBeli), hargaJual: rupiah(emas.hargaJual) };
+        modal: rupiah(emas.modal), hargaBeli: rupiah(emas.hargaBeli), hargaJual: rupiah(emas.hargaJual),
+        riwayat: ((peta[nama] || peta[namaLama] || {}).riwayat) || undefined };
     } else if (emas) {
       throw new Error(T('Isi berat emasnya dalam gram (lebih dari 0).'));
     } else {
@@ -1964,6 +2069,31 @@ const SERVER = (() => {
 
   // ---------- Helper umum ----------
 
+/**
+   * Aturan jenis dompet (dibaca dari sheet Dompet & Pengaturan EMAS):
+   *  - Pemasukan/pengeluaran hanya dari dompet biasa atau tabungan (bukan aset, bukan orang utang-piutang).
+   *  - Emas dicatat dalam gram, jadi tidak boleh ikut transfer rupiah biasa; tambah/kurangi lewat mutasiEmas
+   *    (izinEmas). Transaksi emas yang sudah ada juga tidak boleh diubah (hapus → gramnya dikembalikan).
+   */
+  async function cekJenisDompet_(id, t, opsi = {}) {
+    const [dom, set] = await bacaTabel_(id, ['dompet', 'pengaturan']);
+    const jenis = {};
+    dom.forEach(r => { if (r[0] !== '') jenis[String(r[0])] = String(r[3]) || JENIS.DOMPET; });
+    const emas = bacaJson_(pengaturan_(set).EMAS, {});
+    const adalahEmas = n => !!emas[n] && jenis[n] === JENIS.ASET;
+    const pesanEmas = T('Emas dicatat dalam gram, jadi tidak bisa ditransfer seperti uang. Buka emasnya di Dompet, lalu pakai Tambah gram / Kurangi gram.');
+    if (t.tipe === TIPE.TRANSFER) {
+      if ((adalahEmas(t.dompet) || adalahEmas(t.dompetTujuan)) && !opsi.izinEmas) throw new Error(pesanEmas);
+    } else {
+      const j = jenis[t.dompet];
+      if (j === JENIS.ASET || j === JENIS.UTANG) {
+        throw new Error(j === JENIS.ASET ? T('Pemasukan/pengeluaran tidak bisa dicatat di aset. Pakai dompet atau tabungan.')
+          : T('Pemasukan/pengeluaran tidak bisa dicatat di orang utang-piutang. Pakai dompet atau tabungan.'));
+      }
+    }
+    return { adalahEmas, emas, set };
+  }
+
   function validasiTransaksi_(x) {
     x = x || {};
     const tipe = String(x.tipe);
@@ -2009,7 +2139,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, simpanAvatar, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, simpanAvatar, mutasiEmas, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };
