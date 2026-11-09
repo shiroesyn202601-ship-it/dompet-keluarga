@@ -1110,7 +1110,7 @@ function hitungKekayaan() {
   const r = {
     dompet: jumlah(dompetBiasa()),
     tabungan: jumlah(daftarTabungan()),
-    aset: jumlah(daftarAset()),
+    aset: daftarAset().reduce((a, w) => a + nilaiAset(w), 0),
     piutang: utang.filter(w => w.saldo > 0).reduce((a, w) => a + w.saldo, 0),
     utang: utang.filter(w => w.saldo < 0).reduce((a, w) => a - w.saldo, 0),
   };
@@ -1128,14 +1128,16 @@ function bagianAset() {
       <div class="kekayaan ${k.bersih < 0 ? 'minus' : ''}">${rp(k.bersih)}</div>
       ${baris(T('👛 Dompet'), k.dompet)}${baris(T('🐷 Tabungan'), k.tabungan)}${baris(T('💎 Aset'), k.aset)}
       ${baris(T('🤝 Piutang (orang berutang ke Anda)'), k.piutang)}${baris(T('🤝 Utang Anda'), k.utang, true)}
-      <p class="info-kecil" style="text-align:left">${T('Semua yang dimiliki dikurangi utang. Nilai aset diperbarui manual.')}</p>
+      <p class="info-kecil" style="text-align:left">${T('Semua yang dimiliki dikurangi utang. Nilai emas mengikuti harga hari ini; aset lain diperbarui manual.')}</p>
     </section>
-    ${daftarAset().length ? `<section class="kartu" style="padding:4px 16px">${daftarAset().map(w => `
-      <button class="baris" data-aksi="edit-dompet" data-nama="${esc(w.nama)}">
+    ${daftarAset().length ? `<section class="kartu" style="padding:4px 16px">${daftarAset().map(w => {
+      const e = infoEmas(w);
+      return `
+      <button class="baris" data-aksi="${e ? 'lihat-emas' : 'edit-dompet'}" data-nama="${esc(w.nama)}">
         <span class="ikon-bulat">${ilus(w.ikon)}</span>
-        <span class="isi"><b>${esc(w.nama)}</b><small>${T('Ketuk untuk memperbarui nilai')}</small></span>
-        <b class="nominal">${rp(w.saldo)}</b>
-      </button>`).join('')}</section>` : ''}
+        <span class="isi"><b>${esc(w.nama)}</b><small>${e ? esc(formatGram(e.gram) + ' · ' + namaPlatformEmas(e.platform)) : T('Ketuk untuk memperbarui nilai')}</small></span>
+        <b class="nominal">${rp(nilaiAset(w))}</b>
+      </button>`; }).join('')}</section>` : ''}${perbaruiHargaEmasNanti()}
     <button class="tombol-tambah" data-aksi="tambah-aset">${T('＋ Tambah aset (emas, reksadana, properti…)')}</button>
     <button class="tombol-tambah" style="margin-top:10px" data-aksi="buka-zakat">${T('🕌 Hitung zakat')}</button>`;
 }
@@ -1150,7 +1152,7 @@ const KADAR_ZAKAT = 0.025;
  * Penghasilan: pemasukan periode ini ≥ nisab/12 (pendapat yang umum dipakai di Indonesia). Haul tidak diperiksa.
  */
 function bukaZakat() {
-  const hargaEmas = Number(bacaHp('dk_harga_emas')) || 0;
+  const hargaEmas = Number(bacaHp('dk_harga_emas')) || hargaEmasAcuan();
   const k = hitungKekayaan();
   const harta = k.bersih;
   const masuk = total(S.data.transaksi, TIPE.MASUK);
@@ -4431,8 +4433,10 @@ function bukaFormDompet(w, jenis) {
   const aset = jenis === JENIS.ASET;
   const labelNama = tab ? T('Nama tabungan') : aset ? T('Nama aset') : T('Nama dompet');
   const saldoTampil = formatAngka(w ? Math.max(0, w.saldo) : 0);
+  const emas = aset && w ? infoEmas(w) : null;
   F = {
-    namaLama: w ? w.nama : '', ikon: w ? w.ikon : (tab ? '🐷' : aset ? '💎' : '👛'), jenis,
+    modeEmas: aset && (w ? !!emas : true), emas: Object.assign({ platform: 'pegadaian' }, emas),
+    namaLama: w ? w.nama : '', ikon: w ? w.ikon : (tab ? '🐷' : aset ? '🪙' : '👛'), jenis, // aset baru dimulai sebagai emas
     saldoAwal: w ? w.saldoAwal : 0, mutasi: w ? w.saldo - w.saldoAwal : 0, saldoTampil,
     // Ikon khusus yang sudah dipilih (bukan ikon umum / ubin merek) tidak ditimpa tebakan dari nama.
     ikonDipilih: !!w && !IKON_UMUM_DOMPET.includes(w.ikon || '') && !(typeof ILUSTRASI !== 'undefined' && ILUSTRASI.namaMerek(w.ikon)),
@@ -4450,9 +4454,10 @@ function bukaFormDompet(w, jenis) {
     ${tab && !w ? chipTemplat(TEMPLAT_TABUNGAN, 'templat-tabungan') : ''}
     <div class="grup-form">
       <label class="label" for="d-nama">${labelNama}</label>
-      <input class="field" id="d-nama" maxlength="40" placeholder="${tab ? T('mis. Dana Darurat, Liburan, Umroh') : aset ? T('mis. Emas 10 gram, Reksadana, Motor') : T('mis. BCA, GoPay, Celengan')}" value="${esc(w ? w.nama : '')}">
+      <input class="field" id="d-nama" maxlength="40" placeholder="${tab ? T('mis. Dana Darurat, Liburan, Umroh') : aset ? T('mis. Emas Pegadaian, Reksadana, Motor') : T('mis. BCA, GoPay, Celengan')}" value="${esc(w ? w.nama : '')}">
     </div>
-    <div class="grup-form">
+    ${aset ? htmlFormEmas() : ''}
+    <div class="grup-form" id="d-grup-saldo" ${aset && F.modeEmas ? 'hidden' : ''}>
       <label class="label" for="d-saldo">${tab ? T('Terkumpul sekarang') : aset ? T('Nilai sekarang') : T('Saldo sekarang')}</label>
       <input class="field" id="d-saldo" inputmode="numeric" placeholder="0" value="${saldoTampil}">
       <p class="info-kecil" style="text-align:left">${ket}</p>
@@ -4472,6 +4477,7 @@ function bukaFormDompet(w, jenis) {
       ${w ? `<button type="button" class="btn btn-hapus" data-aksi="hapus-dompet">${T('Hapus')}</button>` : ''}
       <button type="button" class="btn btn-utama" data-aksi="simpan-dompet">${T('Simpan')}</button>
     </div>`);
+  if (aset && F.modeEmas) gambarHargaFormEmas(true); // ambil harga hari ini platform terpilih
 }
 
 /** Perkiraan kapan target tercapai dari rata-rata setoran 3 bulan terakhir. */
@@ -4999,18 +5005,53 @@ const AKSI = {
   'tambah-dompet': () => bukaFormDompet(null, JENIS.DOMPET),
   'tambah-tabungan': () => bukaFormDompet(null, JENIS.TABUNGAN),
   'tambah-aset': () => bukaFormDompet(null, JENIS.ASET),
+  'lihat-emas': el => { const w = S.data.dompet.find(x => x.nama === el.dataset.nama); if (w) bukaDetailEmas(w); },
+  'ubah-emas': el => bukaFormDompet(S.data.dompet.find(x => x.nama === el.dataset.nama)),
+  'perbarui-harga-emas': async el => {
+    const w = S.data.dompet.find(x => x.nama === el.dataset.nama);
+    const e = w && infoEmas(w);
+    if (!e) return;
+    el.disabled = true;
+    const ok = await muatHargaEmas([e.platform], true);
+    if (!ok) toast(T('Harga {platform} belum bisa diambil. Coba lagi nanti.', { platform: namaPlatformEmas(e.platform) }), true);
+    bukaDetailEmas(w);
+    if (S.tab === 'dompet') render();
+  },
+  'jenis-aset': el => {
+    F.modeEmas = el.dataset.v === 'emas';
+    document.querySelectorAll('[data-aksi="jenis-aset"]').forEach(b => b.classList.toggle('aktif', b === el));
+    $('#d-emas').hidden = !F.modeEmas;
+    $('#d-grup-saldo').hidden = F.modeEmas;
+    if (F.modeEmas && F.ikon === '💎') F.ikon = '🪙';
+    if (!F.modeEmas && F.ikon === '🪙') F.ikon = '💎';
+    if (F.modeEmas) gambarHargaFormEmas(true);
+  },
+  'emas-platform': el => {
+    Object.assign(F.emas, bacaFormEmas(), { platform: el.dataset.v });
+    document.querySelectorAll('[data-aksi="emas-platform"]').forEach(b => b.classList.toggle('aktif', b === el));
+    gambarHargaFormEmas(true);
+  },
   'edit-dompet': el => bukaFormDompet(S.data.dompet.find(w => w.nama === el.dataset.nama)),
   'buka-tabungan': el => bukaTabungan(S.data.dompet.find(w => w.nama === el.dataset.nama)),
   'simpan-dompet': el => {
     const tab = F.jenis === JENIS.TABUNGAN;
+    const emasDipakai = F.jenis === JENIS.ASET && F.modeEmas;
+    let emas = null;
+    if (emasDipakai) {
+      emas = bacaFormEmas();
+      if (!(emas.gram > 0)) return toast(T('Isi berat emasnya dalam gram (lebih dari 0).'), true);
+      if (!$('#d-nama').value.trim()) $('#d-nama').value = T('Emas {platform}', { platform: namaPlatformEmas(emas.platform) });
+    }
     const nama = $('#d-nama').value.trim();
     if (!nama) return toast(tab ? T('Isi nama tabungan dulu.') : T('Isi nama dompet dulu.'), true);
     // Yang diisi adalah saldo sekarang; saldo awal dihitung mundur dari mutasi transaksi,
     // jadi riwayat transaksi tidak berubah. Field yang tidak disentuh → saldo awal tetap.
+    // Emas: nilai sekarang = berat × harga jual (buyback) hari ini.
+    const nilaiEmasBaru = emas ? nilaiDariEmas(emas) : null;
     const isian = $('#d-saldo') ? $('#d-saldo').value : F.saldoTampil; // form orang utang tidak punya isian saldo
-    const saldoAwal = isian === F.saldoTampil ? F.saldoAwal : angka(isian) - F.mutasi;
+    const saldoAwal = nilaiEmasBaru !== null ? nilaiEmasBaru - F.mutasi : isian === F.saldoTampil ? F.saldoAwal : angka(isian) - F.mutasi;
     kirim(el, 'simpanDompet', [{
-      namaLama: F.namaLama, nama, ikon: F.ikon, jenis: F.jenis,
+      namaLama: F.namaLama, nama, ikon: F.ikon, jenis: F.jenis, emas: F.jenis === JENIS.ASET ? emas : undefined,
       saldoAwal,
       target: tab ? angka($('#d-target').value) : 0,
       tenggat: $('#d-tenggat') ? $('#d-tenggat').value : '',
@@ -8556,6 +8597,220 @@ document.addEventListener('change', async e => {
     toast(pesanError(err), true);
   }
 });
+
+// ---------- Emas: berat (gram) + platform, nilainya dari harga hari ini ----------
+// Harga per gram diambil dari logam-mulia-api (github.com/iamutaki/logam-mulia-api, publik & gratis), disimpan di HP
+// sekali sehari. Kalau gagal dipakai harga terakhir; platform "Lainnya" (atau yang belum tersedia) memakai harga yang diisi sendiri.
+// Istilah dari sisi pengguna: harga BELI = harga saat kita membeli (sellPrice penjual), harga JUAL = buyback (buybackPrice).
+
+const API_HARGA_EMAS = 'https://logam-mulia-api.iamutaki.workers.dev/api/prices/';
+/** [id, nama tampil, sumber di API] */
+const PLATFORM_EMAS = [
+  ['pegadaian', 'Pegadaian', 'pegadaian'], ['bsi', 'BSI', 'bankbsi'], ['antam', 'Antam', 'anekalogam'], ['galeri24', 'Galeri 24', 'galeri24'],
+  ['sampoerna', 'Sampoerna Gold', 'sampoernagold'], ['treasury', 'Treasury', 'treasury'], ['pluang', 'Pluang', 'pluang'], ['lainnya', T('Lainnya||platform'), ''],
+];
+const platformEmas = id => PLATFORM_EMAS.find(p => p[0] === id) || PLATFORM_EMAS[PLATFORM_EMAS.length - 1];
+const namaPlatformEmas = id => platformEmas(id)[1];
+const infoEmas = w => ((S.data && S.data.emas) || {})[w.nama] || null;
+const formatGram = g => T('{gram} gram', { gram: (Number(g) || 0).toLocaleString(LOKAL, { maximumFractionDigits: 4 }) });
+const angkaGram = s => { const n = parseFloat(String(s || '').trim().replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+
+const KUNCI_HARGA_EMAS = 'dk_harga_emas_platform';
+function cacheHargaEmas() {
+  try { return JSON.parse(bacaHp(KUNCI_HARGA_EMAS)) || {}; } catch (e) { return {}; }
+}
+/** Harga per gram untuk satu detail emas: { beli, jual, waktu?, manual? } atau null. */
+function hargaEmasUntuk(e) {
+  const c = platformEmas(e.platform)[2] ? cacheHargaEmas()[e.platform] : null;
+  if (c && c.beli) return c;
+  if (e.hargaBeli || e.hargaJual) return { beli: e.hargaBeli || 0, jual: e.hargaJual || 0, manual: true };
+  return null;
+}
+/** Nilai sekarang = berat × harga jual (buyback); kalau buyback tidak ada, pakai harga beli. null = harga belum ada. */
+function nilaiDariEmas(e) {
+  const h = hargaEmasUntuk(e);
+  const perGram = h ? (h.jual || h.beli) : 0;
+  return perGram ? Math.round(e.gram * perGram) : null;
+}
+function nilaiAset(w) {
+  const e = infoEmas(w);
+  const n = e ? nilaiDariEmas(e) : null;
+  return n === null ? w.saldo : n;
+}
+/** Harga emas per gram untuk zakat: harga beli dari cache (Antam/Pegadaian dulu). */
+function hargaEmasAcuan() {
+  const c = cacheHargaEmas();
+  const x = ['antam', 'pegadaian', 'bsi', 'galeri24'].map(k => c[k]).find(h => h && h.beli);
+  return x ? x.beli : 0;
+}
+
+let hargaEmasJalan = null;
+const hargaEmasDicoba = new Set(); // platform yang sudah dicoba hari ini (gagal pun), supaya tidak mengulang terus
+/** Ambil harga hari ini untuk platform-platform ini. paksa = abaikan cache. Hasil: true kalau semuanya berhasil. */
+async function muatHargaEmas(ids, paksa) {
+  if (hargaEmasJalan) await hargaEmasJalan.catch(() => {});
+  const cache = cacheHargaEmas();
+  const perlu = Array.from(new Set(ids)).filter(id => platformEmas(id)[2]
+    && (paksa || ((!cache[id] || cache[id].tgl !== hariIni()) && !hargaEmasDicoba.has(id + hariIni()))));
+  if (!perlu.length || !navigator.onLine) return !perlu.length;
+  hargaEmasJalan = Promise.all(perlu.map(async id => {
+    hargaEmasDicoba.add(id + hariIni());
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const r = await fetch(API_HARGA_EMAS + platformEmas(id)[2], { signal: ctrl.signal });
+      const j = await r.json();
+      const baris = (j && j.success && Array.isArray(j.data) ? j.data : [])
+        .filter(x => x.material === 'gold' && Number(x.sellPrice) > 0 && Number(x.weight) > 0);
+      const x = baris.find(b => Number(b.weight) === 1) || baris.sort((a, b) => a.weight - b.weight)[0];
+      if (!x) return false;
+      const beli = Math.round(x.sellPrice / x.weight), jual = Math.round((Number(x.buybackPrice) || 0) / x.weight);
+      if (beli < 300000 || beli > 50000000) return false; // angka tidak masuk akal: abaikan
+      const c = cacheHargaEmas();
+      c[id] = { beli, jual, tgl: x.recordedDate || hariIni(), waktu: Date.now() };
+      tulisHp(KUNCI_HARGA_EMAS, JSON.stringify(c));
+      return true;
+    } catch (e) {
+      return false;
+    } finally {
+      clearTimeout(t);
+    }
+  }));
+  try { return (await hargaEmasJalan).every(Boolean); } finally { hargaEmasJalan = null; }
+}
+/** Dipanggil saat daftar aset digambar: ambil harga yang belum diperbarui hari ini, lalu gambar ulang. */
+function perbaruiHargaEmasNanti() {
+  const ids = daftarAset().map(infoEmas).filter(Boolean).map(e => e.platform);
+  if (ids.length) {
+    setTimeout(async () => {
+      const sebelum = JSON.stringify(cacheHargaEmas());
+      await muatHargaEmas(ids);
+      if (JSON.stringify(cacheHargaEmas()) !== sebelum && S.tab === 'dompet' && $('#sheet').hidden) render();
+    }, 50);
+  }
+  return '';
+}
+
+function keteranganHargaEmas(h, platform) {
+  if (!h) return T('Harga {platform} belum tersedia.', { platform: namaPlatformEmas(platform) });
+  if (h.manual) return T('Harga diisi sendiri');
+  const kapan = h.tgl === hariIni() ? T('hari ini') : tanggalPendek(h.tgl);
+  return T('Harga {platform} {kapan}', { platform: namaPlatformEmas(platform), kapan });
+}
+
+function htmlFormEmas() {
+  const e = F.emas;
+  return `<div class="grup-form">
+      <span class="label">${T('Jenis aset')}</span>
+      <div class="chips"><button type="button" class="chip ${F.modeEmas ? 'aktif' : ''}" data-aksi="jenis-aset" data-v="emas">${T('🪙 Emas')}</button>
+        <button type="button" class="chip ${F.modeEmas ? '' : 'aktif'}" data-aksi="jenis-aset" data-v="lain">${T('💎 Aset lain')}</button></div>
+    </div>
+    <div id="d-emas" ${F.modeEmas ? '' : 'hidden'}>
+      <div class="grup-form">
+        <span class="label">${T('Platform')}</span>
+        <div class="chips" style="flex-wrap:wrap">${PLATFORM_EMAS.map(([id, nama]) => `<button type="button" class="chip ${e.platform === id ? 'aktif' : ''}" data-aksi="emas-platform" data-v="${id}">${esc(nama)}</button>`).join('')}</div>
+      </div>
+      <div class="grup-form">
+        <label class="label" for="d-gram">${T('Berat (gram)')}</label>
+        <input class="field" id="d-gram" inputmode="decimal" autocomplete="off" placeholder="${T('mis. 5,25')}" value="${e.gram ? String(e.gram).replace('.', ',') : ''}">
+      </div>
+      <div id="d-harga-emas">${htmlHargaFormEmas()}</div>
+      <div class="grup-form">
+        <label class="label" for="d-modal">${T('Total modal (opsional)')}</label>
+        <input class="field input-rp" id="d-modal" inputmode="numeric" placeholder="0" value="${formatAngka(e.modal)}">
+        <p class="info-kecil" style="text-align:left">${T('Total uang yang sudah dipakai untuk membeli emas ini, supaya untung/ruginya terlihat.')}</p>
+      </div>
+    </div>`;
+}
+/** Bagian harga di form: harga hari ini dari platform, atau isian harga sendiri kalau belum tersedia / platform Lainnya. */
+function htmlHargaFormEmas(memuat) {
+  const e = Object.assign({}, F.emas, { hargaBeli: 0, hargaJual: 0 });
+  const h = platformEmas(e.platform)[2] ? hargaEmasUntuk(e) : null;
+  if (memuat && !h) return `<p class="info-kecil" style="text-align:left">${T('Mengambil harga {platform}…', { platform: namaPlatformEmas(e.platform) })}</p>`;
+  if (h) {
+    return `<div class="kotak-harga-emas">
+      <div class="baris-rincian"><span>${T('Harga beli /gram')}</span><b>${rp(h.beli)}</b></div>
+      <div class="baris-rincian"><span>${T('Harga jual (buyback) /gram')}</span><b>${h.jual ? rp(h.jual) : '—'}</b></div>
+      <div class="baris-rincian"><span>${T('Nilai sekarang')}</span><b id="d-nilai-emas">${htmlNilaiFormEmas()}</b></div>
+      <small>${esc(keteranganHargaEmas(h, e.platform))}</small></div>`;
+  }
+  const lain = e.platform === 'lainnya';
+  return `<p class="info-kecil" style="text-align:left">${lain ? T('Isi harga per gram dari platform Anda.') : T('Harga {platform} belum bisa diambil. Isi sendiri dulu; nanti diperbarui otomatis kalau sudah tersedia.', { platform: namaPlatformEmas(e.platform) })}</p>
+    <div class="dua-kolom">
+      <div class="grup-form"><label class="label" for="d-hbeli">${T('Harga beli /gram')}</label><input class="field input-rp" id="d-hbeli" inputmode="numeric" placeholder="0" value="${formatAngka(F.emas.hargaBeli)}"></div>
+      <div class="grup-form"><label class="label" for="d-hjual">${T('Harga jual /gram')}</label><input class="field input-rp" id="d-hjual" inputmode="numeric" placeholder="0" value="${formatAngka(F.emas.hargaJual)}"></div>
+    </div>
+    <p class="info-kecil" style="text-align:left">${T('Nilai sekarang')}: <b id="d-nilai-emas">${htmlNilaiFormEmas()}</b></p>`;
+}
+function bacaFormEmas() {
+  const v = id => ($(id) ? $(id).value : '');
+  return {
+    platform: F.emas.platform,
+    gram: $('#d-gram') ? angkaGram(v('#d-gram')) : F.emas.gram || 0,
+    modal: $('#d-modal') ? angka(v('#d-modal')) : F.emas.modal || 0,
+    hargaBeli: $('#d-hbeli') ? angka(v('#d-hbeli')) : F.emas.hargaBeli || 0,
+    hargaJual: $('#d-hjual') ? angka(v('#d-hjual')) : F.emas.hargaJual || 0,
+  };
+}
+function htmlNilaiFormEmas() {
+  const e = $('#d-gram') ? bacaFormEmas() : F.emas;
+  const n = e.gram > 0 ? nilaiDariEmas(e) : null;
+  return n === null ? '—' : rp(n);
+}
+async function gambarHargaFormEmas(ambil) {
+  const el = $('#d-harga-emas');
+  if (!el || !F) return;
+  Object.assign(F.emas, bacaFormEmas());
+  el.innerHTML = htmlHargaFormEmas(ambil && navigator.onLine);
+  if (!ambil) return;
+  const platform = F.emas.platform;
+  await muatHargaEmas([platform]);
+  if (F && F.emas && F.emas.platform === platform && $('#d-harga-emas')) {
+    Object.assign(F.emas, bacaFormEmas());
+    $('#d-harga-emas').innerHTML = htmlHargaFormEmas(false);
+  }
+}
+document.addEventListener('input', e => {
+  if (!F || !F.modeEmas || !['d-gram', 'd-hbeli', 'd-hjual'].includes(e.target.id)) return;
+  if ($('#d-nilai-emas')) $('#d-nilai-emas').innerHTML = htmlNilaiFormEmas();
+});
+
+/** Lembar detail emas: berat, harga beli & jual hari ini, nilai, dan untung/rugi terhadap modal. */
+function bukaDetailEmas(w) {
+  const e = infoEmas(w);
+  if (!e) return bukaFormDompet(w);
+  const h = hargaEmasUntuk(e);
+  const nilaiJual = h && (h.jual || h.beli) ? Math.round(e.gram * (h.jual || h.beli)) : null;
+  const nilaiBeli = h && h.beli ? Math.round(e.gram * h.beli) : null;
+  const selisih = h && h.beli && h.jual ? Math.round((h.beli - h.jual) / h.beli * 1000) / 10 : null;
+  const untung = e.modal && nilaiJual !== null ? nilaiJual - e.modal : null;
+  const b = (label, nilai, kelas) => `<div class="baris-rincian"><span>${label}</span><b class="${kelas || ''}">${nilai}</b></div>`;
+  bukaSheet(esc(w.nama), `
+    <div class="ringkas-tabungan">
+      <span class="ikon-bulat">${ilus(w.ikon)}</span>
+      <div><small>${T('Nilai jual sekarang')}</small><b>${nilaiJual !== null ? rp(nilaiJual) : rp(w.saldo)}</b></div>
+    </div>
+    ${b(T('Berat'), esc(formatGram(e.gram)))}
+    ${b(T('Platform'), esc(namaPlatformEmas(e.platform)))}
+    <h4 class="sub-laporan">${esc(keteranganHargaEmas(h, e.platform))}</h4>
+    ${h ? `
+      ${b(T('Harga beli /gram'), rp(h.beli))}
+      ${b(T('Harga jual (buyback) /gram'), h.jual ? rp(h.jual) : '—')}
+      ${selisih !== null ? b(T('Selisih beli–jual'), selisih.toLocaleString(LOKAL) + '%') : ''}
+      ${b(T('Kalau dijual sekarang'), nilaiJual !== null ? rp(nilaiJual) : '—')}
+      ${b(T('Kalau dibeli sekarang'), nilaiBeli !== null ? rp(nilaiBeli) : '—')}` : `<p class="info-kecil" style="text-align:left">${T('Ketuk Perbarui harga, atau isi harga sendiri lewat Ubah.')}</p>`}
+    ${e.modal ? `<h4 class="sub-laporan">${T('Untung / rugi')}</h4>
+      ${b(T('Total modal'), rp(e.modal))}
+      ${untung !== null ? b(untung >= 0 ? T('Untung') : T('Rugi'), (untung >= 0 ? '+' : '−') + rp(Math.abs(untung)) + ' (' + (Math.round(untung / e.modal * 1000) / 10).toLocaleString(LOKAL) + '%)', untung >= 0 ? 'masuk' : 'keluar') : ''}` : ''}
+    <p class="info-kecil" style="text-align:left">${T('Harga beli = harga saat Anda membeli; harga jual = harga buyback saat Anda menjual. Sumber: data publik harga emas, bisa berbeda sedikit dengan aplikasi platform.')}</p>
+    <div class="aksi-form">
+      ${platformEmas(e.platform)[2] ? `<button type="button" class="btn btn-kedua" data-aksi="perbarui-harga-emas" data-nama="${esc(w.nama)}">${T('🔄 Perbarui harga')}</button>` : ''}
+      <button type="button" class="btn btn-utama" data-aksi="ubah-emas" data-nama="${esc(w.nama)}">${T('Ubah')}</button>
+    </div>`);
+  if (platformEmas(e.platform)[2] && (!h || h.tgl !== hariIni())) {
+    muatHargaEmas([e.platform]).then(ok => { if (ok && !$('#sheet').hidden && $('#sheet').textContent.includes(w.nama)) bukaDetailEmas(w); });
+  }
+}
 
 if (ukuranDipilih()) document.documentElement.dataset.ukuran = ukuranDipilih();
 // Dimulai setelah semua skrip (termasuk muda.js yang menambah fitur ke AKSI, PINTASAN, render) selesai dimuat.

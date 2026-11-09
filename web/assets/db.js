@@ -564,6 +564,7 @@ const SERVER = (() => {
       jejak: jejak_(d.transaksi, d.dompet),
       tantangan: bacaJson_(pengaturan_(set).TANTANGAN, {}),
       avatar: avatar_(set),
+      emas: bacaJson_(pengaturan_(set).EMAS, {}),
       bulanan,
       transaksi: d.transaksi
         .filter(t => periodeDari_(t.tanggal, mulai) === bulan)
@@ -1456,7 +1457,31 @@ const SERVER = (() => {
       if (bentrok >= 0) throw new Error(T('Dompet "{nama}" sudah ada.', { nama }));
       await tambahBaris_(id, TABEL.dompet, [baris]);
     }
+    if (jenis === JENIS.ASET) await simpanInfoEmas_(id, nama, namaLama, input.emas);
     return true;
+  }
+
+  /**
+   * Detail aset emas (sheet Pengaturan, kunci EMAS, JSON { namaAset: { gram, platform, modal?, hargaBeli?, hargaJual? } }).
+   * emas kosong = aset biasa (detailnya dihapus). Nama lama ikut dipindah saat aset diganti nama.
+   */
+  async function simpanInfoEmas_(id, nama, namaLama, emas) {
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    const peta = bacaJson_(pengaturan_(set).EMAS, {});
+    const sebelum = JSON.stringify(peta);
+    if (namaLama && namaLama !== nama) delete peta[namaLama];
+    const gram = Math.round(Number(emas && emas.gram) * 10000) / 10000;
+    if (emas && gram > 0 && gram <= 100000) {
+      const rupiah = v => Math.max(0, Math.round(Number(v) || 0)) || undefined;
+      peta[nama] = { gram, platform: /^[a-z0-9]{1,20}$/.test(String(emas.platform)) ? String(emas.platform) : 'lainnya',
+        modal: rupiah(emas.modal), hargaBeli: rupiah(emas.hargaBeli), hargaJual: rupiah(emas.hargaJual) };
+    } else if (emas) {
+      throw new Error(T('Isi berat emasnya dalam gram (lebih dari 0).'));
+    } else {
+      delete peta[nama];
+    }
+    const sesudah = JSON.stringify(peta);
+    if (sesudah !== sebelum) await simpanPengaturan_(id, set, 'EMAS', sesudah);
   }
 
   async function hapusDompet(nama) {
@@ -1467,6 +1492,9 @@ const SERVER = (() => {
     const rutin = rut.filter(r => String(r[5]) === nama || String(r[6]) === nama).length;
     if (rutin) throw new Error(T('Dompet ini dipakai di {n} tagihan rutin. Ubah atau hapus dulu tagihan rutinnya.', { n: rutin }));
     await hapusBaris_(id, TABEL.dompet, cariBaris_(dom, r => String(r[0]) === nama));
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    const emas = bacaJson_(pengaturan_(set).EMAS, {});
+    if (emas[nama]) { delete emas[nama]; await simpanPengaturan_(id, set, 'EMAS', JSON.stringify(emas)); }
     return true;
   }
 

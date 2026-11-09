@@ -1871,3 +1871,9 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
 }
 @keyframes dialog-masuk { from { opacity: 0; transform: translate(-50%, -47%) scale(.98); } }
 @keyframes dialog-keluar { to { opacity: 0; transform: translate(-50%, -48%) scale(.98); } }
+
+/* Detail harga emas di form aset */
+.kotak-harga-emas { background: var(--card-2); border-radius: 14px; padding: 6px 14px 10px; margin-bottom: 14px; }
+.kotak-harga-emas .baris-rincian:last-of-type { border-bottom: 0; }
+.kotak-harga-emas small { display: block; color: var(--muted); font-size: 12px; }
+.baris-rincian b.masuk { color: var(--masuk); } .baris-rincian b.keluar { color: var(--keluar); }
