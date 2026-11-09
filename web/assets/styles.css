@@ -1734,3 +1734,98 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
 .avatar-bungkus .chip-streak { position: absolute; right: -12px; bottom: -8px; min-height: 22px; padding: 1px 7px 1px 5px; gap: 1px;
   font-size: 11.5px; border: 2px solid var(--bg); background: color-mix(in srgb, #f97316 18%, var(--card)); }
 .avatar-bungkus .chip-streak::after { content: ""; position: absolute; inset: -10px; }
+
+/* ---------- Tampilan web (layar ≥ 960px: laptop & komputer) ----------
+   Di HP aplikasi selebar 520px dengan navigasi mengambang di bawah. Di layar lebar:
+   - navigasi jadi sidebar kiri (logo, tombol Catat transaksi, menu, Pengaturan di bawah);
+   - isi halaman memakai lebar layar: Beranda, Dompet, Laporan & Pengaturan dua kolom (CSS columns,
+     urutan kartu tetap sama dengan di HP); Riwayat, Catatan & Sholat satu kolom yang lebih lebar;
+   - lembar bawah jadi jendela dialog di tengah layar; ada efek hover untuk mouse.
+   Halaman aktif ditandai body[data-tab] (render di app.js). Selektor `body:has(> #nav:not([hidden]))` =
+   aplikasi sedang terbuka (bukan layar masuk / setup), supaya halaman itu tetap di tengah tanpa sidebar. */
+.bottomnav .hanya-lebar, .hanya-lebar { display: none; }
+.grup-bagian { display: contents; } /* pembungkus judul bagian + kartunya (kelompokkanBagian di app.js) */
+
+@media (min-width: 960px) {
+  :root { --sisi: 248px; }
+  body { max-width: none; }
+  body:has(> #nav:not([hidden])) { padding-left: var(--sisi); }
+
+  /* Sidebar */
+  .bottomnav {
+    left: 0; top: 0; bottom: 0; transform: none; width: var(--sisi); max-width: none; height: auto;
+    display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 20px 14px 18px;
+    border-radius: 0; border: 0; border-right: 1px solid var(--line); box-shadow: none;
+    background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; overflow-y: auto;
+  }
+  .bottomnav .hanya-lebar { display: flex; }
+  .bottomnav .fab .hanya-lebar { display: inline; }
+  .nav-merek { order: 0; align-items: center; gap: 10px; padding: 0 8px 18px; }
+  .nav-merek img { width: 34px; height: 34px; border-radius: 10px; }
+  .nav-merek b { font-size: 15.5px; font-weight: 800; }
+  .bottomnav button {
+    order: 2; flex-direction: row; justify-content: flex-start; gap: 12px; height: 44px; padding: 0 12px;
+    border-radius: 12px; font-size: 14.5px; transition: background .15s, color .15s;
+  }
+  .bottomnav button:not(.fab) svg.ik { padding: 0; background: none; }
+  .bottomnav button.aktif { background: var(--primary-soft); }
+  .bottomnav button.aktif svg.ik { background: none; }
+  .bottomnav .fab {
+    order: 1; justify-self: auto; justify-content: center; width: 100%; height: 48px; margin: 0 0 16px; border-radius: 14px;
+    font-size: 15px; font-weight: 800; color: var(--on-primary); gap: 8px;
+  }
+  .bottomnav .fab svg.ik { width: 20px; height: 20px; }
+  .bottomnav .nav-bawah { margin-top: auto; }
+
+  /* Isi halaman */
+  #view { max-width: 1180px; margin: 0 auto; padding: 28px 40px 64px; }
+  body[data-tab="riwayat"] #view, body[data-tab="catatan-edit"] #view { max-width: 880px; }
+  body[data-tab="catatan"] #view { max-width: 1000px; }
+  body[data-tab="sholat"] #view { max-width: 640px; }
+  body:not(:has(> #nav:not([hidden]))) #view { max-width: 560px; } /* layar masuk & setup: tetap ringkas di tengah */
+  body.tanpa-nav #view { padding-bottom: 64px; }
+
+  /* Dua kolom: kartu mengalir atas-ke-bawah di kolom kiri lalu kanan, judul bagian tidak dipisah dari kartunya. */
+  body:has(> #nav:not([hidden])):is([data-tab="beranda"], [data-tab="dompet"], [data-tab="laporan"], [data-tab="lainnya"]) #view {
+    columns: 2; column-gap: 28px;
+  }
+  #view > * { break-inside: avoid; }
+  .grup-bagian { display: block; break-inside: avoid; padding-bottom: 14px; }
+  .grup-bagian > .judul-bagian { margin-top: 0; }
+  #view > :is(.status-bar, .bilah-segar, .kepala, .insight, .pemilih-periode-lap, .aksi-laporan, .catatan-versi) { column-span: all; }
+  body[data-tab="laporan"] #view > .kpi { column-span: all; }
+  body[data-tab="dompet"] #view > .kartu-saldo { column-span: all; }
+  #view > .judul-bagian:first-of-type, #view > .kepala + * { margin-top: 0; }
+  body[data-tab="laporan"] #view > .kpi { grid-template-columns: repeat(5, 1fr); }
+  body[data-tab="laporan"] #view > .kpi > :last-child:nth-child(odd) { grid-column: auto; }
+  .kepala h1 { font-size: 26px; }
+  /* Pengaturan, Catatan & Sholat sudah ada di sidebar: tombol ← kembali ke Beranda tidak perlu. */
+  body:is([data-tab="lainnya"], [data-tab="catatan"], [data-tab="sholat"]) #view .kepala-kembali > .tombol-ikon:first-child { display: none; }
+
+  /* Elemen melayang ikut berada di tengah area isi (bukan di tengah seluruh layar). */
+  body:has(> #nav:not([hidden])) :is(.toast, .antrian, .bar-pilih, .bilah-catatan) { left: calc(50% + var(--sisi) / 2); }
+  .antrian, .bar-pilih { bottom: 24px; }
+  body.mode-pilih #view, body.ada-antrian #view { padding-bottom: 180px; }
+  .bilah-catatan { max-width: 880px; border-radius: 20px 20px 0 0; }
+
+  /* Lembar bawah → jendela dialog */
+  .sheet-panel {
+    top: 50%; bottom: auto; transform: translate(-50%, -50%); max-width: 580px; max-height: 88vh; max-height: 88dvh;
+    border-radius: 24px; padding: 14px 24px 22px; box-shadow: 0 30px 80px rgba(8, 10, 18, .35);
+    animation: dialog-masuk .2s cubic-bezier(.2, .8, .2, 1);
+  }
+  .sheet-hantu .sheet-panel { animation: dialog-keluar .16s ease-in forwards; }
+  .grabber { display: none; }
+  .sheet-panel .aksi-form:last-child { bottom: -22px; margin: 8px -24px -22px; padding: 12px 24px 16px; border-radius: 0 0 24px 24px; }
+
+  /* Mouse */
+  .bottomnav button:not(.fab):not(.aktif):hover { background: var(--card-2); color: var(--text); }
+  .bottomnav .fab:hover { filter: brightness(1.06); }
+  :is(.trx, .baris):hover { background: color-mix(in srgb, var(--primary) 5%, transparent); }
+  :is(.trx, .baris) { border-radius: 10px; transition: background .12s; }
+  :is(.kartu-dompet, .bento > button, .insight, .tombol-tambah):hover { filter: brightness(1.03); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text) 18%, transparent); border-radius: 99px; border: 2px solid var(--bg); }
+}
+@keyframes dialog-masuk { from { opacity: 0; transform: translate(-50%, -47%) scale(.98); } }
+@keyframes dialog-keluar { to { opacity: 0; transform: translate(-50%, -48%) scale(.98); } }

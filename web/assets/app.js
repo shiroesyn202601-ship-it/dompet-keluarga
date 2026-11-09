@@ -507,6 +507,8 @@ function render() {
   const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, laporan: viewLaporan, lainnya: viewLainnya, catatan: viewCatatan, sholat: viewSholat, 'catatan-edit': viewFormCatatan }[S.tab] || viewBeranda;
   if (S.tab === 'catatan-edit') simpanDraftCatatan();
   $('#view').innerHTML = bannerStatus() + view();
+  document.body.dataset.tab = S.tab; // tata letak per halaman di layar lebar (styles.css → Tampilan web)
+  kelompokkanBagian();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
   simpanPosisi();
   setTimeout(cekPengingat, 500); // overlay pengingat catatan yang jatuh tempo hari ini
@@ -525,6 +527,25 @@ function render() {
   }
   if (S.tab !== 'sholat' && statusKompas !== 'mati') matikanKompas(); // hemat baterai
   if (luncurTertunda) setTimeout(jalankanLuncur); // pintasan ikon / berbagi: tunggu data pertama tampil
+}
+
+/**
+ * Judul bagian + kartu-kartu sesudahnya dibungkus satu .grup-bagian, supaya di layar lebar (dua kolom)
+ * satu bagian tidak terbelah ke kolom lain. Di HP pembungkusnya `display: contents` (tidak berpengaruh).
+ */
+const AKHIR_GRUP = '.judul-bagian, .pemilih-periode-lap, .aksi-laporan, .catatan-versi';
+function kelompokkanBagian() {
+  let grup = null;
+  [...$('#view').children].forEach(el => {
+    if (el.matches('.judul-bagian')) {
+      grup = document.createElement('div');
+      grup.className = 'grup-bagian';
+      el.before(grup);
+    } else if (el.matches(AKHIR_GRUP)) {
+      grup = null;
+    }
+    if (grup) grup.appendChild(el);
+  });
 }
 
 // Halaman & bulan yang sedang dilihat diingat, supaya refresh / update otomatis / membuka lagi dari ikon
