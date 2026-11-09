@@ -130,6 +130,8 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 /* Ukuran emoji mengikuti lebar lingkarannya sendiri, jadi pas di HP maupun laptop. */
 .grid-avatar button span { font-size: 28px; font-size: 56cqi; line-height: 1; }
 .grid-avatar button:active { transform: scale(.92); }
+.label-avatar { margin-top: 16px; }
+.grid-avatar + .label-avatar { margin-top: 18px; }
 .grid-avatar button.aktif { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--primary); }
 .judul-bagian { font-size: 17px; font-weight: 800; margin: 24px 2px 10px; display: flex; justify-content: space-between; align-items: center; }
 .judul-bagian button { font-size: 13px; font-weight: 700; color: var(--primary); }

@@ -8435,16 +8435,29 @@ document.addEventListener('contextmenu', e => {
 // Disimpan di sheet Pengaturan buku ini (kunci "AVATAR:<email>"), jadi ikut ke HP lain & terlihat oleh anggota keluarga.
 // Tanpa avatar: huruf pertama nama seperti sebelumnya.
 
-/** [id, emoji, warna latar] */
-const AVATAR_BAWAAN = [
-  ['kucing', '🐱', '#f59e0b'], ['anjing', '🐶', '#b45309'], ['rubah', '🦊', '#ea580c'], ['panda', '🐼', '#475569'], ['koala', '🐨', '#64748b'], ['singa', '🦁', '#d97706'],
-  ['harimau', '🐯', '#f97316'], ['katak', '🐸', '#16a34a'], ['monyet', '🐵', '#a16207'], ['kelinci', '🐰', '#ec4899'], ['beruang', '🐻', '#92400e'], ['babi', '🐷', '#f472b6'],
-  ['penguin', '🐧', '#0ea5e9'], ['burunghantu', '🦉', '#7c3aed'], ['gurita', '🐙', '#db2777'], ['unicorn', '🦄', '#a855f7'], ['anakayam', '🐥', '#eab308'], ['paus', '🐳', '#2563eb'],
-  ['wanita', '👩', '#e11d48'], ['pria', '👨', '#0284c7'], ['hijab', '🧕', '#059669'], ['nenek', '👵', '#9333ea'], ['kakek', '👴', '#4f46e5'], ['anak', '🧒', '#f59e0b'],
-  ['bayi', '👶', '#f472b6'], ['ninja', '🥷', '#334155'], ['astronot', '🧑‍🚀', '#1d4ed8'], ['koki', '🧑‍🍳', '#dc2626'], ['robot', '🤖', '#0891b2'], ['alien', '👽', '#65a30d'],
-  ['bunga', '🌸', '#f472b6'], ['matahari', '🌻', '#ca8a04'], ['pelangi', '🌈', '#8b5cf6'], ['bintang', '⭐', '#f59e0b'], ['api', '🔥', '#ef4444'], ['berlian', '💎', '#06b6d4'],
-  ['daun', '🍀', '#22c55e'], ['semangka', '🍉', '#e11d48'], ['kopi', '☕', '#78350f'], ['game', '🎮', '#6366f1'], ['bola', '⚽', '#16a34a'], ['musik', '🎵', '#c026d3'],
+/** Gambar bawaan per kelompok: [id (huruf a–z saja), emoji, warna latar]. */
+const KELOMPOK_AVATAR = [
+  [T('Orang'), [
+    ['wanita', '👩', '#e11d48'], ['pria', '👨', '#0284c7'], ['hijab', '🧕', '#059669'], ['sorban', '👳‍♂️', '#0f766e'],
+    ['jenggot', '🧔', '#92400e'], ['keritingwanita', '👩‍🦱', '#c026d3'], ['keritingpria', '👨‍🦱', '#4338ca'], ['pirang', '👱‍♀️', '#d97706'],
+    ['nenek', '👵', '#9333ea'], ['kakek', '👴', '#4f46e5'], ['anak', '🧒', '#f59e0b'], ['anakperempuan', '👧', '#ec4899'],
+    ['bayi', '👶', '#f472b6'], ['pelajar', '🧑‍🎓', '#1d4ed8'], ['guru', '🧑‍🏫', '#16a34a'], ['dokter', '🧑‍⚕️', '#0891b2'],
+    ['koki', '🧑‍🍳', '#dc2626'], ['petani', '🧑‍🌾', '#65a30d'], ['kantor', '🧑‍💼', '#334155'], ['teknisi', '🧑‍🔧', '#ea580c'],
+    ['programmer', '🧑‍💻', '#6366f1'], ['seniman', '🧑‍🎨', '#db2777'], ['polisi', '👮', '#1e40af'], ['pilot', '🧑‍✈️', '#0369a1'],
+  ]],
+  [T('Ekspresi'), [
+    ['senyum', '😊', '#f59e0b'], ['keren', '😎', '#0ea5e9'], ['kutubuku', '🤓', '#8b5cf6'],
+    ['malaikat', '😇', '#38bdf8'], ['sayang', '🥰', '#f43f5e'], ['peluk', '🤗', '#f97316'],
+  ]],
+  [T('Hewan'), [
+    ['kucing', '🐱', '#f59e0b'], ['anjing', '🐶', '#b45309'], ['rubah', '🦊', '#ea580c'], ['panda', '🐼', '#475569'],
+    ['koala', '🐨', '#64748b'], ['singa', '🦁', '#d97706'], ['harimau', '🐯', '#f97316'], ['kelinci', '🐰', '#ec4899'],
+    ['beruang', '🐻', '#92400e'], ['beruangkutub', '🐻‍❄️', '#0284c7'], ['penguin', '🐧', '#0ea5e9'], ['burunghantu', '🦉', '#7c3aed'],
+    ['monyet', '🐵', '#a16207'], ['katak', '🐸', '#16a34a'], ['anakayam', '🐥', '#eab308'], ['sapi', '🐮', '#57534e'],
+    ['hamster', '🐹', '#c2410c'], ['serigala', '🐺', '#475569'],
+  ]],
 ];
+const AVATAR_BAWAAN = KELOMPOK_AVATAR.flatMap(k => k[1]);
 const avatarDari = email => ((S.data && S.data.avatar) || {})[email] || null;
 
 /** Avatar seseorang (foto / gambar bawaan / huruf pertama). kelas: '' | 'besar' | 'mini'. */
@@ -8464,9 +8477,9 @@ function htmlPilihAvatar() {
       <label class="btn btn-kedua tombol-unggah-avatar">${T('📷 Unggah foto')}<input type="file" id="avatar-file" accept="image/*" hidden></label>
       ${a ? `<button type="button" class="btn btn-hapus" data-aksi="avatar-reset">${T('Pakai inisial')}</button>` : ''}
     </div>
-    <span class="label">${T('Atau pilih gambar')}</span>
-    <div class="grid-avatar">${AVATAR_BAWAAN.map(([id, e, w]) => `<button type="button" class="${a && a.p === id ? 'aktif' : ''}" data-aksi="avatar-pilih" data-id="${id}"
-      style="--av:${w}" aria-pressed="${!!(a && a.p === id)}" aria-label="${e}"><span aria-hidden="true">${e}</span></button>`).join('')}</div>`;
+    ${KELOMPOK_AVATAR.map(([judul, daftar]) => `<span class="label label-avatar">${judul}</span>
+    <div class="grid-avatar">${daftar.map(([id, e, w]) => `<button type="button" class="${a && a.p === id ? 'aktif' : ''}" data-aksi="avatar-pilih" data-id="${id}"
+      style="--av:${w}" aria-pressed="${!!(a && a.p === id)}" aria-label="${e}"><span aria-hidden="true">${e}</span></button>`).join('')}</div>`).join('')}`;
 }
 function bukaGantiAvatar() {
   bukaSheet(T('Ganti avatar'), `<div id="isi-avatar">${htmlPilihAvatar()}</div>`);
