@@ -563,6 +563,7 @@ const SERVER = (() => {
       setoranTabungan: setoranTabungan_(d.transaksi, d.dompet),
       jejak: jejak_(d.transaksi, d.dompet),
       tantangan: bacaJson_(pengaturan_(set).TANTANGAN, {}),
+      avatar: avatar_(set),
       bulanan,
       transaksi: d.transaksi
         .filter(t => periodeDari_(t.tanggal, mulai) === bulan)
@@ -1569,6 +1570,29 @@ const SERVER = (() => {
     return p;
   }
 
+  /** Avatar per anggota dari kunci "AVATAR:<email>": { email: { p } | { f } }. */
+  function avatar_(rows) {
+    const p = pengaturan_(rows), hasil = {};
+    Object.keys(p).forEach(k => {
+      if (!k.startsWith('AVATAR:')) return;
+      const v = bacaJson_(p[k], null);
+      if (v && (v.p || v.f)) hasil[k.slice(7)] = v;
+    });
+    return hasil;
+  }
+
+  /** nilai: { p: id gambar bawaan } | { f: data URL JPEG/PNG/WebP ≤ 45.000 karakter } | null (hapus). */
+  async function simpanAvatar(nilai) {
+    let isi = '';
+    if (nilai && typeof nilai.p === 'string' && /^[a-z]{1,20}$/.test(nilai.p)) isi = JSON.stringify({ p: nilai.p });
+    else if (nilai && typeof nilai.f === 'string' && nilai.f.length <= 45000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(nilai.f)) isi = JSON.stringify({ f: nilai.f });
+    else if (nilai) throw new Error(T('Gambar avatar tidak valid atau terlalu besar.'));
+    const id = await db_();
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    await simpanPengaturan_(id, set, 'AVATAR:' + GOOGLE.email(), isi);
+    return true;
+  }
+
   function kunciGemini_(rows) {
     try { return JSON.parse(pengaturan_(rows).GEMINI_API_KEYS || '[]'); } catch (e) { return []; }
   }
@@ -1957,7 +1981,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, simpanAvatar, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };

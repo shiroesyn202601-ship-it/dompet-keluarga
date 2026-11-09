@@ -789,7 +789,7 @@ function viewBeranda() {
   return `
     <div class="kepala">
       <div class="sapa">
-        <span class="avatar-bungkus"><span class="avatar" aria-hidden="true">${esc(nama.charAt(0))}</span>${typeof chipStreak === 'function' ? chipStreak() : ''}</span>
+        <span class="avatar-bungkus"><button type="button" class="avatar-tombol" data-aksi="ganti-avatar" aria-label="${T('Ganti avatar')}">${htmlAvatar(d.user)}</button>${typeof chipStreak === 'function' ? chipStreak() : ''}</span>
         <div style="min-width:0"><small>${T('Halo,')}</small><h1>${esc(nama)}</h1></div>
       </div>
       <div class="kepala-kanan">${pemilihBulan(true)}<button type="button" class="tombol-ikon tombol-cari" data-aksi="cari-global" aria-label="${T('Cari transaksi, catatan & fitur')}">${svg('cari')}</button><button type="button" class="tombol-ikon tombol-cari" data-aksi="tab" data-tab="lainnya" aria-label="${T('Pengaturan')}">${svg('gear')}</button></div>
@@ -2584,6 +2584,11 @@ function viewLainnya() {
       <h1>${T('Pengaturan')}</h1>
     </div>
 
+    <h2 class="judul-bagian">${T('Profil')}</h2>
+    <section class="kartu" style="padding:4px 16px">
+      ${baris('ganti-avatar', htmlAvatar(d.user), esc(namaPendek(d.user)), T('Ganti avatar · pilih gambar atau unggah foto sendiri'))}
+    </section>
+
     <h2 class="judul-bagian">${T('Keuangan')}</h2>
     <section class="kartu" style="padding:4px 16px">
       ${baris('atur-anggaran', '🎯', T('Anggaran bulanan'), T('Batas belanja per kategori'))}
@@ -3726,7 +3731,7 @@ function bukaAktivitas() {
     <div class="daftar-aktivitas">${daftar.map(x => `
       <div class="baris-aktivitas ${x.aksi}">
         <span class="ikon-aksi">${ikonAksi[x.aksi] || '•'}</span>
-        <span class="isi"><b>${esc(x.oleh === S.data.user ? T('Anda') : namaPendek(x.oleh))}</b> ${kataAksi[x.aksi] || esc(x.aksi)}
+        <span class="isi">${htmlAvatar(x.oleh, 'mini')} <b>${esc(x.oleh === S.data.user ? T('Anda') : namaPendek(x.oleh))}</b> ${kataAksi[x.aksi] || esc(x.aksi)}
           <small>${esc(x.ringkasan)}</small></span>
         <small class="waktu">${esc(waktuRelatif(x.waktu))}</small>
       </div>`).join('') || kosong('👥', T('Belum ada aktivitas.'))}</div>`);
@@ -8072,7 +8077,7 @@ function bukaDetailTrx(t) {
         <div class="daftar-aktivitas">${riwayat.map(x => `
           <div class="baris-aktivitas ${x.aksi}">
             <span class="ikon-aksi">${ikonAksi[x.aksi] || '•'}</span>
-            <span class="isi"><b>${esc(x.oleh === S.data.user ? T('Anda') : namaPendek(x.oleh))}</b> ${kataAksi[x.aksi] || esc(x.aksi)}
+            <span class="isi">${htmlAvatar(x.oleh, 'mini')} <b>${esc(x.oleh === S.data.user ? T('Anda') : namaPendek(x.oleh))}</b> ${kataAksi[x.aksi] || esc(x.aksi)}
               <small>${esc(x.ringkasan)}</small></span>
             <small class="waktu">${esc(waktuRelatif(x.waktu))}</small>
           </div>`).join('')}</div>` : ''}
@@ -8424,6 +8429,110 @@ document.addEventListener('contextmenu', e => {
   if (!kotak || S.tab !== 'riwayat') return;
   e.preventDefault();
   if (e.pointerType === 'mouse' || !('ontouchstart' in window)) mulaiPilih(kotak.querySelector('.trx').dataset.id);
+});
+
+// ---------- Avatar: pilihan gambar bawaan atau foto sendiri ----------
+// Disimpan di sheet Pengaturan buku ini (kunci "AVATAR:<email>"), jadi ikut ke HP lain & terlihat oleh anggota keluarga.
+// Tanpa avatar: huruf pertama nama seperti sebelumnya.
+
+/** [id, emoji, warna latar] */
+const AVATAR_BAWAAN = [
+  ['kucing', '🐱', '#f59e0b'], ['anjing', '🐶', '#b45309'], ['rubah', '🦊', '#ea580c'], ['panda', '🐼', '#475569'], ['koala', '🐨', '#64748b'], ['singa', '🦁', '#d97706'],
+  ['harimau', '🐯', '#f97316'], ['katak', '🐸', '#16a34a'], ['monyet', '🐵', '#a16207'], ['kelinci', '🐰', '#ec4899'], ['beruang', '🐻', '#92400e'], ['babi', '🐷', '#f472b6'],
+  ['penguin', '🐧', '#0ea5e9'], ['burunghantu', '🦉', '#7c3aed'], ['gurita', '🐙', '#db2777'], ['unicorn', '🦄', '#a855f7'], ['anakayam', '🐥', '#eab308'], ['paus', '🐳', '#2563eb'],
+  ['wanita', '👩', '#e11d48'], ['pria', '👨', '#0284c7'], ['hijab', '🧕', '#059669'], ['nenek', '👵', '#9333ea'], ['kakek', '👴', '#4f46e5'], ['anak', '🧒', '#f59e0b'],
+  ['bayi', '👶', '#f472b6'], ['ninja', '🥷', '#334155'], ['astronot', '🧑‍🚀', '#1d4ed8'], ['koki', '🧑‍🍳', '#dc2626'], ['robot', '🤖', '#0891b2'], ['alien', '👽', '#65a30d'],
+  ['bunga', '🌸', '#f472b6'], ['matahari', '🌻', '#ca8a04'], ['pelangi', '🌈', '#8b5cf6'], ['bintang', '⭐', '#f59e0b'], ['api', '🔥', '#ef4444'], ['berlian', '💎', '#06b6d4'],
+  ['daun', '🍀', '#22c55e'], ['semangka', '🍉', '#e11d48'], ['kopi', '☕', '#78350f'], ['game', '🎮', '#6366f1'], ['bola', '⚽', '#16a34a'], ['musik', '🎵', '#c026d3'],
+];
+const avatarDari = email => ((S.data && S.data.avatar) || {})[email] || null;
+
+/** Avatar seseorang (foto / gambar bawaan / huruf pertama). kelas: '' | 'besar' | 'mini'. */
+function htmlAvatar(email, kelas = '') {
+  const a = avatarDari(email);
+  if (a && a.f && /^data:image\//.test(a.f)) return `<span class="avatar avatar-foto ${kelas}" aria-hidden="true"><img src="${esc(a.f)}" alt=""></span>`;
+  const b = a && a.p && AVATAR_BAWAAN.find(x => x[0] === a.p);
+  if (b) return `<span class="avatar avatar-emoji ${kelas}" style="--av:${b[2]}" aria-hidden="true">${b[1]}</span>`;
+  return `<span class="avatar ${kelas}" aria-hidden="true">${esc(namaPendek(email).charAt(0))}</span>`;
+}
+
+function htmlPilihAvatar() {
+  const a = avatarDari(S.data.user);
+  return `<div class="avatar-pratinjau">${htmlAvatar(S.data.user, 'besar')}
+      <div><b>${esc(namaPendek(S.data.user))}</b><small>${T('Terlihat juga oleh anggota keluarga di buku ini.')}</small></div></div>
+    <div class="aksi-form" style="margin:0 0 16px">
+      <label class="btn btn-kedua tombol-unggah-avatar">${T('📷 Unggah foto')}<input type="file" id="avatar-file" accept="image/*" hidden></label>
+      ${a ? `<button type="button" class="btn btn-hapus" data-aksi="avatar-reset">${T('Pakai inisial')}</button>` : ''}
+    </div>
+    <span class="label">${T('Atau pilih gambar')}</span>
+    <div class="grid-avatar">${AVATAR_BAWAAN.map(([id, e, w]) => `<button type="button" class="${a && a.p === id ? 'aktif' : ''}" data-aksi="avatar-pilih" data-id="${id}"
+      style="--av:${w}" aria-pressed="${!!(a && a.p === id)}" aria-label="${e}">${e}</button>`).join('')}</div>`;
+}
+function bukaGantiAvatar() {
+  bukaSheet(T('Ganti avatar'), `<div id="isi-avatar">${htmlPilihAvatar()}</div>`);
+}
+
+/** Foto → persegi tengah, diperkecil sampai muat di satu sel spreadsheet (≤ 40.000 karakter). */
+function fotoAvatar(file) {
+  return new Promise((ok, gagal) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); gagal(new Error(T('Gambar tidak bisa dibuka. Coba foto lain (format JPG/PNG).'))); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const w = img.naturalWidth, h = img.naturalHeight, s = Math.min(w, h);
+      const c = document.createElement('canvas');
+      let hasil = '';
+      for (const [sisi, mutu] of [[192, 0.85], [160, 0.8], [128, 0.75], [96, 0.7]]) {
+        c.width = c.height = sisi;
+        const g = c.getContext('2d');
+        g.fillStyle = '#fff';
+        g.fillRect(0, 0, sisi, sisi);
+        g.drawImage(img, (w - s) / 2, (h - s) / 2, s, s, 0, 0, sisi, sisi);
+        hasil = c.toDataURL('image/jpeg', mutu);
+        if (hasil.length <= 40000) break;
+      }
+      ok(hasil);
+    };
+    img.src = url;
+  });
+}
+
+/** nilai: { p: id gambar bawaan } | { f: data URL foto } | null (kembali ke huruf pertama). */
+async function simpanAvatar(nilai) {
+  if (S.offline || !navigator.onLine) return toast(T('Butuh sinyal untuk mengganti avatar.'), true);
+  loading(true);
+  try {
+    await api('simpanAvatar', nilai);
+    const semua = Object.assign({}, S.data.avatar);
+    if (nilai) semua[S.data.user] = nilai; else delete semua[S.data.user];
+    S.data.avatar = semua;
+    tulisLokal('data', S.data);
+    getarHalus([12]);
+    toast(T('Avatar diganti ✔'));
+    if ($('#isi-avatar')) $('#isi-avatar').innerHTML = htmlPilihAvatar();
+    render();
+  } catch (e) {
+    if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
+  } finally {
+    loading(false);
+  }
+}
+
+Object.assign(AKSI, {
+  'ganti-avatar': () => bukaGantiAvatar(),
+  'avatar-pilih': el => simpanAvatar({ p: el.dataset.id }),
+  'avatar-reset': () => simpanAvatar(null),
+});
+document.addEventListener('change', async e => {
+  if (e.target.id !== 'avatar-file' || !e.target.files || !e.target.files[0]) return;
+  const file = e.target.files[0];
+  e.target.value = '';
+  try {
+    await simpanAvatar({ f: await fotoAvatar(file) });
+  } catch (err) {
+    toast(pesanError(err), true);
+  }
 });
 
 if (ukuranDipilih()) document.documentElement.dataset.ukuran = ukuranDipilih();
