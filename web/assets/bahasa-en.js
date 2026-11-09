@@ -1536,3 +1536,20 @@ Object.assign(KAMUS, {
   'Rangkuman {bulan}': '{bulan} recap',
   'sejauh ini': 'so far',
 });
+
+// ---------- Mode coba (demo.js) ----------
+Object.assign(KAMUS, {
+  'Coba dulu tanpa akun': 'Try it without an account',
+  'Berisi data contoh satu keluarga. Tidak perlu login, dan tidak ada yang tersimpan ke Google.': 'Comes with sample data for one family. No sign-in needed, and nothing is saved to Google.',
+  'Kenalan dengan fitur-fiturnya': 'See what it can do',
+  '👀 Mode coba · data contoh, hanya di HP ini': '👀 Demo mode · sample data, on this phone only',
+  'Pakai sungguhan': 'Use it for real',
+  'Akhiri mode coba': 'End demo mode',
+  'Akhiri mode coba? Semua data contoh dihapus dari HP ini.': 'End demo mode? All sample data will be removed from this phone.',
+  'Akhiri': 'End',
+  'Fitur ini memakai akun Google Anda, jadi baru bisa dipakai setelah masuk. Data contoh di mode coba tidak ikut dipindahkan.': 'This feature uses your Google account, so it works once you sign in. Sample data from demo mode is not carried over.',
+  'Baca foto struk memakai Google Drive akun Anda, jadi baru bisa dipakai setelah masuk. Di mode coba, coba catat lewat suara atau ketik cepat, mis. "bakso 25rb gopay".': 'Receipt reading uses your Google Drive, so it works once you sign in. In demo mode, try voice or quick typing instead, e.g. "coffee 25k gopay".',
+  'Selamat mencoba! Semua angka di sini contoh, bebas diubah atau dihapus.': 'Enjoy! All the numbers here are samples, so feel free to change or delete them.',
+  'Data contoh akan dihapus dan tidak ikut dipindahkan. Masuk dengan Google sekarang?': 'The sample data will be removed and not carried over. Sign in with Google now?',
+  'Baca foto struk butuh akun Google.': 'Reading receipt photos needs a Google account.',
+});

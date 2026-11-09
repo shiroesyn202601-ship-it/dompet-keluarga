@@ -229,6 +229,11 @@ async function mulai() {
     S.gabung = m[1];
     history.replaceState(null, '', location.pathname + location.search);
   }
+  // ?coba (tautan "Coba sekarang" di tentang.html): langsung masuk mode coba, kecuali sudah login sungguhan.
+  if (/[?&#]coba\b/.test(location.search + location.hash)) {
+    history.replaceState(null, '', location.pathname);
+    if (!GOOGLE.sudahMasuk() && !S.gabung) mulaiDemo();
+  }
   pulihkanPosisi();
   if (GOOGLE.sudahMasuk()) {
     // Tampilkan data terakhir di HP seketika (kalau periodenya sama), lalu perbarui dari spreadsheet di latar.
@@ -381,7 +386,8 @@ function bannerStatus() {
   const daftar = tertunda();
   const gagal = daftar.filter(t => t.gagal);
   const menunggu = daftar.length - gagal.length;
-  return (S.menyegarkan ? `<div class="bilah-segar" role="status" aria-label="${T('Memperbarui data')}"><i></i></div>` : '') +
+  return (DEMO.aktif() ? `<div class="status-bar demo">${T('👀 Mode coba · data contoh, hanya di HP ini')} <button type="button" data-aksi="demo-masuk">${T('Pakai sungguhan')}</button></div>` : '') +
+    (S.menyegarkan ? `<div class="bilah-segar" role="status" aria-label="${T('Memperbarui data')}"><i></i></div>` : '') +
     (S.offline ? `<div class="status-bar">${T('📴 Offline · menampilkan data terakhir. Transaksi baru tetap bisa dicatat.')}</div>` : '') +
     (!S.offline && S.sesiHabis ? `<div class="status-bar">${T('🔄 Menampilkan data terakhir · tersambung lagi begitu Anda mengetuk layar')}</div>` : '') +
     (catatanTertunda().length ? `<div class="status-bar">${T('📝 {n} catatan menunggu dikirim', { n: catatanTertunda().length })}</div>` : '') +
@@ -412,6 +418,9 @@ function tampilMasuk() {
         <button type="button" class="btn btn-utama" data-aksi="masuk">${T('Lanjutkan sebagai {email}', { email: esc(email) })}</button>
         <button type="button" class="tombol-teks" data-aksi="masuk" data-akun-lain="1">${T('Pakai akun Google lain')}</button>`
       : `<button type="button" class="btn btn-utama" data-aksi="masuk">${T('Masuk dengan Google')}</button>`}
+      ${S.gabung ? '' : `<button type="button" class="btn btn-kedua" data-aksi="demo-mulai">${T('Coba dulu tanpa akun')}</button>
+      <p class="info-kecil" style="margin-top:4px">${T('Berisi data contoh satu keluarga. Tidak perlu login, dan tidak ada yang tersimpan ke Google.')}</p>`}
+      <a class="tombol-teks" href="tentang.html">${T('Kenalan dengan fitur-fiturnya')}</a>
       <a class="tombol-teks" href="privasi.html">${T('Kebijakan privasi')}</a>
       <span class="pilih-kecil pilih-bahasa-masuk">${pilihBahasa()}</span>
     </div>`;
@@ -2517,7 +2526,7 @@ function viewSetup() {
 
     <p class="info-kecil">${T('Sudah punya spreadsheet Dompet Keluarga sendiri?')}</p>
     <div style="text-align:center"><button type="button" class="tombol-teks" data-aksi="pilih-db">${T('Pilih dari Google Drive')}</button></div>
-    <button type="button" class="tombol-tambah" data-aksi="keluar">${T('Keluar dari {email}', { email: esc(S.data.user) })}</button>`;
+    <button type="button" class="tombol-tambah" data-aksi="keluar">${DEMO.aktif() ? T('Akhiri mode coba') : T('Keluar dari {email}', { email: esc(S.data.user) })}</button>`;
 }
 
 /** Simpan isian layar setup ke S.setup sebelum dirender ulang. */
@@ -2573,7 +2582,7 @@ function viewLainnya() {
     <h2 class="judul-bagian">${T('Data & AI')}</h2>
     <section class="kartu" style="padding:4px 16px">
       ${baris('gemini', '🤖', T('Baca struk lebih akurat'), d.kunciGemini.length ? T('Aktif · memakai AI Gemini') : T('Opsional · pakai kunci Gemini gratis dari Google'))}
-      ${tautan(d.urlSpreadsheet, '📊', T('Buka spreadsheet'), T('Lihat semua data di Google Sheets'), true)}
+      ${DEMO.aktif() ? '' : tautan(d.urlSpreadsheet, '📊', T('Buka spreadsheet'), T('Lihat semua data di Google Sheets'), true)}
       ${baris('cadangan', '💾', T('Unduh & cadangan data'), T('Simpan semua transaksi sebagai file Excel/CSV'))}
     </section>
 
@@ -2736,7 +2745,7 @@ function bukaCadangan() {
     <div class="aksi-form"><button type="button" class="btn btn-utama" style="flex:1" data-aksi="unduh-csv">${T('Unduh semua transaksi')}</button></div>
     <span class="label" style="margin-top:16px">${T('Salah hapus atau salah ubah?')}</span>
     <p class="info-kecil" style="text-align:left;margin-top:0">${T('Google Sheets menyimpan riwayat perubahan. Buka spreadsheet di komputer, lalu <b>File → Histori versi → Lihat histori versi</b> untuk melihat atau memulihkan versi sebelumnya.')}</p>
-    <a class="btn btn-hapus" style="display:block;text-decoration:none;text-align:center" href="${esc(S.data.urlSpreadsheet)}" target="_blank" rel="noopener">${T('Buka spreadsheet')}</a>`);
+    ${DEMO.aktif() ? '' : `<a class="btn btn-hapus" style="display:block;text-decoration:none;text-align:center" href="${esc(S.data.urlSpreadsheet)}" target="_blank" rel="noopener">${T('Buka spreadsheet')}</a>`}`);
 }
 
 /** Teks yang diawali = + - @ tidak dibaca sebagai rumus oleh Excel (CSV injection). */
@@ -5380,6 +5389,13 @@ const AKSI = {
     }
   },
   'keluar': async () => {
+    if (DEMO.aktif()) {
+      if (!await tanya(T('Akhiri mode coba? Semua data contoh dihapus dari HP ini.'), T('Akhiri'))) return;
+      DEMO.selesai();
+      S.data = null;
+      tampilMasuk();
+      return;
+    }
     const n = bacaLokal('tertunda', []).length; // semua buku, karena semuanya ikut terhapus
     if (!await tanya(n ? T('{n} transaksi belum terkirim dan akan hilang. Tetap keluar dari {email}?', { n, email: GOOGLE.email() }) : T('Keluar dari {email}?', { email: GOOGLE.email() }), T('Keluar'))) return;
     // Data yang tersimpan di HP ikut dihapus, karena HP bisa dipakai orang lain.
@@ -5433,7 +5449,7 @@ const AKSI = {
  * (kamera, bagikan, salin, sidik jari, pasang) — popup Google bisa memakai izin ketukan itu lebih dulu.
  */
 const AKSI_TANPA_SEGARKAN = new Set([
-  'masuk', 'lanjut-sesi', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
+  'masuk', 'lanjut-sesi', 'demo-mulai', 'demo-masuk', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
   'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'bagikan-tahunan', 'cetak-laporan','salin-link', 'pasang-aplikasi', 'suara', 'cepat-suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
 ]);
 
@@ -5469,7 +5485,54 @@ document.addEventListener('click', e => {
   }
   if (!el || !AKSI[el.dataset.aksi]) return;
   e.preventDefault();
+  if (DEMO.aktif() && AKSI_BUTUH_AKUN[el.dataset.aksi]) return tahanDemo(AKSI_BUTUH_AKUN[el.dataset.aksi]);
   AKSI[el.dataset.aksi](el, e);
+});
+
+// ---------- Mode coba (lihat demo.js) ----------
+
+/** Aksi yang butuh akun Google sungguhan → pesan yang ditampilkan di mode coba. */
+const PESAN_BUTUH_AKUN = T('Fitur ini memakai akun Google Anda, jadi baru bisa dipakai setelah masuk. Data contoh di mode coba tidak ikut dipindahkan.');
+const PESAN_STRUK_DEMO = T('Baca foto struk memakai Google Drive akun Anda, jadi baru bisa dipakai setelah masuk. Di mode coba, coba catat lewat suara atau ketik cepat, mis. "bakso 25rb gopay".');
+const AKSI_BUTUH_AKUN = {
+  'foto-struk': PESAN_STRUK_DEMO, 'cepat-struk': PESAN_STRUK_DEMO,
+  'kirim-undangan': PESAN_BUTUH_AKUN, 'keluarkan-anggota': PESAN_BUTUH_AKUN, 'salin-link': PESAN_BUTUH_AKUN,
+  'telegram': PESAN_BUTUH_AKUN, 'kode-telegram': PESAN_BUTUH_AKUN,
+  'cek-undangan': PESAN_BUTUH_AKUN, 'buka-undangan': PESAN_BUTUH_AKUN, 'pilih-db': PESAN_BUTUH_AKUN, 'setup-lain': PESAN_BUTUH_AKUN,
+  'atur-kunci': PESAN_BUTUH_AKUN,
+};
+
+function mulaiDemo() {
+  DEMO.mulai();
+  tulisHp('dk_tur_tunda', '1'); // tur singkat setelah data contoh tampil
+}
+
+async function tahanDemo(pesan) {
+  if (await tanya(pesan, T('Masuk dengan Google'))) masukDariDemo();
+}
+
+/** Keluar dari mode coba lalu langsung login Google (masih dalam ketukan yang sama, jadi popup tidak diblokir). */
+async function masukDariDemo() {
+  DEMO.selesai();
+  S.data = null;
+  try {
+    await GOOGLE.masuk();
+    await muatDariAwal();
+  } catch (e) {
+    tampilMasuk();
+    toast(pesanError(e), true);
+  }
+}
+
+Object.assign(AKSI, {
+  'demo-mulai': async () => {
+    mulaiDemo();
+    await muatDariAwal();
+    toast(T('Selamat mencoba! Semua angka di sini contoh, bebas diubah atau dihapus.'));
+  },
+  'demo-masuk': async () => {
+    if (await tanya(T('Data contoh akan dihapus dan tidak ikut dipindahkan. Masuk dengan Google sekarang?'), T('Masuk dengan Google'))) masukDariDemo();
+  },
 });
 
 ['#input-struk', '#input-struk-kamera'].forEach(sel => $(sel).addEventListener('change', e => {
