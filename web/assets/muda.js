@@ -232,11 +232,22 @@ function chipStreak() {
 
 const JENIS_TANTANGAN = {
   hemat: { ikon: '🌱', judul: T('Hari tanpa belanja'), ket: T('Kumpulkan beberapa hari tanpa pengeluaran dalam 30 hari.') },
-  52: { ikon: '🐷', judul: T('52 minggu menabung'), ket: T('Minggu ke-1 setor 1×, minggu ke-2 setor 2×, dan seterusnya. Setahun terkumpul 1.378×.') },
+  52: { ikon: '🐷', judul: T('52 minggu menabung'), ket: T('Setor tiap minggu selama setahun: naik bertahap (1×, 2×, 3×, …) atau sama setiap minggu.') },
   tanpa: { ikon: '🙅', judul: T('Seminggu tanpa…'), ket: T('Tujuh hari tanpa satu kategori pengeluaran, mis. jajan kopi atau ojek online.') },
 };
 const judulTantangan = t => (t.jenis === 'tanpa' ? T('Seminggu tanpa {kategori}', { kategori: namaT(t.kategori) })
-  : t.jenis === 'hemat' ? T('{n} hari tanpa belanja', { n: t.target }) : T('52 minggu menabung'));
+  : t.jenis === 'hemat' ? T('{n} hari tanpa belanja', { n: t.target })
+  : t.pola === 'tetap' ? T('52 minggu menabung · {jumlah}/minggu', { jumlah: rp(t.unit) }) : T('52 minggu menabung'));
+
+/**
+ * Pola 52 minggu menabung: 'naik' (bawaan, minggu ke-n setor n × unit, total 1.378 × unit)
+ * atau 'tetap' (setiap minggu setor unit yang sama, total 52 × unit). Tantangan lama tanpa pola = 'naik'.
+ */
+const pola52Tetap = t => t.pola === 'tetap';
+const setoran52 = (t, minggu) => (pola52Tetap(t) ? t.unit : t.unit * minggu);
+const jadwal52 = (t, minggu) => (pola52Tetap(t) ? t.unit * minggu : t.unit * minggu * (minggu + 1) / 2);
+const total52 = t => jadwal52(t, 52);
+const PILIHAN_UNIT_52 = { naik: [5000, 10000, 20000, 50000], tetap: [10000, 25000, 50000, 100000] };
 
 /** Kemajuan satu tantangan: { persen, teks, selesai?: 'berhasil' | 'gagal', setorMingguIni? }. */
 function statusTantangan(t) {
@@ -270,14 +281,14 @@ function statusTantangan(t) {
   const minggu = Math.min(52, Math.floor(Math.max(0, lewat) / 7) + 1);
   let setor = 0;
   Object.keys(j).forEach(x => { if (x >= t.mulai && j[x].tab && j[x].tab[t.tabungan]) setor += j[x].tab[t.tabungan]; });
-  const totalTarget = t.unit * 1378;
-  const jadwal = t.unit * minggu * (minggu + 1) / 2;
+  const totalTarget = total52(t);
+  const jadwal = jadwal52(t, minggu);
   const persen = Math.max(0, Math.min(100, setor / totalTarget * 100));
   if (setor >= totalTarget) return { persen: 100, selesai: 'berhasil', teks: T('{jumlah} terkumpul dalam 52 minggu 🎉', { jumlah: rp(setor) }) };
   if (lewat > 52 * 7 + 6) return { persen, selesai: 'gagal', teks: T('Terkumpul {jumlah} dari {target}', { jumlah: rp(setor), target: rp(totalTarget) }) };
   return {
-    persen, setorMingguIni: t.unit * minggu,
-    teks: T('Minggu ke-{minggu} · setor {jumlah}', { minggu, jumlah: rp(t.unit * minggu) }) + ' · '
+    persen, setorMingguIni: setoran52(t, minggu),
+    teks: T('Minggu ke-{minggu} · setor {jumlah}', { minggu, jumlah: rp(setoran52(t, minggu)) }) + ' · '
       + (setor >= jadwal ? T('✅ sesuai jadwal') : T('kurang {jumlah} dari jadwal', { jumlah: rp(jadwal - setor) })),
   };
 }
@@ -369,7 +380,7 @@ function segarkanKebiasaan() {
 
 let TG = null; // isian form mulai tantangan
 function bukaFormTantangan(jenis) {
-  TG = { jenis, target: 5, unit: 10000, kategori: '', tabungan: '' };
+  TG = { jenis, target: 5, unit: 10000, pola: 'naik', kategori: '', tabungan: '' };
   if (jenis === 'tanpa') {
     const per = {};
     Object.values(S.data.jejak || {}).forEach(h => Object.keys(h.kat || {}).forEach(k => { per[k] = (per[k] || 0) + 1; }));
@@ -391,13 +402,18 @@ function renderFormTantangan() {
       <p class="info-kecil" style="text-align:left">${T('Hari dihitung kalau tidak ada pengeluaran. Tandai "tanpa belanja" di hari itu supaya ikut terhitung.')}</p>`;
   } else if (TG.jenis === '52') {
     const tab = daftarTabungan();
-    isi += `<label class="label">${T('Setoran minggu pertama')}</label>
-      <div class="chips">${[5000, 10000, 20000, 50000].map(n => chip('tg-unit', n, rp(n), TG.unit === n)).join('')}</div>
-      <p class="info-kecil" style="text-align:left">${T('Minggu ke-52 setor {akhir}. Total setahun: <b>{total}</b>.', { akhir: rp(TG.unit * 52), total: rp(TG.unit * 1378) })}</p>
+    const tetap = TG.pola === 'tetap';
+    isi += `<label class="label">${T('Pola setoran')}</label>
+      <div class="chips">${chip('tg-pola', 'naik', T('📈 Naik tiap minggu'), !tetap)}${chip('tg-pola', 'tetap', T('➖ Sama tiap minggu'), tetap)}</div>
+      <label class="label" style="margin-top:14px">${tetap ? T('Setoran per minggu') : T('Setoran minggu pertama')}</label>
+      <div class="chips">${PILIHAN_UNIT_52[TG.pola].map(n => chip('tg-unit', n, rp(n), TG.unit === n)).join('')}</div>
+      <p class="info-kecil" style="text-align:left">${tetap
+        ? T('Setor {jumlah} setiap minggu. Total setahun: <b>{total}</b>.', { jumlah: rp(TG.unit), total: rp(total52(TG)) })
+        : T('Minggu ke-52 setor {akhir}. Total setahun: <b>{total}</b>.', { akhir: rp(TG.unit * 52), total: rp(total52(TG)) })}</p>
       <label class="label" style="margin-top:14px">${T('Ditabung ke')}</label>
       <div class="grid-pilih">${tab.map(w => `<button type="button" class="pilihan ${TG.tabungan === w.nama ? 'aktif' : ''}" data-aksi="tg-tabungan" data-v="${esc(w.nama)}"><span>${ilus(w.ikon)}</span>${esc(namaT(w.nama))}</button>`).join('')}
         <button type="button" class="pilihan ${TG.tabungan === '' ? 'aktif' : ''}" data-aksi="tg-tabungan" data-v=""><span>＋</span>${T('Tabungan baru')}</button></div>
-      ${TG.tabungan === '' ? `<p class="info-kecil" style="text-align:left">${T('Dibuat tabungan baru "{nama}" dengan target {total}.', { nama: esc(T('52 Minggu Menabung')), total: rp(TG.unit * 1378) })}</p>` : ''}`;
+      ${TG.tabungan === '' ? `<p class="info-kecil" style="text-align:left">${T('Dibuat tabungan baru "{nama}" dengan target {total}.', { nama: esc(T('52 Minggu Menabung')), total: rp(total52(TG)) })}</p>` : ''}`;
   } else {
     isi += `<label class="label">${T('Kategori yang mau ditahan')}</label>
       <div class="grid-pilih">${(TG.urutKategori || []).map(k => `<button type="button" class="pilihan ${TG.kategori === k.nama ? 'aktif' : ''}" data-aksi="tg-kategori" data-v="${esc(k.nama)}"><span>${ilus(k.ikon)}</span>${esc(namaT(k.nama))}</button>`).join('')}</div>`;
@@ -975,6 +991,12 @@ Object.assign(AKSI, {
   'mulai-tantangan': el => bukaFormTantangan(el.dataset.jenis),
   'tg-target': el => { TG.target = Number(el.dataset.v); renderFormTantangan(); },
   'tg-unit': el => { TG.unit = Number(el.dataset.v); renderFormTantangan(); },
+  'tg-pola': el => {
+    if (TG.pola === el.dataset.v) return;
+    TG.pola = el.dataset.v === 'tetap' ? 'tetap' : 'naik';
+    if (!PILIHAN_UNIT_52[TG.pola].includes(TG.unit)) TG.unit = PILIHAN_UNIT_52[TG.pola][TG.pola === 'tetap' ? 2 : 1];
+    renderFormTantangan();
+  },
   'tg-tabungan': el => { TG.tabungan = el.dataset.v; renderFormTantangan(); },
   'tg-kategori': el => { TG.kategori = el.dataset.v; renderFormTantangan(); },
   'simpan-tantangan': async el => {
@@ -987,13 +1009,14 @@ Object.assign(AKSI, {
     if (TG.jenis === 'tanpa') t.kategori = TG.kategori;
     if (TG.jenis === '52') {
       t.unit = TG.unit;
+      if (TG.pola === 'tetap') t.pola = 'tetap';
       t.tabungan = TG.tabungan;
       if (!t.tabungan) { // tabungan baru khusus tantangan ini
         let nama = T('52 Minggu Menabung');
         while (S.data.dompet.some(w => w.nama === nama)) nama += ' ' + (new Date().getFullYear());
         loading(true);
         try {
-          await api('simpanDompet', { namaLama: '', nama, ikon: '🐷', jenis: JENIS.TABUNGAN, saldoAwal: 0, target: TG.unit * 1378, tenggat: geserHari(hariIni(), 364) });
+          await api('simpanDompet', { namaLama: '', nama, ikon: '🐷', jenis: JENIS.TABUNGAN, saldoAwal: 0, target: total52(TG), tenggat: geserHari(hariIni(), 364) });
           t.tabungan = nama;
         } catch (e) {
           loading(false);
