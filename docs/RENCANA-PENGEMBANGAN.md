@@ -168,6 +168,15 @@ Aplikasi (HP teman)                         Bot (Apps Script milik pemilik)
 
 **Diputuskan:** pengingat tagihan harian lewat bot dikerjakan nanti, setelah 8a–8f stabil.
 
+## Langkah 9 — Menarik pengguna baru
+
+Hasil diskusi 9 Nov 2026: yang paling menambah nilai jual adalah membuat orang mudah mencoba, lalu memberi alasan untuk mendaftar.
+
+- [x] **Mode coba tanpa akun** (`web/assets/demo.js`): tombol *Coba dulu tanpa akun* di layar masuk, atau buka `?coba`. GOOGLE.api diganti Google tiruan di HP (spreadsheet & Drive di memori + localStorage), berisi data contoh 3 bulan satu keluarga (dua anggota, tagihan rutin, tabungan, piutang, aset, catatan). Fitur yang butuh Google ditahan dengan ajakan masuk. *Pakai sungguhan* / *Akhiri mode coba* menghapus data contoh. Diuji di Chrome headless (catat, ubah, hapus/urungkan, buku baru, anggota, hapus banyak, keluar).
+- [x] **Halaman pengenalan** `web/tentang.html`: pembuka + tiruan layar HP, tiga pembeda (data di Drive sendiri, dicatat bersama, gratis), fitur, cara mulai, tanya-jawab, pratinjau tautan WhatsApp (og:*). Ditautkan dari layar masuk.
+- [ ] Masuk Play Store (TWA) + domain sendiri + verifikasi branding Google.
+- [ ] Impor mutasi rekening (PDF/CSV e-statement) dengan AI + rekonsiliasi saldo.
+
 ## Tidak disarankan
 
 - Sinkron otomatis bank — belum ada open banking untuk aplikasi perorangan di Indonesia.

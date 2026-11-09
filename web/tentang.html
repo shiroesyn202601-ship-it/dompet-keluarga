@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f4f5f8" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
+    <title>Dompet Keluarga · Catat keuangan keluarga bersama</title>
+    <meta name="description" content="Aplikasi catat keuangan keluarga yang dipakai berdua. Gratis, tanpa iklan, dan semua data tersimpan di Google Drive Anda sendiri. Coba langsung tanpa akun.">
+    <!-- Pratinjau tautan saat dibagikan ke WhatsApp / media sosial -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Dompet Keluarga: catat keuangan keluarga, berdua">
+    <meta property="og:description" content="Gratis, tanpa iklan, datanya di Google Drive Anda sendiri. Catat lewat suara, foto struk, atau ketik cepat. Coba langsung tanpa akun.">
+    <meta property="og:image" content="https://shiroesyn202601-ship-it.github.io/dompet-keluarga/ikon/ikon-512.png">
+    <meta property="og:url" content="https://shiroesyn202601-ship-it.github.io/dompet-keluarga/tentang.html">
+    <meta name="twitter:card" content="summary">
+    <link rel="icon" type="image/png" sizes="32x32" href="ikon/favicon-32.png">
+    <link rel="apple-touch-icon" href="ikon/apple-touch-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+    <script>
+      // Ikuti tema yang dipilih di aplikasi (⚙️ → Tema).
+      try { var t = localStorage.getItem('dk_tema'); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch (e) { /* mode privat */ }
+    </script>
+    <link rel="stylesheet" href="assets/styles.css">
+    <style>
+      body { max-width: none; padding: 0; overflow-x: hidden; }
+      a { color: inherit; }
+      .lebar { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+      /* Bilah atas */
+      .bilah { position: sticky; top: 0; z-index: 5; padding-top: env(safe-area-inset-top);
+        background: color-mix(in srgb, var(--bg) 86%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+        border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent); }
+      .bilah .lebar { display: flex; align-items: center; gap: 10px; height: 60px; }
+      .bilah img { width: 32px; height: 32px; border-radius: 9px; }
+      .bilah b { font-size: 16px; font-weight: 800; }
+      .bilah .ke-app { margin-left: auto; padding: 9px 16px; border-radius: 999px; font-size: 14px; font-weight: 800; text-decoration: none;
+        background: var(--primary); color: var(--on-primary); }
+
+      /* Pembuka */
+      .pembuka { position: relative; padding: 48px 0 32px; }
+      .pembuka::before { content: ''; position: absolute; inset: -60px -20% auto; height: 520px; z-index: -1; pointer-events: none;
+        background: radial-gradient(60% 60% at 30% 30%, color-mix(in srgb, #8b5cf6 26%, transparent), transparent 70%),
+                    radial-gradient(50% 50% at 80% 20%, color-mix(in srgb, #ec4899 20%, transparent), transparent 70%); }
+      .pembuka .lebar { display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: center; }
+      .lencana { display: inline-flex; gap: 6px; align-items: center; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
+        background: var(--primary-soft); color: var(--primary); }
+      .pembuka h1 { margin: 16px 0 14px; font-size: clamp(32px, 6vw, 52px); line-height: 1.08; font-weight: 800; letter-spacing: -.02em; }
+      .pembuka h1 em { font-style: normal; background: linear-gradient(90deg, #7c3aed, #db2777); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .pembuka p.sub { margin: 0 0 24px; font-size: 18px; line-height: 1.55; color: var(--muted); max-width: 520px; }
+      .ajakan { display: flex; flex-wrap: wrap; gap: 10px; }
+      .ajakan a { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 22px; border-radius: 16px;
+        font-size: 16px; font-weight: 800; text-decoration: none; }
+      .ajakan .utama { background: var(--primary); color: var(--on-primary); box-shadow: 0 8px 22px color-mix(in srgb, var(--primary) 35%, transparent); }
+      .ajakan .kedua { background: var(--card); color: var(--text); border: 1px solid color-mix(in srgb, var(--text) 10%, transparent); }
+      .catatan-kecil { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
+
+      /* Tiruan layar HP (HTML biasa, bukan gambar) */
+      .hp { justify-self: center; width: 290px; padding: 12px; border-radius: 40px; background: #0b0c10;
+        box-shadow: 0 30px 70px rgba(31, 27, 77, .35), inset 0 0 0 2px #2a2d38; }
+      .hp-layar { border-radius: 30px; overflow: hidden; background: #f4f5f8; color: #0c111d; padding: 16px 14px 18px; font-size: 12px; }
+      .hp-kepala { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+      .hp-kepala i { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #ec4899); flex: none; }
+      .hp-kepala small { display: block; color: #667085; font-size: 10px; }
+      .hp-kepala b { font-size: 13px; }
+      .hp-saldo { border-radius: 20px; padding: 14px; color: #fff; background: linear-gradient(135deg, #2b1d6b, #4f46e5 60%, #7c3aed); }
+      .hp-saldo small { opacity: .8; font-size: 10px; }
+      .hp-saldo strong { display: block; font-size: 24px; font-weight: 800; margin: 2px 0 10px; letter-spacing: -.01em; }
+      .hp-saldo strong span { font-size: 12px; opacity: .8; margin-right: 2px; }
+      .hp-dua { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+      .hp-dua div { border-radius: 12px; padding: 7px 9px; background: rgba(255, 255, 255, .12); font-size: 10px; }
+      .hp-dua b { display: block; font-size: 12px; }
+      .hp-aman { margin-top: 8px; padding: 6px 9px; border-radius: 999px; background: rgba(255, 255, 255, .14); font-size: 10px; font-weight: 700; }
+      .hp-judul { margin: 14px 2px 8px; font-weight: 800; font-size: 12px; }
+      .hp-trx { display: flex; align-items: center; gap: 9px; padding: 8px 10px; margin-bottom: 6px; border-radius: 14px; background: #fff; }
+      .hp-trx i { width: 28px; height: 28px; border-radius: 10px; display: grid; place-items: center; font-style: normal; font-size: 14px; background: #f1f2f6; flex: none; }
+      .hp-trx span { flex: 1; min-width: 0; }
+      .hp-trx span b { display: block; font-size: 11.5px; }
+      .hp-trx span small { color: #667085; font-size: 9.5px; }
+      .hp-trx em { font-style: normal; font-weight: 800; font-size: 11.5px; color: #e3335c; }
+      .hp-trx em.masuk { color: #079455; }
+
+      /* Bagian umum */
+      section.bagian { padding: 44px 0; }
+      .bagian h2 { margin: 0 0 8px; font-size: clamp(24px, 4vw, 34px); font-weight: 800; letter-spacing: -.01em; }
+      .bagian p.pengantar { margin: 0 0 24px; color: var(--muted); font-size: 16px; max-width: 620px; }
+
+      .tiga { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .kotak { padding: 20px; border-radius: 22px; background: var(--card); border: 1px solid color-mix(in srgb, var(--text) 6%, transparent); }
+      .kotak .ik { font-size: 28px; line-height: 1; }
+      .kotak h3 { margin: 12px 0 6px; font-size: 17px; font-weight: 800; }
+      .kotak p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.55; }
+
+      .fitur { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+      .fitur .kotak { padding: 16px 18px; }
+      .fitur h3 { margin-top: 8px; font-size: 15.5px; }
+      .fitur p { font-size: 14px; }
+
+      .langkah { counter-reset: n; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+      .langkah .kotak { position: relative; padding-top: 52px; }
+      .langkah .kotak::before { counter-increment: n; content: counter(n); position: absolute; top: 18px; left: 20px; width: 26px; height: 26px; border-radius: 50%;
+        display: grid; place-items: center; font-size: 13px; font-weight: 800; background: var(--primary); color: var(--on-primary); }
+
+      details.tanya-jawab { padding: 16px 18px; margin-bottom: 10px; border-radius: 18px; background: var(--card);
+        border: 1px solid color-mix(in srgb, var(--text) 6%, transparent); }
+      details.tanya-jawab summary { cursor: pointer; font-weight: 800; font-size: 15.5px; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+      details.tanya-jawab summary::-webkit-details-marker { display: none; }
+      details.tanya-jawab summary::after { content: '+'; color: var(--primary); font-size: 20px; line-height: 1; }
+      details.tanya-jawab[open] summary::after { content: '−'; }
+      details.tanya-jawab p { margin: 10px 0 0; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+
+      .penutup { margin: 20px 0 0; padding: 36px 24px; border-radius: 28px; text-align: center; color: #fff;
+        background: linear-gradient(135deg, #2b1d6b, #4f46e5 55%, #db2777); }
+      .penutup h2 { color: #fff; }
+      .penutup p { margin: 0 auto 22px; max-width: 520px; opacity: .88; font-size: 16px; }
+      .penutup .ajakan { justify-content: center; }
+      .penutup .ajakan .utama { background: #fff; color: #2b1d6b; box-shadow: none; }
+      .penutup .ajakan .kedua { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .45); }
+
+      footer { padding: 28px 0 calc(32px + env(safe-area-inset-bottom)); color: var(--muted); font-size: 13.5px; }
+      footer .lebar { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between; }
+      footer nav { display: flex; gap: 16px; }
+      footer a { color: var(--primary); font-weight: 700; text-decoration: none; }
+
+      @media (max-width: 820px) {
+        .pembuka { padding-top: 32px; }
+        .pembuka .lebar { grid-template-columns: 1fr; gap: 32px; }
+        .tiga, .langkah { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 420px) {
+        .ajakan a { width: 100%; }
+        .hp { width: 260px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="bilah">
+      <div class="lebar">
+        <img src="ikon/ikon-192.png" alt="">
+        <b>Dompet Keluarga</b>
+        <a class="ke-app" href="./">Buka aplikasi</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="pembuka">
+        <div class="lebar">
+          <div>
+            <span class="lencana">🔒 Data di Google Drive Anda sendiri</span>
+            <h1>Catat keuangan keluarga, <em>berdua</em>.</h1>
+            <p class="sub">Anda dan pasangan mencatat dari HP masing-masing, dan angkanya langsung sama di kedua HP. Gratis, tanpa iklan, dan semua catatan tersimpan di Google Drive Anda, bukan di server orang lain.</p>
+            <div class="ajakan">
+              <a class="utama" href="./?coba">Coba sekarang tanpa akun</a>
+              <a class="kedua" href="./">Masuk dengan Google</a>
+            </div>
+            <p class="catatan-kecil">Mode coba berisi data contoh satu keluarga. Tidak perlu login, tidak perlu pasang apa pun.</p>
+          </div>
+
+          <div class="hp" aria-hidden="true">
+            <div class="hp-layar">
+              <div class="hp-kepala"><i></i><div><small>Halo,</small><b>Sari</b></div></div>
+              <div class="hp-saldo">
+                <small>Total saldo dompet</small>
+                <strong><span>Rp</span>16.858.500</strong>
+                <div class="hp-dua">
+                  <div>Pemasukan<b>Rp9.500.000</b></div>
+                  <div>Pengeluaran<b>Rp3.124.000</b></div>
+                </div>
+                <div class="hp-aman">● Aman dibelanjakan Rp226.000/hari</div>
+              </div>
+              <div class="hp-judul">Transaksi terakhir</div>
+              <div class="hp-trx"><i>🛒</i><span><b>Sayur &amp; lauk di pasar</b><small>Andi · Belanja Harian · Tunai</small></span><em>−Rp85rb</em></div>
+              <div class="hp-trx"><i>☕</i><span><b>Kopi susu</b><small>Sari · Makan &amp; Minum · GoPay</small></span><em>−Rp24rb</em></div>
+              <div class="hp-trx"><i>💼</i><span><b>Gaji bulanan</b><small>Sari · Gaji · BCA</small></span><em class="masuk">+Rp9,5jt</em></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <div class="lebar">
+          <h2>Kenapa Dompet Keluarga?</h2>
+          <p class="pengantar">Aplikasi keuangan biasanya dibuat untuk satu orang. Yang ini dibuat untuk rumah tangga.</p>
+          <div class="tiga">
+            <div class="kotak">
+              <div class="ik">🗂️</div>
+              <h3>Datanya milik Anda</h3>
+              <p>Aplikasi ini tidak punya server. Semua catatan ada di spreadsheet di Google Drive Anda, bisa dibuka di Google Sheets atau diunduh ke Excel kapan saja.</p>
+            </div>
+            <div class="kotak">
+              <div class="ik">👨‍👩‍👧</div>
+              <h3>Dicatat bersama</h3>
+              <p>Undang pasangan atau anggota keluarga lewat email atau link WhatsApp. Semua melihat saldo yang sama dan tahu siapa mencatat apa.</p>
+            </div>
+            <div class="kotak">
+              <div class="ik">🎁</div>
+              <h3>Gratis, tanpa iklan</h3>
+              <p>Tidak ada langganan dan tidak ada iklan. Cukup akun Google yang sudah Anda punya.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <div class="lebar">
+          <h2>Mencatat tidak lagi merepotkan</h2>
+          <p class="pengantar">Pilih cara yang paling cepat untuk Anda. Aplikasi mengisi sisanya.</p>
+          <div class="fitur">
+            <div class="kotak"><div class="ik">🎙️</div><h3>Catat dengan suara</h3><p>"Makan siang 35 ribu pakai tunai, parkir 5 ribu", dan dua transaksi langsung tercatat.</p></div>
+            <div class="kotak"><div class="ik">🧾</div><h3>Foto struk</h3><p>Nominal, kategori, dan tanggal terbaca dari foto. Fotonya tersimpan sebagai bukti.</p></div>
+            <div class="kotak"><div class="ik">⚡</div><h3>Ketik cepat</h3><p>Tulis <i>bakso 25rb gopay</i>, tekan Enter, selesai. Paham rb, jt, goceng, ceban.</p></div>
+            <div class="kotak"><div class="ik">📴</div><h3>Tetap jalan tanpa sinyal</h3><p>Catat saat offline, dan transaksinya terkirim sendiri begitu ada sinyal.</p></div>
+            <div class="kotak"><div class="ik">💬</div><h3>Lewat Telegram</h3><p>Kirim pesan atau foto struk ke bot, dan langsung masuk ke buku keluarga.</p></div>
+            <div class="kotak"><div class="ik">🔁</div><h3>Tagihan rutin</h3><p>Listrik, internet, SPP, cicilan muncul di Beranda menjelang jatuh tempo.</p></div>
+            <div class="kotak"><div class="ik">📒</div><h3>Beberapa buku</h3><p>Pisahkan keuangan Keluarga, Pribadi, dan Usaha, masing-masing bisa dibagikan ke orang berbeda.</p></div>
+            <div class="kotak"><div class="ik">🔐</div><h3>Kunci PIN &amp; samarkan</h3><p>Kunci dengan PIN atau sidik jari, dan samarkan angka saat HP dipinjam orang lain.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <div class="lebar">
+          <h2>Uangnya cukup sampai gajian?</h2>
+          <p class="pengantar">Bukan sekadar catatan. Aplikasi membantu Anda memutuskan.</p>
+          <div class="fitur">
+            <div class="kotak"><div class="ik">📅</div><h3>Aman dibelanjakan per hari</h3><p>Berapa yang aman dipakai tiap hari sampai gajian, sudah dikurangi tagihan yang belum dibayar.</p></div>
+            <div class="kotak"><div class="ik">🎯</div><h3>Anggaran &amp; amplop</h3><p>Batas belanja per kategori, peringatan di 80%, dan sisa bulan ini bisa dibawa ke bulan depan.</p></div>
+            <div class="kotak"><div class="ik">🛍️</div><h3>Cek sebelum beli</h3><p>Ketik barang dan harganya, lalu dapat penilaian: aman, harus berhemat, atau jangan dulu.</p></div>
+            <div class="kotak"><div class="ik">🐷</div><h3>Tabungan bertarget</h3><p>Dana darurat, liburan, umroh. Aplikasi menghitung berapa yang perlu disetor tiap bulan.</p></div>
+            <div class="kotak"><div class="ik">🤝</div><h3>Utang, piutang &amp; patungan</h3><p>Catat siapa meminjam, bagi tagihan makan bareng, dan kirim pengingat lewat WhatsApp.</p></div>
+            <div class="kotak"><div class="ik">📊</div><h3>Laporan yang jujur</h3><p>Dibanding bulan lalu di hari yang sama, tren per kategori, kekayaan bersih, dan kilas balik setahun.</p></div>
+            <div class="kotak"><div class="ik">🗓️</div><h3>Ikut tanggal gajian</h3><p>Gajian tanggal 25? Semua ringkasan dan anggaran dihitung dari 25 sampai 24 bulan berikutnya.</p></div>
+            <div class="kotak"><div class="ik">🔥</div><h3>Streak &amp; tantangan</h3><p>Hari tanpa belanja, 52 minggu menabung, dan lencana yang bisa dikejar berdua.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <div class="lebar">
+          <h2>Mulai dalam 2 menit</h2>
+          <p class="pengantar">Tidak perlu unduh dari Play Store. Aplikasi dibuka dari browser, lalu bisa dipasang ke layar utama HP.</p>
+          <div class="langkah">
+            <div class="kotak"><h3>Masuk dengan Google</h3><p>Aplikasi membuat spreadsheet <b>Dompet Keluarga</b> di Google Drive Anda.</p></div>
+            <div class="kotak"><h3>Isi saldo dompet</h3><p>Pilih dompet yang Anda pakai (Tunai, BCA, GoPay, dan lain-lain), lalu isi saldonya. Boleh dikira-kira.</p></div>
+            <div class="kotak"><h3>Undang keluarga</h3><p>Kirim link undangan ke pasangan lewat WhatsApp. Mulai sekarang Anda mencatat berdua.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <div class="lebar">
+          <h2>Pertanyaan yang sering muncul</h2>
+          <details class="tanya-jawab">
+            <summary>Di mana data saya disimpan?</summary>
+            <p>Di spreadsheet di Google Drive Anda sendiri. Aplikasi tidak punya server, dan hanya Anda serta orang yang Anda undang yang bisa membukanya. Aplikasi hanya bisa membuka file yang dibuatnya sendiri atau yang Anda pilih.</p>
+          </details>
+          <details class="tanya-jawab">
+            <summary>Apakah benar-benar gratis?</summary>
+            <p>Ya. Tidak ada langganan dan tidak ada iklan. Fitur AI (baca struk lebih akurat, penjelasan laporan) memakai kunci Gemini gratis dari Google yang bisa Anda isi sendiri, dan sifatnya opsional.</p>
+          </details>
+          <details class="tanya-jawab">
+            <summary>Bisa dipakai di iPhone dan Android?</summary>
+            <p>Bisa. Buka alamatnya di browser HP, lalu pasang ke layar utama supaya terasa seperti aplikasi biasa. Aplikasi memperbarui dirinya sendiri.</p>
+          </details>
+          <details class="tanya-jawab">
+            <summary>Bagaimana kalau ganti HP?</summary>
+            <p>Masuk dengan akun Google yang sama, dan semua catatan langsung ada. Datanya memang tidak pernah disimpan di HP saja.</p>
+          </details>
+          <details class="tanya-jawab">
+            <summary>Apa bedanya mode coba dengan yang sungguhan?</summary>
+            <p>Mode coba memakai data contoh yang disimpan di HP Anda saja, jadi bebas diubah atau dihapus. Fitur yang butuh Google Drive (foto struk, undang anggota, bot Telegram) baru aktif setelah masuk. Data contoh tidak ikut dipindahkan.</p>
+          </details>
+
+          <div class="penutup">
+            <h2>Lihat sendiri dalam satu menit</h2>
+            <p>Buka mode coba, catat satu pengeluaran, lalu lihat Beranda dan Laporan berubah.</p>
+            <div class="ajakan">
+              <a class="utama" href="./?coba">Coba sekarang tanpa akun</a>
+              <a class="kedua" href="./">Masuk dengan Google</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="lebar">
+        <span>Dompet Keluarga · catatan keuangan keluarga di Google Drive Anda</span>
+        <nav><a href="privasi.html">Kebijakan privasi</a><a href="./">Buka aplikasi</a></nav>
+      </div>
+    </footer>
+  </body>
+</html>

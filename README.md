@@ -4,6 +4,8 @@ Catat keuangan keluarga bersama dari HP. Gratis, tanpa iklan, dan **semua data t
 
 **Buka aplikasi:** https://shiroesyn202601-ship-it.github.io/dompet-keluarga/
 
+**Belum yakin?** Lihat [halaman pengenalan](https://shiroesyn202601-ship-it.github.io/dompet-keluarga/tentang.html), atau langsung [coba tanpa akun](https://shiroesyn202601-ship-it.github.io/dompet-keluarga/?coba): aplikasi terbuka dengan data contoh satu keluarga, tanpa login, dan tidak ada yang tersimpan ke Google. Semua fitur bisa dicoba kecuali yang butuh Google Drive (foto struk, undang anggota, bot Telegram, kunci aplikasi). Ketuk **Pakai sungguhan** di bilah atas untuk masuk dengan Google; data contoh tidak ikut dipindahkan.
+
 > Pemilik deployment atau developer? Lihat [docs/PEMILIK.md](docs/PEMILIK.md) (setup Google Cloud, bot Telegram, struktur data).
 
 ## Mulai (±2 menit)
