@@ -5845,12 +5845,13 @@ function htmlKalender() {
     if (i >= 35 && d.getMonth() !== m - 1) break; // baris ke-6 hanya kalau perlu
     const ada = catatanPada(iso);
     const tagihan = tagihanPada(iso);
-    const label = ada.slice(0, 2).map(c => `<i style="--w:${warnaCatatan(c.warna)}">${esc(c.judul)}</i>`).join('')
-      + (tagihan.length && ada.length < 2 ? `<i class="tagihan">💡 ${esc(tagihan[0].nama)}</i>` : '');
-    const sisa = ada.length + tagihan.length - (ada.slice(0, 2).length + (tagihan.length && ada.length < 2 ? 1 : 0));
+    // Kotak hampir persegi (sama dengan kalender Riwayat): titik berwarna per catatan (abu-abu = tagihan), maks 3 lalu "+n".
+    const titik = ada.map(c => warnaCatatan(c.warna)).concat(tagihan.map(() => 'var(--muted)'));
+    const label = titik.slice(0, 3).map(w => `<i style="--w:${w}"></i>`).join('');
+    const sisa = titik.length - 3;
     sel.push(`<button type="button" class="kal-sel ${d.getMonth() !== m - 1 ? 'luar' : ''} ${iso === hari ? 'hari-ini' : ''} ${iso === S.kal.pilih ? 'pilih' : ''}"
       data-aksi="kal-tgl" data-tgl="${iso}" aria-label="${esc(keteranganHari(iso))}${ada.length ? T(', {n} catatan', { n: ada.length }) : ''}">
-      <span class="kal-angka">${d.getDate()}</span>${label}${sisa > 0 ? `<i class="lagi">+${sisa}</i>` : ''}</button>`);
+      <span class="kal-angka">${d.getDate()}</span>${label ? `<span class="kal-titik" aria-hidden="true">${label}${sisa > 0 ? `<b>+${sisa}</b>` : ''}</span>` : ''}</button>`);
   }
 
   const dipilih = catatanPada(S.kal.pilih);
