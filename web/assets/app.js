@@ -4548,9 +4548,9 @@ function bukaFormAnggaran() {
     ${daftar.map(k => `
       <div class="baris baris-input">
         <span class="ikon-bulat">${ilus(k.ikon)}</span>
-        <span class="isi"><b>${esc(namaT(k.nama))}</b>
-          ${saran[k.nama] ? `<button type="button" class="saran-anggaran" data-aksi="pakai-saran-anggaran" data-nama="${esc(k.nama)}" data-n="${saran[k.nama].batas}" title="${T('Rata-rata 3 bulan: {jumlah}', { jumlah: rp(saran[k.nama].rata) })}">💡 ${T('Saran {jumlah}', { jumlah: rpPendek(saran[k.nama].batas) })}</button>` : ''}
-          <label class="amplop"><input type="checkbox" class="input-amplop" data-nama="${esc(k.nama)}" ${k.bawaSisa ? 'checked' : ''}> 📨 ${T('Amplop')}</label></span>
+        <span class="isi isi-anggaran"><b>${esc(namaT(k.nama))}</b>
+          <span class="opsi-anggaran">${saran[k.nama] ? `<button type="button" class="saran-anggaran" data-aksi="pakai-saran-anggaran" data-nama="${esc(k.nama)}" data-n="${saran[k.nama].batas}" title="${T('Rata-rata 3 bulan: {jumlah}', { jumlah: rp(saran[k.nama].rata) })}">💡 ${T('Saran {jumlah}', { jumlah: rpPendek(saran[k.nama].batas) })}</button>` : ''}
+          <label class="amplop"><input type="checkbox" class="input-amplop" data-nama="${esc(k.nama)}" ${k.bawaSisa ? 'checked' : ''}> 📨 ${T('Amplop')}</label></span></span>
         <input class="field input-rp input-anggaran" data-nama="${esc(k.nama)}" inputmode="numeric" placeholder="${T('Tanpa batas')}" aria-label="${T('Anggaran {nama}', { nama: esc(namaT(k.nama)) })}" value="${formatAngka(k.anggaran)}">
       </div>`).join('')}
     <p class="info-kecil" id="total-anggaran"></p>

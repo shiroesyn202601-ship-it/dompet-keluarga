@@ -513,6 +513,12 @@ body.samar #view .kekayaan, body.samar #view .baris-rincian span:last-child { fi
 /* Anggaran amplop */
 .amplop { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; }
 .amplop input { margin: 0; }
+/* Form anggaran: nama kategori di baris 1, saran & centang Amplop di baris 2, jadi semua baris sama tinggi. */
+.isi-anggaran { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.isi-anggaran > b { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opsi-anggaran { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 26px; }
+.opsi-anggaran .amplop { margin-top: 0; }
+.opsi-anggaran .saran-anggaran { margin: 0; }
 /* Riwayat: filter & ringkasan hasil */
 .ringkas-cari { margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; background: var(--primary-soft); font-size: 13px; font-weight: 600; }
 .ringkas-cari b { font-variant-numeric: tabular-nums; }
