@@ -5880,15 +5880,14 @@ function htmlKalender() {
     ${dipilih.length || tagihanDipilih.length ? '' : '<p class="info-kecil" style="text-align:left;margin-top:0">' + T('Belum ada catatan di tanggal ini.') + '</p>'}
     ${S.data.bisaCatatan === false ? '<p class="info-kecil" style="text-align:left">' + T('⚠️ Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).') + '</p>' : ''}
     ${htmlCatatanTanpaTanggal()}
-    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">${T('＋ Catatan')}</button></div>
-    <p class="info-kecil" style="margin-top:6px">${T('Dibuat di {hari}. Untuk catatan tanpa tanggal, ketuk ✕ di samping tanggal pada form.', { hari: esc(labelHariPendek(S.kal.pilih)) })}</p>`;
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">${T('＋ Catatan')}</button></div>`;
 }
 
 /** Catatan tanpa tanggal: selalu tampil di bawah kalender, apa pun tanggal yang dipilih. */
 function htmlCatatanTanpaTanggal() {
   const daftar = daftarCatatan().filter(c => !c.tanggal);
-  return `<h3 class="kal-judul-hari">📌 ${T('Tanpa tanggal')}</h3>
-    ${daftar.map(itemCatatan).join('') || '<p class="info-kecil" style="text-align:left;margin-top:0">' + T('Catatan tanpa tanggal selalu tampil di sini, mis. daftar belanja atau ide.') + '</p>'}`;
+  if (!daftar.length) return '';
+  return `<h3 class="kal-judul-hari">📌 ${T('Tanpa tanggal')}</h3>${daftar.map(itemCatatan).join('')}`;
 }
 
 /** Geser kiri/kanan di kalender untuk ganti bulan. */
@@ -6683,7 +6682,17 @@ Object.assign(AKSI, {
     renderKalender();
   },
   'kal-bulan': el => gantiBulanKalender(Number(el.dataset.geser)),
-  'tambah-catatan': () => bukaFormCatatan(null, S.kal && S.kal.pilih),
+  // ＋ Catatan: pilih dulu catatan di tanggal terpilih atau tanpa tanggal.
+  'tambah-catatan': () => {
+    const tgl = (S.kal && S.kal.pilih) || hariIni();
+    bukaSheet(T('Catatan baru'), `<div class="pilih-jenis-catatan">
+      <button type="button" class="baris" data-aksi="catatan-baru" data-tgl="${tgl}">
+        <span class="ikon-bulat">📅</span><span class="isi"><b>${esc(keteranganHari(tgl))}</b><small>${T('Bisa diingatkan & diulang')}</small></span><span class="panah">${svg('maju')}</span></button>
+      <button type="button" class="baris" data-aksi="catatan-baru" data-tgl="">
+        <span class="ikon-bulat">📌</span><span class="isi"><b>${T('Tanpa tanggal')}</b><small>${T('Mis. daftar belanja atau ide')}</small></span><span class="panah">${svg('maju')}</span></button>
+    </div>`);
+  },
+  'catatan-baru': el => bukaFormCatatan(null, el.dataset.tgl),
   'c-tanpa-tanggal': () => jadikanCatatanTanpaTanggal(),
   'ubah-catatan': el => {
     const c = daftarCatatan().find(x => x.id === el.dataset.id);
