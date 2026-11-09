@@ -893,6 +893,10 @@ body.tanpa-nav #view { padding-bottom: calc(24px + env(safe-area-inset-bottom));
 .form-catatan .judul-catatan:focus-visible, .form-catatan .isi-catatan:focus-visible, .baris-tugas input:focus-visible,
 .chip-opsi input:focus-visible, .chip-opsi select:focus-visible { outline: none; }
 .chip-opsi:focus-within { box-shadow: 0 0 0 2px var(--primary); }
+/* Chip tanggal catatan + tombol ✕ menempel jadi satu pil. */
+.grup-tanggal-catatan { display: inline-flex; align-items: stretch; }
+.grup-tanggal-catatan .chip-opsi:has(+ .chip-hapus-tanggal) { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right-width: 0; }
+.chip-hapus-tanggal { border-top-left-radius: 0 !important; border-bottom-left-radius: 0 !important; padding: 6px 10px; color: var(--muted); font-weight: 800; }
 .baris-tugas:focus-within { border-bottom-color: var(--w, var(--primary)); }
 /* Bilah bawah form catatan: opsi + Hapus/Simpan, menempel di bawah layar (naik di atas keyboard). */
 body.tanpa-nav #view:has(.bilah-catatan) { padding-bottom: calc(165px + env(safe-area-inset-bottom)); }

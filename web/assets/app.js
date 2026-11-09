@@ -5876,7 +5876,7 @@ function htmlKalender() {
     ${S.data.bisaCatatan === false ? '<p class="info-kecil" style="text-align:left">' + T('⚠️ Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).') + '</p>' : ''}
     ${htmlCatatanTanpaTanggal()}
     <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">${T('＋ Catatan')}</button></div>
-    <p class="info-kecil" style="margin-top:6px">${T('Dibuat di {hari}. Untuk catatan tanpa tanggal, tekan Clear di pilihan tanggal.', { hari: esc(labelHariPendek(S.kal.pilih)) })}</p>`;
+    <p class="info-kecil" style="margin-top:6px">${T('Dibuat di {hari}. Untuk catatan tanpa tanggal, ketuk ✕ di samping tanggal pada form.', { hari: esc(labelHariPendek(S.kal.pilih)) })}</p>`;
 }
 
 /** Catatan tanpa tanggal: selalu tampil di bawah kalender, apa pun tanggal yang dipilih. */
@@ -6151,6 +6151,13 @@ function tinggalkanFormCatatan() {
 }
 
 /** Ambil isian form yang sedang tampil ke S.formCatatan (dipanggil sebelum render ulang & saat ganti jenis). */
+/** Catatan di form jadi tanpa tanggal (sekaligus tanpa pengingat & pengulangan). */
+function jadikanCatatanTanpaTanggal() {
+  simpanDraftCatatan();
+  Object.assign(S.formCatatan, { tanggal: '', pengingat: false, ulang: '' });
+  render();
+}
+
 function simpanDraftCatatan() {
   const f = S.formCatatan;
   if (!f || !$('#c-judul')) return;
@@ -6196,9 +6203,9 @@ function viewFormCatatan() {
       <div class="bilah-catatan">
         <div class="pratinjau-dikte" id="pratinjau-dikte" role="status" aria-live="polite" hidden></div>
         <div class="opsi-catatan">
-          <!-- Tombol Clear di pemilih tanggal = catatan tanpa tanggal. -->
-          <label class="chip-opsi">${f.tanggal ? '📅' : '📌'} <span id="c-tanggal-label">${f.tanggal ? esc(labelHariPendek(f.tanggal)) : T('Tanpa tanggal')}</span>
-            <input type="date" id="c-tanggal" value="${f.tanggal}" aria-label="${T('Tanggal (kosongkan untuk catatan tanpa tanggal)')}"></label>
+          <!-- Ketuk tanggal untuk menggantinya; ✕ (atau Clear di pemilih tanggal) = catatan tanpa tanggal. -->
+          <span class="grup-tanggal-catatan"><label class="chip-opsi">${f.tanggal ? '📅' : '📌'} <span id="c-tanggal-label">${f.tanggal ? esc(labelHariPendek(f.tanggal)) : T('Tanpa tanggal')}</span>
+            <input type="date" id="c-tanggal" value="${f.tanggal}" aria-label="${T('Tanggal')}"></label>${f.tanggal ? `<button type="button" class="chip-opsi chip-hapus-tanggal" data-aksi="c-tanpa-tanggal" aria-label="${T('Hapus tanggal (jadi catatan tanpa tanggal)')}">✕</button>` : ''}</span>
           ${f.tanggal ? `<button type="button" class="chip-opsi ${f.pengingat ? 'nyala' : ''}" data-aksi="c-pengingat" role="switch" aria-checked="${f.pengingat}">${f.pengingat ? T('🔔 Ingatkan') : T('🔕 Ingatkan')}</button>
           <label class="chip-opsi ${f.ulang ? 'nyala' : ''}">🔁 <span id="c-ulang-label">${LABEL_ULANG.find(u => u[0] === f.ulang)[1]}</span>
             <select id="c-ulang" aria-label="${T('Ulangi')}">${LABEL_ULANG.map(([v, , l]) => `<option value="${v}" ${f.ulang === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
@@ -6323,11 +6330,9 @@ document.addEventListener('change', e => {
   if (!S.formCatatan) return;
   if (e.target.id === 'c-tanggal') {
     const f = S.formCatatan, dariTanpa = !f.tanggal;
-    if (!e.target.value) { // Clear di pemilih tanggal → tanpa tanggal (tanpa pengingat & pengulangan)
-      if (dariTanpa) return;
-      simpanDraftCatatan();
-      Object.assign(f, { tanggal: '', pengingat: false, ulang: '' });
-      return render();
+    if (!e.target.value) { // Clear di pemilih tanggal (desktop) → tanpa tanggal
+      if (!dariTanpa) jadikanCatatanTanpaTanggal();
+      return;
     }
     f.tanggal = e.target.value;
     if (dariTanpa) { simpanDraftCatatan(); render(); return; }
@@ -6674,6 +6679,7 @@ Object.assign(AKSI, {
   },
   'kal-bulan': el => gantiBulanKalender(Number(el.dataset.geser)),
   'tambah-catatan': () => bukaFormCatatan(null, S.kal && S.kal.pilih),
+  'c-tanpa-tanggal': () => jadikanCatatanTanpaTanggal(),
   'ubah-catatan': el => {
     const c = daftarCatatan().find(x => x.id === el.dataset.id);
     if (c) bukaFormCatatan(c);
