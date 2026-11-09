@@ -8466,7 +8466,7 @@ function htmlPilihAvatar() {
     </div>
     <span class="label">${T('Atau pilih gambar')}</span>
     <div class="grid-avatar">${AVATAR_BAWAAN.map(([id, e, w]) => `<button type="button" class="${a && a.p === id ? 'aktif' : ''}" data-aksi="avatar-pilih" data-id="${id}"
-      style="--av:${w}" aria-pressed="${!!(a && a.p === id)}" aria-label="${e}">${e}</button>`).join('')}</div>`;
+      style="--av:${w}" aria-pressed="${!!(a && a.p === id)}" aria-label="${e}"><span aria-hidden="true">${e}</span></button>`).join('')}</div>`;
 }
 function bukaGantiAvatar() {
   bukaSheet(T('Ganti avatar'), `<div id="isi-avatar">${htmlPilihAvatar()}</div>`);
