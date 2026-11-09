@@ -1746,6 +1746,7 @@ function tanggalWajar_(s, hariIni) {
 // ======================================================================
 // Pengingat harian lewat Telegram (pemicu waktu, ± jam 06.00 WIB)
 // Catatan berpengingat yang jatuh hari ini + tagihan rutin yang jatuh tempo (terlambat, hari ini, besok)
+// + pengingat tantangan di awal setiap minggu tantangan (setoran 52 minggu, batas jajan, sisihkan pemasukan)
 // dikirim ke setiap akun Telegram yang terhubung ke buku itu. Bisa dimatikan per buku dari aplikasi
 // (Pengaturan PENGINGAT_TELEGRAM = 'Mati').
 // ======================================================================
@@ -1815,7 +1816,8 @@ function pengingatBuku_(idSheet, idTerindeks, hari) {
   const catatan = baris[2].filter(r => r[0] !== '' && String(r[4]) === 'Ya').map(r => ({
     tanggal: tgl_(r[1]), judul: String(r[2]), isi: String(r[3] || ''), ulang: String(r[5] || ''),
   })).filter(c => catatanTerjadi_(c, hari));
-  if (!tagihan.length && !catatan.length) return;
+  const tantangan = pengingatTantangan_(p, hari);
+  if (!tagihan.length && !catatan.length && !tantangan.length) return;
 
   const baris2 = ['🔔 <b>Pengingat hari ini</b> · ' + html_(tglPanjang_(hari)), ''];
   catatan.forEach(c => {
@@ -1831,10 +1833,37 @@ function pengingatBuku_(idSheet, idTerindeks, hari) {
     const kapan = selisih < 0 ? 'terlambat ' + (-selisih) + ' hari' : selisih === 0 ? 'jatuh tempo hari ini' : 'besok';
     baris2.push((r.tipe === TIPE.MASUK ? '💰 ' : '💡 ') + '<b>' + html_(r.nama) + '</b> · ' + rp_(r.jumlah) + ' · ' + kapan);
   });
+  tantangan.forEach(s => baris2.push(s));
   if (tagihan.length) baris2.push('', 'Sudah dibayar? Catat dari aplikasi (Beranda → tagihan) supaya jatuh temponya maju.');
   const teks = baris2.join('\n');
   tujuan.forEach(id => kirim_(id, teks));
   props.setProperty(kunciHari, hari);
+}
+
+/**
+ * Baris pengingat tantangan aktif (Pengaturan TANTANGAN, JSON yang ditulis aplikasi), hanya di hari pertama
+ * setiap minggu tantangan supaya tidak berisik: berapa yang perlu disetor minggu ini, atau batas jajan minggu baru.
+ */
+function pengingatTantangan_(p, hari) {
+  let isi = {};
+  try { isi = JSON.parse(p.TANTANGAN || '{}') || {}; } catch (e) { return []; }
+  const hasil = [];
+  (isi.aktif || []).forEach(t => {
+    if (!t || !t.mulai) return;
+    const lewat = Math.round((keTanggal_(hari) - keTanggal_(t.mulai)) / 864e5);
+    if (lewat < 0 || lewat % 7 !== 0) return;
+    const minggu = lewat / 7 + 1;
+    if (t.jenis === '52' && minggu <= 52) {
+      const unit = Number(t.unit) || 0;
+      hasil.push('🐷 <b>52 minggu menabung</b> · minggu ke-' + minggu + ': setor ' + rp_(t.pola === 'tetap' ? unit : unit * minggu)
+        + ' ke ' + html_(t.tabungan));
+    } else if (t.jenis === 'batas' && lewat > 0 && minggu <= (Number(t.minggu) || 4)) {
+      hasil.push('🧾 <b>Minggu baru</b> · ' + html_(t.kategori) + ' maks ' + rp_(Number(t.batas) || 0) + ' minggu ini (minggu ke-' + minggu + ')');
+    } else if (t.jenis === 'persen' && lewat > 0 && lewat < (Number(t.hari) || 30)) {
+      hasil.push('💸 <b>Sisihkan ' + (Number(t.persen) || 0) + '% pemasukan</b> · sudah disetor ke ' + html_(t.tabungan) + '? Cek kekurangannya di aplikasi.');
+    }
+  });
+  return hasil;
 }
 
 /**

@@ -231,13 +231,31 @@ function chipStreak() {
 }
 
 const JENIS_TANTANGAN = {
-  hemat: { ikon: '🌱', judul: T('Hari tanpa belanja'), ket: T('Kumpulkan beberapa hari tanpa pengeluaran dalam 30 hari.') },
+  hemat: { ikon: '🌱', judul: T('Hari tanpa belanja'), ket: T('Kumpulkan beberapa hari tanpa pengeluaran dalam jangka waktu tertentu.') },
   52: { ikon: '🐷', judul: T('52 minggu menabung'), ket: T('Setor tiap minggu selama setahun: naik bertahap (1×, 2×, 3×, …) atau sama setiap minggu.') },
-  tanpa: { ikon: '🙅', judul: T('Seminggu tanpa…'), ket: T('Tujuh hari tanpa satu kategori pengeluaran, mis. jajan kopi atau ojek online.') },
+  tanpa: { ikon: '🙅', judul: T('Tanpa satu kategori…'), ket: T('Beberapa hari tanpa satu kategori pengeluaran, mis. jajan kopi atau ojek online.') },
+  batas: { ikon: '🧾', judul: T('Batas jajan mingguan'), ket: T('Pengeluaran satu kategori tidak lewat batas setiap minggu, mis. jajan paling banyak Rp100.000/minggu.') },
+  persen: { ikon: '💸', judul: T('Sisihkan % pemasukan'), ket: T('Setiap ada pemasukan, sisihkan sekian persen ke tabungan.') },
 };
-const judulTantangan = t => (t.jenis === 'tanpa' ? T('Seminggu tanpa {kategori}', { kategori: namaT(t.kategori) })
-  : t.jenis === 'hemat' ? T('{n} hari tanpa belanja', { n: t.target })
-  : t.pola === 'tetap' ? T('52 minggu menabung · {jumlah}/minggu', { jumlah: rp(t.unit) }) : T('52 minggu menabung'));
+/** Lama tantangan dalam hari (hemat & persen bawaan 30, tanpa bawaan 7) dan dalam minggu (batas, bawaan 4). */
+const hariTantangan = t => Number(t.hari) || (t.jenis === 'tanpa' ? 7 : 30);
+const mingguBatas = t => Number(t.minggu) || 4;
+const DURASI = { hemat: [14, 30, 60], tanpa: [3, 7, 14, 30], persen: [30, 60, 90] };
+const TARGET_HEMAT = { 14: [2, 3, 5, 7], 30: [3, 5, 8, 12], 60: [5, 10, 15, 25] };
+const PILIHAN_BATAS = [50000, 100000, 200000, 300000];
+const PILIHAN_PERSEN = [5, 10, 20, 30];
+const MINGGU_BATAS = [2, 4, 8];
+
+function judulTantangan(t) {
+  if (t.jenis === 'tanpa') {
+    return hariTantangan(t) === 7 ? T('Seminggu tanpa {kategori}', { kategori: namaT(t.kategori) })
+      : T('{n} hari tanpa {kategori}', { n: hariTantangan(t), kategori: namaT(t.kategori) });
+  }
+  if (t.jenis === 'hemat') return T('{n} hari tanpa belanja', { n: t.target });
+  if (t.jenis === 'batas') return T('{kategori} maks {jumlah}/minggu', { kategori: namaT(t.kategori), jumlah: rp(t.batas) });
+  if (t.jenis === 'persen') return T('Sisihkan {persen}% pemasukan', { persen: t.persen });
+  return t.pola === 'tetap' ? T('52 minggu menabung · {jumlah}/minggu', { jumlah: rp(t.unit) }) : T('52 minggu menabung');
+}
 
 /**
  * Pola 52 minggu menabung: 'naik' (bawaan, minggu ke-n setor n × unit, total 1.378 × unit)
@@ -249,12 +267,46 @@ const jadwal52 = (t, minggu) => (pola52Tetap(t) ? t.unit * minggu : t.unit * min
 const total52 = t => jadwal52(t, 52);
 const PILIHAN_UNIT_52 = { naik: [5000, 10000, 20000, 50000], tetap: [10000, 25000, 50000, 100000] };
 
-/** Kemajuan satu tantangan: { persen, teks, selesai?: 'berhasil' | 'gagal', setorMingguIni? }. */
+/** Jumlah ambil(hari) untuk setiap hari di jejak antara dari..sampai (inklusif). */
+function jumlahJejak(dari, sampai, ambil) {
+  const j = S.data.jejak || {};
+  let n = 0;
+  Object.keys(j).forEach(x => { if (x >= dari && x <= sampai) n += ambil(j[x]) || 0; });
+  return n;
+}
+/** Setoran ke satu tabungan per anggota (email → jumlah) antara dari..sampai. */
+function setoranPerOrang(tabungan, dari, sampai) {
+  const j = S.data.jejak || {};
+  const o = {};
+  Object.keys(j).forEach(x => {
+    const p = x >= dari && x <= sampai && (j[x].tabO || {})[tabungan];
+    if (p) Object.keys(p).forEach(e => { o[e] = (o[e] || 0) + p[e]; });
+  });
+  return o;
+}
+/** "Galang Rp150.000 · Ani Rp100.000" — hanya kalau lebih dari satu orang yang setor. */
+function teksPerOrang(o) {
+  const k = Object.keys(o).filter(e => o[e] > 0);
+  if (k.length < 2) return '';
+  return k.sort((a, b) => o[b] - o[a]).map(e => (namaPendek(e) || T('Tanpa nama')) + ' ' + rp(o[e])).join(' · ');
+}
+/** Rata-rata pengeluaran satu kategori per minggu, 8 minggu sebelum hari ini. */
+function rataMingguanKategori(kategori) {
+  if (!kategori) return 0;
+  const n = jumlahJejak(geserHari(hariIni(), -56), geserHari(hariIni(), -1), h => (h.kat || {})[kategori]);
+  return Math.round(n / 8 / 1000) * 1000;
+}
+
+/**
+ * Kemajuan satu tantangan: { persen, teks, selesai?: 'berhasil' | 'gagal' }.
+ * Tantangan menabung juga memberi: kurang (setoran yang perlu dikejar), setorMingguIni, mingguDepan, orang (per anggota).
+ */
 function statusTantangan(t) {
   const j = S.data.jejak || {};
   const kini = hariIni();
   if (t.jenis === 'hemat') {
-    const akhir = geserHari(t.mulai, 29);
+    const lama = hariTantangan(t);
+    const akhir = geserHari(t.mulai, lama - 1);
     const kosong = hariKosong();
     let n = 0;
     for (let x = t.mulai; x <= kini && x <= akhir; x = geserHari(x, 1)) {
@@ -266,34 +318,77 @@ function statusTantangan(t) {
     return { persen: n / t.target * 100, teks: T('{n} dari {target} hari · sisa {sisa} hari', { n, target: t.target, sisa: selisihTanggal(kini, akhir) + 1 }) };
   }
   if (t.jenis === 'tanpa') {
-    const akhir = geserHari(t.mulai, 6);
+    const lama = hariTantangan(t);
+    const akhir = geserHari(t.mulai, lama - 1);
     for (let x = t.mulai; x <= kini && x <= akhir; x = geserHari(x, 1)) {
       if (((j[x] || {}).kat || {})[t.kategori] > 0) {
-        return { persen: (selisihTanggal(t.mulai, x)) / 7 * 100, selesai: 'gagal', teks: T('Bocor di hari ke-{n}', { n: selisihTanggal(t.mulai, x) + 1 }) };
+        return { persen: (selisihTanggal(t.mulai, x)) / lama * 100, selesai: 'gagal', teks: T('Bocor di hari ke-{n}', { n: selisihTanggal(t.mulai, x) + 1 }) };
       }
     }
-    if (kini > akhir) return { persen: 100, selesai: 'berhasil', teks: T('Tujuh hari tanpa {kategori} 🎉', { kategori: namaT(t.kategori) }) };
+    if (kini > akhir) {
+      return { persen: 100, selesai: 'berhasil', teks: lama === 7 ? T('Tujuh hari tanpa {kategori} 🎉', { kategori: namaT(t.kategori) })
+        : T('{n} hari tanpa {kategori} 🎉', { n: lama, kategori: namaT(t.kategori) }) };
+    }
     const hari = selisihTanggal(t.mulai, kini) + 1;
-    return { persen: (hari - 1) / 7 * 100, teks: T('Hari ke-{n} dari 7 · belum ada {kategori} 💪', { n: hari, kategori: namaT(t.kategori) }) };
+    return { persen: (hari - 1) / lama * 100, teks: T('Hari ke-{n} dari {total} · belum ada {kategori} 💪', { n: hari, total: lama, kategori: namaT(t.kategori) }) };
+  }
+  if (t.jenis === 'batas') {
+    const mg = mingguBatas(t), lamaHari = mg * 7;
+    const akhir = geserHari(t.mulai, lamaHari - 1);
+    const kat = h => (h.kat || {})[t.kategori];
+    for (let w = 0; w < mg; w++) {
+      const a = geserHari(t.mulai, w * 7);
+      if (a > kini) break;
+      const pakai = jumlahJejak(a, geserHari(a, 6), kat);
+      if (pakai > t.batas) {
+        return { persen: w / mg * 100, selesai: 'gagal', teks: T('Lewat batas di minggu ke-{n}: {jumlah} dari {batas}', { n: w + 1, jumlah: rp(pakai), batas: rp(t.batas) }) };
+      }
+    }
+    if (kini > akhir) return { persen: 100, selesai: 'berhasil', teks: T('{n} minggu {kategori} tidak lewat batas 🎉', { n: mg, kategori: namaT(t.kategori) }) };
+    const lewat = Math.max(0, selisihTanggal(t.mulai, kini));
+    const w = Math.floor(lewat / 7);
+    const pakai = jumlahJejak(geserHari(t.mulai, w * 7), kini, kat);
+    return {
+      persen: lewat / lamaHari * 100,
+      teks: T('Minggu ke-{n} dari {total} · terpakai {jumlah} dari {batas}', { n: w + 1, total: mg, jumlah: rp(pakai), batas: rp(t.batas) }) + (pakai >= t.batas * 0.8 ? ' ⚠️' : ''),
+    };
+  }
+  if (t.jenis === 'persen') {
+    const lama = hariTantangan(t);
+    const akhir = geserHari(t.mulai, lama - 1);
+    const sampai = kini < akhir ? kini : akhir;
+    const masuk = jumlahJejak(t.mulai, sampai, h => h.m);
+    const target = Math.round(masuk * t.persen / 100);
+    const setor = jumlahJejak(t.mulai, sampai, h => (h.tab || {})[t.tabungan]);
+    const persen = target ? Math.max(0, Math.min(100, setor / target * 100)) : 0;
+    if (kini > akhir) {
+      return target && setor >= target ? { persen: 100, selesai: 'berhasil', teks: T('{jumlah} tersisih dari pemasukan 🎉', { jumlah: rp(setor) }) }
+        : { persen, selesai: 'gagal', teks: T('Tersisih {jumlah} dari {target}', { jumlah: rp(Math.max(0, setor)), target: rp(target) }) };
+    }
+    return {
+      persen, kurang: Math.max(0, target - setor), orang: teksPerOrang(setoranPerOrang(t.tabungan, t.mulai, sampai)),
+      teks: (target ? T('Pemasukan {masuk} → sisihkan {target} · sudah {setor}', { masuk: rp(masuk), target: rp(target), setor: rp(Math.max(0, setor)) })
+        : T('Belum ada pemasukan sejak tantangan dimulai')) + ' · ' + T('sisa {n} hari', { n: selisihTanggal(kini, akhir) + 1 }),
+    };
   }
   // 52 minggu menabung
   const lewat = selisihTanggal(t.mulai, kini);
   const minggu = Math.min(52, Math.floor(Math.max(0, lewat) / 7) + 1);
-  let setor = 0;
-  Object.keys(j).forEach(x => { if (x >= t.mulai && j[x].tab && j[x].tab[t.tabungan]) setor += j[x].tab[t.tabungan]; });
+  const setor = jumlahJejak(t.mulai, '9999-12-31', h => (h.tab || {})[t.tabungan]);
   const totalTarget = total52(t);
   const jadwal = jadwal52(t, minggu);
   const persen = Math.max(0, Math.min(100, setor / totalTarget * 100));
   if (setor >= totalTarget) return { persen: 100, selesai: 'berhasil', teks: T('{jumlah} terkumpul dalam 52 minggu 🎉', { jumlah: rp(setor) }) };
   if (lewat > 52 * 7 + 6) return { persen, selesai: 'gagal', teks: T('Terkumpul {jumlah} dari {target}', { jumlah: rp(setor), target: rp(totalTarget) }) };
   return {
-    persen, setorMingguIni: setoran52(t, minggu),
+    persen, setorMingguIni: setoran52(t, minggu), mingguDepan: minggu < 52 ? setoran52(t, minggu + 1) : 0,
+    kurang: Math.max(0, jadwal - setor), orang: teksPerOrang(setoranPerOrang(t.tabungan, t.mulai, '9999-12-31')),
     teks: T('Minggu ke-{minggu} · setor {jumlah}', { minggu, jumlah: rp(setoran52(t, minggu)) }) + ' · '
       + (setor >= jadwal ? T('✅ sesuai jadwal') : T('kurang {jumlah} dari jadwal', { jumlah: rp(jadwal - setor) })),
   };
 }
 
-/** Lencana: diraih dari streak terbaik dan tantangan yang berhasil. */
+/** Lencana: diraih dari streak terbaik dan tantangan yang berhasil. [ikon, nama, diraih, syarat] */
 function daftarLencana() {
   const s = hitungStreak();
   const berhasil = (tantanganData().selesai || []).filter(x => x.hasil === 'berhasil');
@@ -305,9 +400,39 @@ function daftarLencana() {
     ['💯', T('100 hari'), s.terbaik >= 100, T('Mencatat 100 hari beruntun')],
     ['👑', T('Setahun'), s.terbaik >= 365, T('Mencatat 365 hari beruntun')],
     ['🌱', T('Si Hemat'), punya('hemat'), T('Menyelesaikan tantangan hari tanpa belanja')],
-    ['🙅', T('Kuat Iman'), punya('tanpa'), T('Menyelesaikan seminggu tanpa satu kategori')],
+    ['🙅', T('Kuat Iman'), punya('tanpa'), T('Menyelesaikan tantangan tanpa satu kategori')],
     ['🐷', T('Jago Nabung'), punya('52'), T('Menyelesaikan 52 minggu menabung')],
+    ['🧾', T('Rem Jajan'), punya('batas'), T('Menyelesaikan batas jajan mingguan')],
+    ['💸', T('Rajin Sisih'), punya('persen'), T('Menyelesaikan tantangan sisihkan % pemasukan')],
   ];
+}
+
+/** Tombol setor di kartu tantangan menabung: kejar ketinggalan, minggu ini saja, atau cicil minggu depan. */
+function tombolSetorTantangan(t, st) {
+  if (st.selesai || !('kurang' in st)) return '';
+  const b = (kelas, jumlah, label) => `<button type="button" class="btn ${kelas} kecil" data-aksi="setor-tantangan" data-id="${esc(t.id)}" data-jumlah="${jumlah}">${label}</button>`;
+  let isi = '';
+  if (t.jenis === 'persen') isi = st.kurang > 0 ? b('btn-utama', st.kurang, T('💸 Setor {jumlah}', { jumlah: rp(st.kurang) })) : '';
+  else if (st.kurang > st.setorMingguIni) {
+    isi = b('btn-utama', st.kurang, T('🐷 Setor + kejar ketinggalan {jumlah}', { jumlah: rp(st.kurang) }))
+      + b('btn-kedua', st.setorMingguIni, T('Minggu ini saja {jumlah}', { jumlah: rp(st.setorMingguIni) }));
+  } else if (st.kurang > 0) isi = b('btn-utama', st.kurang, T('🐷 Setor {jumlah}', { jumlah: rp(st.kurang) }));
+  else if (st.mingguDepan) isi = b('btn-kedua', st.mingguDepan, T('Cicil minggu depan {jumlah}', { jumlah: rp(st.mingguDepan) }));
+  return isi ? `<div class="kt-setor">${isi}</div>` : '';
+}
+
+function kartuTantanganAktif(t) {
+  const st = statusTantangan(t);
+  return `<div class="kartu-tantangan">
+    <div class="kt-atas"><span class="kt-ikon" aria-hidden="true">${JENIS_TANTANGAN[t.jenis] ? JENIS_TANTANGAN[t.jenis].ikon : '🏁'}</span>
+      <b>${esc(judulTantangan(t))}</b>
+      <button type="button" class="tombol-teks" data-aksi="ubah-tantangan" data-id="${esc(t.id)}">${T('Ubah')}</button>
+      <button type="button" class="tombol-teks" data-aksi="lepas-tantangan" data-id="${esc(t.id)}">${T('Lepas')}</button></div>
+    <span class="meter" role="meter" aria-label="${esc(judulTantangan(t))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(st.persen)}"><i style="width:${Math.max(2, Math.round(st.persen))}%"></i></span>
+    <small>${esc(st.teks)}</small>
+    ${st.orang ? `<small>👥 ${esc(st.orang)}</small>` : ''}
+    ${tombolSetorTantangan(t, st)}
+  </div>`;
 }
 
 function htmlTujuhHari() {
@@ -344,17 +469,7 @@ function htmlKebiasaan() {
     <p class="info-kecil" style="text-align:left">${T('Satu hari dihitung kalau ada transaksi yang dicatat (oleh siapa pun di buku ini), atau ditandai tanpa belanja. Hari tanpa catatan di 7 hari terakhir bisa diketuk untuk ditandai; ketuk ✋ lagi untuk membatalkan.')}</p>
 
     <h4 class="sub-laporan">${T('🏁 Tantangan')}</h4>
-    ${aktif.length ? aktif.map(t => {
-      const st = statusTantangan(t);
-      return `<div class="kartu-tantangan">
-        <div class="kt-atas"><span class="kt-ikon" aria-hidden="true">${JENIS_TANTANGAN[t.jenis] ? JENIS_TANTANGAN[t.jenis].ikon : '🏁'}</span>
-          <b>${esc(judulTantangan(t))}</b>
-          <button type="button" class="tombol-teks" data-aksi="lepas-tantangan" data-id="${esc(t.id)}">${T('Lepas')}</button></div>
-        <span class="meter" role="meter" aria-label="${esc(judulTantangan(t))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(st.persen)}"><i style="width:${Math.max(2, Math.round(st.persen))}%"></i></span>
-        <small>${esc(st.teks)}</small>
-        ${st.setorMingguIni ? `<button type="button" class="btn btn-utama kecil" style="margin-top:8px" data-aksi="setor-52" data-id="${esc(t.id)}">${T('🐷 Setor {jumlah}', { jumlah: rp(st.setorMingguIni) })}</button>` : ''}
-      </div>`;
-    }).join('') : `<p class="info-kecil" style="text-align:left;margin-top:0">${T('Belum ada tantangan. Pilih satu untuk mulai, bisa dikerjakan bareng pasangan.')}</p>`}
+    ${aktif.length ? aktif.map(kartuTantanganAktif).join('') : `<p class="info-kecil" style="text-align:left;margin-top:0">${T('Belum ada tantangan. Pilih satu untuk mulai, bisa dikerjakan bareng pasangan.')}</p>`}
     ${aktif.length < MAKS_TANTANGAN ? `<div class="pilih-tantangan">${Object.keys(JENIS_TANTANGAN).map(k => `
       <button type="button" class="baris" data-aksi="mulai-tantangan" data-jenis="${k}">
         <span class="ikon-bulat">${JENIS_TANTANGAN[k].ikon}</span>
@@ -363,11 +478,13 @@ function htmlKebiasaan() {
       </button>`).join('')}</div>` : ''}
 
     <h4 class="sub-laporan">${T('🏅 Lencana · {n}/{total}', { n: lencana.filter(x => x[2]).length, total: lencana.length })}</h4>
-    <div class="grid-lencana">${lencana.map(([ikon, nama, dapat, ket]) => `
-      <div class="lencana ${dapat ? 'dapat' : ''}" title="${esc(ket)}"><span aria-hidden="true">${dapat ? ikon : '🔒'}</span><b>${esc(nama)}</b>
-        <small class="sr-only">${esc(ket)}${dapat ? '' : ' · ' + T('belum diraih')}</small></div>`).join('')}</div>
+    <div class="grid-lencana">${lencana.map(([ikon, nama, dapat, ket], i) => `
+      <button type="button" class="lencana ${dapat ? 'dapat' : ''}" data-aksi="info-lencana" data-i="${i}"
+        aria-label="${esc(nama)}: ${esc(ket)}${dapat ? '' : ' · ' + T('belum diraih')}"><span aria-hidden="true">${dapat ? ikon : '🔒'}</span><b>${esc(nama)}</b></button>`).join('')}</div>
+    <p class="info-kecil">${T('Ketuk lencana untuk melihat syaratnya.')}</p>
     ${selesai.length ? `<h4 class="sub-laporan">${T('Riwayat tantangan')}</h4>${selesai.map(x => `
-      <div class="baris-rincian"><span>${x.hasil === 'berhasil' ? '🏆' : '💪'} ${esc(x.judul)}</span><span>${esc(tanggalPendek(x.selesai))}</span></div>`).join('')}` : ''}`;
+      <div class="baris-rincian riwayat-tantangan"><span>${x.hasil === 'berhasil' ? '🏆' : '💪'} ${esc(x.judul)}<small>${esc(tanggalPendek(x.selesai))}</small></span>
+        ${JENIS_TANTANGAN[x.jenis] && aktif.length < MAKS_TANTANGAN ? `<button type="button" class="tombol-teks" data-aksi="ulang-tantangan" data-id="${esc(x.id)}">${x.hasil === 'berhasil' ? T('Ulangi') : T('Coba lagi')}</button>` : ''}</div>`).join('')}` : ''}`;
 }
 
 function bukaKebiasaan() {
@@ -378,50 +495,111 @@ function segarkanKebiasaan() {
   if (S.tab === 'beranda') render();
 }
 
-let TG = null; // isian form mulai tantangan
-function bukaFormTantangan(jenis) {
-  TG = { jenis, target: 5, unit: 10000, pola: 'naik', kategori: '', tabungan: '' };
-  if (jenis === 'tanpa') {
+let TG = null; // isian form mulai / ubah tantangan
+/** Dompet sumber setoran bawaan: yang terakhir dipakai untuk tantangan, atau dompet pertama. */
+function sumberSetorAwal() {
+  const biasa = dompetBiasa();
+  return (biasa.find(w => w.nama === bacaHp('dk_sumber_setor')) || biasa[0] || {}).nama || '';
+}
+/** Isian tantangan yang disimpan (tanpa id/mulai/oleh), dipakai juga untuk "Coba lagi". */
+function configTantangan(g) {
+  switch (g.jenis) {
+    case 'hemat': return { target: g.target, hari: g.hari };
+    case 'tanpa': return { kategori: g.kategori, hari: g.hari };
+    case 'batas': return { kategori: g.kategori, batas: g.batas, minggu: g.minggu };
+    case 'persen': return { persen: g.persen, hari: g.hari, tabungan: g.tabungan, sumber: g.sumber };
+    default: return { unit: g.unit, ...(g.pola === 'tetap' ? { pola: 'tetap' } : {}), tabungan: g.tabungan, sumber: g.sumber };
+  }
+}
+/** dari: isian awal (tantangan yang diubah / diulang); ubahId: id tantangan aktif yang sedang diubah. */
+function bukaFormTantangan(jenis, dari, ubahId) {
+  if (!JENIS_TANTANGAN[jenis]) return;
+  TG = { jenis, target: 5, hari: { hemat: 30, tanpa: 7, persen: 30 }[jenis] || 0, unit: 10000, pola: 'naik', kategori: '', tabungan: '',
+    sumber: '', batas: 100000, minggu: 4, persen: 10, lain: '', ubahId: ubahId || '' };
+  if (dari) Object.keys(TG).forEach(k => { if (!['jenis', 'lain', 'ubahId'].includes(k) && dari[k] != null && dari[k] !== '') TG[k] = dari[k]; });
+  if (jenis === 'tanpa' || jenis === 'batas') {
     const per = {};
     Object.values(S.data.jejak || {}).forEach(h => Object.keys(h.kat || {}).forEach(k => { per[k] = (per[k] || 0) + 1; }));
     TG.urutKategori = S.data.kategori.filter(k => k.tipe === TIPE.KELUAR).sort((a, b) => (per[b.nama] || 0) - (per[a.nama] || 0));
-    TG.kategori = (TG.urutKategori[0] || {}).nama || '';
+    if (!TG.urutKategori.some(k => k.nama === TG.kategori)) TG.kategori = (TG.urutKategori[0] || {}).nama || '';
   }
-  if (jenis === '52') TG.tabungan = (daftarTabungan()[0] || {}).nama || '';
-  bukaSheet(JENIS_TANTANGAN[jenis].ikon + ' ' + JENIS_TANTANGAN[jenis].judul, '<div id="form-tantangan"></div>');
+  if (jenis === '52' || jenis === 'persen') {
+    const tab = daftarTabungan();
+    if (!tab.some(w => w.nama === TG.tabungan)) TG.tabungan = jenis === '52' && !dari ? (tab[0] || {}).nama || '' : '';
+    if (!dompetBiasa().some(w => w.nama === TG.sumber)) TG.sumber = sumberSetorAwal();
+  }
+  const j = JENIS_TANTANGAN[jenis];
+  bukaSheet(ubahId ? T('Ubah tantangan') : j.ikon + ' ' + j.judul, '<div id="form-tantangan"></div>');
   renderFormTantangan();
 }
-function renderFormTantangan() {
+/** Keterangan total setoran 52 minggu (diperbarui saat nominal diketik, tanpa menggambar ulang form). */
+function infoTantangan52() {
+  if (!TG || TG.jenis !== '52') return '';
+  const tetap = TG.pola === 'tetap';
+  let s = tetap ? T('Setor {jumlah} setiap minggu. Total setahun: <b>{total}</b>.', { jumlah: rp(TG.unit), total: rp(total52(TG)) })
+    : T('Minggu ke-52 setor {akhir}. Total setahun: <b>{total}</b>.', { akhir: rp(TG.unit * 52), total: rp(total52(TG)) });
+  if (TG.tabungan === '') s += ' ' + T('Dibuat tabungan baru "{nama}" dengan target {total}.', { nama: esc(T('52 Minggu Menabung')), total: rp(total52(TG)) });
+  return s;
+}
+function renderFormTantangan(fokusNominal) {
   const el = $('#form-tantangan');
   if (!el || !TG) return;
-  const chip = (aksi, nilai, label, aktif) => `<button type="button" class="chip ${aktif ? 'aktif' : ''}" data-aksi="${aksi}" data-v="${esc(nilai)}">${label}</button>`;
-  let isi = `<p style="margin-top:0">${JENIS_TANTANGAN[TG.jenis].ket}</p>`;
-  if (TG.jenis === 'hemat') {
-    isi += `<label class="label">${T('Target dalam 30 hari')}</label>
-      <div class="chips">${[3, 5, 8, 12].map(n => chip('tg-target', n, T('{n} hari', { n }), TG.target === n)).join('')}</div>
-      <p class="info-kecil" style="text-align:left">${T('Hari dihitung kalau tidak ada pengeluaran. Tandai "tanpa belanja" di hari itu supaya ikut terhitung.')}</p>`;
-  } else if (TG.jenis === '52') {
-    const tab = daftarTabungan();
-    const tetap = TG.pola === 'tetap';
-    isi += `<label class="label">${T('Pola setoran')}</label>
-      <div class="chips">${chip('tg-pola', 'naik', T('📈 Naik tiap minggu'), !tetap)}${chip('tg-pola', 'tetap', T('➖ Sama tiap minggu'), tetap)}</div>
-      <label class="label" style="margin-top:14px">${tetap ? T('Setoran per minggu') : T('Setoran minggu pertama')}</label>
-      <div class="chips">${PILIHAN_UNIT_52[TG.pola].map(n => chip('tg-unit', n, rp(n), TG.unit === n)).join('')}</div>
-      <p class="info-kecil" style="text-align:left">${tetap
-        ? T('Setor {jumlah} setiap minggu. Total setahun: <b>{total}</b>.', { jumlah: rp(TG.unit), total: rp(total52(TG)) })
-        : T('Minggu ke-52 setor {akhir}. Total setahun: <b>{total}</b>.', { akhir: rp(TG.unit * 52), total: rp(total52(TG)) })}</p>
-      <label class="label" style="margin-top:14px">${T('Ditabung ke')}</label>
-      <div class="grid-pilih">${tab.map(w => `<button type="button" class="pilihan ${TG.tabungan === w.nama ? 'aktif' : ''}" data-aksi="tg-tabungan" data-v="${esc(w.nama)}"><span>${ilus(w.ikon)}</span>${esc(namaT(w.nama))}</button>`).join('')}
-        <button type="button" class="pilihan ${TG.tabungan === '' ? 'aktif' : ''}" data-aksi="tg-tabungan" data-v=""><span>＋</span>${T('Tabungan baru')}</button></div>
-      ${TG.tabungan === '' ? `<p class="info-kecil" style="text-align:left">${T('Dibuat tabungan baru "{nama}" dengan target {total}.', { nama: esc(T('52 Minggu Menabung')), total: rp(total52(TG)) })}</p>` : ''}`;
+  const chip = (k, nilai, label) => `<button type="button" class="chip ${TG[k] === nilai ? 'aktif' : ''}" data-aksi="tg-set" data-k="${k}" data-v="${esc(nilai)}"${typeof nilai === 'number' ? ' data-num="1"' : ''}>${label}</button>`;
+  const chips = (k, daftar, label) => `<div class="chips">${daftar.map(n => chip(k, n, label(n))).join('')}</div>`;
+  const nominal = (k, daftar) => {
+    const lain = TG.lain === k || !daftar.includes(TG[k]);
+    return `<div class="chips">${daftar.map(n => chip(k, n, rp(n))).join('')}
+      <button type="button" class="chip ${lain ? 'aktif' : ''}" data-aksi="tg-lain" data-k="${k}">${T('Lainnya||nominal')}</button></div>
+      ${lain ? `<label class="input-jumlah" style="margin-top:8px"><span>Rp</span><input id="tg-nominal" class="input-rp" data-k="${k}" inputmode="numeric" autocomplete="off" placeholder="0" value="${TG[k] ? formatAngka(TG[k]) : ''}"></label>` : ''}`;
+  };
+  const grid = (k, daftar, tambahBaru) => `<div class="grid-pilih">${daftar.map(w => `<button type="button" class="pilihan ${TG[k] === w.nama ? 'aktif' : ''}" data-aksi="tg-set" data-k="${k}" data-v="${esc(w.nama)}"><span>${ilus(w.ikon)}</span>${esc(namaT(w.nama))}</button>`).join('')}
+    ${tambahBaru ? `<button type="button" class="pilihan ${TG[k] === '' ? 'aktif' : ''}" data-aksi="tg-set" data-k="${k}" data-v=""><span>＋</span>${T('Tabungan baru')}</button>` : ''}</div>`;
+  const label = (teks, pertama) => `<label class="label"${pertama ? '' : ' style="margin-top:14px"'}>${teks}</label>`;
+  const info = (teks, id) => `<p class="info-kecil" style="text-align:left"${id ? ` id="${id}"` : ''}>${teks}</p>`;
+  const jenis = TG.jenis;
+  let isi = `<p style="margin-top:0">${JENIS_TANTANGAN[jenis].ket}</p>`;
+  if (jenis === 'hemat') {
+    isi += label(T('Jangka waktu'), true) + chips('hari', DURASI.hemat, n => T('{n} hari', { n }))
+      + label(T('Target hari tanpa belanja')) + chips('target', TARGET_HEMAT[TG.hari] || TARGET_HEMAT[30], n => T('{n} hari', { n }))
+      + info(T('Hari dihitung kalau tidak ada pengeluaran. Tandai "tanpa belanja" di hari itu supaya ikut terhitung.'));
+  } else if (jenis === 'tanpa') {
+    isi += label(T('Kategori yang mau ditahan'), true) + grid('kategori', TG.urutKategori || [])
+      + label(T('Berapa lama')) + chips('hari', DURASI.tanpa, n => (n === 7 ? T('Seminggu') : T('{n} hari', { n })));
+  } else if (jenis === 'batas') {
+    const rata = rataMingguanKategori(TG.kategori);
+    isi += label(T('Kategori'), true) + grid('kategori', TG.urutKategori || [])
+      + label(T('Batas per minggu')) + nominal('batas', PILIHAN_BATAS)
+      + (rata ? info(T('Rata-rata {kategori} Anda {jumlah}/minggu (8 minggu terakhir).', { kategori: esc(namaT(TG.kategori)), jumlah: rp(rata) })) : '')
+      + label(T('Berapa lama')) + chips('minggu', MINGGU_BATAS, n => T('{n} minggu', { n }));
+  } else if (jenis === 'persen') {
+    const rata = rataPeriodeSelesai().masuk;
+    isi += label(T('Persen yang disisihkan'), true) + chips('persen', PILIHAN_PERSEN, n => n + '%')
+      + (rata ? info(T('Dengan pemasukan rata-rata {masuk}/bulan, kira-kira <b>{jumlah}</b> tersisih per bulan.', { masuk: rp(rata), jumlah: rp(Math.round(rata * TG.persen / 100)) })) : '')
+      + label(T('Jangka waktu')) + chips('hari', DURASI.persen, n => T('{n} hari', { n }))
+      + label(T('Ditabung ke')) + grid('tabungan', daftarTabungan(), true)
+      + (TG.tabungan === '' ? info(T('Dibuat tabungan baru "{nama}".', { nama: esc(T('Sisihan Pemasukan')) })) : '');
   } else {
-    isi += `<label class="label">${T('Kategori yang mau ditahan')}</label>
-      <div class="grid-pilih">${(TG.urutKategori || []).map(k => `<button type="button" class="pilihan ${TG.kategori === k.nama ? 'aktif' : ''}" data-aksi="tg-kategori" data-v="${esc(k.nama)}"><span>${ilus(k.ikon)}</span>${esc(namaT(k.nama))}</button>`).join('')}</div>`;
+    const tetap = TG.pola === 'tetap';
+    isi += label(T('Pola setoran'), true) + `<div class="chips">${chip('pola', 'naik', T('📈 Naik tiap minggu'))}${chip('pola', 'tetap', T('➖ Sama tiap minggu'))}</div>`
+      + label(tetap ? T('Setoran per minggu') : T('Setoran minggu pertama')) + nominal('unit', PILIHAN_UNIT_52[TG.pola])
+      + info(infoTantangan52(), 'tg-info')
+      + label(T('Ditabung ke')) + grid('tabungan', daftarTabungan(), true);
   }
+  if (jenis === '52' || jenis === 'persen') isi += label(T('Disetor dari')) + grid('sumber', dompetBiasa());
+  if (TG.ubahId) isi += info(T('Tanggal mulai tetap; kemajuan dihitung ulang dengan isian baru.'));
   isi += `<div class="aksi-form"><button type="button" class="btn btn-hapus" data-aksi="buka-kebiasaan">${T('Kembali')}</button>
-    <button type="button" class="btn btn-utama" data-aksi="simpan-tantangan">${T('Mulai tantangan')}</button></div>`;
+    <button type="button" class="btn btn-utama" data-aksi="simpan-tantangan">${TG.ubahId ? T('Simpan perubahan') : T('Mulai tantangan')}</button></div>`;
   el.innerHTML = isi;
+  const input = fokusNominal && $('#tg-nominal');
+  if (input) input.focus();
 }
+
+// Nominal "Lainnya" diketik: simpan ke isian & perbarui keterangan tanpa menggambar ulang (supaya keyboard tidak tertutup).
+document.addEventListener('input', e => {
+  if (!TG || e.target.id !== 'tg-nominal') return;
+  TG[e.target.dataset.k] = angka(e.target.value);
+  if ($('#tg-info')) $('#tg-info').innerHTML = infoTantangan52();
+});
 
 /** Ubah data tantangan di spreadsheet, lalu langsung pakai hasilnya tanpa memuat ulang semua data. */
 async function ubahTantanganLalu(ubah) {
@@ -451,7 +629,7 @@ async function cekTantanganSelesai() {
     const id = new Set(beres.map(x => x.t.id));
     const baru = await api('ubahTantangan', isi => {
       isi.aktif = (isi.aktif || []).filter(t => !id.has(t.id));
-      isi.selesai = (isi.selesai || []).concat(beres.map(x => ({ id: x.t.id, jenis: x.t.jenis, judul: judulTantangan(x.t), mulai: x.t.mulai, selesai: hariIni(), hasil: x.st.selesai }))).slice(-30);
+      isi.selesai = (isi.selesai || []).concat(beres.map(x => ({ id: x.t.id, jenis: x.t.jenis, judul: judulTantangan(x.t), mulai: x.t.mulai, selesai: hariIni(), hasil: x.st.selesai, cfg: configTantangan(x.t) }))).slice(-30);
       return isi;
     });
     S.data.tantangan = baru;
@@ -492,7 +670,8 @@ function cekPencapaianStreak() {
 function kartuTantangan() {
   const aktif = tantanganData().aktif || [];
   if (!aktif.length || !S.data.jejak) return '';
-  const t = aktif[0], st = statusTantangan(t);
+  // Utamakan tantangan menabung yang masih kurang setor, supaya jadi pengingat di Beranda.
+  const t = aktif.find(x => statusTantangan(x).kurang > 0) || aktif[0], st = statusTantangan(t);
   return `<button type="button" class="kartu kartu-tantangan-beranda" data-aksi="buka-kebiasaan">
     <span class="kt-ikon" aria-hidden="true">${JENIS_TANTANGAN[t.jenis] ? JENIS_TANTANGAN[t.jenis].ikon : '🏁'}</span>
     <span class="isi"><small>${T('Tantangan')}${aktif.length > 1 ? ' · ' + T('{n} aktif', { n: aktif.length }) : ''}</small><b>${esc(judulTantangan(t))}</b>
@@ -989,50 +1168,76 @@ Object.assign(AKSI, {
     segarkanKebiasaan();
   },
   'mulai-tantangan': el => bukaFormTantangan(el.dataset.jenis),
-  'tg-target': el => { TG.target = Number(el.dataset.v); renderFormTantangan(); },
-  'tg-unit': el => { TG.unit = Number(el.dataset.v); renderFormTantangan(); },
-  'tg-pola': el => {
-    if (TG.pola === el.dataset.v) return;
-    TG.pola = el.dataset.v === 'tetap' ? 'tetap' : 'naik';
-    if (!PILIHAN_UNIT_52[TG.pola].includes(TG.unit)) TG.unit = PILIHAN_UNIT_52[TG.pola][TG.pola === 'tetap' ? 2 : 1];
+  'ubah-tantangan': el => {
+    const t = (tantanganData().aktif || []).find(x => x.id === el.dataset.id);
+    if (t) bukaFormTantangan(t.jenis, t, t.id);
+  },
+  'ulang-tantangan': el => {
+    const x = (tantanganData().selesai || []).find(y => y.id === el.dataset.id);
+    if (x && JENIS_TANTANGAN[x.jenis]) bukaFormTantangan(x.jenis, x.cfg || null);
+  },
+  'tg-set': el => {
+    if (!TG) return;
+    const k = el.dataset.k;
+    TG[k] = el.dataset.num ? Number(el.dataset.v) : el.dataset.v;
+    if (k === 'unit' || k === 'batas') TG.lain = '';
+    if (k === 'pola') {
+      const lain = PILIHAN_UNIT_52[TG.pola === 'tetap' ? 'naik' : 'tetap'];
+      if (TG.lain !== 'unit' && !PILIHAN_UNIT_52[TG.pola].includes(TG.unit) && lain.includes(TG.unit)) TG.unit = PILIHAN_UNIT_52[TG.pola][TG.pola === 'tetap' ? 2 : 1];
+    }
+    if (k === 'hari' && TG.jenis === 'hemat' && !TARGET_HEMAT[TG.hari].includes(TG.target)) TG.target = TARGET_HEMAT[TG.hari][1];
     renderFormTantangan();
   },
-  'tg-tabungan': el => { TG.tabungan = el.dataset.v; renderFormTantangan(); },
-  'tg-kategori': el => { TG.kategori = el.dataset.v; renderFormTantangan(); },
+  'tg-lain': el => {
+    if (!TG) return;
+    TG.lain = el.dataset.k;
+    TG[el.dataset.k] = 0;
+    renderFormTantangan(true);
+  },
   'simpan-tantangan': async el => {
     if (!TG) return;
-    if (TG.jenis === 'tanpa' && !TG.kategori) return toast(T('Pilih kategorinya dulu.'), true);
-    if ((tantanganData().aktif || []).length >= MAKS_TANTANGAN) return toast(T('Maksimal {n} tantangan sekaligus.', { n: MAKS_TANTANGAN }), true);
+    const g = TG, jenis = g.jenis;
+    if ((jenis === 'tanpa' || jenis === 'batas') && !g.kategori) return toast(T('Pilih kategorinya dulu.'), true);
+    if (jenis === '52' && !(g.unit > 0)) return toast(T('Isi nominal setorannya dulu.'), true);
+    if (jenis === 'batas' && !(g.batas > 0)) return toast(T('Isi batas per minggunya dulu.'), true);
+    const aktif = tantanganData().aktif || [];
+    const lama = g.ubahId ? aktif.find(x => x.id === g.ubahId) : null;
+    if (g.ubahId && !lama) { toast(T('Tantangan ini sudah tidak aktif.'), true); return bukaKebiasaan(); }
+    if (!lama && aktif.length >= MAKS_TANTANGAN) return toast(T('Maksimal {n} tantangan sekaligus.', { n: MAKS_TANTANGAN }), true);
     el.disabled = true;
-    const t = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), jenis: TG.jenis, mulai: hariIni(), oleh: S.data.user };
-    if (TG.jenis === 'hemat') t.target = TG.target;
-    if (TG.jenis === 'tanpa') t.kategori = TG.kategori;
-    if (TG.jenis === '52') {
-      t.unit = TG.unit;
-      if (TG.pola === 'tetap') t.pola = 'tetap';
-      t.tabungan = TG.tabungan;
-      if (!t.tabungan) { // tabungan baru khusus tantangan ini
-        let nama = T('52 Minggu Menabung');
-        while (S.data.dompet.some(w => w.nama === nama)) nama += ' ' + (new Date().getFullYear());
-        loading(true);
-        try {
-          await api('simpanDompet', { namaLama: '', nama, ikon: '🐷', jenis: JENIS.TABUNGAN, saldoAwal: 0, target: total52(TG), tenggat: geserHari(hariIni(), 364) });
-          t.tabungan = nama;
-        } catch (e) {
-          loading(false);
-          el.disabled = false;
-          return toast(pesanError(e), true);
-        }
+    const cfg = configTantangan(g);
+    const mulai = lama ? lama.mulai : hariIni();
+    let tabunganBaru = false;
+    if ((jenis === '52' || jenis === 'persen') && !cfg.tabungan) { // tabungan baru khusus tantangan ini
+      let nama = jenis === '52' ? T('52 Minggu Menabung') : T('Sisihan Pemasukan');
+      while (S.data.dompet.some(w => w.nama === nama)) nama += ' ' + (new Date().getFullYear());
+      loading(true);
+      try {
+        await api('simpanDompet', { namaLama: '', nama, ikon: jenis === '52' ? '🐷' : '💸', jenis: JENIS.TABUNGAN, saldoAwal: 0,
+          target: jenis === '52' ? total52(g) : 0, tenggat: geserHari(mulai, jenis === '52' ? 364 : g.hari - 1) });
+        cfg.tabungan = nama;
+        tabunganBaru = true;
+      } catch (e) {
+        el.disabled = false;
+        return toast(pesanError(e), true);
+      } finally {
         loading(false);
       }
     }
-    const baru = await ubahTantanganLalu(isi => { isi.aktif = (isi.aktif || []).concat(t); return isi; });
+    if (cfg.sumber) tulisHp('dk_sumber_setor', cfg.sumber);
+    const t = lama ? { id: lama.id, jenis, mulai, oleh: lama.oleh, ...cfg }
+      : { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), jenis, mulai, oleh: S.data.user, ...cfg };
+    const baru = await ubahTantanganLalu(isi => {
+      const a = isi.aktif || [];
+      isi.aktif = lama ? a.map(x => (x.id === t.id ? t : x)) : a.concat(t);
+      return isi;
+    });
     el.disabled = false;
     if (!baru) return;
-    if (TG.jenis === '52') await muat(); // tabungan baru ikut tampil
+    if (tabunganBaru) await muat(); // tabungan baru ikut tampil
     TG = null;
     getarHalus([12, 50, 12]);
-    toast(T('🏁 Tantangan dimulai. Semangat!'));
+    toast(lama ? T('Tantangan diperbarui.') : T('🏁 Tantangan dimulai. Semangat!'));
     bukaKebiasaan();
     if (S.tab === 'beranda') render();
   },
@@ -1042,12 +1247,20 @@ Object.assign(AKSI, {
     const baru = await ubahTantanganLalu(isi => { isi.aktif = (isi.aktif || []).filter(x => x.id !== t.id); return isi; });
     if (baru) { toast(T('Tantangan dilepas')); segarkanKebiasaan(); }
   },
-  'setor-52': el => {
+  'setor-tantangan': el => {
     const t = (tantanganData().aktif || []).find(x => x.id === el.dataset.id);
-    const pertama = dompetBiasa()[0];
-    if (!t || !pertama) return toast(T('Buat dompet dulu sebagai sumber setoran.'), true);
-    bukaFormTrx(null, { tipe: TIPE.TRANSFER, dompet: pertama.nama, dompetTujuan: t.tabungan, jumlah: statusTantangan(t).setorMingguIni || t.unit, catatan: T('52 minggu menabung') },
+    if (!t) return;
+    const biasa = dompetBiasa();
+    const sumber = biasa.find(w => w.nama === t.sumber) || biasa.find(w => w.nama === bacaHp('dk_sumber_setor')) || biasa[0];
+    if (!sumber) return toast(T('Buat dompet dulu sebagai sumber setoran.'), true);
+    bukaFormTrx(null, { tipe: TIPE.TRANSFER, dompet: sumber.nama, dompetTujuan: t.tabungan, jumlah: Number(el.dataset.jumlah) || t.unit || 0, catatan: judulTantangan(t) },
       T('Setor ke {nama}', { nama: namaT(t.tabungan) }));
+  },
+  'info-lencana': el => {
+    const l = daftarLencana()[Number(el.dataset.i)];
+    if (!l) return;
+    const [ikon, nama, dapat, ket] = l;
+    toast(`${dapat ? ikon : '🔒'} ${nama} — ${ket}${dapat ? ' ✓' : ' · ' + T('belum diraih')}`);
   },
   'gaya-santai': () => { tulisHp('dk_gaya_ditawarkan', '1'); gantiGaya('santai'); },
   'gaya-tolak': () => { tulisHp('dk_gaya_ditawarkan', '1'); render(); },

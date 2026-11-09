@@ -635,10 +635,11 @@ const SERVER = (() => {
   }
 
   /**
-   * Jejak harian 400 hari terakhir untuk streak mencatat & tantangan: { 'yyyy-mm-dd': { n, k, kat?, tab? } }
+   * Jejak harian 400 hari terakhir untuk streak mencatat & tantangan: { 'yyyy-mm-dd': { n, k, m?, kat?, tab?, tabO? } }
    *   n   : jumlah transaksi yang tanggalnya ATAU waktu dicatatnya jatuh di hari itu (hari "mencatat")
    *   k   : total pengeluaran bertanggal hari itu; kat: { kategori: jumlah } pengeluarannya
-   *   tab : { namaTabungan: setoran − penarikan } bertanggal hari itu
+   *   m   : total pemasukan bertanggal hari itu (tantangan "sisihkan % pemasukan")
+   *   tab : { namaTabungan: setoran − penarikan } bertanggal hari itu; tabO: { namaTabungan: { email: jumlah } } per anggota
    * Hanya hari yang ada isinya yang disimpan, supaya ringan disimpan di HP.
    */
   function jejak_(semua, dompet) {
@@ -654,9 +655,14 @@ const SERVER = (() => {
         if (t.tipe === TIPE.KELUAR) {
           h.k += t.jumlah;
           tambah_(h.kat || (h.kat = {}), t.kategori, t.jumlah);
+        } else if (t.tipe === TIPE.MASUK) {
+          h.m = (h.m || 0) + t.jumlah;
         } else if (t.tipe === TIPE.TRANSFER && tabungan.has(t.dompetTujuan) !== tabungan.has(t.dompet)) {
           const masuk = tabungan.has(t.dompetTujuan);
-          tambah_(h.tab || (h.tab = {}), masuk ? t.dompetTujuan : t.dompet, masuk ? t.jumlah : -t.jumlah);
+          const nama = masuk ? t.dompetTujuan : t.dompet, jumlah = masuk ? t.jumlah : -t.jumlah;
+          tambah_(h.tab || (h.tab = {}), nama, jumlah);
+          const tabO = h.tabO || (h.tabO = {});
+          tambah_(tabO[nama] || (tabO[nama] = {}), t.oleh || '', jumlah);
         }
       }
       const dicatat = String(t.dibuat || '').slice(0, 10);
