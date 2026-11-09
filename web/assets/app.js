@@ -5874,16 +5874,16 @@ function htmlKalender() {
       </button>`).join('')}
     ${dipilih.length || tagihanDipilih.length ? '' : '<p class="info-kecil" style="text-align:left;margin-top:0">' + T('Belum ada catatan di tanggal ini.') + '</p>'}
     ${S.data.bisaCatatan === false ? '<p class="info-kecil" style="text-align:left">' + T('⚠️ Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).') + '</p>' : ''}
-    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">${labelHariPendek(S.kal.pilih) === T('Hari ini') ? T('＋ Catatan di hari ini') : T('＋ Catatan di {hari}', { hari: esc(labelHariPendek(S.kal.pilih)) })}</button></div>
-    ${htmlCatatanTanpaTanggal()}`;
+    ${htmlCatatanTanpaTanggal()}
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">${T('＋ Catatan')}</button></div>
+    <p class="info-kecil" style="margin-top:6px">${T('Dibuat di {hari}. Ganti tanggal atau pilih 📌 Tanpa tanggal di form.', { hari: esc(labelHariPendek(S.kal.pilih)) })}</p>`;
 }
 
 /** Catatan tanpa tanggal: selalu tampil di bawah kalender, apa pun tanggal yang dipilih. */
 function htmlCatatanTanpaTanggal() {
   const daftar = daftarCatatan().filter(c => !c.tanggal);
   return `<h3 class="kal-judul-hari">📌 ${T('Tanpa tanggal')}</h3>
-    ${daftar.map(itemCatatan).join('') || '<p class="info-kecil" style="text-align:left;margin-top:0">' + T('Catatan tanpa tanggal selalu tampil di sini, mis. daftar belanja atau ide.') + '</p>'}
-    <button type="button" class="tombol-tambah" style="margin-top:4px" data-aksi="tambah-catatan-tanpa">${T('＋ Catatan tanpa tanggal')}</button>`;
+    ${daftar.map(itemCatatan).join('') || '<p class="info-kecil" style="text-align:left;margin-top:0">' + T('Catatan tanpa tanggal selalu tampil di sini, mis. daftar belanja atau ide.') + '</p>'}`;
 }
 
 /** Geser kiri/kanan di kalender untuk ganti bulan. */
@@ -6668,7 +6668,6 @@ Object.assign(AKSI, {
   },
   'kal-bulan': el => gantiBulanKalender(Number(el.dataset.geser)),
   'tambah-catatan': () => bukaFormCatatan(null, S.kal && S.kal.pilih),
-  'tambah-catatan-tanpa': () => bukaFormCatatan(null, ''),
   'c-tanpa-tanggal': () => {
     simpanDraftCatatan();
     const f = S.formCatatan;
