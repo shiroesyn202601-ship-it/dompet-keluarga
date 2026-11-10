@@ -427,7 +427,27 @@ function tutupTur() {
   el.hidden = true;
   tur = null;
   tulisHp('dk_tur_tunda', null);
+  cekAjakAi(); // sesudah tur perkenalan: giliran ajakan mengaktifkan AI
   return true;
+}
+
+/**
+ * Ajakan mengaktifkan AI setelah masuk, kalau buku ini belum punya kunci Gemini (⚙️ → Fitur AI, mode ajak).
+ * Tidak muncul di mode coba, saat offline, selama tur / lembar lain / kilas balik terbuka.
+ * Sekali tampil = jeda 7 hari (menutup lembarnya sama dengan "Nanti saja"); "Jangan tampilkan lagi" = tidak muncul lagi di HP ini.
+ */
+const JEDA_AJAK_AI = 7 * 864e5;
+function cekAjakAi() {
+  const bisa = () => S.data && !S.data.perluSetup && !DEMO.aktif() && !S.offline && navigator.onLine
+    && !(S.data.kunciGemini || []).length && !tur && !bacaHp('dk_tur_tunda') && $('#sheet').hidden
+    && !document.querySelector('#kilas:not([hidden]), #ingat:not([hidden])') && $('#kunci').hidden && $('#sesi').hidden && $('#tanya').hidden;
+  const v = bacaHp('dk_ajak_ai');
+  if (v === 'tolak' || (v && Date.now() - Number(v) < JEDA_AJAK_AI) || !bisa()) return;
+  setTimeout(() => {
+    if (!bisa()) return;
+    tulisHp('dk_ajak_ai', String(Date.now()));
+    bukaFormGemini(true);
+  }, 2500);
 }
 
 /** Dipanggil setelah data tampil: tur ditunda sampai setup/gabung selesai. */
@@ -1027,7 +1047,7 @@ function htmlDaftarHarga() {
   if (!HARGA.length) {
     return `<p class="kosong"><span>🏷️</span>${T('Belum ada riwayat harga.')}<br><small>${(S.data.kunciGemini || []).length
       ? T('Foto struk belanja (di aplikasi atau kirim ke bot Telegram); barang & harganya otomatis tercatat di sini.')
-      : T('Aktifkan "Baca struk lebih akurat" (AI Gemini) di ⚙️ Pengaturan, lalu foto struk belanja; barang & harganya otomatis tercatat di sini.')}</small></p>`;
+      : T('Aktifkan AI di ⚙️ → Fitur AI (Gemini), lalu foto struk belanja; barang & harganya otomatis tercatat di sini.')}</small></p>`;
   }
   const kata = kunciBarang(cariHarga).split(' ').filter(Boolean);
   const grup = kelompokHarga(HARGA).filter(g => kata.every(k => (g.kunci + ' ' + kunciBarang(g.beli.map(x => x.toko).join(' '))).includes(k)));

@@ -135,6 +135,7 @@ const AKSI = {
   },
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
+  'ajak-ai-tolak': () => { tulisHp('dk_ajak_ai', 'tolak'); tutupSheet(); toast(T('Oke. AI tetap bisa diaktifkan kapan saja di ⚙️ → Fitur AI.')); },
   'telegram': () => bukaFormTelegram(),
   'cari-global': () => bukaCariGlobal(),
   'log-update': () => { $('#toast').hidden = true; bukaLogUpdate(); },
@@ -759,7 +760,7 @@ const AKSI = {
     el.textContent = T('✨ Sedang menulis…');
     try {
       const teks = await api('ringkasLaporan', faktaLaporan(pilih), BAHASA);
-      if (!teks) { toast(T('Belum ada kunci Gemini. Tambahkan di ⚙️ → Baca struk lebih akurat.'), true); return; }
+      if (!teks) { toast(T('Belum ada kunci Gemini. Aktifkan di ⚙️ → Fitur AI (Gemini).'), true); return; }
       S.ringkasAi = Object.assign({}, S.ringkasAi, { [pilih]: teks });
       const kotak = $('#ringkas-ai');
       if (kotak && S.tab === 'laporan') {

@@ -969,7 +969,7 @@ const FITUR = [
   ['👨‍👩‍👧', T('Anggota keluarga'), 'anggota undang keluarga pasangan istri suami share invite member family', 'undang'],
   ['👥', T('Aktivitas keluarga'), 'aktivitas log siapa riwayat perubahan activity', 'aktivitas'],
   ['💬', T('Bot Telegram'), 'telegram bot chat', 'telegram'],
-  ['🤖', T('Baca struk lebih akurat'), 'gemini ai struk kunci api receipt key', 'gemini'],
+  ['🤖', T('Fitur AI (Gemini)'), 'gemini ai struk kunci api receipt key suara bot pintar baca struk lebih akurat', 'gemini'],
   ['💾', T('Unduh & cadangan data'), 'unduh cadangan backup excel csv ekspor export download', 'cadangan'],
   ['🌙', T('Tema'), 'tema gelap terang dark light mode theme', 'tab', 'lainnya'],
   ['🌐', 'Bahasa · Language', 'bahasa inggris language english', 'tab', 'lainnya'],
@@ -1592,8 +1592,29 @@ function bukaFormTelegram(kode, muatan = kode) {
     </details>`);
 }
 
-/** Cukup satu kunci. Kunci cadangan (dipakai bergiliran saat kuota habis) disembunyikan di bagian lipat. */
-function bukaFormGemini() {
+/**
+ * Fitur yang memakai AI Gemini: [ikon, judul, keadaan tanpa AI ('mati' | 'terbatas'), keterangan].
+ * Ditampilkan di ⚙️ → Fitur AI dan di ajakan setelah masuk (cekAjakAi di app-fitur.js).
+ */
+const FITUR_AI = () => [
+  ['kamera', T('Baca foto struk dengan akurat'), 'terbatas', T('Toko, kategori, tanggal, dan tiap barang terbaca. Tanpa AI hanya nominal & tanggal yang ditebak.')],
+  ['laporan', T('Riwayat harga barang'), 'mati', T('Harga tiap barang di struk tercatat, jadi tahu kapan dan di mana lebih murah.')],
+  ['ramal', T('Penjelasan laporan'), 'mati', T('Ringkasan periode dalam bahasa sehari-hari, lengkap dengan saran hemat.')],
+  ['tas', T('Pendapat AI di "{fitur}"', { fitur: T('Cek beli') }), 'mati', T('Saran sebelum belanja, dengan menimbang keuangan Anda bulan ini.')],
+  ['mic', T('Catat dengan suara, kalimat bebas'), 'terbatas', T('"Kemarin bensin 30 ribu sama parkir 5 ribu" langsung jadi dua transaksi bertanggal benar.')],
+  ['obrolan', T('Bot Telegram yang pintar'), 'mati', T('Kirim pesan suara, tanya "bulan ini habis berapa?", atau ngobrol bebas.')],
+];
+function daftarFiturAi(aktif) {
+  return `<ul class="fitur-ai">${FITUR_AI().map(([ikon, judul, tanpa, ket]) => `
+    <li><span class="ik-bulat">${svg(ikon)}</span><span class="isi"><b>${judul}</b><small>${ket}</small></span>
+      <em class="status-ai ${aktif ? 'aktif' : tanpa}">${aktif ? T('Aktif') : tanpa === 'mati' ? T('Mati') : T('Terbatas')}</em></li>`).join('')}</ul>`;
+}
+
+/**
+ * ⚙️ → Fitur AI. ajak = dibuka otomatis setelah masuk (buku belum punya kunci): ada tombol "Nanti saja" & "Jangan tampilkan lagi".
+ * Cukup satu kunci. Kunci cadangan (dipakai bergiliran saat kuota habis) disembunyikan di bagian lipat.
+ */
+function bukaFormGemini(ajak) {
   const daftar = S.data.kunciGemini;
   const isian = (label, tombol) => `
     <div class="grup-form">
@@ -1601,8 +1622,12 @@ function bukaFormGemini() {
       <input class="field" id="g-kunci" type="password" autocomplete="off" placeholder="AIza…">
     </div>
     <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-gemini">${tombol}</button></div>`;
-  bukaSheet(T('Baca Struk Lebih Akurat'), `
-    <p style="margin-top:0">${T('Foto struk <b>tetap bisa dibaca tanpa pengaturan apa pun</b>. Dengan kunci Gemini (AI dari Google, gratis), hasilnya jauh lebih akurat, termasuk kategori dan catatan.')}</p>
+  bukaSheet(ajak ? T('Aktifkan AI, gratis') : T('Fitur AI (Gemini)'), `
+    <p style="margin-top:0">${daftar.length
+      ? T('AI Gemini <b>aktif untuk seluruh keluarga</b>, termasuk bot Telegram. Fitur di bawah ini sudah bisa dipakai.')
+      : T('Dompet Keluarga jadi jauh lebih pintar dengan <b>AI Gemini dari Google</b>. Gratis, sekitar 2 menit, dan cukup sekali untuk seluruh keluarga, termasuk bot Telegram.')}</p>
+    ${daftarFiturAi(daftar.length)}
+    ${daftar.length ? '' : `<h4 class="sub-laporan">${T('Cara mengaktifkan')}</h4>`}
     ${daftar.length ? `
       <div style="margin-bottom:12px">${daftar.map((k, i) => `
         <div class="baris">
@@ -1621,7 +1646,12 @@ function bukaFormGemini() {
         <li>${T('Tempel di bawah, lalu ketuk Simpan.')}</li>
       </ol>
       ${isian(T('Kunci Gemini'), T('Simpan'))}`}
-    <p class="info-kecil" style="text-align:left">${T('Kunci disimpan di spreadsheet keluarga, jadi otomatis dipakai semua anggota, dan <b>bisa dilihat semua anggota</b> yang membuka spreadsheet. Pakai kunci gratis khusus untuk aplikasi ini, jangan kunci yang terhubung ke penagihan (billing).')}</p>`);
+    <p class="info-kecil" style="text-align:left">${T('Kunci disimpan di spreadsheet keluarga, jadi otomatis dipakai semua anggota, dan <b>bisa dilihat semua anggota</b> yang membuka spreadsheet. Pakai kunci gratis khusus untuk aplikasi ini, jangan kunci yang terhubung ke penagihan (billing).')}</p>
+    <p class="info-kecil" style="text-align:left">${T('Yang dikirim ke Gemini hanya yang diperlukan fitur itu (mis. foto struk). Pada kunci gratis, Google dapat memakai isi permintaan untuk meningkatkan layanannya. <a href="privasi.html">Selengkapnya</a>')}</p>
+    ${ajak && !daftar.length ? `<div class="aksi-form">
+      <button type="button" class="btn btn-kedua" data-aksi="tutup-sheet">${T('Nanti saja')}</button>
+    </div>
+    <button type="button" class="tombol-teks" style="display:block;margin:4px auto 0" data-aksi="ajak-ai-tolak">${T('Jangan tampilkan lagi')}</button>` : ''}`);
 }
 
 // ---------- Form dompet ----------

@@ -139,6 +139,7 @@ const IKON = {
   ramal: '<path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/>',
   // Layar masuk: keunggulan aplikasi
   berdua: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M21.5 20a6.5 6.5 0 0 0-4-6"/>',
+  obrolan: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/>',
   gembok: '<rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><path d="M12 15v2"/>',
   nyala: '<path d="M12 22c4 0 7-2.7 7-6.7 0-3.3-2.3-5.6-3.6-7.3-.4 1.8-1.4 3-2.6 3.6.2-3.4-1.4-6.6-4.3-8.6.2 3-1.4 5-3 6.8C4.3 11.2 5 13.6 5 15.3 5 19.3 8 22 12 22z"/>',
 };
@@ -326,6 +327,7 @@ async function muat() {
       kirimCatatanTertunda();
       cadangkanNanti();
       cekTur();
+      cekAjakAi(); // buku tanpa kunci Gemini: ajak mengaktifkan AI (menunggu tur selesai)
     }
   } catch (e) {
     if (S.menyegarkan) { S.menyegarkan = false; if (S.data) render(); }

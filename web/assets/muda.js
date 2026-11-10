@@ -884,7 +884,8 @@ function gambarCekBeli() {
     </div>
     <ul class="cb-alasan">${n.alasan.map(x => `<li>${x}</li>`).join('')}</ul>
     <div id="cb-ai">${aiLama ? htmlAiCB(aiLama) : aiJalan ? htmlAiCBMenimbang() : ''}</div>
-    ${!aiLama && !aiJalan && S.data.kunciGemini && S.data.kunciGemini.length ? `<button type="button" class="tombol-tambah" style="margin:4px 0 0" data-aksi="cb-ai">${T('✨ Minta pendapat AI')}</button>` : ''}
+    ${!aiLama && !aiJalan && S.data.kunciGemini && S.data.kunciGemini.length ? `<button type="button" class="tombol-tambah" style="margin:4px 0 0" data-aksi="cb-ai">${T('✨ Minta pendapat AI')}</button>`
+      : !aiLama && !DEMO.aktif() && !(S.data.kunciGemini || []).length ? `<button type="button" class="tombol-tambah" style="margin:4px 0 0" data-aksi="gemini">${T('✨ Aktifkan AI untuk pendapat yang lebih lengkap')}</button>` : ''}
     <div class="aksi-form">
       <button type="button" class="btn btn-kedua" data-aksi="cb-tabung">${T('🎯 Jadikan target')}</button>
       <button type="button" class="btn btn-utama" data-aksi="cb-catat">${n.vonis === 'jangan' ? T('Tetap catat') : T('Catat pembelian')}</button>

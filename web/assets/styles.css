@@ -639,6 +639,21 @@ select.field, select.field:focus { appearance: none; -webkit-appearance: none; c
 .keunggulan li { display: flex; align-items: center; gap: 12px; font-size: 14.5px; font-weight: 600; line-height: 1.4; }
 .keunggulan .ik-bulat { flex: none; width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); }
 .keunggulan .ik-bulat svg.ik { width: 20px; height: 20px; stroke-width: 2.1; }
+/* ⚙️ → Fitur AI: daftar fitur yang memakai Gemini + statusnya (Aktif / Mati / Terbatas) */
+.fitur-ai { list-style: none; margin: 0 0 16px; padding: 4px 14px; border-radius: 18px; background: var(--card-2); }
+.fitur-ai li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.fitur-ai li:last-child { border-bottom: 0; }
+.fitur-ai .ik-bulat { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: var(--card); color: var(--primary); }
+.fitur-ai .ik-bulat svg.ik { width: 19px; height: 19px; stroke-width: 2.1; }
+.fitur-ai .isi { flex: 1; min-width: 0; }
+.fitur-ai .isi b { display: block; font-size: 14px; font-weight: 700; }
+.fitur-ai .isi small { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.status-ai { flex: none; align-self: flex-start; margin-top: 2px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; font-style: normal; white-space: nowrap; }
+.status-ai.aktif { color: var(--masuk); background: color-mix(in srgb, var(--masuk) 14%, transparent); }
+.status-ai.mati { color: var(--keluar); background: color-mix(in srgb, var(--keluar) 12%, transparent); }
+.status-ai.terbatas { color: #b45309; background: color-mix(in srgb, #f5a524 18%, transparent); }
+:root[data-theme="dark"] .status-ai.terbatas { color: #fbbf24; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .status-ai.terbatas { color: #fbbf24; } }
 .btn.btn-coba { background: var(--primary-soft); color: var(--primary); font-weight: 800; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary) 45%, transparent); }
 
 /* ---------- Aplikasi terpasang ---------- */

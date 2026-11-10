@@ -117,7 +117,7 @@ const STRUK = (() => {
       const alasan = (gagal.filter(g => g && (g.gantiKunci || g instanceof GOOGLE.PerluMasuk))[0] || {}).message;
       throw new Error(alasan || (kunci.length
         ? T('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus.')
-        : T('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus, atau aktifkan "Baca struk lebih akurat" (AI Gemini) di ⚙️ Pengaturan.')));
+        : T('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus, atau aktifkan AI di ⚙️ → Fitur AI (Gemini).')));
     }
     return gabungHasil(terkumpul);
   }

@@ -405,7 +405,7 @@ function jalankanPerintah_(d, chatId, x, terakhir, pengguna, balasan, tambahan, 
  */
 function jawabTanya_(d, pengguna, pertanyaan, chatId) {
   const kunci = kunciGemini_(d.pengaturan);
-  if (!kunci.length) return 'Untuk tanya-jawab, AI perlu diaktifkan dulu: tambahkan kunci Gemini di aplikasi (⚙️ → Baca struk dengan AI).';
+  if (!kunci.length) return 'Untuk tanya-jawab, AI perlu diaktifkan dulu: tambahkan kunci Gemini di aplikasi (⚙️ → Fitur AI (Gemini)).';
   const riwayat = obrolan_(chatId);
   const prompt = [
     'Kamu asisten AI serba bisa di bot Telegram "Dompet Keluarga" yang ramah, jujur, dan praktis, seperti ngobrol dengan Gemini. Kamu sedang chat dengan ' + pengguna.nama + '.',
@@ -941,7 +941,7 @@ function prosesSuara_(m, suara, pengguna, d, jFile) {
   const chatId = m.chat.id;
   const kunci = kunciGemini_(d.pengaturan);
   if (!kunci.length) {
-    return kirim_(chatId, '🎤 Untuk pesan suara, AI perlu diaktifkan dulu: tambahkan kunci Gemini di aplikasi (⚙️ → Baca struk dengan AI). Sementara itu, ketik saja, mis. <i>bensin 30rb</i>.');
+    return kirim_(chatId, '🎤 Untuk pesan suara, AI perlu diaktifkan dulu: tambahkan kunci Gemini di aplikasi (⚙️ → Fitur AI (Gemini)). Sementara itu, ketik saja, mis. <i>bensin 30rb</i>.');
   }
   if ((suara.duration || 0) > BATAS_SUARA_DETIK) {
     return kirim_(chatId, '🎤 Pesan suaranya terlalu panjang (maks ' + BATAS_SUARA_DETIK + ' detik). Coba lebih singkat, mis. <i>"bensin tiga puluh ribu pakai gopay"</i>.');
@@ -1777,7 +1777,7 @@ function bacaStruk_(base64, mime, kategori, daftarKunci, model, ekstra) {
   if (!hasil.length) {
     const alasan = gagal.filter(function (g) { return /Kunci API|Kuota/.test(g); })[0];
     throw new Error(alasan || ('Nominal pembayaran tidak ditemukan di gambar. Coba foto ulang dengan lebih terang dan lurus'
-      + (daftarKunci.length ? '.' : ', atau aktifkan "Baca struk lebih akurat" (AI Gemini) di aplikasi.')));
+      + (daftarKunci.length ? '.' : ', atau aktifkan AI di aplikasi (⚙️ → Fitur AI (Gemini)).')));
   }
   return gabungHasilStruk_(hasil);
 }

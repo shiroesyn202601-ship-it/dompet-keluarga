@@ -1571,7 +1571,8 @@ function kartuSorotan(pilih) {
     <div class="sorotan">${butir.map(b => `
       <div class="butir-sorotan ${b.kelas}"><span class="ikon-sorotan">${b.ikon}</span>
         <span class="isi"><b>${b.judul}</b><small>${esc(b.ket)}</small></span></div>`).join('')}</div>
-    ${bisaAi && !ai ? `<button type="button" class="tombol-tambah" style="margin-top:10px" data-aksi="ai-laporan" data-bulan="${esc(pilih)}">${T('✨ Jelaskan periode ini dengan AI')}</button>` : ''}
+    ${bisaAi && !ai ? `<button type="button" class="tombol-tambah" style="margin-top:10px" data-aksi="ai-laporan" data-bulan="${esc(pilih)}">${T('✨ Jelaskan periode ini dengan AI')}</button>`
+      : !bisaAi && !DEMO.aktif() ? `<button type="button" class="tombol-tambah" style="margin-top:10px" data-aksi="gemini">${T('✨ Aktifkan AI untuk penjelasan periode ini')}</button>` : ''}
   </section>`;
 }
 
@@ -1904,7 +1905,7 @@ function viewLainnya() {
 
     <h2 class="judul-bagian">${T('Data & AI')}</h2>
     <section class="kartu" style="padding:4px 16px">
-      ${baris('gemini', '🤖', T('Baca struk lebih akurat'), d.kunciGemini.length ? T('Aktif · memakai AI Gemini') : T('Opsional · pakai kunci Gemini gratis dari Google'))}
+      ${baris('gemini', '🤖', T('Fitur AI (Gemini)'), d.kunciGemini.length ? T('Aktif · struk, suara, laporan & bot lebih pintar') : T('Mati · aktifkan gratis untuk 6 fitur pintar'))}
       ${DEMO.aktif() ? '' : tautan(d.urlSpreadsheet, '📊', T('Buka spreadsheet'), T('Lihat semua data di Google Sheets'), true)}
       ${baris('cadangan', '💾', T('Unduh & cadangan data'), T('Simpan semua transaksi sebagai file Excel/CSV'))}
     </section>
