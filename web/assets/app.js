@@ -313,6 +313,7 @@ async function muat() {
       render();
       kirimTertunda();
       kirimCatatanTertunda();
+      cadangkanNanti();
       cekTur();
     }
   } catch (e) {
@@ -2807,9 +2808,35 @@ function bukaCadangan() {
   bukaSheet(T('Unduh & cadangan data'), `
     <p style="margin-top:0">${S.data.namaBuku ? T('Semua transaksi buku <b>{buku}</b> diunduh sebagai file CSV, bisa dibuka di Excel atau Google Sheets.', { buku: esc(namaT(S.data.namaBuku)) }) : T('Semua transaksi buku <b>ini</b> diunduh sebagai file CSV, bisa dibuka di Excel atau Google Sheets.')}</p>
     <div class="aksi-form"><button type="button" class="btn btn-utama" style="flex:1" data-aksi="unduh-csv">${T('Unduh semua transaksi')}</button></div>
+    ${DEMO.aktif() ? '' : `<span class="label" style="margin-top:16px">${T('Cadangan otomatis')}</span>
+    <p class="info-kecil" style="text-align:left;margin-top:0">${T('Sebulan sekali, salinan lengkap spreadsheet dibuat otomatis di Google Drive (folder <b>Dompet Keluarga › Cadangan</b>). 3 salinan terakhir disimpan.')}<br>
+      <span id="info-cadangan">${teksCadangan(S.data.cadangan)}</span></p>
+    <div class="aksi-form"><button type="button" class="btn btn-hapus" style="flex:1" data-aksi="cadangkan-sekarang">${T('Cadangkan sekarang')}</button></div>`}
     <span class="label" style="margin-top:16px">${T('Salah hapus atau salah ubah?')}</span>
     <p class="info-kecil" style="text-align:left;margin-top:0">${T('Google Sheets menyimpan riwayat perubahan. Buka spreadsheet di komputer, lalu <b>File → Histori versi → Lihat histori versi</b> untuk melihat atau memulihkan versi sebelumnya.')}</p>
     ${DEMO.aktif() ? '' : `<a class="btn btn-hapus" style="display:block;text-decoration:none;text-align:center" href="${esc(S.data.urlSpreadsheet)}" target="_blank" rel="noopener">${T('Buka spreadsheet')}</a>`}`);
+}
+
+/** Keterangan cadangan otomatis terakhir (data CADANGAN di Pengaturan). */
+function teksCadangan(c, folder) {
+  if (!c || !c.tgl) return T('Belum ada cadangan otomatis.');
+  const siapa = c.oleh === S.data.user ? T('Anda') : namaPendek(c.oleh);
+  return T('Terakhir: {tgl} oleh {siapa}', { tgl: tanggalPendek(c.tgl), siapa: esc(siapa) })
+    + (folder ? ` · <a href="https://drive.google.com/drive/folders/${esc(folder)}" target="_blank" rel="noopener">${T('Buka folder')}</a>` : '');
+}
+
+let cadanganDicek = false;
+/** Sekali per sesi: kalau cadangan terakhir buku ini sudah ≥ 30 hari, buat salinan baru di latar (diam-diam). */
+function cadangkanNanti() {
+  if (cadanganDicek || DEMO.aktif() || S.offline || !S.data || S.data.perluSetup) return;
+  cadanganDicek = true;
+  const c = S.data.cadangan || {};
+  const hari = c.tgl ? Math.round((Date.parse(hariIni()) - Date.parse(c.tgl)) / 864e5) : Infinity;
+  if (hari < 30) return;
+  setTimeout(() => {
+    SERVER.cadangkan(false).then(h => { if (!h.dilewati && S.data) S.data.cadangan = { tgl: h.tgl, oleh: h.oleh }; })
+      .catch(e => console.warn('Cadangan otomatis gagal:', e));
+  }, 15000);
 }
 
 /** Teks yang diawali = + - @ tidak dibaca sebagai rumus oleh Excel (CSV injection). */
@@ -4815,6 +4842,21 @@ const AKSI = {
     if (await kirim(el, 'aturPengingatTelegram', [nyala], nyala ? T('Pengingat harian dinyalakan 🔔') : T('Pengingat harian dimatikan'))) bukaFormTelegram();
   },
   'cadangan': () => bukaCadangan(),
+  'cadangkan-sekarang': async el => {
+    el.disabled = true;
+    loading(true);
+    try {
+      const h = await api('cadangkan', true);
+      S.data.cadangan = { tgl: h.tgl, oleh: h.oleh };
+      const info = $('#info-cadangan');
+      if (info) info.innerHTML = teksCadangan(S.data.cadangan, h.folder);
+      toast(T('Cadangan dibuat di Google Drive ✔'));
+    } catch (e) {
+      if (!(e instanceof GOOGLE.PerluMasuk)) toast(T('Cadangan gagal: {galat}', { galat: pesanError(e) }), true);
+    }
+    el.disabled = false;
+    loading(false);
+  },
   'unduh-csv': async el => {
     el.disabled = true;
     loading(true);

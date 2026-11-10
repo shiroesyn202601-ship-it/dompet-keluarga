@@ -558,6 +558,7 @@ const SERVER = (() => {
       pembanding: pembanding_(d.transaksi, bulan, mulai),
       setara: setara_(d.transaksi, mulai),
       anggaranLabel: anggaranLabel_(set),
+      cadangan: bacaJson_(pengaturan_(set).CADANGAN, {}),
       cepat: kebiasaan_(d.transaksi),
       saranRutin: saranRutin_(d.transaksi, olahRutin_(rut)),
       setoranTabungan: setoranTabungan_(d.transaksi, d.dompet),
@@ -1118,6 +1119,45 @@ const SERVER = (() => {
       const c = await bacaConfig_();
       if (c.folderStruk) await masukkanKeInduk_(c.folderStruk, 'Foto Struk');
     } catch (e) { /* tidak penting */ }
+  }
+
+  // ---------- Cadangan otomatis ----------
+  // Sebulan sekali, salinan spreadsheet dibuat di folder "Dompet Keluarga › Cadangan" milik akun yang pertama membuka
+  // aplikasi setelah jatuh tempo. Kunci CADANGAN di Pengaturan ({ tgl, oleh }) dipakai bersama satu buku supaya anggota
+  // lain tidak ikut membuat salinan. Per buku disimpan SIMPAN_CADANGAN salinan terbaru; yang lebih lama ke Sampah.
+
+  const JEDA_CADANGAN_HARI = 30;
+  const SIMPAN_CADANGAN = 3;
+  const selisihHari_ = (a, b) => Math.round((Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10))
+    - Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10))) / 864e5);
+
+  /** paksa: buat sekarang walau belum jatuh tempo. Hasil: { tgl, oleh, folder?, dilewati? }. */
+  async function cadangkan(paksa) {
+    const id = await db_();
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    const lama = bacaJson_(pengaturan_(set).CADANGAN, {});
+    const kini = tanggalLokal_();
+    if (!paksa && /^\d{4}-\d{2}-\d{2}$/.test(lama.tgl || '') && selisihHari_(lama.tgl, kini) < JEDA_CADANGAN_HARI) {
+      return Object.assign({ dilewati: true }, lama);
+    }
+    const baru = { tgl: kini, oleh: GOOGLE.email() };
+    await simpanPengaturan_(id, set, 'CADANGAN', JSON.stringify(baru)); // ditandai dulu, supaya anggota lain tidak ikut membuat
+    try {
+      const folder = await folderConfig_('folderCadangan', 'Cadangan', await folderInduk_());
+      await GOOGLE.api(DRIVE + '/files/' + encodeURIComponent(id) + '/copy?fields=id', {
+        method: 'POST',
+        json: { name: (judulDb || 'Dompet Keluarga') + ' · cadangan ' + kini, parents: [folder], appProperties: { cadanganDari: id } },
+      });
+      // Simpan beberapa yang terbaru saja (hanya salinan buku ini, buatan aplikasi ini).
+      const q = encodeURIComponent("'" + folder + "' in parents and trashed=false and appProperties has { key='cadanganDari' and value='" + id + "' }");
+      const r = await GOOGLE.api(DRIVE + '/files?fields=files(id,createdTime)&orderBy=createdTime%20desc&pageSize=50&q=' + q);
+      await Promise.all((r.files || []).slice(SIMPAN_CADANGAN).map(f => buangLampiran_(f.id)));
+      return Object.assign({ folder }, baru);
+    } catch (e) {
+      // Gagal: tanda dikembalikan supaya dicoba lagi lain kali.
+      try { const [s2] = await bacaTabel_(id, ['pengaturan']); await simpanPengaturan_(id, s2, 'CADANGAN', JSON.stringify(lama)); } catch (x) { /* abaikan */ }
+      throw e;
+    }
   }
 
   // ---------- Lampiran foto struk (Google Drive) ----------
@@ -2146,7 +2186,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, simpanAvatar, mutasiEmas, catatGalat, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, simpanAvatar, mutasiEmas, catatGalat, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };
