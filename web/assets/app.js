@@ -4,11 +4,13 @@ const PILIHAN_IKON = ['🍜', '🛒', '⛽', '🚗', '🛵', '💡', '🏠', '�
 
 // ---------- Splash (logo + nama, di index.html) ----------
 // Ditutup begitu isi #view pertama kali diganti (Beranda, layar masuk, setup, atau data offline), paling cepat
-// 700 ms sejak halaman dibuka supaya tidak sekadar berkedip; paling lambat 8 detik apa pun yang terjadi.
+// 900 ms sejak splash ini tampil — BUKAN sejak halaman dibuka: waktu itu sudah habis dipakai splash bawaan Android,
+// jadi nama aplikasi sempat tidak terlihat sama sekali. Paling lambat 8 detik apa pun yang terjadi.
 (() => {
   const splash = document.getElementById('splash');
   const view = document.getElementById('view');
   if (!splash || !view) return;
+  const mulai = performance.now();
   let tutup = false;
   const tutupSplash = () => {
     if (tutup) return;
@@ -16,7 +18,7 @@ const PILIHAN_IKON = ['🍜', '🛒', '⛽', '🚗', '🛵', '💡', '🏠', '�
     setTimeout(() => {
       splash.classList.add('hilang');
       setTimeout(() => splash.remove(), 400);
-    }, Math.max(0, 700 - performance.now()));
+    }, Math.max(0, 900 - (performance.now() - mulai)));
   };
   new MutationObserver((m, o) => { o.disconnect(); tutupSplash(); }).observe(view, { childList: true });
   setTimeout(tutupSplash, 8000);
