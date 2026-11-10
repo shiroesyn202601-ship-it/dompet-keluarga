@@ -78,6 +78,9 @@ async function uji(browser, alamat, bahasa) {
   return gagal.concat(galat.map(g => 'error JS: ' + g));
 }
 
+// Halaman yang beku (mis. loop tak berujung) membuat page.evaluate menunggu selamanya: hentikan setelah 5 menit.
+setTimeout(() => { console.error('❌ Uji asap macet lebih dari 5 menit (kemungkinan ada loop tak berujung di halaman).'); process.exit(1); }, 5 * 60000).unref();
+
 (async () => {
   const s = await server();
   const alamat = 'http://127.0.0.1:' + s.address().port + '/';

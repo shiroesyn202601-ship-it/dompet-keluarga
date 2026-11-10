@@ -20,6 +20,7 @@ concurrency:
 jobs:
   cek:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v4

@@ -948,7 +948,7 @@ document.addEventListener('input', e => {
 });
 
 /** Lembar detail emas: berat, harga beli & jual hari ini, nilai, dan untung/rugi terhadap modal. */
-function bukaDetailEmas(w) {
+function bukaDetailEmas(w, sudahDimuat) {
   const e = infoEmas(w);
   if (!e) return bukaFormDompet(w);
   const h = hargaEmasUntuk(e);
@@ -984,8 +984,13 @@ function bukaDetailEmas(w) {
       ${platformEmas(e.platform)[2] ? `<button type="button" class="btn btn-kedua" data-aksi="perbarui-harga-emas" data-nama="${esc(w.nama)}">${T('🔄 Perbarui harga')}</button>` : ''}
       <button type="button" class="btn btn-hapus" data-aksi="ubah-emas" data-nama="${esc(w.nama)}">${T('Ubah')}</button>
     </div>`);
-  if (platformEmas(e.platform)[2] && (!h || h.tgl !== hariIni())) {
-    muatHargaEmas([e.platform]).then(ok => { if (ok && !$('#sheet').hidden && $('#sheet').textContent.includes(w.nama)) bukaDetailEmas(w); });
+  // Dimuat sekali per pembukaan, dan digambar ulang hanya kalau harganya benar-benar berubah (tanpa ini,
+  // harga yang tanggalnya bukan hari ini membuat lembar ini membuka ulang dirinya terus-menerus dan halaman beku).
+  if (!sudahDimuat && platformEmas(e.platform)[2] && (!h || h.tgl !== hariIni())) {
+    const sebelum = JSON.stringify(cacheHargaEmas()[e.platform] || null);
+    muatHargaEmas([e.platform]).then(ok => {
+      if (ok && JSON.stringify(cacheHargaEmas()[e.platform] || null) !== sebelum && !$('#sheet').hidden && $('#sheet').textContent.includes(w.nama)) bukaDetailEmas(w, true);
+    });
   }
 }
 
