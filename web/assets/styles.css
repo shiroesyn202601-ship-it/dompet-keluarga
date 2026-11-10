@@ -1699,12 +1699,42 @@ body.samar #view .insight-teks { filter: blur(6px); user-select: none; }
 .hari-streak.kini i { box-shadow: 0 0 0 2px var(--primary); }
 .hari-streak small { font-size: 11px; color: var(--muted); font-weight: 600; }
 .hari-streak:disabled { cursor: default; opacity: 1; }
-.kartu-tantangan { padding: 12px 14px; border-radius: 16px; background: var(--card-2); margin-bottom: 10px; }
-.kt-atas { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.kt-atas b { flex: 1; min-width: 0; font-size: 14.5px; }
-.kt-atas .tombol-teks { min-height: 32px; padding: 4px 6px; font-size: 13px; color: var(--muted); }
+.kartu-tantangan { padding: 14px; border-radius: 18px; background: var(--card-2); margin-bottom: 10px; }
+.kt-atas { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .kt-ikon { font-size: 24px; line-height: 1; flex: none; }
-.kartu-tantangan small { display: block; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+/* Lingkaran kemajuan: conic-gradient sebesar --p persen, ikon di tengah */
+.kt-cincin { flex: none; position: relative; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(var(--primary) calc(var(--p) * 1%), color-mix(in srgb, var(--muted) 22%, transparent) 0); }
+.kt-cincin::before { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--card); }
+.kt-cincin .kt-ikon { position: relative; font-size: 22px; }
+.kt-judul { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.kt-judul b { font-size: 15px; line-height: 1.3; }
+.kt-judul small { font-size: 12.5px; font-weight: 700; color: var(--primary); }
+.kt-menu { flex: none; position: relative; align-self: flex-start; }
+.kt-menu summary { list-style: none; cursor: pointer; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 99px;
+  font-size: 20px; font-weight: 800; line-height: 1; color: var(--muted); }
+.kt-menu summary::-webkit-details-marker { display: none; }
+.kt-menu[open] summary { background: var(--card); }
+.kt-menu-isi { position: absolute; right: 0; top: 38px; z-index: 3; min-width: 130px; display: flex; flex-direction: column; padding: 6px;
+  border-radius: 14px; background: var(--card); box-shadow: 0 10px 26px rgba(0, 0, 0, .18), 0 0 0 1px var(--line); }
+.kt-menu-isi button { text-align: left; padding: 10px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; color: var(--text); }
+.kt-menu-isi button:hover, .kt-menu-isi button:focus-visible { background: var(--card-2); }
+.kt-menu-isi button.bahaya { color: var(--status-critical); }
+.kt-ket { display: block; margin-top: 8px; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+/* Titik kemajuan per hari / minggu */
+.kt-titik { display: flex; flex-wrap: wrap; gap: 5px; }
+.kt-titik i { width: 14px; height: 14px; border-radius: 50%; background: color-mix(in srgb, var(--muted) 20%, transparent); }
+.kt-titik.besar i { width: 26px; height: 26px; border-radius: 9px; }
+.kt-titik.sedang { gap: 4px; }
+.kt-titik.sedang i { width: 15px; height: 15px; border-radius: 5px; }
+.kt-titik.kecil { gap: 3px; }
+.kt-titik.kecil i { width: 9px; height: 9px; border-radius: 3px; }
+.kt-titik i.isi { background: var(--primary); }
+.kt-titik i.gagal { background: var(--status-critical); }
+.kt-titik i.telat { background: color-mix(in srgb, #f5a524 70%, transparent); }
+.kt-titik i.kini { background: transparent; box-shadow: inset 0 0 0 2px var(--primary); }
+.ide-label { margin: 4px 0 8px; }
+.ide-tantangan { margin-bottom: 12px; }
 .pilih-tantangan { border-radius: 16px; border: 1.5px dashed var(--line); padding: 2px 12px; }
 .halaman-kebiasaan .kartu-tantangan:last-child { margin-bottom: 0; }
 .grid-lencana { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }

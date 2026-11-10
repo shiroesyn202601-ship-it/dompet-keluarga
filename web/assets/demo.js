@@ -573,6 +573,8 @@ const DEMO = (() => {
         aktif: [
           { id: 'coba-t1', jenis: '52', mulai: iso(geser(hariIni, -20)), oleh: SAYA, unit: 50000, pola: 'tetap', tabungan: LIBURAN, sumber: 'BCA' },
           { id: 'coba-t2', jenis: 'batas', mulai: iso(geser(hariIni, -9)), oleh: DIA, kategori: 'Makan & Minum', batas: 800000, minggu: 4 },
+          { id: 'coba-t3', jenis: 'bebas', mulai: iso(geser(hariIni, -10)), oleh: SAYA, nama: L('Olahraga', 'Exercise'), ikon: '🏃', per: 3, hari: 30,
+            cek: [-10, -8, -5, -3].map(n => iso(geser(hariIni, n))) },
         ],
         selesai: [
           { id: 'coba-t0', jenis: 'hemat', judul: L('5 hari tanpa belanja', '5 no-spend days'), mulai: iso(geser(hariIni, -75)), selesai: iso(geser(hariIni, -46)), hasil: 'berhasil', cfg: { target: 5, hari: 30 } },

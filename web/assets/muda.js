@@ -197,7 +197,7 @@ function barisInsight() {
 const tantanganData = () => (S.data && S.data.tantangan) || {};
 const hariKosong = () => new Set(tantanganData().hariKosong || []);
 const MILESTONE_STREAK = [3, 7, 14, 30, 60, 100, 200, 365];
-const MAKS_TANTANGAN = 3;
+const MAKS_TANTANGAN = 5;
 
 let cacheStreak = null;
 /**
@@ -240,17 +240,39 @@ const JENIS_TANTANGAN = {
   tanpa: { ikon: '🙅', judul: T('Tanpa satu kategori…'), ket: T('Beberapa hari tanpa satu kategori pengeluaran, mis. jajan kopi atau ojek online.') },
   batas: { ikon: '🧾', judul: T('Batas jajan mingguan'), ket: T('Pengeluaran satu kategori tidak lewat batas setiap minggu, mis. jajan paling banyak Rp100.000/minggu.') },
   persen: { ikon: '💸', judul: T('Sisihkan % pemasukan'), ket: T('Setiap ada pemasukan, sisihkan sekian persen ke tabungan.') },
+  harian: { ikon: '🪙', judul: T('Celengan harian'), ket: T('Setor nominal kecil yang sama setiap hari ke tabungan, mis. Rp10.000/hari selama 30 hari.') },
+  batasHari: { ikon: '🛡️', judul: T('Batas belanja harian'), ket: T('Total pengeluaran setiap hari tidak lewat batas, mis. paling banyak Rp100.000/hari.') },
+  bebas: { ikon: '⭐', judul: T('Tantangan bebas'), ket: T('Bukan soal uang: olahraga, belajar, mengaji, baca buku, apa saja. Centang setiap kali dikerjakan.') },
 };
-/** Lama tantangan dalam hari (hemat & persen bawaan 30, tanpa bawaan 7) dan dalam minggu (batas, bawaan 4). */
-const hariTantangan = t => Number(t.hari) || (t.jenis === 'tanpa' ? 7 : 30);
+/** Lama tantangan dalam hari (hemat, persen, harian & bebas bawaan 30, tanpa 7, batasHari 14) dan dalam minggu (batas, bawaan 4). */
+const hariTantangan = t => Number(t.hari) || ({ tanpa: 7, batasHari: 14 }[t.jenis] || 30);
 const mingguBatas = t => Number(t.minggu) || 4;
-const DURASI = { hemat: [14, 30, 60], tanpa: [3, 7, 14, 30], persen: [30, 60, 90] };
+const DURASI = { hemat: [14, 30, 60], tanpa: [3, 7, 14, 30], persen: [30, 60, 90], harian: [7, 14, 30, 60], batasHari: [7, 14, 30], bebas: [7, 14, 30, 60] };
 const TARGET_HEMAT = { 14: [2, 3, 5, 7], 30: [3, 5, 8, 12], 60: [5, 10, 15, 25] };
 const PILIHAN_BATAS = [50000, 100000, 200000, 300000];
+const PILIHAN_BATAS_HARI = [50000, 100000, 150000, 200000];
+const PILIHAN_UNIT_HARIAN = [5000, 10000, 20000, 50000];
 const PILIHAN_PERSEN = [5, 10, 20, 30];
 const MINGGU_BATAS = [2, 4, 8];
+const IKON_BEBAS = ['🏃', '💪', '🚴', '🧘', '📚', '📖', '🕌', '✍️', '💧', '🛌', '🚭', '🧹'];
+/** Tantangan bebas: per = berapa kali seminggu (7 = setiap hari). Target = jumlah centang dalam jangka waktunya. */
+const targetBebas = t => (Number(t.per) >= 7 ? hariTantangan(t) : Math.max(1, Math.round(hariTantangan(t) * (Number(t.per) || 7) / 7)));
+/** Hari terakhir tantangan. */
+const akhirTantangan = t => geserHari(t.mulai, (t.jenis === 'batas' ? mingguBatas(t) * 7 : t.jenis === '52' ? 52 * 7 : hariTantangan(t)) - 1);
+const ikonTantangan = t => (t.jenis === 'bebas' && t.ikon) || (JENIS_TANTANGAN[t.jenis] ? JENIS_TANTANGAN[t.jenis].ikon : '🏁');
+/** Ide cepat: membuka form jenis tertentu dengan isian awal. */
+const IDE_TANTANGAN = [
+  ['🍱', T('Bawa bekal seminggu'), 'tanpa', { kategori: 'Makan & Minum', hari: 7 }],
+  ['🏃', T('Olahraga 3× seminggu'), 'bebas', { nama: T('Olahraga'), ikon: '🏃', per: 3, hari: 30 }],
+  ['📚', T('Belajar setiap hari'), 'bebas', { nama: T('Belajar'), ikon: '📚', per: 7, hari: 30 }],
+  ['🛡️', T('Hemat sebulan'), 'batasHari', { batas: 100000, hari: 30 }],
+  ['🪙', T('Celengan 30 hari'), 'harian', { unit: 10000, hari: 30 }],
+];
 
 function judulTantangan(t) {
+  if (t.jenis === 'bebas') return t.nama || T('Tantangan bebas');
+  if (t.jenis === 'harian') return T('Celengan {jumlah}/hari', { jumlah: rp(t.unit) });
+  if (t.jenis === 'batasHari') return T('Belanja maks {jumlah}/hari', { jumlah: rp(t.batas) });
   if (t.jenis === 'tanpa') {
     return hariTantangan(t) === 7 ? T('Seminggu tanpa {kategori}', { kategori: namaT(t.kategori) })
       : T('{n} hari tanpa {kategori}', { n: hariTantangan(t), kategori: namaT(t.kategori) });
@@ -375,6 +397,46 @@ function statusTantangan(t) {
         : T('Belum ada pemasukan sejak tantangan dimulai')) + ' · ' + T('sisa {n} hari', { n: selisihTanggal(kini, akhir) + 1 }),
     };
   }
+  if (t.jenis === 'harian') {
+    const lama = hariTantangan(t);
+    const akhir = akhirTantangan(t);
+    const hari = Math.min(lama, Math.max(0, selisihTanggal(t.mulai, kini)) + 1);
+    const setor = jumlahJejak(t.mulai, '9999-12-31', h => (h.tab || {})[t.tabungan]);
+    const target = t.unit * lama, jadwal = t.unit * hari;
+    const persen = Math.max(0, Math.min(100, setor / target * 100));
+    if (setor >= target) return { persen: 100, selesai: 'berhasil', teks: T('{jumlah} terkumpul dalam {n} hari 🎉', { jumlah: rp(setor), n: lama }) };
+    if (kini > akhir) return { persen, selesai: 'gagal', teks: T('Terkumpul {jumlah} dari {target}', { jumlah: rp(Math.max(0, setor)), target: rp(target) }) };
+    return {
+      persen, kurang: Math.max(0, jadwal - setor), besok: hari < lama ? t.unit : 0, orang: teksPerOrang(setoranPerOrang(t.tabungan, t.mulai, '9999-12-31')),
+      teks: T('Hari ke-{n} dari {total} · setor {jumlah}/hari', { n: hari, total: lama, jumlah: rp(t.unit) }) + ' · '
+        + (setor >= jadwal ? T('✅ sesuai jadwal') : T('kurang {jumlah} dari jadwal', { jumlah: rp(jadwal - setor) })),
+    };
+  }
+  if (t.jenis === 'batasHari') {
+    const lama = hariTantangan(t);
+    const akhir = akhirTantangan(t);
+    for (let x = t.mulai; x <= kini && x <= akhir; x = geserHari(x, 1)) {
+      const k = (j[x] || {}).k || 0;
+      if (k > t.batas) {
+        return { persen: selisihTanggal(t.mulai, x) / lama * 100, selesai: 'gagal', teks: T('Lewat batas di hari ke-{n}: {jumlah} dari {batas}', { n: selisihTanggal(t.mulai, x) + 1, jumlah: rp(k), batas: rp(t.batas) }) };
+      }
+    }
+    if (kini > akhir) return { persen: 100, selesai: 'berhasil', teks: T('{n} hari belanja tidak lewat {batas} 🎉', { n: lama, batas: rp(t.batas) }) };
+    const hari = selisihTanggal(t.mulai, kini) + 1;
+    const pakai = (j[kini] || {}).k || 0;
+    return { persen: (hari - 1) / lama * 100,
+      teks: T('Hari ke-{n} dari {total} · hari ini terpakai {jumlah} dari {batas}', { n: hari, total: lama, jumlah: rp(pakai), batas: rp(t.batas) }) + (pakai >= t.batas * 0.8 ? ' ⚠️' : '') };
+  }
+  if (t.jenis === 'bebas') {
+    const akhir = akhirTantangan(t);
+    const target = targetBebas(t);
+    const cek = (t.cek || []).filter(x => x >= t.mulai && x <= akhir);
+    const n = cek.length;
+    if (n >= target) return { persen: 100, selesai: 'berhasil', teks: T('Target {n} kali tercapai 🎉', { n: target }) };
+    if (kini > akhir) return { persen: n / target * 100, selesai: 'gagal', teks: T('Tercapai {n} dari {target} kali', { n, target }) };
+    return { persen: n / target * 100, sudahHariIni: cek.includes(kini),
+      teks: T('{n} dari {target} kali · sisa {sisa} hari', { n, target, sisa: selisihTanggal(kini, akhir) + 1 }) };
+  }
   // 52 minggu menabung
   const lewat = selisihTanggal(t.mulai, kini);
   const minggu = Math.min(52, Math.floor(Math.max(0, lewat) / 7) + 1);
@@ -408,6 +470,9 @@ function daftarLencana() {
     ['🐷', T('Jago Nabung'), punya('52'), T('Menyelesaikan 52 minggu menabung')],
     ['🧾', T('Rem Jajan'), punya('batas'), T('Menyelesaikan batas jajan mingguan')],
     ['💸', T('Rajin Sisih'), punya('persen'), T('Menyelesaikan tantangan sisihkan % pemasukan')],
+    ['🪙', T('Celengan'), punya('harian'), T('Menyelesaikan celengan harian')],
+    ['🛡️', T('Rem Harian'), punya('batasHari'), T('Menyelesaikan batas belanja harian')],
+    ['⭐', T('Konsisten'), punya('bebas'), T('Menyelesaikan tantangan bebas')],
   ];
 }
 
@@ -417,6 +482,10 @@ function tombolSetorTantangan(t, st) {
   const b = (kelas, jumlah, label) => `<button type="button" class="btn ${kelas} kecil" data-aksi="setor-tantangan" data-id="${esc(t.id)}" data-jumlah="${jumlah}">${label}</button>`;
   let isi = '';
   if (t.jenis === 'persen') isi = st.kurang > 0 ? b('btn-utama', st.kurang, T('💸 Setor {jumlah}', { jumlah: rp(st.kurang) })) : '';
+  else if (t.jenis === 'harian') {
+    isi = st.kurang > 0 ? b('btn-utama', st.kurang, T('🪙 Setor {jumlah}', { jumlah: rp(st.kurang) }))
+      : st.besok ? b('btn-kedua', st.besok, T('Cicil besok {jumlah}', { jumlah: rp(st.besok) })) : '';
+  }
   else if (st.kurang > st.setorMingguIni) {
     isi = b('btn-utama', st.kurang, T('🐷 Setor + kejar ketinggalan {jumlah}', { jumlah: rp(st.kurang) }))
       + b('btn-kedua', st.setorMingguIni, T('Minggu ini saja {jumlah}', { jumlah: rp(st.setorMingguIni) }));
@@ -425,17 +494,72 @@ function tombolSetorTantangan(t, st) {
   return isi ? `<div class="kt-setor">${isi}</div>` : '';
 }
 
+/**
+ * Titik kemajuan: satu titik per hari (atau per minggu untuk batas mingguan & 52 minggu).
+ * Kelas: isi (berhasil), gagal (bocor/lewat batas), telat (setoran tertinggal), kini (hari/minggu ini), kosong (belum).
+ */
+function titikTantangan(t) {
+  const j = S.data.jejak || {};
+  const kini = hariIni();
+  const perHari = fn => {
+    const out = [];
+    for (let i = 0, x = t.mulai; i < hariTantangan(t); i++, x = geserHari(x, 1)) out.push(x > kini ? '' : fn(x));
+    return out;
+  };
+  let titik = [];
+  if (t.jenis === 'hemat') {
+    const kosong = hariKosong();
+    titik = perHari(x => (!((j[x] || {}).k > 0) && hariTercatat(x) && (x < kini || kosong.has(x)) ? 'isi' : (j[x] || {}).k > 0 ? 'gagal' : x === kini ? 'kini' : ''));
+  } else if (t.jenis === 'tanpa') {
+    titik = perHari(x => (((j[x] || {}).kat || {})[t.kategori] > 0 ? 'gagal' : x === kini ? 'kini' : 'isi'));
+  } else if (t.jenis === 'batasHari') {
+    titik = perHari(x => (((j[x] || {}).k || 0) > t.batas ? 'gagal' : x === kini ? 'kini' : 'isi'));
+  } else if (t.jenis === 'bebas') {
+    const cek = new Set(t.cek || []);
+    titik = perHari(x => (cek.has(x) ? 'isi' : x === kini ? 'kini' : ''));
+  } else if (t.jenis === 'harian') {
+    const setor = jumlahJejak(t.mulai, '9999-12-31', h => (h.tab || {})[t.tabungan]);
+    const ke = Math.max(0, selisihTanggal(t.mulai, kini)) + 1;
+    titik = Array.from({ length: hariTantangan(t) }, (_, i) => (setor >= t.unit * (i + 1) ? 'isi' : i + 1 === ke ? 'kini' : i + 1 < ke ? 'telat' : ''));
+  } else if (t.jenis === 'batas') {
+    titik = Array.from({ length: mingguBatas(t) }, (_, w) => {
+      const a = geserHari(t.mulai, w * 7);
+      if (a > kini) return '';
+      if (jumlahJejak(a, geserHari(a, 6), h => (h.kat || {})[t.kategori]) > t.batas) return 'gagal';
+      return geserHari(a, 6) < kini ? 'isi' : 'kini';
+    });
+  } else if (t.jenis === '52') {
+    const setor = jumlahJejak(t.mulai, '9999-12-31', h => (h.tab || {})[t.tabungan]);
+    const ke = Math.min(52, Math.floor(Math.max(0, selisihTanggal(t.mulai, kini)) / 7) + 1);
+    titik = Array.from({ length: 52 }, (_, i) => (setor >= jadwal52(t, i + 1) ? 'isi' : i + 1 === ke ? 'kini' : i + 1 < ke ? 'telat' : ''));
+  }
+  if (!titik.length) return '';
+  const ukuran = titik.length <= 14 ? 'besar' : titik.length <= 31 ? 'sedang' : 'kecil';
+  return `<div class="kt-titik ${ukuran}" aria-hidden="true">${titik.map(k => `<i class="${k}"></i>`).join('')}</div>`;
+}
+
 function kartuTantanganAktif(t) {
   const st = statusTantangan(t);
+  const p = Math.max(0, Math.min(100, Math.round(st.persen)));
+  const sisa = Math.max(0, selisihTanggal(hariIni(), akhirTantangan(t)) + 1);
+  const judul = esc(judulTantangan(t));
+  const cek = t.jenis === 'bebas' && !st.selesai ? `<div class="kt-setor">${st.sudahHariIni
+    ? `<button type="button" class="btn btn-kedua kecil" data-aksi="batal-cek-tantangan" data-id="${esc(t.id)}">${T('✓ Hari ini sudah · batalkan')}</button>`
+    : `<button type="button" class="btn btn-utama kecil" data-aksi="cek-tantangan" data-id="${esc(t.id)}">${T('✓ Sudah hari ini')}</button>`}</div>` : '';
   return `<div class="kartu-tantangan">
-    <div class="kt-atas"><span class="kt-ikon" aria-hidden="true">${JENIS_TANTANGAN[t.jenis] ? JENIS_TANTANGAN[t.jenis].ikon : '🏁'}</span>
-      <b>${esc(judulTantangan(t))}</b>
-      <button type="button" class="tombol-teks" data-aksi="ubah-tantangan" data-id="${esc(t.id)}">${T('Ubah')}</button>
-      <button type="button" class="tombol-teks" data-aksi="lepas-tantangan" data-id="${esc(t.id)}">${T('Lepas')}</button></div>
-    <span class="meter" role="meter" aria-label="${esc(judulTantangan(t))}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(st.persen)}"><i style="width:${Math.max(2, Math.round(st.persen))}%"></i></span>
-    <small>${esc(st.teks)}</small>
-    ${st.orang ? `<small>👥 ${esc(st.orang)}</small>` : ''}
-    ${tombolSetorTantangan(t, st)}
+    <div class="kt-atas">
+      <span class="kt-cincin" style="--p:${p}" role="meter" aria-label="${judul}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p}">
+        <span class="kt-ikon" aria-hidden="true">${esc(ikonTantangan(t))}</span></span>
+      <span class="kt-judul"><b>${judul}</b><small>${T('{persen}% · sisa {n} hari', { persen: p, n: sisa })}</small></span>
+      <details class="kt-menu"><summary aria-label="${T('Pilihan tantangan')}">⋯</summary>
+        <span class="kt-menu-isi">
+          <button type="button" data-aksi="ubah-tantangan" data-id="${esc(t.id)}">${T('Ubah')}</button>
+          <button type="button" class="bahaya" data-aksi="lepas-tantangan" data-id="${esc(t.id)}">${T('Lepas')}</button></span></details>
+    </div>
+    ${titikTantangan(t)}
+    <small class="kt-ket">${esc(st.teks)}</small>
+    ${st.orang ? `<small class="kt-ket">👥 ${esc(st.orang)}</small>` : ''}
+    ${cek}${tombolSetorTantangan(t, st)}
   </div>`;
 }
 
@@ -476,6 +600,8 @@ function htmlKebiasaan() {
 
     <h2 class="judul-bagian">${T('🏁 Tantangan')}</h2>
     ${aktif.length ? `<section class="kartu">${aktif.map(kartuTantanganAktif).join('')}</section>` : `<p class="info-kecil" style="text-align:left;margin-top:0">${T('Belum ada tantangan. Pilih satu untuk mulai, bisa dikerjakan bareng pasangan.')}</p>`}
+    ${aktif.length < MAKS_TANTANGAN ? `<p class="label ide-label">${T('Ide cepat')}</p>
+    <div class="chips ide-tantangan">${IDE_TANTANGAN.map(([ikon, nama], i) => `<button type="button" class="chip" data-aksi="ide-tantangan" data-i="${i}">${ikon} ${esc(nama)}</button>`).join('')}</div>` : ''}
     ${aktif.length < MAKS_TANTANGAN ? `<section class="kartu" style="padding:4px 16px">${Object.keys(JENIS_TANTANGAN).map(k => `
       <button type="button" class="baris" data-aksi="mulai-tantangan" data-jenis="${k}">
         <span class="ikon-bulat">${JENIS_TANTANGAN[k].ikon}</span>
@@ -525,14 +651,17 @@ function configTantangan(g) {
     case 'tanpa': return { kategori: g.kategori, hari: g.hari };
     case 'batas': return { kategori: g.kategori, batas: g.batas, minggu: g.minggu };
     case 'persen': return { persen: g.persen, hari: g.hari, tabungan: g.tabungan, sumber: g.sumber };
+    case 'harian': return { unit: g.unit, hari: g.hari, tabungan: g.tabungan, sumber: g.sumber };
+    case 'batasHari': return { batas: g.batas, hari: g.hari };
+    case 'bebas': return { nama: String(g.nama || '').trim().slice(0, 40), ikon: g.ikon, per: g.per, hari: g.hari };
     default: return { unit: g.unit, ...(g.pola === 'tetap' ? { pola: 'tetap' } : {}), tabungan: g.tabungan, sumber: g.sumber };
   }
 }
 /** dari: isian awal (tantangan yang diubah / diulang); ubahId: id tantangan aktif yang sedang diubah. */
 function bukaFormTantangan(jenis, dari, ubahId) {
   if (!JENIS_TANTANGAN[jenis]) return;
-  TG = { jenis, target: 5, hari: { hemat: 30, tanpa: 7, persen: 30 }[jenis] || 0, unit: 10000, pola: 'naik', kategori: '', tabungan: '',
-    sumber: '', batas: 100000, minggu: 4, persen: 10, lain: '', ubahId: ubahId || '' };
+  TG = { jenis, target: 5, hari: { hemat: 30, tanpa: 7, persen: 30, harian: 30, batasHari: 14, bebas: 30 }[jenis] || 0, unit: 10000, pola: 'naik', kategori: '', tabungan: '',
+    sumber: '', batas: 100000, minggu: 4, persen: 10, nama: '', ikon: '⭐', per: 7, lain: '', ubahId: ubahId || '' };
   if (dari) Object.keys(TG).forEach(k => { if (!['jenis', 'lain', 'ubahId'].includes(k) && dari[k] != null && dari[k] !== '') TG[k] = dari[k]; });
   if (jenis === 'tanpa' || jenis === 'batas') {
     const per = {};
@@ -540,7 +669,7 @@ function bukaFormTantangan(jenis, dari, ubahId) {
     TG.urutKategori = S.data.kategori.filter(k => k.tipe === TIPE.KELUAR).sort((a, b) => (per[b.nama] || 0) - (per[a.nama] || 0));
     if (!TG.urutKategori.some(k => k.nama === TG.kategori)) TG.kategori = (TG.urutKategori[0] || {}).nama || '';
   }
-  if (jenis === '52' || jenis === 'persen') {
+  if (jenis === '52' || jenis === 'persen' || jenis === 'harian') {
     const tab = daftarTabungan();
     if (!tab.some(w => w.nama === TG.tabungan)) TG.tabungan = jenis === '52' && !dari ? (tab[0] || {}).nama || '' : '';
     if (!dompetBiasa().some(w => w.nama === TG.sumber)) TG.sumber = sumberSetorAwal();
@@ -551,6 +680,10 @@ function bukaFormTantangan(jenis, dari, ubahId) {
 }
 /** Keterangan total setoran 52 minggu (diperbarui saat nominal diketik, tanpa menggambar ulang form). */
 function infoTantangan52() {
+  if (TG && TG.jenis === 'harian') {
+    return T('Total {n} hari: <b>{total}</b>.', { n: TG.hari, total: rp(TG.unit * TG.hari) })
+      + (TG.tabungan === '' ? ' ' + T('Dibuat tabungan baru "{nama}".', { nama: esc(T('Celengan Harian')) }) : '');
+  }
   if (!TG || TG.jenis !== '52') return '';
   const tetap = TG.pola === 'tetap';
   let s = tetap ? T('Setor {jumlah} setiap minggu. Total setahun: <b>{total}</b>.', { jumlah: rp(TG.unit), total: rp(total52(TG)) })
@@ -595,6 +728,26 @@ function renderFormTantangan(fokusNominal) {
       + label(T('Jangka waktu')) + chips('hari', DURASI.persen, n => T('{n} hari', { n }))
       + label(T('Ditabung ke')) + grid('tabungan', daftarTabungan(), true)
       + (TG.tabungan === '' ? info(T('Dibuat tabungan baru "{nama}".', { nama: esc(T('Sisihan Pemasukan')) })) : '');
+  } else if (jenis === 'harian') {
+    isi += label(T('Setoran per hari'), true) + nominal('unit', PILIHAN_UNIT_HARIAN)
+      + label(T('Berapa lama')) + chips('hari', DURASI.harian, n => T('{n} hari', { n }))
+      + info(infoTantangan52(), 'tg-info')
+      + label(T('Ditabung ke')) + grid('tabungan', daftarTabungan(), true);
+  } else if (jenis === 'batasHari') {
+    const rata = Math.round(jumlahJejak(geserHari(hariIni(), -28), geserHari(hariIni(), -1), h => h.k) / 28 / 1000) * 1000;
+    isi += label(T('Batas belanja per hari'), true) + nominal('batas', PILIHAN_BATAS_HARI)
+      + (rata ? info(T('Rata-rata pengeluaran Anda {jumlah}/hari (4 minggu terakhir).', { jumlah: rp(rata) })) : '')
+      + label(T('Berapa lama')) + chips('hari', DURASI.batasHari, n => T('{n} hari', { n }))
+      + info(T('Semua pengeluaran ikut dihitung, termasuk tagihan. Hari dengan tagihan besar bisa membuat tantangan gagal.'));
+  } else if (jenis === 'bebas') {
+    const saran = [['🏃', T('Olahraga')], ['📚', T('Belajar')], ['📖', T('Baca buku')], ['🕌', T('Mengaji')], ['💧', T('Minum 8 gelas')], ['🛌', T('Tidur sebelum jam 10')]];
+    isi += label(T('Mau membiasakan apa?'), true)
+      + `<input class="field" id="tg-nama" maxlength="40" autocomplete="off" placeholder="${T('mis. Lari pagi, belajar bahasa Inggris')}" value="${esc(TG.nama)}">`
+      + `<div class="chips" style="margin-top:8px">${saran.map(([ik, nm]) => `<button type="button" class="chip" data-aksi="tg-bebas" data-ikon="${ik}" data-nama="${esc(nm)}">${ik} ${esc(nm)}</button>`).join('')}</div>`
+      + label(T('Ikon')) + `<div class="chips">${IKON_BEBAS.map(e => chip('ikon', e, e)).join('')}</div>`
+      + label(T('Berapa sering')) + chips('per', [7, 5, 3], n => (n === 7 ? T('Setiap hari') : T('{n}× seminggu', { n })))
+      + label(T('Berapa lama')) + chips('hari', DURASI.bebas, n => T('{n} hari', { n }))
+      + info(T('Target: {n} kali dalam {hari} hari. Ketuk "Sudah hari ini" setiap kali dikerjakan.', { n: targetBebas(TG), hari: TG.hari }));
   } else {
     const tetap = TG.pola === 'tetap';
     isi += label(T('Pola setoran'), true) + `<div class="chips">${chip('pola', 'naik', T('📈 Naik tiap minggu'))}${chip('pola', 'tetap', T('➖ Sama tiap minggu'))}</div>`
@@ -602,7 +755,7 @@ function renderFormTantangan(fokusNominal) {
       + info(infoTantangan52(), 'tg-info')
       + label(T('Ditabung ke')) + grid('tabungan', daftarTabungan(), true);
   }
-  if (jenis === '52' || jenis === 'persen') isi += label(T('Disetor dari')) + grid('sumber', dompetBiasa());
+  if (jenis === '52' || jenis === 'persen' || jenis === 'harian') isi += label(T('Disetor dari')) + grid('sumber', dompetBiasa());
   if (TG.ubahId) isi += info(T('Tanggal mulai tetap; kemajuan dihitung ulang dengan isian baru.'));
   isi += `<div class="aksi-form"><button type="button" class="btn btn-hapus" data-aksi="buka-kebiasaan">${T('Kembali')}</button>
     <button type="button" class="btn btn-utama" data-aksi="simpan-tantangan">${TG.ubahId ? T('Simpan perubahan') : T('Mulai tantangan')}</button></div>`;
@@ -612,7 +765,13 @@ function renderFormTantangan(fokusNominal) {
 }
 
 // Nominal "Lainnya" diketik: simpan ke isian & perbarui keterangan tanpa menggambar ulang (supaya keyboard tidak tertutup).
+// Menu ⋯ di kartu tantangan: tertutup saat mengetuk di luar menu atau memilih isinya.
+document.addEventListener('click', e => {
+  document.querySelectorAll('.kt-menu[open]').forEach(m => { if (!m.contains(e.target) || e.target.closest('.kt-menu-isi')) m.open = false; });
+});
+
 document.addEventListener('input', e => {
+  if (TG && e.target.id === 'tg-nama') { TG.nama = e.target.value; return; }
   if (!TG || e.target.id !== 'tg-nominal') return;
   TG[e.target.dataset.k] = angka(e.target.value);
   if ($('#tg-info')) $('#tg-info').innerHTML = infoTantangan52();
@@ -665,6 +824,29 @@ async function cekTantanganSelesai() {
   }
 }
 
+/** Tantangan bebas: centang / batalkan centang hari ini (disimpan di t.cek, daftar tanggal). */
+async function centangTantangan(id, centang) {
+  const kini = hariIni();
+  const t = (tantanganData().aktif || []).find(x => x.id === id);
+  if (!t) return;
+  const baru = await ubahTantanganLalu(isi => {
+    isi.aktif = (isi.aktif || []).map(x => {
+      if (x.id !== id) return x;
+      const cek = new Set(x.cek || []);
+      if (centang) cek.add(kini); else cek.delete(kini);
+      return { ...x, cek: [...cek].sort().slice(-400) };
+    });
+    return isi;
+  });
+  if (!baru) return;
+  if (centang) {
+    getarHalus([12, 50, 12]);
+    toast(T('✓ {nama} hari ini tercatat. Mantap!', { nama: judulTantangan(t) }));
+  }
+  segarkanKebiasaan();
+  if (centang) cekTantanganSelesai();
+}
+
 /** Sekali per pencapaian: konfeti saat streak mencapai 3, 7, 14, 30, … hari. */
 function cekPencapaianStreak() {
   const s = hitungStreak();
@@ -690,7 +872,7 @@ function kartuTantangan() {
   // Utamakan tantangan menabung yang masih kurang setor, supaya jadi pengingat di Beranda.
   const t = aktif.find(x => statusTantangan(x).kurang > 0) || aktif[0], st = statusTantangan(t);
   return `<button type="button" class="kartu kartu-tantangan-beranda" data-aksi="buka-kebiasaan">
-    <span class="kt-ikon" aria-hidden="true">${JENIS_TANTANGAN[t.jenis] ? JENIS_TANTANGAN[t.jenis].ikon : '🏁'}</span>
+    <span class="kt-ikon" aria-hidden="true">${esc(ikonTantangan(t))}</span>
     <span class="isi"><small>${T('Tantangan')}${aktif.length > 1 ? ' · ' + T('{n} aktif', { n: aktif.length }) : ''}</small><b>${esc(judulTantangan(t))}</b>
       <span class="meter"><i style="width:${Math.max(2, Math.round(st.persen))}%"></i></span><small>${esc(st.teks)}</small></span>
     <span class="panah">${svg('maju')}</span>
@@ -1186,6 +1368,18 @@ Object.assign(AKSI, {
     segarkanKebiasaan();
   },
   'mulai-tantangan': el => bukaFormTantangan(el.dataset.jenis),
+  'ide-tantangan': el => {
+    const ide = IDE_TANTANGAN[Number(el.dataset.i)];
+    if (ide) bukaFormTantangan(ide[2], ide[3]);
+  },
+  'tg-bebas': el => {
+    if (!TG) return;
+    TG.nama = el.dataset.nama;
+    TG.ikon = el.dataset.ikon;
+    renderFormTantangan();
+  },
+  'cek-tantangan': el => centangTantangan(el.dataset.id, true),
+  'batal-cek-tantangan': el => centangTantangan(el.dataset.id, false),
   'ubah-tantangan': el => {
     const t = (tantanganData().aktif || []).find(x => x.id === el.dataset.id);
     if (t) bukaFormTantangan(t.jenis, t, t.id);
@@ -1218,6 +1412,9 @@ Object.assign(AKSI, {
     if ((jenis === 'tanpa' || jenis === 'batas') && !g.kategori) return toast(T('Pilih kategorinya dulu.'), true);
     if (jenis === '52' && !(g.unit > 0)) return toast(T('Isi nominal setorannya dulu.'), true);
     if (jenis === 'batas' && !(g.batas > 0)) return toast(T('Isi batas per minggunya dulu.'), true);
+    if (jenis === 'harian' && !(g.unit > 0)) return toast(T('Isi nominal setorannya dulu.'), true);
+    if (jenis === 'batasHari' && !(g.batas > 0)) return toast(T('Isi batas per harinya dulu.'), true);
+    if (jenis === 'bebas' && !String(g.nama || '').trim()) return toast(T('Isi nama tantangannya dulu.'), true);
     const aktif = tantanganData().aktif || [];
     const lama = g.ubahId ? aktif.find(x => x.id === g.ubahId) : null;
     if (g.ubahId && !lama) { toast(T('Tantangan ini sudah tidak aktif.'), true); return bukaKebiasaan(); }
@@ -1226,13 +1423,13 @@ Object.assign(AKSI, {
     const cfg = configTantangan(g);
     const mulai = lama ? lama.mulai : hariIni();
     let tabunganBaru = false;
-    if ((jenis === '52' || jenis === 'persen') && !cfg.tabungan) { // tabungan baru khusus tantangan ini
-      let nama = jenis === '52' ? T('52 Minggu Menabung') : T('Sisihan Pemasukan');
+    if ((jenis === '52' || jenis === 'persen' || jenis === 'harian') && !cfg.tabungan) { // tabungan baru khusus tantangan ini
+      let nama = { 52: T('52 Minggu Menabung'), persen: T('Sisihan Pemasukan'), harian: T('Celengan Harian') }[jenis];
       while (S.data.dompet.some(w => w.nama === nama)) nama += ' ' + (new Date().getFullYear());
       loading(true);
       try {
-        await api('simpanDompet', { namaLama: '', nama, ikon: jenis === '52' ? '🐷' : '💸', jenis: JENIS.TABUNGAN, saldoAwal: 0,
-          target: jenis === '52' ? total52(g) : 0, tenggat: geserHari(mulai, jenis === '52' ? 364 : g.hari - 1) });
+        await api('simpanDompet', { namaLama: '', nama, ikon: { 52: '🐷', persen: '💸', harian: '🪙' }[jenis], jenis: JENIS.TABUNGAN, saldoAwal: 0,
+          target: jenis === '52' ? total52(g) : jenis === 'harian' ? g.unit * g.hari : 0, tenggat: geserHari(mulai, jenis === '52' ? 364 : g.hari - 1) });
         cfg.tabungan = nama;
         tabunganBaru = true;
       } catch (e) {
@@ -1243,7 +1440,7 @@ Object.assign(AKSI, {
       }
     }
     if (cfg.sumber) tulisHp('dk_sumber_setor', cfg.sumber);
-    const t = lama ? { id: lama.id, jenis, mulai, oleh: lama.oleh, ...cfg }
+    const t = lama ? { id: lama.id, jenis, mulai, oleh: lama.oleh, ...cfg, ...(lama.cek ? { cek: lama.cek } : {}) }
       : { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), jenis, mulai, oleh: S.data.user, ...cfg };
     const baru = await ubahTantanganLalu(isi => {
       const a = isi.aktif || [];
