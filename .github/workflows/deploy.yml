@@ -1,4 +1,5 @@
-# Setiap push ke branch main, isi folder web/ langsung di-deploy ke GitHub Pages.
+# Setiap push ke branch main: cek dulu (sintaks, kamus bahasa, uji asap di mode coba), baru isi folder web/
+# di-deploy ke GitHub Pages. Kalau pengecekan gagal, deploy dibatalkan dan versi lama tetap dipakai pengguna.
 name: Deploy ke GitHub Pages
 
 on:
@@ -17,7 +18,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  cek:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # Salah ketik di JavaScript langsung ketahuan (termasuk kode bot, yang juga JavaScript).
+      - name: Cek sintaks
+        run: |
+          for f in web/assets/*.js web/sw.js .github/*.js; do node --check "$f" || exit 1; done
+          cp bot/Kode.gs /tmp/Kode.js && node --check /tmp/Kode.js
+      - name: Cek kamus bahasa
+        run: node .github/cek-bahasa.js
+      - name: Siapkan browser uji
+        run: npm i --no-save --no-package-lock playwright@1.47.2 && npx playwright install --with-deps chromium
+      - name: Uji asap (mode coba, semua tab & dialog utama)
+        run: node .github/uji-asap.js
+
   deploy:
+    needs: cek
     runs-on: ubuntu-latest
     environment:
       name: github-pages
