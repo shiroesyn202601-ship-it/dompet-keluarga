@@ -1058,7 +1058,7 @@ async function bagikanLaporan(k) {
 // ---------- Merek di gambar bagikan (ringkasan, kilas balik, Story) ----------
 // Logo + nama di atas, ajakan + alamat aplikasi di bawah, supaya yang melihat tahu harus membuka apa.
 // Alamat diarahkan ke halaman pengenalan (tombol "Coba tanpa akun"); ganti di sini kalau nanti ada link pendek.
-const TAUTAN_PROMO = 'shiroesyn202601-ship-it.github.io/dompet-keluarga';
+const TAUTAN_PROMO = 'bit.ly/dompet-keluarga'; // → tentang.html (dibuat di bitly.com)
 const FONT_MEREK = (ukuran, tebal) => `${tebal} ${ukuran}px "Plus Jakarta Sans", system-ui, sans-serif`;
 /** Logo dompet-rumah (= ikon/logo.svg) di (x, y) dengan sisi s piksel. */
 function gambarLogo(g, x, y, s) {
