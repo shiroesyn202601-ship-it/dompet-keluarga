@@ -586,7 +586,8 @@ function render() {
   perkayaIkonDompet(S.data);
   if (S.tab !== 'riwayat') S.pilih = null;
   document.body.classList.toggle('mode-pilih', !!S.pilih);
-  const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, laporan: viewLaporan, lainnya: viewLainnya, catatan: viewCatatan, sholat: viewSholat, 'catatan-edit': viewFormCatatan }[S.tab] || viewBeranda;
+  const view = { beranda: viewBeranda, riwayat: viewRiwayat, dompet: viewDompet, laporan: viewLaporan, lainnya: viewLainnya, catatan: viewCatatan, sholat: viewSholat, 'catatan-edit': viewFormCatatan,
+    kebiasaan: typeof viewKebiasaan === 'function' ? viewKebiasaan : viewBeranda }[S.tab] || viewBeranda;
   if (S.tab === 'catatan-edit') simpanDraftCatatan();
   $('#view').innerHTML = bannerStatus() + view();
   document.body.dataset.tab = S.tab; // tata letak per halaman di layar lebar (styles.css → Tampilan web)
@@ -653,7 +654,7 @@ function pulihkanPosisi() {
   try {
     const p = JSON.parse(localStorage.getItem('dk_posisi'));
     if (!p || !(Date.now() - p.waktu < POSISI_BERLAKU_MS)) return;
-    if (!['beranda', 'riwayat', 'dompet', 'laporan', 'lainnya', 'catatan', 'sholat', 'catatan-edit'].includes(p.tab)) return;
+    if (!['beranda', 'riwayat', 'dompet', 'laporan', 'lainnya', 'catatan', 'sholat', 'catatan-edit', 'kebiasaan'].includes(p.tab)) return;
     S.tab = p.tab === 'catatan-edit' ? 'catatan' : p.tab;
     // Periode sengaja TIDAK dipulihkan: refresh selalu membuka periode berjalan. Dulu periode lama (mis. Juli)
     // terbawa terus karena waktunya diperbarui tiap render, jadi Beranda tampak kosong (Rp0) walau di-refresh.

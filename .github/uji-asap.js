@@ -31,7 +31,7 @@ function server() {
 const DIALOG = ['bukaFormTrx', 'bukaRincianAnggaran', 'bukaRingkasPeriode', 'bukaAturPintasan', 'bukaFilter', 'bukaZakat', 'bukaDaftarBuku',
   'bukaCadangan', 'bukaRincianAman', 'bukaFormPeriode', 'bukaAktivitas', 'bukaTips', 'bukaCariGlobal', 'bukaDaftarRutin', 'bukaFormGemini',
   'bukaFormAnggaran', 'bukaGantiAvatar', 'bukaKebiasaan', 'bukaKalender'];
-const TAB = ['beranda', 'riwayat', 'dompet', 'laporan', 'catatan', 'lainnya', 'beranda'];
+const TAB = ['beranda', 'riwayat', 'dompet', 'laporan', 'catatan', 'kebiasaan', 'lainnya', 'beranda'];
 
 async function uji(browser, alamat, bahasa) {
   const p = await browser.newPage({ viewport: { width: 390, height: 900 }, serviceWorkers: 'block' });
@@ -61,7 +61,7 @@ async function uji(browser, alamat, bahasa) {
     if (!ada) { gagal.push('fungsi ' + fn + ' tidak ada'); continue; }
     await p.evaluate(f => { tutupSheet(); try { window[f](); } catch (e) { setTimeout(() => { throw e; }); } }, fn);
     await p.waitForTimeout(300);
-    const terbuka = await p.evaluate(() => !document.getElementById('sheet').hidden || document.body.dataset.tab === 'catatan');
+    const terbuka = await p.evaluate(() => !document.getElementById('sheet').hidden || ['catatan', 'kebiasaan'].includes(document.body.dataset.tab));
     if (!terbuka) gagal.push('dialog ' + fn + ' tidak terbuka');
   }
   // Detail emas & form tambah gram.

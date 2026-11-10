@@ -1706,6 +1706,7 @@ body.samar #view .insight-teks { filter: blur(6px); user-select: none; }
 .kt-ikon { font-size: 24px; line-height: 1; flex: none; }
 .kartu-tantangan small { display: block; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
 .pilih-tantangan { border-radius: 16px; border: 1.5px dashed var(--line); padding: 2px 12px; }
+.halaman-kebiasaan .kartu-tantangan:last-child { margin-bottom: 0; }
 .grid-lencana { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .lencana { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border-radius: 16px; background: var(--card-2); text-align: center; }
 .lencana span { font-size: 26px; line-height: 1; filter: grayscale(1); opacity: .5; }

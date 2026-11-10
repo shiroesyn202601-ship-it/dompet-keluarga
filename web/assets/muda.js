@@ -460,6 +460,7 @@ function htmlKebiasaan() {
   const lencana = daftarLencana();
   const selesai = (td.selesai || []).slice(-5).reverse();
   return `
+    <section class="kartu">
     <div class="streak-besar">
       <span class="api ${s.hariIni ? 'nyala' : ''}" aria-hidden="true">🔥</span>
       <div><b>${T('{n} hari beruntun', { n: s.n })}</b><small>${T('Terbaik: {n} hari', { n: s.terbaik })}</small></div>
@@ -471,28 +472,40 @@ function htmlKebiasaan() {
         <button type="button" class="btn btn-utama" data-aksi="tambah-trx">${T('＋ Catat')}</button>
       </div>`}
     <p class="info-kecil" style="text-align:left">${T('Satu hari dihitung kalau ada transaksi yang dicatat (oleh siapa pun di buku ini), atau ditandai tanpa belanja. Hari tanpa catatan di 7 hari terakhir bisa diketuk untuk ditandai; ketuk ✋ lagi untuk membatalkan.')}</p>
+    </section>
 
-    <h4 class="sub-laporan">${T('🏁 Tantangan')}</h4>
-    ${aktif.length ? aktif.map(kartuTantanganAktif).join('') : `<p class="info-kecil" style="text-align:left;margin-top:0">${T('Belum ada tantangan. Pilih satu untuk mulai, bisa dikerjakan bareng pasangan.')}</p>`}
-    ${aktif.length < MAKS_TANTANGAN ? `<div class="pilih-tantangan">${Object.keys(JENIS_TANTANGAN).map(k => `
+    <h2 class="judul-bagian">${T('🏁 Tantangan')}</h2>
+    ${aktif.length ? `<section class="kartu">${aktif.map(kartuTantanganAktif).join('')}</section>` : `<p class="info-kecil" style="text-align:left;margin-top:0">${T('Belum ada tantangan. Pilih satu untuk mulai, bisa dikerjakan bareng pasangan.')}</p>`}
+    ${aktif.length < MAKS_TANTANGAN ? `<section class="kartu" style="padding:4px 16px">${Object.keys(JENIS_TANTANGAN).map(k => `
       <button type="button" class="baris" data-aksi="mulai-tantangan" data-jenis="${k}">
         <span class="ikon-bulat">${JENIS_TANTANGAN[k].ikon}</span>
         <span class="isi"><b>${JENIS_TANTANGAN[k].judul}</b><small>${JENIS_TANTANGAN[k].ket}</small></span>
         <span class="panah">${svg('maju')}</span>
-      </button>`).join('')}</div>` : ''}
+      </button>`).join('')}</section>` : ''}
 
-    <h4 class="sub-laporan">${T('🏅 Lencana · {n}/{total}', { n: lencana.filter(x => x[2]).length, total: lencana.length })}</h4>
+    <h2 class="judul-bagian">${T('🏅 Lencana · {n}/{total}', { n: lencana.filter(x => x[2]).length, total: lencana.length })}</h2>
+    <section class="kartu">
     <div class="grid-lencana">${lencana.map(([ikon, nama, dapat, ket], i) => `
       <button type="button" class="lencana ${dapat ? 'dapat' : ''}" data-aksi="info-lencana" data-i="${i}"
         aria-label="${esc(nama)}: ${esc(ket)}${dapat ? '' : ' · ' + T('belum diraih')}"><span aria-hidden="true">${dapat ? ikon : '🔒'}</span><b>${esc(nama)}</b></button>`).join('')}</div>
     <p class="info-kecil">${T('Ketuk lencana untuk melihat syaratnya.')}</p>
-    ${selesai.length ? `<h4 class="sub-laporan">${T('Riwayat tantangan')}</h4>${selesai.map(x => `
+    </section>
+    ${selesai.length ? `<h2 class="judul-bagian">${T('Riwayat tantangan')}</h2><section class="kartu">${selesai.map(x => `
       <div class="baris-rincian riwayat-tantangan"><span>${x.hasil === 'berhasil' ? '🏆' : '💪'} ${esc(x.judul)}<small>${esc(tanggalPendek(x.selesai))}</small></span>
-        ${JENIS_TANTANGAN[x.jenis] && aktif.length < MAKS_TANTANGAN ? `<button type="button" class="tombol-teks" data-aksi="ulang-tantangan" data-id="${esc(x.id)}">${x.hasil === 'berhasil' ? T('Ulangi') : T('Coba lagi')}</button>` : ''}</div>`).join('')}` : ''}`;
+        ${JENIS_TANTANGAN[x.jenis] && aktif.length < MAKS_TANTANGAN ? `<button type="button" class="tombol-teks" data-aksi="ulang-tantangan" data-id="${esc(x.id)}">${x.hasil === 'berhasil' ? T('Ulangi') : T('Coba lagi')}</button>` : ''}</div>`).join('')}</section>` : ''}`;
 }
 
+/** Kebiasaan & Tantangan: halaman penuh (seperti Catatan), bukan lembar bawah. Form mulai/ubah tantangan tetap lembar di atasnya. */
+function viewKebiasaan() {
+  return `
+    <div class="kepala kepala-kembali">
+      <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="${T('Kembali')}">${svg('kembali')}</button>
+      <h1>${T('Kebiasaan & Tantangan')}</h1>
+    </div>
+    <div id="isi-kebiasaan" class="halaman-kebiasaan">${htmlKebiasaan()}</div>`;
+}
 function bukaKebiasaan() {
-  bukaSheet(T('Kebiasaan & Tantangan'), `<div id="isi-kebiasaan">${htmlKebiasaan()}</div>`);
+  bukaHalaman('kebiasaan');
 }
 function segarkanKebiasaan() {
   if ($('#isi-kebiasaan')) $('#isi-kebiasaan').innerHTML = htmlKebiasaan();
