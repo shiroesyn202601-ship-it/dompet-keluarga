@@ -9,7 +9,8 @@ Panduan untuk **pengguna** ada di [README](../README.md); rencana pengembangan d
 - Saat pertama kali login, aplikasi menawarkan **membuat spreadsheet "Dompet Keluarga"** di Drive akun itu, atau **menghubungkan spreadsheet yang sudah ada**.
 - Alamat spreadsheet tiap akun disimpan di folder tersembunyi khusus aplikasi di Google Drive (`appDataFolder`, file `config.json`: `spreadsheetId` = buku aktif, `buku` = daftar buku `[{id, nama}]`, `folderStruk` = folder lampiran), jadi tetap ketemu walaupun ganti HP.
 - **Satu buku keuangan = satu spreadsheet.** Nama buku diambil dari judul spreadsheet ("Dompet Keluarga - Usaha" → "Usaha").
-- Setiap `git push` ke branch `main` otomatis men-deploy folder `web/` ke GitHub Pages (lihat [.github/workflows/deploy.yml](../.github/workflows/deploy.yml)).
+- Setiap `git push` ke branch `main` otomatis men-deploy folder `web/` ke GitHub Pages (lihat [.github/workflows/deploy.yml](../.github/workflows/deploy.yml)). Sebelum deploy, workflow menjalankan cek sintaks, cek kamus bahasa, dan uji asap di mode coba; kalau ada yang gagal, deploy dibatalkan dan pengguna tetap memakai versi sebelumnya.
+- Perubahan di folder `bot/` ikut ter-deploy ke Apps Script lewat [.github/workflows/bot.yml](../.github/workflows/bot.yml), kalau sudah disiapkan (lihat **Deploy bot otomatis**).
 
 ## Isi repo
 
@@ -133,7 +134,22 @@ Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang 
 - Buka **⏱ Executions** di Apps Script untuk melihat error tiap pesan.
 - Kalau webhook terus bermasalah, jalankan **modePolling**. Bot lalu mengecek pesan setiap 1 menit, jadi balasannya sedikit lebih lambat. Jalankan **pasangWebhook** untuk kembali ke mode webhook.
 - `Token akun robot gagal` di log → isi `SA_KEY` salah, atau kuncinya sudah dihapus di Google Cloud.
-- Setiap kali `Kode.gs` diubah: **Deploy → Manage deployments → ✏️ → New version → Deploy**. URL tidak berubah, jadi webhook tidak perlu dipasang ulang.
+- Setiap kali `Kode.gs` diubah: otomatis kalau **Deploy bot otomatis** sudah disiapkan. Kalau belum: salin `Kode.gs`, lalu **Deploy → Manage deployments → ✏️ → New version → Deploy**. URL tidak berubah, jadi webhook tidak perlu dipasang ulang.
+
+### Deploy bot otomatis (sekali siapkan)
+Setelah disiapkan, setiap push ke `main` yang mengubah folder `bot/` langsung mengirim `Kode.gs` & `appsscript.json` ke proyek Apps Script dan memperbarui deployment web app yang dipakai webhook (URL tetap). Tidak perlu salin-tempel lagi.
+1. Buka https://script.google.com/home/usersettings dengan akun pemilik bot, lalu nyalakan **Google Apps Script API**.
+2. Di komputer: `npm i -g @google/clasp@2.4.2`, lalu `clasp login` dan masuk dengan akun pemilik bot. Terbentuk file `.clasprc.json` di folder pengguna (Windows: `C:\Users\<nama>\.clasprc.json`).
+3. Catat dua ID:
+   - **Script ID**: Apps Script → ⚙️ **Project Settings** → **Script ID**.
+   - **Deployment ID**: **Deploy → Manage deployments**, pilih deployment web app yang sudah dipakai webhook, salin **Deployment ID**-nya (bukan yang *Head*).
+4. Di GitHub: **Settings → Secrets and variables → Actions → New repository secret**, buat tiga secret:
+   - `CLASPRC_JSON` = seluruh isi file `.clasprc.json`
+   - `BOT_SCRIPT_ID` = Script ID
+   - `BOT_DEPLOYMENT_ID` = Deployment ID
+5. Buka tab **Actions → Deploy bot Telegram → Run workflow** sekali, supaya versi terbaru langsung terkirim.
+
+Catatan keamanan: `CLASPRC_JSON` berisi izin login clasp ke akun Google pemilik (proyek Apps Script & file yang dibuat clasp), jadi simpan hanya sebagai secret. Untuk mencabutnya: https://myaccount.google.com/permissions → hapus akses **clasp**, lalu hapus secret-nya.
 
 ### Kecepatan bot
 - Bot membaca semua sheet dalam satu permintaan **Sheets API**, bersamaan dengan status "mengetik".
@@ -146,6 +162,8 @@ Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang 
 - `web/index.html` memasang **Content-Security-Policy**: skrip hanya dari situs ini dan Google. Menambah layanan/CDN baru → tambahkan domainnya di tag itu. Kalau isi `<script>` tema di `<head>` diubah, hitung ulang hash-nya: `node -e "const s=require('fs').readFileSync('web/index.html','utf8');console.log(require('crypto').createHash('sha256').update(s.split('<script>')[1].split('</script>')[0]).digest('base64'))"`, lalu ganti nilai `sha256-…`.
 - **Bahasa (Indonesia/Inggris):** teks antarmuka ditulis dalam bahasa Indonesia dan dibungkus `T('...')`; teks itu sekaligus kunci kamus Inggris di `web/assets/bahasa-en.js` (cara pakai lengkap di `web/assets/bahasa.js`). Bagian yang berubah-ubah memakai isian: `T('Lanjutkan sebagai {email}', { email })`. Setiap menambah atau mengubah teks, tambahkan terjemahannya lalu jalankan `node .github/cek-bahasa.js`. Data di spreadsheet (nama sheet, kolom, kategori awal, tipe) tetap bahasa Indonesia; nama bawaan diterjemahkan hanya saat ditampilkan lewat `namaT()`. Bot Telegram dan halaman privasi masih berbahasa Indonesia.
 - Untuk mencoba di komputer sendiri, jalankan server statis, misalnya `npx serve web`, lalu tambahkan `http://localhost:3000` ke **Authorized JavaScript origins** di Google Cloud.
+- **Uji asap** (dijalankan otomatis sebelum deploy): `npm i --no-save playwright@1.47.2 && npx playwright install chromium && node .github/uji-asap.js`. Membuka mode coba, semua tab dan dialog utama, dalam dua bahasa; gagal kalau ada error JavaScript. Di komputer yang sudah punya Edge/Chrome cukup `playwright-core` dengan `UJI_CHANNEL=msedge`. Menambah dialog penting baru → tambahkan nama fungsinya ke `DIALOG` di skrip itu.
+- **Laporan error dari HP pengguna:** error JavaScript yang tidak tertangani dicatat ke sheet **Log** spreadsheet keluarga itu dengan Aksi `galat` (pesan, file:baris, halaman, versi, perangkat). Maksimal 5 per sesi; tidak dikirim di mode coba atau saat offline; tidak tampil di Aktivitas keluarga. Saat ada keluhan, minta pengguna membuka spreadsheet-nya dan memfilter kolom Aksi = `galat`.
 
 ## Struktur data (spreadsheet)
 
@@ -156,7 +174,8 @@ Hanya akun Telegram yang sudah ditautkan yang bisa memakai bot. Orang lain yang 
   - Jenis **Aset** (emas, reksadana, properti…): nilainya diperbarui manual lewat "Nilai sekarang"; beli dari rekening = Transfer ke aset. Kekayaan bersih = semua dompet + tabungan + aset + piutang − utang.
   - Jenis **Utang** = satu baris per orang. Saldo positif: orang itu berutang ke kita; negatif: kita berutang. Pinjaman & pelunasan dicatat sebagai Transfer antara dompet dan orang itu. Tenggat = jatuh tempo.
   - Bot Telegram mengenali jenis Utang mulai versi ini: setelah menarik kode terbaru, salin ulang `bot/Kode.gs` ke Apps Script lalu **Deploy → Manage deployments → ✏️ → New version**.
-- **Pengaturan:** Kunci, Nilai (kunci API Gemini, model, username bot, akun Telegram yang tertaut, `MULAI_PERIODE` = tanggal gajian 1–28)
+- **Pengaturan:** Kunci, Nilai (kunci API Gemini, model, username bot, akun Telegram yang tertaut, `MULAI_PERIODE` = tanggal gajian 1–28, `EMAS` = detail emas per aset, `HARGA_EMAS` = harga per gram terbaru per platform `{ beli, jual, tgl, diambil }` yang dipakai bersama aplikasi & bot, `CADANGAN` = cadangan otomatis terakhir `{ tgl, oleh }`)
+  - **Cadangan otomatis:** sebulan sekali (paling cepat 30 hari sejak `CADANGAN.tgl`), anggota yang pertama membuka aplikasi membuat salinan spreadsheet di Drive-nya sendiri, folder **Dompet Keluarga › Cadangan** (ID folder di `config.json` → `folderCadangan`). Salinan ditandai `appProperties.cadanganDari` = ID buku; 3 terbaru per buku disimpan, sisanya ke Sampah. Bisa juga lewat **Lainnya → Unduh & cadangan data → Cadangkan sekarang**.
   - Dengan `MULAI_PERIODE` = 25, kunci periode `2026-10` berarti 25 Okt – 24 Nov 2026 (kunci = bulan tempat periode dimulai). Web (`periodeDari_`/`rentangPeriode_` di db.js) dan bot (`periode_`) memakai aturan yang sama.
 - **Rutin:** ID, Nama, Tipe, Jumlah, Kategori, Dompet, Dompet Tujuan, Catatan, Ulang (Bulanan/Mingguan/Tahunan), Mulai (patokan tanggal), Berikutnya (jatuh tempo berikutnya). Ditambahkan otomatis ke spreadsheet lama. Tagihan tanggal 31 jatuh di akhir bulan pendek lalu kembali ke 31 (patokan dari kolom Mulai).
 

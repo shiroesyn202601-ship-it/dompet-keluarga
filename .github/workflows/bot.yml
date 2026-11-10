@@ -1,0 +1,51 @@
+# Bot Telegram ikut ter-deploy otomatis setiap kali folder bot/ berubah (push ke main), lewat clasp:
+# kode dikirim ke proyek Apps Script, lalu deployment web app yang dipakai webhook diperbarui ke versi baru.
+# Butuh 3 secret repository (lihat docs/PEMILIK.md → Deploy bot otomatis). Selama belum diisi, langkah deploy dilewati.
+name: Deploy bot Telegram
+
+on:
+  push:
+    branches: [main]
+    paths: ['bot/**', '.github/workflows/bot.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bot
+  cancel-in-progress: false
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    env:
+      CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+      BOT_SCRIPT_ID: ${{ secrets.BOT_SCRIPT_ID }}
+      BOT_DEPLOYMENT_ID: ${{ secrets.BOT_DEPLOYMENT_ID }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Cek sintaks Kode.gs
+        run: cp bot/Kode.gs /tmp/Kode.js && node --check /tmp/Kode.js
+      - name: Sudah disiapkan?
+        id: siap
+        run: |
+          if [ -z "$CLASPRC_JSON" ] || [ -z "$BOT_SCRIPT_ID" ] || [ -z "$BOT_DEPLOYMENT_ID" ]; then
+            echo "::notice::Deploy bot otomatis belum disiapkan (secret CLASPRC_JSON, BOT_SCRIPT_ID, BOT_DEPLOYMENT_ID). Salin bot/Kode.gs ke Apps Script secara manual, atau ikuti docs/PEMILIK.md → Deploy bot otomatis."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Kirim kode ke Apps Script & perbarui deployment
+        if: steps.siap.outputs.ok == 'true'
+        run: |
+          npm i -g @google/clasp@2.4.2
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          cd bot
+          printf '{"scriptId":"%s","rootDir":"."}' "$BOT_SCRIPT_ID" > .clasp.json
+          clasp push --force
+          clasp deploy --deploymentId "$BOT_DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7}"
+          rm -f ~/.clasprc.json .clasp.json
