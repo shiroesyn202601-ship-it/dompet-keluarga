@@ -566,6 +566,7 @@ const SERVER = (() => {
       tantangan: bacaJson_(pengaturan_(set).TANTANGAN, {}),
       avatar: avatar_(set),
       emas: bacaJson_(pengaturan_(set).EMAS, {}),
+      hargaEmas: bacaJson_(pengaturan_(set).HARGA_EMAS, {}),
       bulanan,
       transaksi: d.transaksi
         .filter(t => periodeDari_(t.tanggal, mulai) === bulan)
@@ -1281,6 +1282,27 @@ const SERVER = (() => {
       ubah = true;
     });
     if (ubah) await simpanPengaturan_(id, set, 'EMAS', JSON.stringify(peta));
+  }
+
+  /**
+   * Harga emas per gram terbaru, dipakai bersama satu buku (Pengaturan HARGA_EMAS): { platform: { beli, jual, tgl, diambil } }.
+   * Ditulis aplikasi setelah berhasil mengambil harga, dan oleh bot setiap pagi. Yang lebih baru (diambil) yang dipakai.
+   */
+  async function simpanHargaEmas(peta) {
+    const id = await db_();
+    const [set] = await bacaTabel_(id, ['pengaturan']);
+    const isi = bacaJson_(pengaturan_(set).HARGA_EMAS, {});
+    let ubah = false;
+    Object.keys(peta || {}).forEach(k => {
+      const h = peta[k];
+      if (!/^[a-z0-9]{2,20}$/.test(k) || !h || !(Number(h.beli) > 0)) return;
+      const baru = { beli: Math.round(h.beli), jual: Math.round(Number(h.jual) || 0), tgl: teks_(h.tgl).slice(0, 10), diambil: teks_(h.diambil).slice(0, 10) };
+      if (isi[k] && String(isi[k].diambil || '') >= baru.diambil) return;
+      isi[k] = baru;
+      ubah = true;
+    });
+    if (ubah) await simpanPengaturan_(id, set, 'HARGA_EMAS', JSON.stringify(isi));
+    return isi;
   }
 
   /** Kebalikan lepasMutasiEmas_ (dipanggil saat transaksinya dikembalikan). */
@@ -2186,7 +2208,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, simpanAvatar, mutasiEmas, catatGalat, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, simpanAvatar, mutasiEmas, simpanHargaEmas, catatGalat, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };

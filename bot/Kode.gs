@@ -1806,6 +1806,11 @@ function pengingatBuku_(idSheet, idTerindeks, hari) {
   }
   const p = {};
   baris[0].forEach(r => { if (r[0] !== '') p[String(r[0])] = String(r[1] == null ? '' : r[1]); });
+  try {
+    perbaruiHargaEmas_(p, hari);
+  } catch (err) {
+    console.error('Harga emas ' + idSheet + ': ' + (err.stack || err));
+  }
   const pengguna = penggunaTelegram_(p);
   const tujuan = Object.keys(pengguna).filter(id => modeLama_() || idTerindeks.indexOf(String(id)) >= 0);
   if (!tujuan.length) return;
@@ -1845,6 +1850,51 @@ function pengingatBuku_(idSheet, idTerindeks, hari) {
   const teks = baris2.join('\n');
   tujuan.forEach(id => kirim_(id, teks));
   props.setProperty(kunciHari, hari);
+}
+
+// Harga emas per gram (sama dengan aplikasi, lihat muatHargaEmas di app.js): diambil sekali per pagi untuk semua buku,
+// lalu ditulis ke Pengaturan HARGA_EMAS buku yang punya emas, supaya aplikasi tidak perlu mengambilnya lagi.
+const SUMBER_HARGA_EMAS = { pegadaian: 'pegadaian', bsi: 'bankbsi', antam: 'anekalogam', galeri24: 'galeri24',
+  sampoerna: 'sampoernagold', treasury: 'treasury', pluang: 'pluang' };
+const hargaEmasPagi_ = {}; // platform → { beli, jual, tgl, diambil } | null (gagal), selama satu kali jalan
+
+function ambilHargaEmas_(platform, hari) {
+  const perlu = platform.filter(k => SUMBER_HARGA_EMAS[k] && !(k in hargaEmasPagi_));
+  if (perlu.length) {
+    const jawab = UrlFetchApp.fetchAll(perlu.map(k => ({
+      url: 'https://logam-mulia-api.iamutaki.workers.dev/api/prices/' + SUMBER_HARGA_EMAS[k], muteHttpExceptions: true,
+    })));
+    jawab.forEach((res, i) => {
+      let h = null;
+      try {
+        const j = JSON.parse(res.getContentText());
+        const baris = (j && j.success && Array.isArray(j.data) ? j.data : [])
+          .filter(x => x.material === 'gold' && Number(x.sellPrice) > 0 && Number(x.weight) > 0);
+        const x = baris.find(b => Number(b.weight) === 1) || baris.sort((a, b) => a.weight - b.weight)[0];
+        if (x) {
+          const beli = Math.round(x.sellPrice / x.weight), jual = Math.round((Number(x.buybackPrice) || 0) / x.weight);
+          if (beli >= 300000 && beli <= 50000000) h = { beli, jual, tgl: String(x.recordedDate || hari).slice(0, 10), diambil: hari };
+        }
+      } catch (e) { /* sumber sedang bermasalah: lewati */ }
+      hargaEmasPagi_[perlu[i]] = h;
+    });
+  }
+  const hasil = {};
+  platform.forEach(k => { if (hargaEmasPagi_[k]) hasil[k] = hargaEmasPagi_[k]; });
+  return hasil;
+}
+
+/** p: isi Pengaturan buku yang sedang dibuka (pakaiSpreadsheet_). */
+function perbaruiHargaEmas_(p, hari) {
+  let emas = {}, lama = {};
+  try { emas = JSON.parse(p.EMAS || '{}'); } catch (e) { return; }
+  try { lama = JSON.parse(p.HARGA_EMAS || '{}'); } catch (e) { /* ditimpa */ }
+  const platform = Object.keys(emas).map(n => emas[n] && emas[n].platform)
+    .filter((k, i, a) => k && a.indexOf(k) === i && (!lama[k] || lama[k].diambil !== hari));
+  if (!platform.length) return;
+  const baru = ambilHargaEmas_(platform, hari);
+  if (!Object.keys(baru).length) return;
+  simpanPengaturan_('HARGA_EMAS', JSON.stringify(Object.assign(lama, baru)));
 }
 
 /**

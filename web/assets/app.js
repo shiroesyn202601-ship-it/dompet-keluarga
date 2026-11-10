@@ -8711,8 +8711,10 @@ document.addEventListener('change', async e => {
 });
 
 // ---------- Emas: berat (gram) + platform, nilainya dari harga hari ini ----------
-// Harga per gram diambil dari logam-mulia-api (github.com/iamutaki/logam-mulia-api, publik & gratis), disimpan di HP
-// sekali sehari. Kalau gagal dipakai harga terakhir; platform "Lainnya" (atau yang belum tersedia) memakai harga yang diisi sendiri.
+// Harga per gram diambil dari logam-mulia-api (github.com/iamutaki/logam-mulia-api, publik & gratis) sekali sehari, lalu
+// disimpan di HP dan di spreadsheet (Pengaturan HARGA_EMAS, dipakai bersama keluarga; bot juga memperbaruinya tiap pagi).
+// Kalau sudah ada yang mengambil hari ini, aplikasi tidak menghubungi sumber harga lagi. Kalau sumbernya mati, harga
+// terakhir tetap dipakai (dengan tanggalnya); platform "Lainnya" (atau yang belum tersedia) memakai harga yang diisi sendiri.
 // Istilah dari sisi pengguna: harga BELI = harga saat kita membeli (sellPrice penjual), harga JUAL = buyback (buybackPrice).
 
 const API_HARGA_EMAS = 'https://logam-mulia-api.iamutaki.workers.dev/api/prices/';
@@ -8728,8 +8730,14 @@ const formatGram = g => T('{gram} gram', { gram: (Number(g) || 0).toLocaleString
 const angkaGram = s => { const n = parseFloat(String(s || '').trim().replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 
 const KUNCI_HARGA_EMAS = 'dk_harga_emas_platform';
+const kapanDiambil = h => String((h && (h.diambil || h.tgl)) || '');
+/** Harga di HP digabung dengan harga bersama di spreadsheet; per platform dipakai yang paling baru diambil. */
 function cacheHargaEmas() {
-  try { return JSON.parse(bacaHp(KUNCI_HARGA_EMAS)) || {}; } catch (e) { return {}; }
+  let c = {};
+  try { c = JSON.parse(bacaHp(KUNCI_HARGA_EMAS)) || {}; } catch (e) { /* kosong */ }
+  const bersama = (S.data && S.data.hargaEmas) || {};
+  Object.keys(bersama).forEach(k => { if (bersama[k] && bersama[k].beli && kapanDiambil(bersama[k]) > kapanDiambil(c[k])) c[k] = bersama[k]; });
+  return c;
 }
 /** Harga per gram untuk satu detail emas: { beli, jual, waktu?, manual? } atau null. */
 function hargaEmasUntuk(e) {
@@ -8763,8 +8771,9 @@ async function muatHargaEmas(ids, paksa) {
   if (hargaEmasJalan) await hargaEmasJalan.catch(() => {});
   const cache = cacheHargaEmas();
   const perlu = Array.from(new Set(ids)).filter(id => platformEmas(id)[2]
-    && (paksa || ((!cache[id] || cache[id].tgl !== hariIni()) && !hargaEmasDicoba.has(id + hariIni()))));
+    && (paksa || (kapanDiambil(cache[id]) !== hariIni() && !hargaEmasDicoba.has(id + hariIni()))));
   if (!perlu.length || !navigator.onLine) return !perlu.length;
+  const baruDiambil = {};
   hargaEmasJalan = Promise.all(perlu.map(async id => {
     hargaEmasDicoba.add(id + hariIni());
     const ctrl = new AbortController();
@@ -8779,8 +8788,9 @@ async function muatHargaEmas(ids, paksa) {
       const beli = Math.round(x.sellPrice / x.weight), jual = Math.round((Number(x.buybackPrice) || 0) / x.weight);
       if (beli < 300000 || beli > 50000000) return false; // angka tidak masuk akal: abaikan
       const c = cacheHargaEmas();
-      c[id] = { beli, jual, tgl: x.recordedDate || hariIni(), waktu: Date.now() };
+      c[id] = { beli, jual, tgl: String(x.recordedDate || hariIni()).slice(0, 10), diambil: hariIni(), waktu: Date.now() };
       tulisHp(KUNCI_HARGA_EMAS, JSON.stringify(c));
+      baruDiambil[id] = c[id];
       return true;
     } catch (e) {
       return false;
@@ -8788,7 +8798,14 @@ async function muatHargaEmas(ids, paksa) {
       clearTimeout(t);
     }
   }));
-  try { return (await hargaEmasJalan).every(Boolean); } finally { hargaEmasJalan = null; }
+  try { return (await hargaEmasJalan).every(Boolean); } finally {
+    hargaEmasJalan = null;
+    // Dibagikan ke keluarga lewat spreadsheet (di latar; gagal tidak apa-apa, harga tetap ada di HP ini).
+    if (Object.keys(baruDiambil).length && S.data && !S.offline) {
+      S.data.hargaEmas = Object.assign({}, S.data.hargaEmas, baruDiambil);
+      SERVER.simpanHargaEmas(baruDiambil).catch(e => console.warn('Harga emas tidak tersimpan di spreadsheet:', e));
+    }
+  }
 }
 /** Dipanggil saat daftar aset digambar: ambil harga yang belum diperbarui hari ini, lalu gambar ulang. */
 function perbaruiHargaEmasNanti() {
