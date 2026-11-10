@@ -76,8 +76,12 @@ const GOOGLE = (() => {
     return sesi.email;
   }
 
+  /**
+   * Hanya menghapus sesi di perangkat ini. Sengaja TIDAK memanggil oauth2.revoke: revoke menghapus
+   * seluruh persetujuan akun ke aplikasi, sehingga layar persetujuan Google muncul lagi setiap masuk.
+   * Token yang tertinggal habis sendiri dalam ±1 jam; mencabut akses penuh lewat Akun Google.
+   */
   function keluar() {
-    if (sesi && sesi.token && window.google && google.accounts) google.accounts.oauth2.revoke(sesi.token, () => {});
     sesi = null;
     tulisSesi(null);
   }
