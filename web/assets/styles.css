@@ -1771,9 +1771,9 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
 .pratinjau-story[aria-busy="true"] { background: linear-gradient(110deg, var(--card-2) 30%, var(--line) 50%, var(--card-2) 70%) 0 0 / 300% 100%; animation: kilau-story 1.2s linear infinite; }
 @keyframes kilau-story { to { background-position: -150% 0; } }
 .pratinjau-story img { width: 100%; height: 100%; display: block; }
-/* Pratinjau gambar sebelum dibagikan (ringkasan 4:5, kilas balik) */
-.pratinjau-bagikan { width: min(78%, 320px); margin: 4px auto 14px; border-radius: 20px; overflow: hidden; background: var(--card-2); box-shadow: 0 12px 30px rgba(6, 42, 46, .22); }.pratinjau-bagikan img { width: 100%; height: auto; display: block; }
-
+/* Pratinjau gambar sebelum dibagikan (ringkasan 4:5, kilas balik 9:16): tinggi dibatasi supaya muat di layar */
+.pratinjau-bagikan { width: fit-content; max-width: 78%; margin: 4px auto 14px; border-radius: 20px; overflow: hidden; background: var(--card-2); box-shadow: 0 12px 30px rgba(6, 42, 46, .22); }
+.pratinjau-bagikan img { display: block; width: auto; max-width: 100%; height: auto; max-height: 58vh; }
 /* ---------- Kartu dompet bergaya kartu fisik ---------- */
 .ket-geser { font-size: 12px; font-weight: 600; color: var(--muted); }
 .deret-kartu { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 4px 16px 14px;

@@ -326,7 +326,6 @@ Object.assign(KAMUS, {
   'Pengeluaran terbesar': 'Biggest expenses',
   'Belum ada pengeluaran.': 'No expenses yet.',
   'Dicatat dengan Dompet Keluarga · coba gratis': 'Recorded with Dompet Keluarga · try it free',
-  'Dompet Keluarga · coba gratis di {tautan}': 'Dompet Keluarga · try it free at {tautan}',
   'Ringkasan keuangan {bulan}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}.': 'Financial summary for {bulan}: income {masuk}, expense {keluar}, difference {selisih}.',
   'Ringkasan {bulan}': '{bulan} summary',
   '{bulan}: pemasukan {masuk}, pengeluaran {keluar}': '{bulan}: income {masuk}, expense {keluar}',

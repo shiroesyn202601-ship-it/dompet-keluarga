@@ -1125,7 +1125,7 @@ async function kirimGambar(blob, nama, judul, keterangan, simpan) {
   toast(T('Gambar disimpan ke folder unduhan ✔'));
 }
 
-/** Kilas balik satu tahun sebagai gambar 1080×1350: angka utama, grafik 12 bulan, bulan terhemat/terboros, kategori terbesar. */
+/** Kilas balik satu tahun sebagai gambar 1080×1920 (9:16): angka utama, grafik 12 bulan, bulan terhemat/terboros, kategori terbesar. */
 async function bagikanTahunan(th) {
   const bulan = Array.from({ length: 12 }, (_, i) => th + '-' + String(i + 1).padStart(2, '0'));
   const data = bulan.map(ringkasBulan);
@@ -1139,7 +1139,8 @@ async function bagikanTahunan(th) {
   const boros = selesai.slice().sort((a, b) => b.x.keluar - a.x.keluar)[0];
   const rata = rataPengeluaran(bulan, data);
 
-  const W = 1080, H = 1350, P = 80;
+  // 1080×1920 (9:16, pas untuk Status WhatsApp & Story Instagram), tata letak sejalan dengan gambar Story bulanan.
+  const W = 1080, H = 1920, P = 84;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const g = c.getContext('2d');
@@ -1151,51 +1152,58 @@ async function bagikanTahunan(th) {
   const latar = g.createLinearGradient(0, 0, W, H);
   latar.addColorStop(0, '#062a2e'); latar.addColorStop(1, '#0e5a60');
   g.fillStyle = latar; g.fillRect(0, 0, W, H);
+  // Lingkaran cahaya halus (sama seperti Story)
+  [[920, 280, 320, 'rgba(255,255,255,.06)'], [100, 1560, 380, 'rgba(255,255,255,.04)']].forEach(([x, y, r, w]) => {
+    g.fillStyle = w; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  });
 
-  kopMerek(g, P, 120, 32, 'rgba(255,255,255,.92)');
-  teks(T('Kilas balik'), P, 200, 44, '#ffffff', 600);
-  teks(String(th), P, 280, 84, '#ffffff', 800);
+  kopMerek(g, P, 150, 36, 'rgba(255,255,255,.95)');
+  teks(T('Kilas balik').toUpperCase(), P, 260, 34, 'rgba(255,255,255,.7)', 800);
+  teks(String(th), P, 380, 128, '#ffffff', 800);
 
   const kotak = (x, y, w, label, nilai, warna) => {
-    g.fillStyle = 'rgba(255,255,255,.08)'; g.beginPath(); g.roundRect(x, y, w, 150, 28); g.fill();
-    teks(label, x + 30, y + 56, 28, 'rgba(255,255,255,.7)', 600);
-    teks(nilai, x + 30, y + 116, 42, warna, 800);
+    g.fillStyle = 'rgba(255,255,255,.09)'; g.beginPath(); g.roundRect(x, y, w, 190, 32); g.fill();
+    teks(label, x + 34, y + 66, 30, 'rgba(255,255,255,.72)', 600);
+    teks(nilai, x + 34, y + 142, 48, warna, 800);
   };
   const lebar = (W - P * 2 - 24) / 2;
-  kotak(P, 330, lebar, T('Pemasukan'), rp(masuk), '#3ccb8b');
-  kotak(P + lebar + 24, 330, lebar, T('Pengeluaran'), rp(keluar), '#ff8a7a');
-  kotak(P, 504, lebar, T('Selisih') + (masuk ? ` · ${Math.round((masuk - keluar) / masuk * 100)}%` : ''), rp(masuk - keluar), '#ffffff');
-  kotak(P + lebar + 24, 504, lebar, T('Rata-rata / bulan'), rp(rata.nilai), '#ffffff');
+  kotak(P, 450, lebar, T('Pemasukan'), rp(masuk), '#3ccb8b');
+  kotak(P + lebar + 24, 450, lebar, T('Pengeluaran'), rp(keluar), '#ff8a7a');
+  kotak(P, 664, lebar, T('Selisih') + (masuk ? ` · ${Math.round((masuk - keluar) / masuk * 100)}%` : ''), rp(masuk - keluar), '#ffffff');
+  kotak(P + lebar + 24, 664, lebar, T('Rata-rata / bulan'), rp(rata.nilai), '#ffffff');
 
-  // Grafik batang 12 bulan: pemasukan (hijau) & pengeluaran (merah muda).
-  const gx = P, gy = 700, gw = W - P * 2, gh = 170;
+  // Grafik batang 12 bulan: pemasukan (hijau) & pengeluaran (koral).
+  const gx = P, gy = 930, gw = W - P * 2, gh = 260;
   const maks = Math.max(1, ...data.map(x => Math.max(x.masuk, x.keluar)));
-  const kolom = gw / 12, bw = Math.min(22, (kolom - 14) / 2);
+  const kolom = gw / 12, bw = Math.min(26, (kolom - 14) / 2);
   data.forEach((x, i) => {
     const cx = gx + i * kolom + kolom / 2;
     [[x.masuk, '#3ccb8b', cx - bw - 2], [x.keluar, '#ff8a7a', cx + 2]].forEach(([v, warna, bx]) => {
       const h = v / maks * gh;
       if (h < 1) return;
-      g.fillStyle = warna; g.beginPath(); g.roundRect(bx, gy + gh - h, bw, h, 6); g.fill();
+      g.fillStyle = warna; g.beginPath(); g.roundRect(bx, gy + gh - h, bw, h, 7); g.fill();
     });
-    teks(NAMA_BULAN_PENDEK[i], cx, gy + gh + 40, 24, 'rgba(255,255,255,.6)', 600, 'center');
+    teks(NAMA_BULAN_PENDEK[i], cx, gy + gh + 46, 26, 'rgba(255,255,255,.6)', 600, 'center');
   });
 
-  let y = 985;
+  let y = 1300;
   if (hemat && boros && hemat.k !== boros.k) {
-    teks(T('🌱 Paling hemat: {bulan} ({jumlah})', { bulan: NAMA_BULAN_PENDEK[bulan.indexOf(hemat.k)], jumlah: rpPendek(hemat.x.keluar) }), P, y, 30, '#ffffff', 600);
-    teks(T('🔥 Paling boros: {bulan} ({jumlah})', { bulan: NAMA_BULAN_PENDEK[bulan.indexOf(boros.k)], jumlah: rpPendek(boros.x.keluar) }), P, y + 50, 30, '#ffffff', 600);
-    y += 105;
+    teks(T('🌱 Paling hemat: {bulan} ({jumlah})', { bulan: NAMA_BULAN_PENDEK[bulan.indexOf(hemat.k)], jumlah: rpPendek(hemat.x.keluar) }), P, y, 34, '#ffffff', 700);
+    teks(T('🔥 Paling boros: {bulan} ({jumlah})', { bulan: NAMA_BULAN_PENDEK[bulan.indexOf(boros.k)], jumlah: rpPendek(boros.x.keluar) }), P, y + 58, 34, '#ffffff', 700);
+    y += 140;
   }
   if (top.length) {
-    teks(T('Pengeluaran terbesar'), P, y, 32, '#ffffff', 700);
+    teks(T('Pengeluaran terbesar'), P, y, 38, '#ffffff', 800);
+    const maksKat = Math.max(1, ...top.map(x => x.v));
     top.forEach((x, i) => {
-      const yy = y + 50 + i * 44;
-      teks(ikonKategori(x.n, TIPE.KELUAR) + '  ' + namaT(x.n), P, yy, 28, 'rgba(255,255,255,.9)', 600);
-      teks(rp(x.v) + (keluar ? `  ${Math.round(x.v / keluar * 100)}%` : ''), W - P, yy, 28, 'rgba(255,255,255,.85)', 700, 'right');
+      const yy = y + 66 + i * 80;
+      teks(ikonKategori(x.n, TIPE.KELUAR) + '  ' + namaT(x.n), P, yy, 31, 'rgba(255,255,255,.95)', 700);
+      teks(rp(x.v) + (keluar ? `  ${Math.round(x.v / keluar * 100)}%` : ''), W - P, yy, 30, 'rgba(255,255,255,.88)', 700, 'right');
+      g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.roundRect(P, yy + 18, W - P * 2, 10, 5); g.fill();
+      g.fillStyle = '#5fd0c8'; g.beginPath(); g.roundRect(P, yy + 18, Math.max(10, (W - P * 2) * x.v / maksKat), 10, 5); g.fill();
     });
   }
-  teks(T('Dompet Keluarga · coba gratis di {tautan}', { tautan: TAUTAN_PROMO }), W / 2, H - 30, 24, 'rgba(255,255,255,.7)', 700, 'center');
+  kakiMerek(g, W, H - 50, 30, 'rgba(255,255,255,.8)');
 
   const keterangan = T('Kilas balik keuangan {tahun}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}.', { tahun: th, masuk: rp(masuk), keluar: rp(keluar), selisih: rp(masuk - keluar) });
   await bagikanKanvas(c, 'kilas-balik-' + th + '.png', T('Kilas balik {tahun}', { tahun: th }), keterangan);
