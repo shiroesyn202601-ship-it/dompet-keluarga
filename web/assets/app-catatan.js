@@ -307,6 +307,9 @@ function bukaFormCatatan(c, tanggal) {
     warna: x.warna || 'biru', jenis: tugas ? 'tugas' : 'teks', isi: tugas ? '' : x.isi, tugas: tugas || [{ teks: '', selesai: false }],
     fokus: !c,
   };
+  // Form dibuka ulang dari form yang masih tampil (mis. "Buang" draf): buang tampilan lama dulu, karena render()
+  // membaca isian dari layar (simpanDraftCatatan) dan isian lama akan menimpa form yang baru.
+  if (S.tab === 'catatan-edit') { clearTimeout(timerDrafCatatan); $('#view').innerHTML = ''; }
   const draf = bacaDrafCatatan(S.formCatatan.id);
   S.formCatatan.awal = jejakCatatan(S.formCatatan);
   if (draf) {
