@@ -639,6 +639,17 @@ const POSISI_BERLAKU_MS = 60 * 60 * 1000;
 function simpanPosisi() {
   try { localStorage.setItem('dk_posisi', JSON.stringify({ tab: S.tab, bulan: S.bulan, tahun: S.tahun, waktu: Date.now() })); } catch (e) { /* mode privat */ }
 }
+/** Keluar: masuk berikutnya mulai lagi dari Beranda, dengan menu bawah di halaman pertama. */
+function keHalamanAwal() {
+  S.tab = 'beranda';
+  S.pilih = null;
+  try { localStorage.removeItem('dk_posisi'); } catch (e) { /* mode privat */ }
+  const geser = $('#nav-geser');
+  if (geser) {
+    geser.scrollLeft = 0;
+    delete geser.dataset.tab; // render berikutnya menata ulang tanpa animasi
+  }
+}
 function pulihkanPosisi() {
   try {
     const p = JSON.parse(localStorage.getItem('dk_posisi'));

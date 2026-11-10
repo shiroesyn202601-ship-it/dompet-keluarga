@@ -898,6 +898,7 @@ const AKSI = {
       if (!await tanya(T('Akhiri mode coba? Semua data contoh dihapus dari HP ini.'), T('Akhiri'))) return;
       DEMO.selesai();
       S.data = null;
+      keHalamanAwal();
       tampilMasuk();
       return;
     }
@@ -908,6 +909,7 @@ const AKSI = {
     tulisLokal('tertunda', null);
     GOOGLE.keluar();
     S.data = null;
+    keHalamanAwal();
     tampilMasuk();
   },
 

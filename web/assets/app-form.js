@@ -420,6 +420,7 @@ function resetKunci() {
   tulisLokal('data', null);
   GOOGLE.keluar();
   S.data = null;
+  keHalamanAwal();
   bukaKunci();
   tampilMasuk();
 }
