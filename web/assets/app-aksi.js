@@ -778,6 +778,9 @@ const AKSI = {
       if (el.isConnected) { el.disabled = false; el.textContent = asli; }
     }
   },
+  // Lembar pratinjau gambar bagikan (bagikanKanvas di app-halaman.js)
+  'pratinjau-bagikan': () => { const g = GAMBAR_BAGIKAN; if (g) kirimGambar(g.blob, g.nama, g.judul, g.keterangan); },
+  'pratinjau-simpan': () => { const g = GAMBAR_BAGIKAN; if (g) kirimGambar(g.blob, g.nama, g.judul, g.keterangan, true); },
   'bagikan-tahunan': async el => {
     el.disabled = true;
     try { await bagikanTahunan(S.tahun); } catch (e) { toast(T('Gambar tidak bisa dibuat: {galat}', { galat: pesanError(e) }), true); }
@@ -961,7 +964,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'demo-mulai', 'demo-masuk', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'bagikan-tahunan', 'cetak-laporan','salin-link', 'pasang-aplikasi', 'suara', 'cepat-suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'bagikan-tahunan', 'pratinjau-bagikan', 'pratinjau-simpan', 'cetak-laporan','salin-link', 'pasang-aplikasi', 'suara', 'cepat-suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
   'ajak-ai-lanjut', 'ajak-ai-tolak', // meneruskan ke kamera / mikrofon
 ]);
 

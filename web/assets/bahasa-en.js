@@ -329,7 +329,6 @@ Object.assign(KAMUS, {
   'Dompet Keluarga · coba gratis di {tautan}': 'Dompet Keluarga · try it free at {tautan}',
   'Ringkasan keuangan {bulan}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}.': 'Financial summary for {bulan}: income {masuk}, expense {keluar}, difference {selisih}.',
   'Ringkasan {bulan}': '{bulan} summary',
-  'Gambar ringkasan diunduh ✔': 'Summary image downloaded ✔',
   '{bulan}: pemasukan {masuk}, pengeluaran {keluar}': '{bulan}: income {masuk}, expense {keluar}',
   '{bulan}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}': '{bulan}: income {masuk}, expense {keluar}, difference {selisih}',
   'Pemasukan dan pengeluaran per bulan': 'Income and expense per month',
@@ -1671,6 +1670,9 @@ Object.assign(KAMUS, {
 // ---------- Mode coba (demo.js) ----------
 Object.assign(KAMUS, {
   'Coba dulu tanpa akun': 'Try it without an account',
+  "Pratinjau gambar {judul}": "Image preview: {judul}",
+  "⬇️ Simpan gambar": "⬇️ Save image",
+  "Gambar disimpan ke folder unduhan ✔": "Image saved to your downloads ✔",
   // Fitur AI (Gemini): ⚙️ → Fitur AI & ajakan setelah masuk
   "Catat & tulis catatan dengan suara": "Record & write notes by voice",
   "\"Kemarin bensin 30 ribu sama parkir 5 ribu\" langsung jadi dua transaksi bertanggal benar. Juga untuk menulis catatan.": "\"Yesterday fuel 30k and parking 5k\" becomes two transactions with the right date. Also for writing notes.",

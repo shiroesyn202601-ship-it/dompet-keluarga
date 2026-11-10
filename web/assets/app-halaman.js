@@ -1088,11 +1088,30 @@ function kakiMerek(g, W, y, ukuran, warna) {
   g.fillText(TAUTAN_PROMO, W / 2, y);
 }
 
-/** Kanvas → PNG → menu berbagi HP; kalau browser tidak mendukung berbagi file, gambarnya diunduh. */
+/**
+ * Kanvas → PNG → lembar pratinjau: gambarnya ditampilkan dulu, baru tombol Bagikan (menu berbagi HP) & Simpan gambar.
+ * Dipakai "Bagikan ringkasan" dan "Bagikan kilas balik". Berbagi file harus dari ketukan pengguna, jadi
+ * kirimGambar dipanggil dari tombol di lembar ini (AKSI 'pratinjau-bagikan' / 'pratinjau-simpan').
+ */
+let GAMBAR_BAGIKAN = null; // { blob, file, nama, judul, keterangan, url }
 async function bagikanKanvas(c, nama, judul, keterangan) {
   const blob = await new Promise(ok => c.toBlob(ok, 'image/png'));
+  if (GAMBAR_BAGIKAN) URL.revokeObjectURL(GAMBAR_BAGIKAN.url);
   const file = new File([blob], nama, { type: 'image/png' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  GAMBAR_BAGIKAN = { blob, file, nama, judul, keterangan, url: URL.createObjectURL(blob) };
+  const bisaBagi = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+  bukaSheet(judul, `
+    <div class="pratinjau-bagikan"><img src="${GAMBAR_BAGIKAN.url}" alt="${esc(T('Pratinjau gambar {judul}', { judul }))}"></div>
+    <div class="aksi-form">
+      <button type="button" class="btn ${bisaBagi ? 'btn-kedua' : 'btn-utama'}" data-aksi="pratinjau-simpan">${T('⬇️ Simpan gambar')}</button>
+      ${bisaBagi ? `<button type="button" class="btn btn-utama" data-aksi="pratinjau-bagikan">${T('📤 Bagikan')}</button>` : ''}
+    </div>`);
+}
+
+/** Bagikan gambar lewat menu berbagi HP; kalau browser tidak mendukung berbagi file (atau simpan = true), gambarnya diunduh. */
+async function kirimGambar(blob, nama, judul, keterangan, simpan) {
+  const file = new File([blob], nama, { type: 'image/png' });
+  if (!simpan && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: judul, text: keterangan });
     } catch (e) { /* dibatalkan pengguna */ }
@@ -1103,7 +1122,7 @@ async function bagikanKanvas(c, nama, judul, keterangan) {
   a.download = nama;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  toast(T('Gambar ringkasan diunduh ✔'));
+  toast(T('Gambar disimpan ke folder unduhan ✔'));
 }
 
 /** Kilas balik satu tahun sebagai gambar 1080×1350: angka utama, grafik 12 bulan, bulan terhemat/terboros, kategori terbesar. */

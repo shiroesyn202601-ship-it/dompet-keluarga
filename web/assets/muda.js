@@ -1341,7 +1341,10 @@ Object.assign(AKSI, {
     const r = ringkasBulan(k);
     const ket = aman ? T('Rangkuman {bulan} saya: {persona} {emoji}', { bulan: namaBulan(k), persona: personaBulan(r, k === periodeSekarang()).nama, emoji: personaBulan(r, k === periodeSekarang()).emoji })
       : T('Ringkasan keuangan {bulan}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}.', { bulan: namaBulan(k), masuk: rp(r.masuk), keluar: rp(r.keluar), selisih: rp(r.masuk - r.keluar) });
-    try { await bagikanKanvas(c, 'story-' + k + '.png', T('Rangkuman {bulan}', { bulan: namaBulan(k) }), ket); } catch (e) { toast(pesanError(e), true); }
+    try { // pratinjau sudah tampil di lembar ini, jadi langsung ke menu berbagi
+      const blob = await new Promise(ok => c.toBlob(ok, 'image/png'));
+      await kirimGambar(blob, 'story-' + k + '.png', T('Rangkuman {bulan}', { bulan: namaBulan(k) }), ket);
+    } catch (e) { toast(pesanError(e), true); }
     el.disabled = false;
   },
   // Dari kilas balik: tutup story lalu buka pilihan bagikan (story tanpa nominal / dengan nominal).
