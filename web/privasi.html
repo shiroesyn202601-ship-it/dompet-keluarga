@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f4f5f8" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
-    <meta name="description" content="Kebijakan privasi Dompet Keluarga: tanpa server, semua data tersimpan di Google Drive Anda sendiri.">
+    <meta name="description" content="Kebijakan privasi Dompet Keluarga: tanpa server, semua data di Google Drive Anda sendiri; AI dan bot Telegram hanya kalau Anda nyalakan.">
     <title>Kebijakan Privasi · Dompet Keluarga</title>
     <link rel="icon" type="image/png" sizes="32x32" href="ikon/favicon-32.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
     <script>
-      // Ikuti tema yang dipilih di aplikasi (Lainnya → Tema).
+      // Ikuti tema yang dipilih di aplikasi (⚙️ → Tema).
       try { var t = localStorage.getItem('dk_tema'); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch (e) { /* mode privat */ }
     </script>
     <link rel="stylesheet" href="assets/styles.css">
@@ -97,13 +97,16 @@
         </div>
         <h1>Data Anda tetap milik Anda</h1>
         <p>Dompet Keluarga tidak punya server dan tidak menyimpan data Anda. Semua catatan keuangan ada di Google Spreadsheet
-          di Google Drive Anda sendiri, dan hanya Anda serta orang yang Anda undang yang bisa membukanya.</p>
-        <span class="tanggal">Berlaku sejak 1 November 2026</span>
+          di Google Drive Anda sendiri, dan hanya Anda serta orang yang Anda undang yang bisa membukanya.
+          Fitur tambahan seperti AI dan bot Telegram baru mengirim data ke pihak lain kalau Anda sendiri yang menyalakannya.</p>
+        <span class="tanggal">Diperbarui 10 November 2026</span>
       </section>
 
       <div class="janji">
         <div><span class="ik-bulat" style="background:color-mix(in srgb,#22C55E 18%,var(--card))">🗄️</span><b>Tanpa server</b><small>Browser Anda bicara langsung dengan Google.</small></div>
         <div><span class="ik-bulat" style="background:color-mix(in srgb,#3B82F6 18%,var(--card))">📁</span><b>Di Drive Anda</b><small>Aplikasi hanya melihat file yang dibuatnya sendiri.</small></div>
+        <div><span class="ik-bulat" style="background:color-mix(in srgb,#F59E0B 18%,var(--card))">🚫</span><b>Tanpa iklan, tidak dijual</b><small>Data tidak dipakai untuk iklan atau dijual ke siapa pun.</small></div>
+        <div><span class="ik-bulat" style="background:color-mix(in srgb,#8B5CF6 18%,var(--card))">🔌</span><b>Fitur tambahan atas pilihan Anda</b><small>AI dan bot Telegram mati sampai Anda menyalakannya.</small></div>
       </div>
 
       <section class="bagian">
@@ -112,21 +115,77 @@
           <div class="butir"><i aria-hidden="true">✉️</i><div><b>Alamat email Google</b>
             <p>Untuk menampilkan siapa yang sedang masuk dan mencatat siapa yang membuat transaksi.</p></div></div>
           <div class="butir"><i aria-hidden="true">📊</i><div><b>Spreadsheet "Dompet Keluarga"</b>
-            <p>Dibuat oleh aplikasi di Drive Anda, atau Anda pilih sendiri lewat pemilih file Google. Aplikasi tidak bisa melihat file lain di Drive Anda.</p></div></div>
+            <p>Dibuat oleh aplikasi di Drive Anda, atau Anda pilih sendiri lewat pemilih file Google. Isinya semua yang Anda catat:
+              transaksi, dompet, kategori, anggaran, tabungan, utang-piutang, tagihan rutin, catatan, aset emas, dan pengaturan buku.
+              Aplikasi tidak bisa melihat file lain di Drive Anda.</p></div></div>
+          <div class="butir"><i aria-hidden="true">🏷️</i><div><b>Riwayat harga barang</b>
+            <p>Saat struk dibaca, nama toko, nama barang, harga, dan jumlahnya dicatat ke sheet <i>Harga</i> di spreadsheet yang sama,
+              supaya Anda bisa membandingkan harga dari waktu ke waktu.</p></div></div>
+          <div class="butir"><i aria-hidden="true">🧾</i><div><b>Catatan aktivitas & laporan error</b>
+            <p>Sheet <i>Log</i> mencatat siapa mengubah apa, untuk ditampilkan di Aktivitas keluarga. Kalau aplikasi mengalami error,
+              keterangan teknisnya (pesan error, halaman, versi aplikasi, jenis perangkat) juga dicatat di sheet ini, paling banyak 5 per sesi,
+              untuk membantu memperbaiki masalah. Isinya tidak dikirim ke luar spreadsheet Anda.</p></div></div>
+          <div class="butir"><i aria-hidden="true">💾</i><div><b>Cadangan otomatis</b>
+            <p>Sebulan sekali, salinan lengkap spreadsheet dibuat di folder <i>"Dompet Keluarga › Cadangan"</i> di Google Drive akun yang membukanya.
+              3 salinan terakhir disimpan, yang lebih lama dihapus otomatis.</p></div></div>
           <div class="butir"><i aria-hidden="true">🗂️</i><div><b>Folder data aplikasi</b>
-            <p>Tersembunyi di Drive Anda. Hanya menyimpan alamat spreadsheet dan folder struk yang Anda pakai, supaya tetap ketemu saat ganti HP.</p></div></div>
-          <div class="butir"><i aria-hidden="true">🧾</i><div><b>Foto struk <span class="opsional">opsional</span></b>
-            <p>Dikirim sementara ke Google Drive untuk dibaca teksnya (OCR); salinan sementara itu langsung dihapus. Kalau Anda mengisi kunci API Gemini, foto juga dikirim ke Google Gemini untuk dibaca.</p></div></div>
-          <div class="butir"><i aria-hidden="true">📎</i><div><b>Lampiran foto</b>
-            <p>Foto struk atau bukti transfer yang dilampirkan ke transaksi disimpan di folder <i>"Dompet Keluarga - Struk"</i> di Google Drive Anda,
-              dan dibagikan (hanya lihat, tanpa email pemberitahuan) ke akun yang punya akses ke spreadsheet keluarga. Bisa dihapus kapan saja dari Google Drive.</p></div></div>
-          <div class="butir"><i aria-hidden="true">🤖</i><div><b>Bot Telegram <span class="opsional">opsional</span></b>
-            <p>Kalau Anda menghubungkannya, pesan dan foto yang Anda kirim ke bot diproses lewat Telegram dan Google Apps Script milik pengelola bot.
-              Untuk itu spreadsheet buku yang Anda hubungkan dibagikan (bisa mengubah) ke akun bot, sehingga pengelola bot secara teknis bisa membuka isinya.
-              Aplikasi meminta persetujuan Anda lebih dulu, dan akses bot dicabut otomatis saat semua akun Telegram di buku itu diputus.
-              Foto struk dibaca lewat file sementara di Google Drive pengelola bot yang langsung dihapus.</p></div></div>
-          <div class="butir"><i aria-hidden="true">📱</i><div><b>Disimpan di HP saja</b>
-            <p>Pilihan tema, PIN kunci aplikasi, lokasi jadwal sholat, dan status pengingat yang sudah ditutup disimpan di browser HP Anda, tidak dikirim ke mana pun.</p></div></div>
+            <p>Tersembunyi di Drive Anda. Hanya menyimpan alamat spreadsheet dan folder yang Anda pakai, supaya tetap ketemu saat ganti HP.</p></div></div>
+          <div class="butir"><i aria-hidden="true">📎</i><div><b>Foto struk & lampiran</b>
+            <p>Foto struk atau bukti transfer yang dilampirkan ke transaksi disimpan di folder Dompet Keluarga di Google Drive Anda,
+              dan dibagikan (hanya lihat, tanpa email pemberitahuan) ke akun yang punya akses ke spreadsheet keluarga. Untuk membaca teksnya,
+              foto dikirim sementara ke Google Drive (OCR), lalu salinan sementara itu langsung dihapus. Bisa dihapus kapan saja dari Google Drive.</p></div></div>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <h2><span aria-hidden="true">✨</span>Fitur AI (Google Gemini) <small class="opsional">opsional</small></h2>
+        <div class="kotak">
+          <div class="butir"><i aria-hidden="true">🔑</i><div><b>Memakai kunci Gemini milik Anda</b>
+            <p>Fitur AI baru aktif kalau Anda mengisi kunci API Gemini di Pengaturan. Kunci itu disimpan di spreadsheet buku
+              (supaya anggota keluarga dan bot ikut bisa memakainya) dan hanya ditampilkan tersamar di aplikasi.</p></div></div>
+          <div class="butir"><i aria-hidden="true">📤</i><div><b>Yang dikirim ke Gemini</b>
+            <p>Hanya yang diperlukan untuk fitur yang Anda pakai: foto struk (untuk dibaca), ringkasan angka satu periode
+              (tombol "Jelaskan periode ini dengan AI"), nama barang dan harga beserta ringkasan keuangan Anda ("Cek sebelum beli"),
+              serta pesan, pesan suara, dan pertanyaan yang Anda kirim ke bot Telegram beserta data buku yang relevan untuk menjawabnya.</p></div></div>
+          <div class="butir"><i aria-hidden="true">📜</i><div><b>Ketentuan Google berlaku</b>
+            <p>Data yang dikirim ke Gemini diproses Google menurut
+              <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener">Ketentuan Gemini API</a>.
+              Pada kunci Gemini gratis, Google dapat memakai isi permintaan untuk meningkatkan layanannya. Jangan nyalakan fitur AI
+              kalau Anda tidak setuju; semua fitur lain tetap berjalan tanpa AI.</p></div></div>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <h2><span aria-hidden="true">🤖</span>Bot Telegram <small class="opsional">opsional</small></h2>
+        <div class="kotak">
+          <div class="butir"><i aria-hidden="true">💬</i><div><b>Pesan diproses pengelola bot</b>
+            <p>Kalau Anda menghubungkannya, pesan, foto, dan pesan suara yang Anda kirim ke bot diproses lewat Telegram dan Google Apps Script
+              milik pengelola bot. Isi pesan Anda juga tersimpan di Telegram sesuai kebijakan Telegram.</p></div></div>
+          <div class="butir"><i aria-hidden="true">📊</i><div><b>Akses ke spreadsheet buku</b>
+            <p>Spreadsheet buku yang Anda hubungkan dibagikan (bisa mengubah) ke akun bot, sehingga pengelola bot secara teknis bisa membuka isinya.
+              Aplikasi meminta persetujuan Anda lebih dulu, dan akses bot dicabut otomatis saat semua akun Telegram di buku itu diputus.</p></div></div>
+          <div class="butir"><i aria-hidden="true">🧠</i><div><b>Ingatan obrolan singkat</b>
+            <p>Supaya obrolan nyambung, bot mengingat 6 tanya-jawab terakhir per chat selama 1 jam di penyimpanan sementara bot, lalu terhapus sendiri.
+              Pesan suara diubah jadi teks oleh Gemini; rekaman dan foto struk dibaca lewat file sementara yang langsung dihapus.</p></div></div>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <h2><span aria-hidden="true">🌐</span>Layanan lain yang dihubungi</h2>
+        <div class="kotak">
+          <div class="butir"><i aria-hidden="true">🪙</i><div><b>Harga emas</b>
+            <p>Kalau Anda mencatat emas, aplikasi dan bot mengambil harga per gram dari layanan publik
+              <a href="https://github.com/iamutaki/logam-mulia-api" target="_blank" rel="noopener">logam-mulia-api</a> sekali sehari.
+              Yang diminta hanya harga; tidak ada data keuangan Anda yang dikirim.</p></div></div>
+          <div class="butir"><i aria-hidden="true">🎙️</i><div><b>Catat & tulis dengan suara</b>
+            <p>Memakai pengenal suara bawaan browser. Di Chrome dan sebagian besar HP Android, suara Anda diproses oleh layanan Google untuk diubah jadi teks.</p></div></div>
+          <div class="butir"><i aria-hidden="true">🔤</i><div><b>Situs, huruf & tautan</b>
+            <p>Aplikasi dimuat dari GitHub Pages dan memakai huruf dari Google Fonts; keduanya bisa melihat alamat IP Anda seperti situs pada umumnya.
+              Tautan pendek <i>bit.ly/dompet-keluarga</i> dikelola Bitly, yang mencatat jumlah klik.</p></div></div>
+          <div class="butir"><i aria-hidden="true">📲</i><div><b>Disimpan di HP saja</b>
+            <p>Salinan data terakhir (supaya aplikasi tetap terbuka tanpa sinyal), transaksi yang belum terkirim, pilihan tema, lokasi untuk jadwal sholat
+              (dihitung di HP), status pengingat, dan PIN kunci aplikasi (disimpan sebagai hash, bukan angka aslinya). Sidik jari atau wajah
+              diperiksa oleh HP Anda sendiri dan tidak pernah dikirim ke aplikasi. Menekan "Keluar" menghapus salinan data dan transaksi tertunda dari HP itu.</p></div></div>
         </div>
       </section>
 
@@ -146,11 +205,25 @@
             <p>Semua permintaan dikirim langsung dari browser Anda ke Google. Tidak ada server perantara milik pembuat aplikasi.</p></div></div>
           <div class="butir"><i aria-hidden="true">⏱️</i><div><b>Tanda masuk berumur pendek</b>
             <p>Token disimpan di browser Anda dan habis sekitar 1 jam. Menekan "Keluar" mencabutnya.</p></div></div>
-          <div class="butir"><i aria-hidden="true">👥</i><div><b>Hanya untuk yang Anda undang</b>
-            <p>Data tidak dipakai untuk iklan dan tidak dibagikan ke pihak lain. Spreadsheet hanya dibagikan ke email yang Anda undang sendiri.</p></div></div>
-          <div class="butir"><i aria-hidden="true">🗑️</i><div><b>Menghapus data</b>
-            <p>Hapus spreadsheet "Dompet Keluarga" dari Google Drive Anda. Akses aplikasi bisa dicabut di
-              <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</p></div></div>
+          <div class="butir"><i aria-hidden="true">👥</i><div><b>Dibagikan hanya atas pilihan Anda</b>
+            <p>Data tidak dipakai untuk iklan dan tidak dijual. Spreadsheet hanya dibagikan ke email yang Anda undang sendiri,
+              ke akun bot kalau Anda menghubungkan Telegram, dan bagian yang diperlukan dikirim ke Gemini kalau Anda menyalakan fitur AI.</p></div></div>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <h2><span aria-hidden="true">🗑️</span>Menghapus data & mencabut akses</h2>
+        <div class="kotak">
+          <div class="butir"><i aria-hidden="true">📁</i><div><b>Hapus dari Google Drive</b>
+            <p>Hapus folder "Dompet Keluarga" (berisi spreadsheet, foto struk, dan cadangan) dari Google Drive Anda. Spreadsheet yang dibagikan ke Anda
+              hanya bisa dihapus oleh pemiliknya.</p></div></div>
+          <div class="butir"><i aria-hidden="true">🔓</i><div><b>Cabut akses aplikasi</b>
+            <p>Buka <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>,
+              pilih Dompet Keluarga, lalu hapus aksesnya.</p></div></div>
+          <div class="butir"><i aria-hidden="true">✂️</i><div><b>Matikan fitur tambahan</b>
+            <p>Putuskan bot di ⚙️ → Bot Telegram (akses bot ke spreadsheet ikut dicabut), dan hapus kunci Gemini di Pengaturan untuk mematikan fitur AI.</p></div></div>
+          <div class="butir"><i aria-hidden="true">📱</i><div><b>Bersihkan HP</b>
+            <p>Tekan "Keluar" di aplikasi, atau hapus data situs ini dari pengaturan browser.</p></div></div>
         </div>
       </section>
 
@@ -162,7 +235,15 @@
             termasuk ketentuan Limited Use.</p>
           <p lang="en">Dompet Keluarga's use and transfer of information received from Google APIs to any other app will adhere to the
             Google API Services User Data Policy, including the Limited Use requirements. The app has no server: all data stays in the
-            user's own Google Drive and is never sold, used for advertising, or shared with third parties.</p>
+            user's own Google Drive and is never sold, used for advertising, or shared with third parties, except where the user
+            explicitly turns on an optional feature (the Telegram bot, or AI features using the user's own Google Gemini API key).</p>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <h2><span aria-hidden="true">🔄</span>Perubahan kebijakan</h2>
+        <div class="catatan-google">
+          <p>Kalau ada fitur baru yang mengubah cara data dipakai, halaman ini diperbarui dan tanggal di bagian atas ikut berubah.</p>
         </div>
       </section>
 
@@ -175,7 +256,7 @@
         </a>
       </section>
 
-      <p class="kaki">Dompet Keluarga · catatan keuangan keluarga di Google Drive Anda sendiri</p>
+      <p class="kaki">Dompet Keluarga · Uang keluarga akur, sampai gajian berikutnya.</p>
     </div>
     <script>
       // Dibuka dari dalam aplikasi: tombol kembali = kembali ke halaman sebelumnya (posisi aplikasi tidak hilang).
