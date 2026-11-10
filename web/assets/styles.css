@@ -1032,6 +1032,10 @@ body.tanpa-nav #view:has(.bilah-catatan) { padding-bottom: calc(165px + env(safe
 .butir-sorotan.buruk .isi b { color: color-mix(in srgb, var(--keluar) 80%, var(--text)); }
 .ikon-sorotan > .ilus { width: 100%; height: 100%; vertical-align: 0; }
 .ikon-sorotan:has(> .ilus) { background: none; }
+/* Ikon garis Sorotan: teal untuk butir biasa, hijau/merah mengikuti status butir */
+.ikon-sorotan > svg.ik { width: 20px; height: 20px; stroke-width: 2.1; color: var(--primary); }
+.butir-sorotan.baik .ikon-sorotan > svg.ik { color: var(--masuk); }
+.butir-sorotan.buruk .ikon-sorotan > svg.ik { color: var(--keluar); }
 .butir-sorotan .isi { min-width: 0; }
 .butir-sorotan b { display: block; font-size: 14px; font-weight: 800; }
 .butir-sorotan small { display: block; font-size: 12px; color: var(--muted); }

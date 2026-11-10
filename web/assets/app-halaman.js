@@ -1500,10 +1500,10 @@ function kartuSorotan(pilih) {
   const butir = [];
   const tambah = (ikon, judul, ket, kelas) => butir.push({ ikon, judul, ket, kelas: kelas || '' });
 
-  if (r.keluar) tambah('📆', T('{jumlah} per hari', { jumlah: rp(Math.round(r.keluar / jumlahHari)) }), T('Rata-rata pengeluaran selama {n} hari', { n: jumlahHari }));
+  if (r.keluar) tambah(svg('kalender'), T('{jumlah} per hari', { jumlah: rp(Math.round(r.keluar / jumlahHari)) }), T('Rata-rata pengeluaran selama {n} hari', { n: jumlahHari }));
   if (r.masuk) {
     const rasio = Math.round((r.masuk - r.keluar) / r.masuk * 100);
-    tambah(rasio >= 20 ? '🐷' : rasio >= 0 ? '🙂' : '⚠️', rasio >= 0 ? T('Tersisa {persen}% dari pemasukan', { persen: Math.abs(rasio) }) : T('Minus {persen}% dari pemasukan', { persen: Math.abs(rasio) }),
+    tambah(svg(rasio >= 20 ? 'celengan' : rasio >= 0 ? 'senyum' : 'peringatan'), rasio >= 0 ? T('Tersisa {persen}% dari pemasukan', { persen: Math.abs(rasio) }) : T('Minus {persen}% dari pemasukan', { persen: Math.abs(rasio) }),
       rasio >= 20 ? T('Bagus! Di atas 20% yang biasa disarankan') : rasio >= 0 ? T('Coba sisihkan minimal 20% untuk ditabung') : T('Pengeluaran lebih besar dari pemasukan'),
       rasio >= 20 ? 'baik' : rasio < 0 ? 'buruk' : '');
   }
@@ -1513,10 +1513,10 @@ function kartuSorotan(pilih) {
     const ket = pb.sebagian
       ? T('Dibanding {bulan} di hari ke-{n} yang sama ({jumlah})', { bulan: namaBulan(pb.bulanLalu), n: pb.hariKe, jumlah: rp(pb.lalu.keluar) })
       : T('Dibanding {bulan} ({jumlah})', { bulan: namaBulan(pb.bulanLalu), jumlah: rp(pb.lalu.keluar) });
-    if (p) tambah(p > 0 ? '📈' : '📉', p > 0 ? T('Pengeluaran naik {persen}%', { persen: Math.abs(p) }) : T('Pengeluaran turun {persen}%', { persen: Math.abs(p) }), ket, p > 0 ? 'buruk' : 'baik');
+    if (p) tambah(svg(p > 0 ? 'naik' : 'turun'), p > 0 ? T('Pengeluaran naik {persen}%', { persen: Math.abs(p) }) : T('Pengeluaran turun {persen}%', { persen: Math.abs(p) }), ket, p > 0 ? 'buruk' : 'baik');
   }
   const ramal = perkiraanAkhir(pilih);
-  if (ramal) butir.unshift({ ikon: '🔮', judul: T('Perkiraan akhir periode: {jumlah}', { jumlah: rp(ramal.nilai) }), ket: ramal.ket, kelas: ramal.kelas });
+  if (ramal) butir.unshift({ ikon: svg('ramal'), judul: T('Perkiraan akhir periode: {jumlah}', { jumlah: rp(ramal.nilai) }), ket: ramal.ket, kelas: ramal.kelas });
   const kat = Object.keys(r.kategori).map(n => ({ n, v: r.kategori[n] })).sort((a, b) => b.v - a.v)[0];
   if (kat && r.keluar) tambah(ilus(ikonKategori(kat.n, TIPE.KELUAR)), T('{nama} paling besar', { nama: esc(namaT(kat.n)) }), T('{jumlah} · {persen}% dari pengeluaran', { jumlah: rp(kat.v), persen: Math.round(kat.v / r.keluar * 100) }));
   if (trx) {
@@ -1524,9 +1524,9 @@ function kartuSorotan(pilih) {
     const perHari = {};
     keluar.forEach(t => { perHari[t.tanggal] = (perHari[t.tanggal] || 0) + t.jumlah; });
     const boros = Object.keys(perHari).sort((a, b) => perHari[b] - perHari[a])[0];
-    if (boros) tambah('🔥', T('Paling boros: {hari}', { hari: esc(labelHariPendek(boros)) }), T('{jumlah} dalam sehari', { jumlah: rp(perHari[boros]) }));
+    if (boros) tambah(svg('nyala'), T('Paling boros: {hari}', { hari: esc(labelHariPendek(boros)) }), T('{jumlah} dalam sehari', { jumlah: rp(perHari[boros]) }));
     const tanpa = jumlahHari - Object.keys(perHari).filter(t => t >= rentang.awal && t <= akhir).length;
-    if (keluar.length && tanpa > 0) tambah('🌱', T('{n} hari tanpa pengeluaran', { n: tanpa }), T('Hari tanpa jajan bikin saldo awet'), 'baik');
+    if (keluar.length && tanpa > 0) tambah(svg('tunas'), T('{n} hari tanpa pengeluaran', { n: tanpa }), T('Hari tanpa jajan bikin saldo awet'), 'baik');
   }
   if (!butir.length) return '';
   const ai = (S.ringkasAi || {})[pilih];
