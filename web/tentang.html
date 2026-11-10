@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f4f5f8" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0b0c10" media="(prefers-color-scheme: dark)">
-    <title>Catatan Keuanganku · Catat keuangan keluarga bersama</title>
+    <title>Catatan Keuanganku · Uang keluarga akur sampai gajian</title>
     <meta name="description" content="Aplikasi catat keuangan keluarga yang dipakai berdua. Gratis, tanpa iklan, dan semua data tersimpan di Google Drive Anda sendiri. Coba langsung tanpa akun.">
     <!-- Pratinjau tautan saat dibagikan ke WhatsApp / media sosial -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Catatan Keuanganku: catat keuangan keluarga, berdua">
+    <meta property="og:title" content="Catatan Keuanganku: uang keluarga akur, sampai gajian berikutnya">
     <meta property="og:description" content="Gratis, tanpa iklan, datanya di Google Drive Anda sendiri. Catat lewat suara, foto struk, atau ketik cepat. Coba langsung tanpa akun.">
     <meta property="og:image" content="https://shiroesyn202601-ship-it.github.io/dompet-keluarga/ikon/ikon-512.png">
     <meta property="og:url" content="https://shiroesyn202601-ship-it.github.io/dompet-keluarga/tentang.html">
@@ -42,13 +42,13 @@
       /* Pembuka */
       .pembuka { position: relative; padding: 48px 0 32px; }
       .pembuka::before { content: ''; position: absolute; inset: -60px -20% auto; height: 520px; z-index: -1; pointer-events: none;
-        background: radial-gradient(60% 60% at 30% 30%, color-mix(in srgb, #8b5cf6 26%, transparent), transparent 70%),
-                    radial-gradient(50% 50% at 80% 20%, color-mix(in srgb, #ec4899 20%, transparent), transparent 70%); }
+        background: radial-gradient(60% 60% at 30% 30%, color-mix(in srgb, #14a3a8 24%, transparent), transparent 70%),
+                    radial-gradient(50% 50% at 80% 20%, color-mix(in srgb, #f5a524 18%, transparent), transparent 70%); }
       .pembuka .lebar { display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: center; }
       .lencana { display: inline-flex; gap: 6px; align-items: center; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
         background: var(--primary-soft); color: var(--primary); }
       .pembuka h1 { margin: 16px 0 14px; font-size: clamp(32px, 6vw, 52px); line-height: 1.08; font-weight: 800; letter-spacing: -.02em; }
-      .pembuka h1 em { font-style: normal; background: linear-gradient(90deg, #7c3aed, #db2777); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .pembuka h1 em { font-style: normal; background: linear-gradient(90deg, #0e7c86, #f5a524); -webkit-background-clip: text; background-clip: text; color: transparent; }
       .pembuka p.sub { margin: 0 0 24px; font-size: 18px; line-height: 1.55; color: var(--muted); max-width: 520px; }
       .ajakan { display: flex; flex-wrap: wrap; gap: 10px; }
       .ajakan a { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 0 22px; border-radius: 16px;
@@ -59,13 +59,13 @@
 
       /* Tiruan layar HP (HTML biasa, bukan gambar) */
       .hp { justify-self: center; width: 290px; padding: 12px; border-radius: 40px; background: #0b0c10;
-        box-shadow: 0 30px 70px rgba(31, 27, 77, .35), inset 0 0 0 2px #2a2d38; }
+        box-shadow: 0 30px 70px rgba(6, 42, 46, .35), inset 0 0 0 2px #2a2d38; }
       .hp-layar { border-radius: 30px; overflow: hidden; background: #f4f5f8; color: #0c111d; padding: 16px 14px 18px; font-size: 12px; }
       .hp-kepala { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-      .hp-kepala i { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #ec4899); flex: none; }
+      .hp-kepala i { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #0e7c86, #f5a524); flex: none; }
       .hp-kepala small { display: block; color: #667085; font-size: 10px; }
       .hp-kepala b { font-size: 13px; }
-      .hp-saldo { border-radius: 20px; padding: 14px; color: #fff; background: linear-gradient(135deg, #2b1d6b, #4f46e5 60%, #7c3aed); }
+      .hp-saldo { border-radius: 20px; padding: 14px; color: #fff; background: linear-gradient(140deg, #062a2e, #0b4f55 60%, #0e7c86); }
       .hp-saldo small { opacity: .8; font-size: 10px; }
       .hp-saldo strong { display: block; font-size: 24px; font-weight: 800; margin: 2px 0 10px; letter-spacing: -.01em; }
       .hp-saldo strong span { font-size: 12px; opacity: .8; margin-right: 2px; }
@@ -112,11 +112,11 @@
       details.tanya-jawab p { margin: 10px 0 0; color: var(--muted); font-size: 14.5px; line-height: 1.6; }
 
       .penutup { margin: 20px 0 0; padding: 36px 24px; border-radius: 28px; text-align: center; color: #fff;
-        background: linear-gradient(135deg, #2b1d6b, #4f46e5 55%, #db2777); }
+        background: linear-gradient(135deg, #062a2e, #0e7c86 60%, #14a3a8); }
       .penutup h2 { color: #fff; }
       .penutup p { margin: 0 auto 22px; max-width: 520px; opacity: .88; font-size: 16px; }
       .penutup .ajakan { justify-content: center; }
-      .penutup .ajakan .utama { background: #fff; color: #2b1d6b; box-shadow: none; }
+      .penutup .ajakan .utama { background: #fff; color: #0b4f55; box-shadow: none; }
       .penutup .ajakan .kedua { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .45); }
 
       footer { padding: 28px 0 calc(32px + env(safe-area-inset-bottom)); color: var(--muted); font-size: 13.5px; }
@@ -149,8 +149,8 @@
         <div class="lebar">
           <div>
             <span class="lencana">🔒 Data di Google Drive Anda sendiri</span>
-            <h1>Catat keuangan keluarga, <em>berdua</em>.</h1>
-            <p class="sub">Anda dan pasangan mencatat dari HP masing-masing, dan angkanya langsung sama di kedua HP. Gratis, tanpa iklan, dan semua catatan tersimpan di Google Drive Anda, bukan di server orang lain.</p>
+            <h1>Uang keluarga <em>akur,</em> sampai gajian berikutnya.</h1>
+            <p class="sub">Anda dan pasangan mencatat dari HP masing-masing, angkanya langsung sama, dan aplikasi memberi tahu berapa yang aman dibelanjakan tiap hari. Gratis, tanpa iklan, dan semua catatan tersimpan di Google Drive Anda, bukan di server orang lain.</p>
             <div class="ajakan">
               <a class="utama" href="./?coba">Coba sekarang tanpa akun</a>
               <a class="kedua" href="./">Masuk dengan Google</a>

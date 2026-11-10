@@ -22,7 +22,7 @@ Selama aplikasi dipakai, sesi Google diperpanjang otomatis (jendela Google kadan
 - **Diundang:** buka link undangan, masuk dengan akun Google yang diundang, ketuk **Pilih spreadsheet**, lalu pilih file **Dompet Keluarga**. Cukup sekali.
 
 ## Fitur
-- **Navigasi:** Beranda · Riwayat · **＋** · Dompet · Laporan di bawah layar. Pengaturan ada di ikon **⚙️** di pojok kanan atas Beranda, di sebelah **🔍**.
+- **Navigasi:** menu di bawah layar bisa digeser kiri/kanan (3 halaman), tombol **＋** tetap di tengah: Beranda · Riwayat · Dompet · Laporan ⇄ Catatan · Sholat · Tantangan · Bisa beli? ⇄ Anggaran · Tagihan · Pengaturan. Pengaturan juga ada di ikon **⚙️** di pojok kanan atas Beranda, di sebelah **🔍**.
 - **Catat** pemasukan, pengeluaran, dan transfer antardompet lewat tombol **＋**. Form dimulai dari nominal; tanggal cukup pilih **Hari ini / Kemarin**. Kategori yang paling sering Anda pakai tampil paling depan, dan dompet ikut kebiasaan kategori itu (mis. Transportasi → GoPay). Ulangi tiap bulan, label acara, lampiran foto, dan patungan ada di **＋ Opsi lain**.
 - **Pintasan Beranda:** ketuk **Atur** di ujung baris pintasan untuk memilih sampai 5 tombol (Foto struk, Suara, Transfer, Catatan, Sholat, Anggaran, Tabungan, Utang, Tagihan). Berlaku per HP.
 - **Catat lebih cepat:** di form catat, ketik saja `bakso 25rb gopay` lalu Enter, dan semua isian terisi sendiri. Transaksi yang sering diulang (kopi, parkir, bensin) muncul sebagai tombol **⚡** sekali ketuk.
