@@ -85,6 +85,10 @@ Struk dibaca berlapis, lalu hasilnya dicocokkan:
 Kalau minimal dua lapis sepakat soal total, hasilnya dianggap pasti. Kalau berbeda, form menampilkan pilihan nominal untuk diketuk.
 Kunci Gemini disimpan di sheet **Pengaturan** pada spreadsheet keluarga. Model default-nya `gemini-3.8-flash`, dan bisa diganti dengan menambah baris `GEMINI_MODEL` di sheet itu.
 
+**Riwayat harga barang:** AI juga membaca nama toko dan daftar barang (nama rapi, harga per satuan, banyaknya). Barangnya dicatat ke sheet **Harga** saat transaksi struk disimpan, baik dari aplikasi (`catatHarga_` di db.js) maupun bot (`catatHarga_` di Kode.gs). Petunjuk AI-nya (`PETUNJUK_BARANG`) sama di kedua tempat; kalau diubah, ubah keduanya. Daftar barang dibuang kalau jumlahnya lebih dari 3× total struk (AI salah baca). Dilihat lewat **Laporan → 🏷️ Riwayat harga barang**, 🔍 "harga", pintasan Beranda, dan detail transaksi (barang + perbandingan dengan pembelian sebelumnya). Bot memakainya untuk membandingkan harga di balasan struk dan menjawab pertanyaan seperti *"beras biasanya beli berapa?"*.
+
+**Pesan suara di bot:** voice note / file audio (maks 90 detik) ditranskrip Gemini (`gemini-flash-latest`, bisa diganti dengan baris `GEMINI_MODEL_SUARA` di Pengaturan), transkripnya ditampilkan ke pengguna, lalu diproses persis seperti pesan teks (catat, ubah, tanya). Butuh kunci Gemini.
+
 ## Bot Telegram (teknis)
 
 Bot berjalan di **Google Apps Script** (gratis), karena GitHub Pages tidak bisa menerima pesan dari Telegram. Kodenya ada di folder [bot/](../bot/).
@@ -177,6 +181,7 @@ Catatan keamanan: `CLASPRC_JSON` berisi izin login clasp ke akun Google pemilik 
 - **Pengaturan:** Kunci, Nilai (kunci API Gemini, model, username bot, akun Telegram yang tertaut, `MULAI_PERIODE` = tanggal gajian 1–28, `EMAS` = detail emas per aset, `HARGA_EMAS` = harga per gram terbaru per platform `{ beli, jual, tgl, diambil }` yang dipakai bersama aplikasi & bot, `CADANGAN` = cadangan otomatis terakhir `{ tgl, oleh }`)
   - **Cadangan otomatis:** sebulan sekali (paling cepat 30 hari sejak `CADANGAN.tgl`), anggota yang pertama membuka aplikasi membuat salinan spreadsheet di Drive-nya sendiri, folder **Dompet Keluarga › Cadangan** (ID folder di `config.json` → `folderCadangan`). Salinan ditandai `appProperties.cadanganDari` = ID buku; 3 terbaru per buku disimpan, sisanya ke Sampah. Bisa juga lewat **Lainnya → Unduh & cadangan data → Cadangkan sekarang**.
   - Dengan `MULAI_PERIODE` = 25, kunci periode `2026-10` berarti 25 Okt – 24 Nov 2026 (kunci = bulan tempat periode dimulai). Web (`periodeDari_`/`rentangPeriode_` di db.js) dan bot (`periode_`) memakai aturan yang sama.
+- **Harga:** Tanggal, Toko, Barang, Harga (per satuan; barang timbangan per kg), Jumlah (banyaknya / kg), ID Transaksi, Dibuat Oleh. Ditambahkan otomatis ke spreadsheet lama (oleh aplikasi saat buku dibuka, atau oleh bot saat struk pertama). Baris yang transaksinya sudah dihapus diabaikan saat dibaca, jadi tidak perlu ikut dihapus.
 - **Rutin:** ID, Nama, Tipe, Jumlah, Kategori, Dompet, Dompet Tujuan, Catatan, Ulang (Bulanan/Mingguan/Tahunan), Mulai (patokan tanggal), Berikutnya (jatuh tempo berikutnya). Ditambahkan otomatis ke spreadsheet lama. Tagihan tanggal 31 jatuh di akhir bulan pendek lalu kembali ke 31 (patokan dari kolom Mulai).
 
 Saldo dompet dihitung otomatis: saldo awal + pemasukan − pengeluaran ± transfer.

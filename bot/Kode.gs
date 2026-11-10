@@ -54,7 +54,8 @@ const BANTUAN = [
   '• <i>gaji masuk 8jt ke rekening bank</i>',
   '• <i>setor dana darurat 500rb dari bank</i>',
   '• <i>kemarin beli popok 120rb</i>',
-  '• kirim <b>foto struk</b> 📸',
+  '• kirim <b>foto struk</b> 📸 (barang & harganya ikut tercatat)',
+  '• kirim <b>pesan suara</b> 🎤, mis. <i>"bensin tiga puluh ribu pakai gopay"</i>',
   '',
   '<b>Ubah / hapus</b>',
   '• <i>yang terakhir ubah jadi 30rb</i>',
@@ -70,6 +71,7 @@ const BANTUAN = [
   '• <i>kalau nabung 500rb sebulan, kapan dana darurat penuh?</i>',
   '• <i>catat makan 40rb, terus sisa anggaran makan berapa?</i>',
   '• <i>emasku sekarang berapa gram, untung nggak?</i>',
+  '• <i>beras biasanya beli berapa? paling murah di mana?</i>',
   '',
   '<b>Ngobrol bebas</b> — seperti chat ke Gemini',
   '• <i>hari ini tanggal berapa?</i>',
@@ -212,10 +214,16 @@ function prosesPesan_(m) {
   if (tautan) return hubungkan_(m, tautan[1] || properti_('SPREADSHEET_ID'), tautan[2].toUpperCase());
 
   const foto = m.photo || (m.document && /^image\//.test(m.document.mime_type || ''));
-  // Dikirim bersamaan dengan membaca data: status "mengetik" (pesan bebas), atau
+  const suara = m.voice || m.audio || (m.document && /^audio\//.test(m.document.mime_type || '') ? m.document : null);
+  // Dikirim bersamaan dengan membaca data: status "mengetik" (pesan bebas / suara), atau
   // pesan "Membaca struk…" + info file foto (foto), supaya tidak menunggu satu per satu.
   let lain = [];
-  if (foto) {
+  if (suara && !foto) {
+    lain = [
+      permintaanTg_('sendChatAction', { chat_id: chatId, action: 'typing' }),
+      permintaanTg_('getFile', { file_id: suara.file_id }),
+    ];
+  } else if (foto) {
     lain = [
       permintaanTg_('sendMessage', { chat_id: chatId, text: '⏳ Membaca struk…', parse_mode: 'HTML' }),
       permintaanTg_('getFile', { file_id: m.photo ? m.photo[m.photo.length - 1].file_id : m.document.file_id }),
@@ -236,6 +244,7 @@ function prosesPesan_(m) {
   }
 
   if (foto) return prosesFoto_(m, pengguna, d, balasanTg[0], balasanTg[1]);
+  if (suara) return prosesSuara_(m, suara, pengguna, d, balasanTg[1]);
   if (!teks) return;
 
   const perintah = teks.match(/^\/(\w+)/);
@@ -409,6 +418,9 @@ function jawabTanya_(d, pengguna, pertanyaan, chatId) {
     '  Panjang menyesuaikan: obrolan singkat 1–3 kalimat; resep atau penjelasan boleh lengkap (bahan & langkah bernomor), maksimal ±2.500 karakter.',
     '- Untuk hal yang bisa berubah setelah pengetahuanmu (berita, harga pasar selain data di bawah, cuaca), katakan bahwa kamu tidak bisa memastikan kondisi terkini.',
     '- Pakai PERCAKAPAN SEBELUMNYA supaya nyambung (mis. "yang tadi", "kalau 2 porsi?").',
+    '- Pertanyaan harga barang ("beras biasanya berapa?", "minyak termurah di mana?", "telur naik nggak?"): pakai RIWAYAT HARGA BARANG (kalau ada di bawah).',
+    '  Sebutkan harga, toko, dan tanggalnya. Nama barang boleh dicocokkan secara longgar (mis. "minyak" cocok dengan "Minyak Bimoli 2L").',
+    '  Kalau barangnya belum pernah tercatat, katakan terus terang dan sarankan memfoto struk belanjanya supaya tercatat.',
     'FORMAT (dibaca di Telegram, jadi harus rapi dan mudah dipindai):',
     '- Pakai baris baru. Jawaban lebih dari 2 kalimat dipecah jadi paragraf pendek atau daftar, dipisah satu baris kosong antar bagian.',
     '- Judul bagian di barisnya sendiri dan ditebalkan, mis. <b>Bahan-bahan</b>, <b>Cara membuat</b>.',
@@ -419,6 +431,7 @@ function jawabTanya_(d, pengguna, pertanyaan, chatId) {
     'DATA KEUANGAN:',
     konteksKeuangan_(d),
     '',
+    POLA_TANYA_HARGA.test(pertanyaan + ' ' + riwayat.map(x => x.q).join(' ')) ? konteksHarga_(d) + '\n' : '',
     riwayat.length ? 'PERCAKAPAN SEBELUMNYA (terlama dulu):\n' + riwayat.map(x => 'Pengguna: ' + x.q + '\nKamu: ' + x.a).join('\n') + '\n' : '',
     'PESAN PENGGUNA: """' + pertanyaan + '"""',
   ].join('\n');
@@ -740,6 +753,8 @@ function pertanyaanMurni_(teks) {
   if (/\b(catat|ubah|ganti|edit|hapus|batal|batalkan|tadi)\b/.test(kecil)) return false;
   // Andaian boleh menyebut nominal: "aman nggak beli HP 3 juta?", "kalau nabung 500rb sebulan, kapan…?"
   if (/\?\s*$/.test(kecil) && /\b(kalau|kalo|seandainya|misal|misalnya|aman|cukup)\b/.test(kecil)) return true;
+  // Tanya harga barang: "beras biasanya beli berapa?", "harga minyak termurah di mana".
+  if (!semuaNominal_(teks).length && /\b(harga|termurah|termahal|biasanya)\b/.test(kecil) && (/\?\s*$/.test(kecil) || /\b(berapa|mana|naik|turun)\b/.test(kecil))) return true;
   if (semuaNominal_(teks).length || /\b(beli|bayar)\b/.test(kecil)) return false;
   if (kecil.split(/\s+/).length < 3) return false;
   return /\?\s*$/.test(kecil)
@@ -765,7 +780,7 @@ function prosesFoto_(m, pengguna, d, jTunggu, jFile) {
   const kategori = d.kategori.filter(k => k.tipe === TIPE.KELUAR).map(k => k.nama);
   // Transaksi baru dibutuhkan sesudah struk terbaca (dompet default & peringatan anggaran),
   // jadi dibaca bersamaan dengan AI foto supaya waktunya tertutup oleh waktu AI.
-  const ekstra = { minta: [mintaTransaksi_()], jawaban: null };
+  const ekstra = { minta: [mintaTransaksi_(), mintaHarga_()], jawaban: null };
   let h;
   try {
     h = bacaStruk_(Utilities.base64Encode(blob.getBytes()), mime, kategori, kunciGemini_(d.pengaturan), d.pengaturan.GEMINI_MODEL || MODEL_GEMINI, ekstra);
@@ -773,6 +788,7 @@ function prosesFoto_(m, pengguna, d, jTunggu, jFile) {
     return ubahPesan_(chatId, tunggu.message_id, '❌ ' + html_(err.message));
   }
   d.transaksi = olahJawabanTransaksi_(ekstra.jawaban ? ekstra.jawaban[0] : UrlFetchApp.fetchAll([mintaTransaksi_()])[0]);
+  const hargaLama = olahHarga_(ekstra.jawaban ? ekstra.jawaban[1] : null, d.transaksi);
   waktu_('transaksi siap');
 
   // Keterangan foto bisa menyebut dompet ("pakai gopay") atau catatan tambahan.
@@ -783,6 +799,7 @@ function prosesFoto_(m, pengguna, d, jTunggu, jFile) {
     dompet: dompet ? dompet.nama : '', catatan: [h.catatan, dompet ? '' : ket].filter(Boolean).join(' · '),
   }, pengguna);
   const id = tambahTransaksi_(t, pengguna.email);
+  const infoBarang = h.barang.length && catatHarga_(t, id, h, pengguna.email) ? teksBarangStruk_(h.barang, hargaLama, t.tanggal) : '';
   // Supaya peringatan anggaran di bawah ikut menghitung struk ini.
   d.transaksi.push(Object.assign({ id, oleh: pengguna.email, dibuat: sekarangIso_() }, t));
 
@@ -796,7 +813,158 @@ function prosesFoto_(m, pengguna, d, jTunggu, jFile) {
     ? '✅ Total cocok di ' + h.pilihanJumlah[0].sumber.length + ' cara baca'
     : '⚠️ Hasil kurang pasti (' + h.lapis.join(', ') + '). Periksa totalnya' + (h.pilihanJumlah.length > 1 ? ', atau pilih di bawah.' : '.');
   ubahPesan_(chatId, tunggu.message_id, '🧾 <b>Struk tercatat</b>\n' + ringkasTransaksi_(d, t) + '\n<i>' + status + '</i>'
-    + peringatanAnggaran_(d, t) + '\n\nSalah? Balas mis. <i>"yang terakhir ubah jadi 45rb"</i>.', tombol);
+    + peringatanAnggaran_(d, t) + infoBarang + '\n\nSalah? Balas mis. <i>"yang terakhir ubah jadi 45rb"</i>.', tombol);
+}
+
+// ======================================================================
+// Riwayat harga barang (sheet "Harga", sama dengan aplikasi)
+// ======================================================================
+
+const KOLOM_HARGA = ['Tanggal', 'Toko', 'Barang', 'Harga', 'Jumlah', 'ID Transaksi', 'Dibuat Oleh'];
+const kunciBarang_ = n => String(n || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** Permintaan baca sheet Harga (bisa ikut dikirim bersamaan dengan permintaan lain). */
+function mintaHarga_() {
+  return sheetsApi_('/values/' + range_("'Harga'!A2:G") + '?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER');
+}
+
+/**
+ * Jawaban mintaHarga_ → [{ tanggal, toko, nama, harga, jumlah, idTrx }] terbaru dulu. Sheet belum ada / gagal → [].
+ * transaksi: baris yang transaksinya sudah dihapus diabaikan (sama dengan aplikasi).
+ */
+function olahHarga_(res, transaksi) {
+  if (!res || res.getResponseCode() !== 200) return [];
+  const ada = {};
+  (transaksi || []).forEach(t => { ada[t.id] = true; });
+  return rapikanBaris_(JSON.parse(res.getContentText() || '{}').values, KOLOM_HARGA.length)
+    .filter(r => r[2] !== '' && Number(r[3]) > 0 && (!transaksi || !r[5] || ada[String(r[5])]))
+    .map(r => ({ tanggal: tgl_(r[0]), toko: String(r[1]), nama: String(r[2]), harga: Number(r[3]), jumlah: Number(r[4]) || 1, idTrx: String(r[5]) }))
+    .sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+}
+
+/** Riwayat harga untuk tanya-jawab, dibaca sekali per pesan. */
+function riwayatHarga_(d) {
+  if (d.harga_) return d.harga_;
+  let res = null;
+  try { res = UrlFetchApp.fetchAll([mintaHarga_()])[0]; } catch (e) { console.warn('Riwayat harga tidak bisa dibaca: ' + e); }
+  return (d.harga_ = olahHarga_(res, d.transaksi));
+}
+
+/** Barang struk dicatat ke sheet Harga (dibuat kalau belum ada). Tidak wajib: gagal → transaksi tetap tercatat. */
+function catatHarga_(t, idTrx, struk, email) {
+  const toko = struk.toko || String(t.catatan || '').split(/\s+-\s+/)[0].slice(0, 60);
+  const values = struk.barang.map(x => [keSerial_(t.tanggal), toko, x.nama, x.harga, x.jumlah, idTrx, email]);
+  const tambah = () => sheets_('/values/' + range_("'Harga'!A1") + ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS', jsonSheets_('post', { values }));
+  try {
+    tambah();
+    return true;
+  } catch (e) {
+    if (e.status !== 400) { console.warn('Riwayat harga tidak tersimpan: ' + e.message); return false; }
+  }
+  // 400 = sheet Harga belum ada (buku belum dibuka dengan aplikasi versi baru): buat dulu, sama seperti aplikasi.
+  try {
+    const r = sheets_(':batchUpdate', jsonSheets_('post', { requests: [{ addSheet: { properties: { title: 'Harga', gridProperties: { frozenRowCount: 1 } } } }] }));
+    const sheetId = r.replies[0].addSheet.properties.sheetId;
+    const format = (awal, type, pattern) => ({ repeatCell: {
+      range: { sheetId, startRowIndex: 1, startColumnIndex: awal, endColumnIndex: awal + 1 },
+      cell: { userEnteredFormat: { numberFormat: { type, pattern } } }, fields: 'userEnteredFormat.numberFormat',
+    } });
+    sheets_(':batchUpdate', jsonSheets_('post', { requests: [format(0, 'DATE', 'yyyy-mm-dd'), format(3, 'NUMBER', '#,##0')] }));
+    sheets_('/values/' + range_("'Harga'!A1") + '?valueInputOption=RAW', jsonSheets_('put', { values: [KOLOM_HARGA] }));
+    tambah();
+    return true;
+  } catch (e) {
+    console.warn('Sheet Harga tidak bisa dibuat: ' + e.message);
+    return false;
+  }
+}
+
+/** "🏷️ 8 barang masuk riwayat harga. Harga berubah: • Minyak 2L Rp38.000 🔺Rp2.500 (terakhir Rp35.500 di Alfamart, 3 Okt)". */
+function teksBarangStruk_(barang, lama, tanggal) {
+  const berubah = [];
+  barang.forEach(x => {
+    const k = kunciBarang_(x.nama);
+    const p = lama.find(y => kunciBarang_(y.nama) === k && y.tanggal <= tanggal);
+    if (!p || p.harga === x.harga) return;
+    berubah.push('• ' + html_(x.nama) + ' <b>' + rp_(x.harga) + '</b> ' + (x.harga > p.harga ? '🔺' : '🔻') + rp_(Math.abs(x.harga - p.harga))
+      + ' <i>(terakhir ' + rp_(p.harga) + (p.toko ? ' di ' + html_(p.toko) : '') + ', ' + tglPendek_(p.tanggal) + ')</i>');
+  });
+  return '\n\n🏷️ ' + barang.length + ' barang masuk riwayat harga' + (berubah.length
+    ? '. Harga berubah dari pembelian terakhir:\n' + berubah.slice(0, 6).join('\n') + (berubah.length > 6 ? '\n• … dan ' + (berubah.length - 6) + ' lainnya' : '')
+    : '.');
+}
+
+/** Pertanyaan yang kemungkinan butuh riwayat harga ("beras biasanya berapa?", "minyak termurah di mana?"). */
+const POLA_TANYA_HARGA = /harga|murah|mahal|naik|turun|toko|beli|belanja|biasanya|struk|indomaret|alfamart|superindo|hypermart|transmart|lotte|pasar|warung/i;
+
+/** Ringkasan riwayat harga per barang untuk AI (paling banyak 150 barang yang terakhir dibeli). */
+function konteksHarga_(d) {
+  const daftar = riwayatHarga_(d);
+  if (!daftar.length) return 'RIWAYAT HARGA BARANG: belum ada (barang & harga tercatat otomatis saat struk belanja difoto, di aplikasi atau dikirim ke bot ini).';
+  const per = {};
+  const urut = [];
+  daftar.forEach(x => {
+    const k = kunciBarang_(x.nama);
+    if (!per[k]) { per[k] = []; urut.push(k); }
+    per[k].push(x);
+  });
+  const baris = urut.slice(0, 150).map(k => {
+    const b = per[k];
+    const akhir = b[0];
+    const di = x => rp_(x.harga) + (x.toko ? ' di ' + x.toko : '') + ' (' + x.tanggal + ')';
+    if (b.length === 1) return '- ' + akhir.nama + ': ' + di(akhir);
+    const murah = b.reduce((a, x) => (x.harga < a.harga ? x : a));
+    const rata = Math.round(b.reduce((a, x) => a + x.harga, 0) / b.length);
+    return '- ' + akhir.nama + ': terakhir ' + di(akhir) + '; termurah ' + di(murah) + '; rata-rata ' + rp_(rata) + '; ' + b.length + '× beli';
+  });
+  return 'RIWAYAT HARGA BARANG (dari struk; harga per satuan, terbaru dulu):\n' + baris.join('\n');
+}
+
+// ======================================================================
+// Pesan suara (voice note) → teks → diproses seperti pesan biasa
+// ======================================================================
+
+const BATAS_SUARA_DETIK = 90;
+const PETUNJUK_SUARA = [
+  'Tuliskan persis apa yang diucapkan di rekaman suara ini. Bahasanya Indonesia, mungkin bercampur bahasa daerah atau Inggris.',
+  'Ini pesan ke bot pencatat keuangan keluarga, jadi biasanya berisi catatan pengeluaran/pemasukan, perintah ubah/hapus, atau pertanyaan.',
+  'Aturan:',
+  '- Nominal uang ditulis singkat dengan angka seperti saat chat: "tiga puluh ribu" → "30rb", "dua ratus lima puluh ribu" → "250rb", "satu setengah juta" → "1,5jt", "lima belas ribu lima ratus" → "15.500".',
+  '- Bilangan lain juga pakai angka ("dua porsi" → "2 porsi", "tanggal lima" → "tanggal 5").',
+  '- Nama dompet / aplikasi ditulis seperti biasa (GoPay, OVO, DANA, ShopeePay, BCA, BRI, Mandiri).',
+  '- Jangan menjawab, menambah, atau menjelaskan apa pun. Keluarkan HANYA transkripnya dalam satu baris, tanpa tanda kutip.',
+  '- Kalau tidak ada ucapan yang jelas, keluarkan persis: (tidak jelas)',
+].join('\n');
+
+/** jFile: jawaban getFile yang dikirim bersamaan dengan memuat data. */
+function prosesSuara_(m, suara, pengguna, d, jFile) {
+  const chatId = m.chat.id;
+  const kunci = kunciGemini_(d.pengaturan);
+  if (!kunci.length) {
+    return kirim_(chatId, '🎤 Untuk pesan suara, AI perlu diaktifkan dulu: tambahkan kunci Gemini di aplikasi (⚙️ → Baca struk dengan AI). Sementara itu, ketik saja, mis. <i>bensin 30rb</i>.');
+  }
+  if ((suara.duration || 0) > BATAS_SUARA_DETIK) {
+    return kirim_(chatId, '🎤 Pesan suaranya terlalu panjang (maks ' + BATAS_SUARA_DETIK + ' detik). Coba lebih singkat, mis. <i>"bensin tiga puluh ribu pakai gopay"</i>.');
+  }
+  const info = jFile && jFile.ok ? jFile.result : tg_('getFile', { file_id: suara.file_id }).result;
+  if (!info || !info.file_path) return kirim_(chatId, '❌ Pesan suara tidak bisa diunduh dari Telegram. Coba kirim ulang.');
+  const blob = UrlFetchApp.fetch('https://api.telegram.org/file/bot' + properti_('TELEGRAM_TOKEN') + '/' + info.file_path).getBlob();
+  const mime = m.voice ? 'audio/ogg' : (suara.mime_type || 'audio/mpeg');
+  waktu_('suara diunduh');
+
+  const model = d.pengaturan.GEMINI_MODEL_SUARA || 'gemini-flash-latest';
+  const h = jalankanGemini_(kunci, model, [{
+    sumber: 'suara', pikir: 0, parts: [{ inlineData: { mimeType: mime, data: Utilities.base64Encode(blob.getBytes()) } }, { text: PETUNJUK_SUARA }],
+  }], null)[0];
+  waktu_('suara ditranskrip');
+  if (h instanceof Error) return kirim_(chatId, '⚠️ Pesan suara belum bisa dibaca: ' + html_(h.message) + '. Coba lagi, atau ketik saja.');
+  const teks = String(h.jawaban || '').replace(/\s+/g, ' ').replace(/^["“'«]+|["”'»]+$/g, '').trim();
+  if (!teks || /^\(?tidak jelas\)?\.?$/i.test(teks)) {
+    return kirim_(chatId, '🎤 Maaf, suaranya kurang jelas. Coba ulangi di tempat yang lebih tenang, atau ketik saja, mis. <i>bensin 30rb</i>.');
+  }
+  // Transkrip ditampilkan dulu, supaya kalau salah dengar pengguna langsung tahu.
+  tg_('sendMessage', { chat_id: chatId, text: '🎤 <i>' + html_(teks.slice(0, 500)) + '</i>', parse_mode: 'HTML', reply_to_message_id: m.message_id });
+  prosesTeksBebas_(chatId, teks.slice(0, 1000), pengguna, d);
 }
 
 // ======================================================================
@@ -1539,7 +1707,7 @@ function jalankanGemini_(daftar, model, permintaan, skema, ikut) {
  *   2. "OCR"      : gambar → teks (OCR Google Drive) → dibaca dengan aturan biasa (tanpa AI).
  *   3. "OCR + AI" : teks OCR yang sama disimpulkan Gemini — hanya cadangan kalau AI foto tidak memberi nominal.
  * AI foto tidak butuh teks OCR, jadi AI foto dan unggahan OCR dikirim bersamaan.
- * Mengembalikan { jumlah, tanggal, kategori, catatan, yakin, pilihanJumlah, lapis }.
+ * Mengembalikan { jumlah, tanggal, kategori, catatan, toko, barang, yakin, pilihanJumlah, lapis }.
  */
 function bacaStruk_(base64, mime, kategori, daftarKunci, model, ekstra) {
   if (!/^image\/(jpeg|png|webp)$/.test(String(mime))) throw new Error('Format gambar tidak didukung.');
@@ -1561,6 +1729,8 @@ function bacaStruk_(base64, mime, kategori, daftarKunci, model, ekstra) {
           tanggal: tanggalWajar_(h.tanggal, hariIni),
           kategori: kategori.indexOf(h.kategori) >= 0 ? h.kategori : '',
           catatan: teks_(h.catatan).slice(0, 120),
+          toko: teks_(h.toko).replace(/\s+/g, ' ').slice(0, 60),
+          barang: rapikanBarang_(h.barang, jumlah),
         });
       }
     } catch (e) {
@@ -1645,6 +1815,8 @@ function gabungHasilStruk_(hasil) {
     tanggal: ambil('tanggal'),
     kategori: ambil('kategori'),
     catatan: ambil('catatan'),
+    toko: ambil('toko'),
+    barang: (urut.filter(function (x) { return x.barang && x.barang.length; })[0] || {}).barang || [],
     yakin: grup[0].sumber.length >= 2,
     pilihanJumlah: grup,
     lapis: hasil.map(function (h) { return h.sumber; }),
@@ -1666,7 +1838,30 @@ function petunjukStruk_(bentuk, hariIni) {
     '- tanggal: tanggal transaksi format yyyy-mm-dd. Kosongkan jika tidak ada. Hari ini ' + hariIni + '.',
     '- kategori: pilih satu yang paling cocok dari daftar.',
     '- catatan: nama toko / penerima lalu ringkasan barang atau keperluan, maksimal 80 karakter. Contoh: "Indomaret - susu, roti, sabun" atau "Transfer ke Budi".',
+    PETUNJUK_BARANG,
   ].join('\n');
+}
+
+/** Sama dengan aplikasi (web/assets/struk.js), supaya riwayat harga dari aplikasi & Telegram seragam. */
+const PETUNJUK_BARANG = [
+  '- toko: nama toko / merchant saja (mis. "Indomaret", "Alfamart", "Superindo", "Toko Sumber Rejeki"). Kosongkan untuk transfer ke orang atau kalau tidak tertera.',
+  '- barang: SEMUA barang di struk belanja, satu per baris barang. Kosongkan (array kosong) untuk bukti transfer, tagihan, atau QRIS tanpa daftar barang.',
+  '  nama = nama barang yang mudah dibaca beserta merek & ukurannya, huruf besar-kecil wajar, singkatan struk dirapikan',
+  '  (mis. "MINYAK BIMOLI 2L PCH" → "Minyak Bimoli 2L", "INDOMIE GRG SPL" → "Indomie Goreng Spesial").',
+  '  harga = harga per satu satuan yang benar-benar dibayar (setelah diskon barang itu), bilangan bulat rupiah. Barang timbangan: harga per kg.',
+  '  jumlah = banyaknya (qty, atau berat dalam kg untuk barang timbangan, mis. 0.5). Jangan masukkan baris total, diskon, pajak, kantong, atau donasi.',
+].join('\n');
+
+/** Daftar barang { nama, harga (per satuan), jumlah }; dibuang semua kalau jauh melebihi total struk (AI salah baca). */
+function rapikanBarang_(b, total) {
+  if (!Array.isArray(b)) return [];
+  const daftar = b.map(x => ({
+    nama: teks_(x && x.nama).replace(/\s+/g, ' ').slice(0, 60),
+    harga: Math.round(Number(x && x.harga) || 0),
+    jumlah: Math.round((Number(x && x.jumlah) || 1) * 1000) / 1000,
+  })).filter(x => x.nama && x.harga > 0 && x.jumlah > 0).slice(0, 60);
+  const jml = daftar.reduce((a, x) => a + x.harga * x.jumlah, 0);
+  return jml > total * 3 ? [] : daftar;
 }
 
 function skemaStruk_(kategori) {
@@ -1677,8 +1872,17 @@ function skemaStruk_(kategori) {
       tanggal: { type: 'STRING' },
       kategori: kategori.length ? { type: 'STRING', enum: kategori } : { type: 'STRING' },
       catatan: { type: 'STRING' },
+      toko: { type: 'STRING' },
+      barang: {
+        type: 'ARRAY',
+        items: {
+          type: 'OBJECT',
+          properties: { nama: { type: 'STRING' }, harga: { type: 'INTEGER' }, jumlah: { type: 'NUMBER' } },
+          required: ['nama', 'harga', 'jumlah'],
+        },
+      },
     },
-    required: ['jumlah', 'tanggal', 'kategori', 'catatan'],
+    required: ['jumlah', 'tanggal', 'kategori', 'catatan', 'toko', 'barang'],
   };
 }
 

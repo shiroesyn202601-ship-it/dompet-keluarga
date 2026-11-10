@@ -884,6 +884,7 @@ function viewLaporan() {
         <br><small>${T('Ketuk bulan di grafik untuk melihat rinciannya.')}</small></p>
       <button type="button" class="tombol-tambah" style="margin:0 0 12px" data-aksi="bagikan-laporan" data-bulan="${esc(pilih)}">${T('📤 Bagikan ringkasan {bulan}', { bulan: esc(namaBulan(pilih)) })}</button>
       <button type="button" class="tombol-tambah" style="margin:0 0 12px" data-aksi="bagikan-story" data-bulan="${esc(pilih)}">${T('📱 Bagikan ke Story (bisa tanpa nominal)')}</button>
+      <button type="button" class="tombol-tambah" style="margin:0 0 12px" data-aksi="riwayat-harga">${T('🏷️ Riwayat harga barang dari struk')}</button>
       <details class="tabel-data">
         <summary>${T('Lihat sebagai tabel')}</summary>
         <table>

@@ -45,6 +45,9 @@ const SERVER = (() => {
     },
     // Riwayat perubahan oleh anggota: ubah / hapus / kembalikan transaksi (pencatatan baru sudah tercatat di Dibuat Oleh).
     log: { nama: 'Log', kolom: ['Waktu', 'Oleh', 'Aksi', 'Ringkasan', 'ID Transaksi'] },
+    // Riwayat harga barang dari struk (aplikasi & bot Telegram). Harga = per satuan; Jumlah = banyaknya (atau kg).
+    // Baris yang transaksinya sudah dihapus diabaikan saat dibaca (lihat riwayatHarga).
+    harga: { nama: 'Harga', kolom: ['Tanggal', 'Toko', 'Barang', 'Harga', 'Jumlah', 'ID Transaksi', 'Dibuat Oleh'] },
   };
   const ULANG = ['Bulanan', 'Mingguan', 'Tahunan'];
 
@@ -195,7 +198,7 @@ const SERVER = (() => {
    * kolom Anggaran (Kategori), serta kolom Jenis/Target/Tenggat (Dompet).
    */
   async function pastikanStruktur_(id) {
-    for (const t of [TABEL.pengaturan, TABEL.rutin, TABEL.catatan, TABEL.log]) {
+    for (const t of [TABEL.pengaturan, TABEL.rutin, TABEL.catatan, TABEL.log, TABEL.harga]) {
       if (t.nama in idSheet) continue;
       try {
         const r = await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', {
@@ -206,9 +209,14 @@ const SERVER = (() => {
         await tulis_(id, "'" + t.nama + "'!A1", [t.kolom]);
         if (t === TABEL.rutin) await formatRutin_(id, idSheet[t.nama]);
         if (t === TABEL.catatan) await formatCatatan_(id, idSheet[t.nama]);
+        if (t === TABEL.harga) {
+          await GOOGLE.api(SHEETS + '/' + id + ':batchUpdate', { method: 'POST', json: { requests: [
+            formatKolom_(idSheet[t.nama], 0, 1, 'DATE', 'yyyy-mm-dd'), formatKolom_(idSheet[t.nama], 3, 4, 'NUMBER', '#,##0'),
+          ] } });
+        }
       } catch (e) {
-        // Sheet tambahan yang lebih baru (Catatan) tidak wajib: anggota "hanya lihat" tetap bisa membuka buku.
-        if (t !== TABEL.catatan && t !== TABEL.log) throw e;
+        // Sheet tambahan yang lebih baru (Catatan, Log, Harga) tidak wajib: anggota "hanya lihat" tetap bisa membuka buku.
+        if (t !== TABEL.catatan && t !== TABEL.log && t !== TABEL.harga) throw e;
         console.warn('Sheet ' + t.nama + ' tidak bisa dibuat:', e);
       }
     }
@@ -958,6 +966,7 @@ const SERVER = (() => {
         t.id, t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, GOOGLE.email(), sekarang, sekarang, lampiran,
       ]]);
       if (lampiran) await bagikanStruk_(lampiran);
+      if (input.struk) await catatHarga_(id, t, input.struk);
       if (input.dariRutin) await majukanRutin(input.dariRutin);
       if (ULANG.includes(input.ulang)) {
         const tgl = String(input.tanggal);
@@ -965,6 +974,43 @@ const SERVER = (() => {
       }
     }
     return t.id;
+  }
+
+  // ---------- Riwayat harga barang ----------
+
+  /** Barang dari hasil baca struk dicatat ke sheet Harga. Tidak wajib: gagal → transaksi tetap tersimpan. */
+  async function catatHarga_(id, t, struk) {
+    const barang = (struk && Array.isArray(struk.barang) ? struk.barang : []).filter(x => x && teks_(x.nama) && Number(x.harga) > 0);
+    if (!barang.length || !(TABEL.harga.nama in idSheet)) return;
+    const toko = teks_(struk.toko).slice(0, 60) || teks_(t.catatan).split(/\s+-\s+/)[0].slice(0, 60);
+    try {
+      await tambahBaris_(id, TABEL.harga, barang.slice(0, 60).map(x => [
+        t.tanggal, toko, teks_(x.nama).slice(0, 60), Math.round(Number(x.harga)), Number(x.jumlah) || 1, t.id, GOOGLE.email(),
+      ]));
+      hargaCache = null;
+    } catch (e) {
+      console.warn('Riwayat harga tidak tersimpan:', e);
+    }
+  }
+
+  let hargaCache = null; // { id, waktu, data }: dibaca ulang paling cepat tiap 60 detik atau setelah mencatat struk
+
+  /**
+   * Semua catatan harga, terbaru dulu: [{ tanggal, toko, nama, harga, jumlah, idTrx, oleh }].
+   * Baris yang transaksinya sudah dihapus diabaikan (kalau transaksinya dikembalikan, barangnya ikut muncul lagi).
+   */
+  async function riwayatHarga(segar) {
+    const id = await db_();
+    if (!(TABEL.harga.nama in idSheet)) return [];
+    if (!segar && hargaCache && hargaCache.id === id && Date.now() - hargaCache.waktu < 60000) return hargaCache.data;
+    const [[rows], ada] = await Promise.all([bacaTabel_(id, ['harga']), daftarId_(id)]);
+    const idAda = new Set(ada);
+    const data = rows.filter(r => r[2] !== '' && Number(r[3]) > 0 && (!r[5] || idAda.has(String(r[5])))).map(r => ({
+      tanggal: dariSerial_(r[0]).slice(0, 10), toko: String(r[1]), nama: String(r[2]), harga: Number(r[3]),
+      jumlah: Number(r[4]) || 1, idTrx: String(r[5]), oleh: String(r[6]),
+    })).sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+    hargaCache = { id, waktu: Date.now(), data };
+    return data;
   }
 
   // ---------- Beberapa buku keuangan ----------
@@ -2208,7 +2254,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, simpanAvatar, mutasiEmas, simpanHargaEmas, catatGalat, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, simpanAvatar, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };

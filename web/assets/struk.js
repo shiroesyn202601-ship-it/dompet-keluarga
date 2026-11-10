@@ -62,6 +62,8 @@ const STRUK = (() => {
           kategori: kategori.indexOf(h.kategori) >= 0 ? h.kategori : '',
           catatan: String(h.catatan || '').trim().slice(0, 120),
           rincian: rapikanRincian(h.rincian, jumlah, kategori),
+          toko: String(h.toko || '').replace(/\s+/g, ' ').trim().slice(0, 60),
+          barang: rapikanBarang(h.barang, jumlah),
         });
       }
     };
@@ -140,6 +142,21 @@ const STRUK = (() => {
     return daftar;
   }
 
+  /**
+   * Daftar barang untuk riwayat harga: { nama, harga (per satuan, rupiah), jumlah (banyaknya) }.
+   * Dibuang semua kalau jumlahnya jauh melebihi total struk (AI salah baca), supaya riwayat tidak kotor.
+   */
+  function rapikanBarang(b, total) {
+    if (!Array.isArray(b)) return [];
+    const daftar = b.map(x => ({
+      nama: String((x && x.nama) || '').replace(/\s+/g, ' ').trim().slice(0, 60),
+      harga: Math.round(Number(x && x.harga) || 0),
+      jumlah: Math.round((Number(x && x.jumlah) || 1) * 1000) / 1000,
+    })).filter(x => x.nama && x.harga > 0 && x.jumlah > 0).slice(0, 60);
+    const jml = daftar.reduce((a, x) => a + x.harga * x.jumlah, 0);
+    return jml > total * 3 ? [] : daftar;
+  }
+
   /** Total dengan suara (berbobot) terbanyak menang. */
   function gabungHasil(hasil) {
     hasil.sort((a, b) => URUTAN.indexOf(a.sumber) - URUTAN.indexOf(b.sumber));
@@ -164,6 +181,8 @@ const STRUK = (() => {
       kategori: ambil('kategori'),
       catatan: ambil('catatan'),
       rincian: (urut.find(x => x.jumlah === grup[0].jumlah && x.rincian && x.rincian.length) || {}).rincian || [],
+      toko: ambil('toko'),
+      barang: (urut.find(x => x.barang && x.barang.length) || {}).barang || [],
       yakin: grup[0].sumber.length >= 2,
       pilihanJumlah: grup,
       lapis: hasil.map(h => h.sumber),
@@ -190,8 +209,19 @@ const STRUK = (() => {
       '- rincian: hanya untuk struk belanja berisi barang dari BEBERAPA kategori berbeda. Kelompokkan barang per kategori dari daftar:',
       '  jumlah = total harga barang kategori itu (bagikan diskon/pajak secara proporsional, sehingga jumlah semua rincian = jumlah total),',
       '  barang = 1–4 nama barang singkat. Kosongkan (array kosong) kalau semua barang satu kategori, atau untuk bukti transfer/tagihan.',
+      PETUNJUK_BARANG,
     ].join('\n');
   }
+
+  /** Sama dengan bot (bot/Kode.gs), supaya riwayat harga dari aplikasi & Telegram seragam. */
+  const PETUNJUK_BARANG = [
+    '- toko: nama toko / merchant saja (mis. "Indomaret", "Alfamart", "Superindo", "Toko Sumber Rejeki"). Kosongkan untuk transfer ke orang atau kalau tidak tertera.',
+    '- barang: SEMUA barang di struk belanja, satu per baris barang. Kosongkan (array kosong) untuk bukti transfer, tagihan, atau QRIS tanpa daftar barang.',
+    '  nama = nama barang yang mudah dibaca beserta merek & ukurannya, huruf besar-kecil wajar, singkatan struk dirapikan',
+    '  (mis. "MINYAK BIMOLI 2L PCH" → "Minyak Bimoli 2L", "INDOMIE GRG SPL" → "Indomie Goreng Spesial").',
+    '  harga = harga per satu satuan yang benar-benar dibayar (setelah diskon barang itu), bilangan bulat rupiah. Barang timbangan: harga per kg.',
+    '  jumlah = banyaknya (qty, atau berat dalam kg untuk barang timbangan, mis. 0.5). Jangan masukkan baris total, diskon, pajak, kantong, atau donasi.',
+  ].join('\n');
 
   function skemaStruk(kategori) {
     return {
@@ -213,8 +243,17 @@ const STRUK = (() => {
             required: ['kategori', 'jumlah', 'barang'],
           },
         },
+        toko: { type: 'STRING' },
+        barang: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: { nama: { type: 'STRING' }, harga: { type: 'INTEGER' }, jumlah: { type: 'NUMBER' } },
+            required: ['nama', 'harga', 'jumlah'],
+          },
+        },
       },
-      required: ['jumlah', 'tanggal', 'kategori', 'catatan', 'rincian'],
+      required: ['jumlah', 'tanggal', 'kategori', 'catatan', 'rincian', 'toko', 'barang'],
     };
   }
 

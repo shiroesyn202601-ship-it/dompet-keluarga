@@ -1392,6 +1392,7 @@ Object.assign(AKSI, {
       sumber: 'struk', tipe: TIPE.KELUAR, jumlah: x.jumlah, kategori: x.kategori, dompet: F.dompet, tanggal: F.tanggal,
       catatan: [toko, x.barang].filter(Boolean).join(' - ').slice(0, 100),
     }));
+    if ((F.struk.barang || []).length) daftar[0].struk = { toko: F.struk.toko || toko, barang: F.struk.barang };
     tampilBanyakSuara(T('Struk {toko} · total {jumlah}', { toko: toko || '', jumlah: rp(F.jumlah) }), daftar);
     const label = $('#ringkas-judul');
     if (label) label.textContent = T('🧾 Struk dipecah · {n} transaksi', { n: daftar.length });
@@ -1412,7 +1413,7 @@ Object.assign(AKSI, {
     try {
       for (const x of daftar) {
         await api('simpanTransaksi', { idBaru: crypto.randomUUID(), tipe: x.tipe, jumlah: x.jumlah, kategori: x.kategori, dompet: x.dompet,
-          dompetTujuan: x.dompetTujuan, tanggal: x.tanggal, catatan: x.catatan });
+          dompetTujuan: x.dompetTujuan, tanggal: x.tanggal, catatan: x.catatan, struk: x.struk });
         tersimpan++;
       }
     } catch (e) {

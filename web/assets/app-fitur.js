@@ -176,6 +176,7 @@ function bukaDetailTrx(t) {
         ${baris(T('Dicatat oleh'), esc(t.oleh ? (t.oleh === S.data.user ? T('Anda') : namaPendek(t.oleh)) : ''))}
         ${baris(T('Dicatat pada'), esc(t.dibuat ? waktuRelatif(t.dibuat) : ''))}
       </div>
+      <div id="detail-barang">${hargaBukuIni() ? htmlBarangTrx(t) : ''}</div>
       ${riwayat.length ? `<h4 class="judul-kecil">${T('Riwayat perubahan')}</h4>
         <div class="daftar-aktivitas">${riwayat.map(x => `
           <div class="baris-aktivitas ${x.aksi}">
@@ -190,6 +191,9 @@ function bukaDetailTrx(t) {
         <button type="button" class="btn btn-utama" data-aksi="ubah-trx-detail">${T('Ubah')}</button>
       </div>
     </div>`);
+  if (t.tipe === TIPE.KELUAR && !DEMO.aktif() && !S.offline && navigator.onLine) {
+    muatRiwayatHarga().then(() => { const el = $('#detail-barang'); if (el && trxDetail === t) el.innerHTML = htmlBarangTrx(t); });
+  }
   if (t.lampiran && !foto) {
     muatFotoLampiran(t.lampiran).then(url => {
       const el = $('#detail-foto-muat');
@@ -945,6 +949,155 @@ function bukaDetailEmas(w) {
     muatHargaEmas([e.platform]).then(ok => { if (ok && !$('#sheet').hidden && $('#sheet').textContent.includes(w.nama)) bukaDetailEmas(w); });
   }
 }
+
+// ---------- Riwayat harga barang (dari struk yang difoto di aplikasi atau dikirim ke bot) ----------
+
+IKON.harga = '<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>';
+PINTASAN.harga = ['harga', T('Harga barang'), 'riwayat-harga'];
+FITUR.push(['🏷️', T('Riwayat harga barang'), 'harga barang struk termurah naik turun bandingkan toko belanja price history compare', 'riwayat-harga']);
+
+let HARGA = null;        // [{ tanggal, toko, nama, harga, jumlah, idTrx, oleh }] terbaru dulu; null = belum dimuat
+let hargaBuku = '';      // buku (ID spreadsheet) asal HARGA
+/** HARGA milik buku yang sedang dibuka (pindah buku → dikosongkan dulu). */
+function hargaBukuIni() {
+  if (hargaBuku !== ((S.data && S.data.spreadsheetId) || '')) HARGA = null;
+  return HARGA;
+}
+let janjiHarga = null;
+let cariHarga = '';
+
+/**
+ * Dimuat saat dibutuhkan saja (sheet Harga bisa panjang). db.js menyimpan salinan 60 detik per buku dan
+ * membuangnya begitu ada struk baru tercatat, jadi memanggil ini berulang kali tetap murah.
+ * HARGA dipakai untuk menggambar seketika; gagal (offline, dsb.) → HARGA tidak berubah.
+ */
+function muatRiwayatHarga(segar) {
+  if (!janjiHarga) {
+    const buku = (S.data && S.data.spreadsheetId) || '';
+    janjiHarga = api('riwayatHarga', !!segar).then(d => { HARGA = d; hargaBuku = buku; return d; }, () => hargaBukuIni()).finally(() => { janjiHarga = null; });
+  }
+  return janjiHarga;
+}
+
+/** Nama barang dibandingkan tanpa beda huruf besar-kecil & tanda baca ("Minyak Bimoli 2L" = "MINYAK BIMOLI, 2L"). */
+const kunciBarang = n => String(n || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const semuaKapital = s => /[A-Z]/.test(s) && s === s.toUpperCase();
+
+/** Kelompok per barang, urut dari yang terakhir dibeli: [{ nama, kunci, beli: [baris…] (terbaru dulu) }]. */
+function kelompokHarga(daftar) {
+  const per = new Map();
+  (daftar || []).forEach(x => {
+    const k = kunciBarang(x.nama);
+    if (!k) return;
+    if (!per.has(k)) per.set(k, { nama: x.nama, kunci: k, beli: [] });
+    const g = per.get(k);
+    if (semuaKapital(g.nama) && !semuaKapital(x.nama)) g.nama = x.nama; // "MINYAK BIMOLI 2L" → "Minyak Bimoli 2L"
+    g.beli.push(x);
+  });
+  return [...per.values()];
+}
+
+/** Pembelian sebelumnya untuk barang yang sama (bukan dari transaksi ini), untuk perbandingan. */
+function hargaSebelumnya(nama, tanggal, idTrx) {
+  const k = kunciBarang(nama);
+  return (HARGA || []).find(x => x.idTrx !== idTrx && kunciBarang(x.nama) === k && x.tanggal <= tanggal) || null;
+}
+
+/** "▲ Rp2.500" / "▼ Rp1.000" / "" dibanding harga sebelumnya. */
+function htmlUbahHarga(baru, lama) {
+  if (!lama || lama === baru) return '';
+  const naik = baru > lama;
+  return `<span class="harga-ubah ${naik ? 'naik' : 'turun'}">${naik ? '▲' : '▼'} ${rp(Math.abs(baru - lama))}</span>`;
+}
+
+const teksJumlahBarang = j => (j === 1 ? '' : (Math.round(j * 1000) / 1000).toLocaleString(LOKAL) + ' × ');
+
+function bukaRiwayatHarga(q) {
+  if (typeof q === 'string') cariHarga = q;
+  bukaSheet(T('Riwayat harga barang'), `
+    <p class="info-kecil" style="text-align:left;margin-top:0">${T('Barang & harga dari struk yang difoto, di aplikasi maupun lewat bot Telegram. Ketuk barang untuk melihat semua pembeliannya.')}</p>
+    <input class="field" id="cari-harga" type="search" enterkeyhint="search" autocomplete="off" placeholder="${T('Cari barang atau toko, mis. minyak')}" value="${esc(cariHarga)}">
+    <div id="daftar-harga">${hargaBukuIni() ? htmlDaftarHarga() : KERANGKA_DAFTAR}</div>`);
+  muatRiwayatHarga(true).then(() => { if ($('#daftar-harga')) $('#daftar-harga').innerHTML = htmlDaftarHarga(); });
+}
+
+function htmlDaftarHarga() {
+  if (!HARGA) return `<p class="kosong"><span>📡</span>${T('Riwayat harga belum bisa dimuat. Periksa sinyal, lalu buka lagi.')}</p>`;
+  if (!HARGA.length) {
+    return `<p class="kosong"><span>🏷️</span>${T('Belum ada riwayat harga.')}<br><small>${(S.data.kunciGemini || []).length
+      ? T('Foto struk belanja (di aplikasi atau kirim ke bot Telegram); barang & harganya otomatis tercatat di sini.')
+      : T('Aktifkan "Baca struk lebih akurat" (AI Gemini) di ⚙️ Pengaturan, lalu foto struk belanja; barang & harganya otomatis tercatat di sini.')}</small></p>`;
+  }
+  const kata = kunciBarang(cariHarga).split(' ').filter(Boolean);
+  const grup = kelompokHarga(HARGA).filter(g => kata.every(k => (g.kunci + ' ' + kunciBarang(g.beli.map(x => x.toko).join(' '))).includes(k)));
+  if (!grup.length) return `<p class="kosong"><span>🔍</span>${T('Tidak ada barang yang cocok dengan "{cari}".', { cari: esc(cariHarga) })}</p>`;
+  const tampil = grup.slice(0, 80);
+  return tampil.map(g => {
+    const [akhir, lalu] = g.beli;
+    const murah = g.beli.reduce((a, x) => (x.harga < a.harga ? x : a));
+    const rata = Math.round(g.beli.reduce((a, x) => a + x.harga, 0) / g.beli.length);
+    // Harga terakhir per toko: tempat belanja mana yang biasanya lebih murah.
+    const perToko = [];
+    g.beli.forEach(x => { if (x.toko && !perToko.some(p => p.toko.toLowerCase() === x.toko.toLowerCase())) perToko.push(x); });
+    perToko.sort((a, b) => a.harga - b.harga);
+    return `<details class="barang-harga">
+      <summary>
+        <span class="isi"><b>${esc(g.nama)}</b><small>${T('Terakhir {harga}', { harga: rp(akhir.harga) })}${akhir.toko ? ' · ' + esc(akhir.toko) : ''} · ${esc(tanggalPendek(akhir.tanggal))}</small></span>
+        ${htmlUbahHarga(akhir.harga, lalu && lalu.harga)}
+      </summary>
+      <div class="barang-harga-isi">
+        ${g.beli.length > 1 ? `
+          <div class="baris-rincian"><span>${T('Termurah')}</span><b>${rp(murah.harga)}${murah.toko ? ' · ' + esc(murah.toko) : ''}</b></div>
+          <div class="baris-rincian"><span>${T('Rata-rata ({n}× beli)', { n: g.beli.length })}</span><b>${rp(rata)}</b></div>` : ''}
+        ${perToko.length > 1 ? `<h4 class="judul-kecil">${T('Harga terakhir per toko')}</h4>${perToko.map(x =>
+          `<div class="baris-rincian"><span>${esc(x.toko)} <small>· ${esc(tanggalPendek(x.tanggal))}</small></span><b>${rp(x.harga)}</b></div>`).join('')}` : ''}
+        <h4 class="judul-kecil">${T('Semua pembelian')}</h4>
+        ${g.beli.slice(0, 30).map(x => `<div class="baris-rincian"><span>${esc(tanggalPendek(x.tanggal))}${x.toko ? ' · ' + esc(x.toko) : ''}</span>
+          <b>${teksJumlahBarang(x.jumlah)}${rp(x.harga)}</b></div>`).join('')}
+      </div>
+    </details>`;
+  }).join('') + (grup.length > tampil.length ? `<p class="info-kecil">${T('Menampilkan {n} dari {total} barang. Ketik nama barang untuk mencari.', { n: tampil.length, total: grup.length })}</p>` : '');
+}
+
+/** Daftar barang transaksi ini (dari struk), dengan perbandingan ke pembelian sebelumnya. */
+function htmlBarangTrx(t) {
+  const barang = (HARGA || []).filter(x => x.idTrx === t.id);
+  if (!barang.length) return '';
+  return `<h4 class="judul-kecil">${T('Barang di struk')}</h4>
+    <div class="kartu-detail">${barang.map(x => {
+      const lalu = hargaSebelumnya(x.nama, x.tanggal, t.id);
+      return `<button type="button" class="baris-rincian baris-barang" data-aksi="riwayat-harga" data-cari="${esc(x.nama)}">
+        <span>${esc(x.nama)}${lalu && lalu.harga !== x.harga ? `<small>${T('sebelumnya {harga}', { harga: rp(lalu.harga) })}${lalu.toko ? ' · ' + esc(lalu.toko) : ''}</small>` : ''}</span>
+        <b>${teksJumlahBarang(x.jumlah)}${rp(x.harga)} ${htmlUbahHarga(x.harga, lalu && lalu.harga)}</b>
+      </button>`;
+    }).join('')}</div>`;
+}
+
+/** Ringkasan barang hasil baca struk di form (sebelum disimpan): yang harganya berubah dari pembelian terakhir. */
+function htmlBarangStruk(h) {
+  const barang = (h && h.barang) || [];
+  if (!barang.length) return '';
+  const tgl = (F && F.tanggal) || hariIni();
+  const berubah = barang.map(x => ({ x, lalu: hargaSebelumnya(x.nama, tgl, '') })).filter(b => b.lalu && b.lalu.harga !== b.x.harga);
+  return `<details class="barang-struk">
+    <summary>🏷️ ${T('{n} barang terbaca · masuk riwayat harga', { n: barang.length })}${berubah.length ? ' · ' + T('{n} berubah harga', { n: berubah.length }) : ''}</summary>
+    ${barang.map(x => {
+      const lalu = hargaSebelumnya(x.nama, tgl, '');
+      return `<div class="baris-rincian"><span>${esc(x.nama)}${lalu && lalu.harga !== x.harga ? `<small>${T('terakhir {harga}', { harga: rp(lalu.harga) })}${lalu.toko ? ' · ' + esc(lalu.toko) : ''}</small>` : ''}</span>
+        <b>${teksJumlahBarang(x.jumlah)}${rp(x.harga)} ${htmlUbahHarga(x.harga, lalu && lalu.harga)}</b></div>`;
+    }).join('')}
+  </details>`;
+}
+
+Object.assign(AKSI, {
+  'riwayat-harga': el => bukaRiwayatHarga(el && el.dataset.cari != null ? el.dataset.cari : ''),
+});
+document.addEventListener('input', e => {
+  if (e.target.id !== 'cari-harga') return;
+  cariHarga = e.target.value;
+  if ($('#daftar-harga') && HARGA) $('#daftar-harga').innerHTML = htmlDaftarHarga();
+});
 
 if (ukuranDipilih()) document.documentElement.dataset.ukuran = ukuranDipilih();
 // Dimulai setelah semua skrip (termasuk muda.js yang menambah fitur ke AKSI, PINTASAN, render) selesai dimuat.

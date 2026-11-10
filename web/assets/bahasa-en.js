@@ -1688,3 +1688,28 @@ Object.assign(KAMUS, {
   'Data contoh akan dihapus dan tidak ikut dipindahkan. Masuk dengan Google sekarang?': 'The sample data will be removed and not carried over. Sign in with Google now?',
   'Baca foto struk butuh akun Google.': 'Reading receipt photos needs a Google account.',
 });
+
+// Riwayat harga barang (dari struk)
+Object.assign(KAMUS, {
+  'Harga barang': 'Item prices',
+  'Riwayat harga barang': 'Item price history',
+  'Barang & harga dari struk yang difoto, di aplikasi maupun lewat bot Telegram. Ketuk barang untuk melihat semua pembeliannya.': 'Items and prices from photographed receipts, in the app or via the Telegram bot. Tap an item to see every purchase.',
+  'Cari barang atau toko, mis. minyak': 'Search item or store, e.g. rice',
+  'Riwayat harga belum bisa dimuat. Periksa sinyal, lalu buka lagi.': 'Price history could not be loaded. Check your connection, then open it again.',
+  'Belum ada riwayat harga.': 'No price history yet.',
+  'Foto struk belanja (di aplikasi atau kirim ke bot Telegram); barang & harganya otomatis tercatat di sini.': 'Photograph a shopping receipt (in the app or send it to the Telegram bot); its items and prices are recorded here automatically.',
+  'Aktifkan "Baca struk lebih akurat" (AI Gemini) di ⚙️ Pengaturan, lalu foto struk belanja; barang & harganya otomatis tercatat di sini.': 'Turn on "More accurate receipt reading" (Gemini AI) in ⚙️ Settings, then photograph a shopping receipt; its items and prices are recorded here automatically.',
+  'Tidak ada barang yang cocok dengan "{cari}".': 'No items match "{cari}".',
+  'Terakhir {harga}': 'Last {harga}',
+  'Termurah': 'Cheapest',
+  'Rata-rata ({n}× beli)': 'Average ({n} purchases)',
+  'Harga terakhir per toko': 'Latest price per store',
+  'Semua pembelian': 'All purchases',
+  'Menampilkan {n} dari {total} barang. Ketik nama barang untuk mencari.': 'Showing {n} of {total} items. Type an item name to search.',
+  'Barang di struk': 'Items on the receipt',
+  'sebelumnya {harga}': 'previously {harga}',
+  '{n} barang terbaca · masuk riwayat harga': '{n} items read · added to price history',
+  '{n} berubah harga': '{n} changed price',
+  'terakhir {harga}': 'last {harga}',
+  '🏷️ Riwayat harga barang dari struk': '🏷️ Item price history from receipts',
+});

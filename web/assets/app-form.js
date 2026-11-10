@@ -1447,6 +1447,10 @@ function terapkanStruk(job) {
   F.strukJob = null;
   F.dariJob = job.id; // dihapus dari antrian setelah transaksinya disimpan
   renderFormTrx();
+  if ((h.barang || []).length && !hargaBukuIni()) {
+    const f = F;
+    muatRiwayatHarga().then(() => { if (F === f && $('#form-trx') && HARGA && HARGA.length) { bacaFieldTrx(); renderFormTrx(); } });
+  }
 }
 
 function hapusJob(id) {
@@ -1504,7 +1508,7 @@ function infoStruk(h) {
       `<button type="button" class="chip ${p.jumlah === F.jumlah ? 'aktif' : ''}" data-aksi="f-pilih-jumlah" data-jumlah="${p.jumlah}">${rp(p.jumlah)}</button>`).join('')}</div>` : '';
   const kembar = teksStrukKembar();
   const peringatan = kembar ? `<p class="info-kecil peringatan-kembar">${kembar}</p>` : '';
-  return `<div style="margin:-8px 0 16px">${pilihan}<p class="info-kecil" style="text-align:left;margin-top:0">${statusStruk(h)}</p>${peringatan}${tombolPecahStruk(h)}</div>`;
+  return `<div style="margin:-8px 0 16px">${pilihan}<p class="info-kecil" style="text-align:left;margin-top:0">${statusStruk(h)}</p>${peringatan}${tombolPecahStruk(h)}${htmlBarangStruk(h)}</div>`;
 }
 
 function statusStruk(h) {
