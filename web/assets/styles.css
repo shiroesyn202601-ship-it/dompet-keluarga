@@ -325,8 +325,8 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 10;
   bottom: calc(12px + env(safe-area-inset-bottom));
   width: calc(100% - 24px); max-width: 496px; height: var(--nav-h);
-  /* Dua halaman yang digeser kiri/kanan, ＋ tetap di tengah:
-     [Beranda · Riwayat · ＋ · Dompet · Laporan]  ⇄  [Catatan · Sholat · ＋ · Pengaturan] */
+  /* Tiga halaman yang digeser kiri/kanan, ＋ tetap di tengah:
+     [Beranda · Riwayat · ＋ · Dompet · Laporan] ⇄ [Catatan · Sholat · ＋ · Tantangan · Cek beli] ⇄ [Anggaran · Tagihan · ＋ · Pengaturan] */
   display: block; padding: 0;
   background: color-mix(in srgb, var(--card) 86%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);

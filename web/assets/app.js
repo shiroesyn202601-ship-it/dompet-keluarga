@@ -539,7 +539,7 @@ async function pilihDanHubungkan(idFile) {
   }
 }
 
-// Navigasi bawah HP: 2 halaman menu yang digeser kiri/kanan (styles.css → .nav-geser), ＋ tetap di tengah.
+// Navigasi bawah HP: beberapa halaman menu yang digeser kiri/kanan (styles.css → .nav-geser), ＋ tetap di tengah.
 // Halaman yang memuat tab aktif ditampilkan otomatis; titik penanda di bawah ＋ mengikuti posisi geser.
 function aturGeserNav() {
   const geser = $('#nav-geser');
