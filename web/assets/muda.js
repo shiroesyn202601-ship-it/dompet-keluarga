@@ -981,7 +981,7 @@ async function gambarStory(k, aman) {
     g.fillStyle = w; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
   });
 
-  teks('Catatan Keuanganku', P, 150, 36, 'rgba(255,255,255,.8)', 700);
+  teks('Dompet Keluarga', P, 150, 36, 'rgba(255,255,255,.8)', 700);
   teks(T('RANGKUMAN BULAN'), P, 250, 34, 'rgba(255,255,255,.7)', 800);
   teks(namaBulan(k), P, 340, 78, '#ffffff', 800, 'left', W - P * 2);
 
@@ -1029,7 +1029,7 @@ async function gambarStory(k, aman) {
     teks(s, P + 32, ly, 34, '#ffffff', 700, 'left', W - P * 2 - 64);
     ly += 96;
   });
-  teks(T('Dicatat dengan Catatan Keuanganku'), W / 2, H - 60, 28, 'rgba(255,255,255,.65)', 600, 'center');
+  teks(T('Dicatat dengan Dompet Keluarga'), W / 2, H - 60, 28, 'rgba(255,255,255,.65)', 600, 'center');
   return c;
 }
 

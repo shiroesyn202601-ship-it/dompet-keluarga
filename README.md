@@ -1,4 +1,4 @@
-# Catatan Keuanganku
+# Dompet Keluarga
 
 Catat keuangan keluarga bersama dari HP. Gratis, tanpa iklan, dan **semua data tersimpan di Google Drive Anda sendiri**.
 

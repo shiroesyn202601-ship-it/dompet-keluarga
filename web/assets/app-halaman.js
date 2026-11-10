@@ -1,4 +1,4 @@
-// Catatan Keuanganku · Halaman utama: Beranda, Riwayat, Dompet (aset, zakat, utang, buku, patungan), Laporan, Setup, Lainnya, anggota, cadangan.
+// Dompet Keluarga · Halaman utama: Beranda, Riwayat, Dompet (aset, zakat, utang, buku, patungan), Laporan, Setup, Lainnya, anggota, cadangan.
 // Bagian dari aplikasi (dimuat berurutan di index.html: app.js → app-*.js → muda.js; semua berbagi lingkup global).
 
 // ---------- Halaman: Beranda ----------
@@ -1025,7 +1025,7 @@ async function bagikanLaporan(k) {
   latar.addColorStop(0, '#062a2e'); latar.addColorStop(1, '#0e5a60');
   g.fillStyle = latar; g.fillRect(0, 0, W, H);
 
-  teks('Catatan Keuanganku', P, 130, 34, 'rgba(255,255,255,.7)', 600);
+  teks('Dompet Keluarga', P, 130, 34, 'rgba(255,255,255,.7)', 600);
   teks(T('Ringkasan keuangan'), P, 220, 44, '#ffffff', 600);
   teks(namaBulan(k), P, 290, 60, '#ffffff', 800);
 
@@ -1049,7 +1049,7 @@ async function bagikanLaporan(k) {
     g.fillStyle = '#8b8cf8'; g.beginPath(); g.roundRect(P, y + 46, Math.max(12, (W - P * 2) * x.v / maks), 12, 6); g.fill();
   });
   if (!top.length) teks(T('Belum ada pengeluaran.'), P, 900, 32, 'rgba(255,255,255,.7)', 600);
-  teks(T('Dicatat dengan Catatan Keuanganku'), W / 2, H - 70, 28, 'rgba(255,255,255,.5)', 600, 'center');
+  teks(T('Dicatat dengan Dompet Keluarga'), W / 2, H - 70, 28, 'rgba(255,255,255,.5)', 600, 'center');
 
   const keterangan = T('Ringkasan keuangan {bulan}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}.', { bulan: namaBulan(k), masuk: rp(r.masuk), keluar: rp(r.keluar), selisih: rp(r.masuk - r.keluar) });
   await bagikanKanvas(c, 'ringkasan-' + k + '.png', T('Ringkasan {bulan}', { bulan: namaBulan(k) }), keterangan);
@@ -1100,7 +1100,7 @@ async function bagikanTahunan(th) {
   latar.addColorStop(0, '#062a2e'); latar.addColorStop(1, '#0e5a60');
   g.fillStyle = latar; g.fillRect(0, 0, W, H);
 
-  teks('Catatan Keuanganku', P, 120, 32, 'rgba(255,255,255,.7)', 600);
+  teks('Dompet Keluarga', P, 120, 32, 'rgba(255,255,255,.7)', 600);
   teks(T('Kilas balik'), P, 200, 44, '#ffffff', 600);
   teks(String(th), P, 280, 84, '#ffffff', 800);
 
@@ -1143,7 +1143,7 @@ async function bagikanTahunan(th) {
       teks(rp(x.v) + (keluar ? `  ${Math.round(x.v / keluar * 100)}%` : ''), W - P, yy, 28, 'rgba(255,255,255,.85)', 700, 'right');
     });
   }
-  teks(T('Dicatat dengan Catatan Keuanganku'), W / 2, H - 36, 26, 'rgba(255,255,255,.5)', 600, 'center');
+  teks(T('Dicatat dengan Dompet Keluarga'), W / 2, H - 36, 26, 'rgba(255,255,255,.5)', 600, 'center');
 
   const keterangan = T('Kilas balik keuangan {tahun}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}.', { tahun: th, masuk: rp(masuk), keluar: rp(keluar), selisih: rp(masuk - keluar) });
   await bagikanKanvas(c, 'kilas-balik-' + th + '.png', T('Kilas balik {tahun}', { tahun: th }), keterangan);
@@ -1934,7 +1934,7 @@ function viewLainnya() {
       <button type="button" class="btn btn-keluar" data-aksi="keluar">${T('Keluar dari akun')}</button>
       <p class="info-kecil">${T('Data yang tersimpan di HP ini ikut dihapus saat keluar. Data di Google Drive tetap aman.')}</p>
     </section>
-    ${!MODE_APLIKASI && labelVersi() ? `<p class="catatan-versi">Catatan Keuanganku ${labelVersi()}</p>` : ''}`;
+    ${!MODE_APLIKASI && labelVersi() ? `<p class="catatan-versi">Dompet Keluarga ${labelVersi()}</p>` : ''}`;
 }
 
 /** "v1.66" dari versi.txt (dibuat saat deploy: 1.<jumlah commit>); penanda lama berupa kode commit tidak ditampilkan. */
@@ -2079,7 +2079,7 @@ async function unduhCsv() {
   const blob = new Blob(['﻿' + baris.map(r => r.map(selCsv).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `Catatan Keuanganku - ${S.data.namaBuku || T('Transaksi')} - ${hariIni()}.csv`;
+  a.download = `Dompet Keluarga - ${S.data.namaBuku || T('Transaksi')} - ${hariIni()}.csv`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   toast(T('{n} transaksi diunduh ✔', { n: trx.length }));

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-<!-- Logo Catatan Keuanganku: lembar catatan + koin centang. Sumber untuk ikon PNG di folder ini. -->
+<!-- Logo Dompet Keluarga: lembar catatan + koin centang. Sumber untuk ikon PNG di folder ini. -->
 <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#17a2a8"/><stop offset="1" stop-color="#0a4f56"/></linearGradient></defs>
 <rect width="512" height="512" rx="112" fill="url(#g)"/>
   <g>

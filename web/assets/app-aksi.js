@@ -1,4 +1,4 @@
-// Catatan Keuanganku · Semua aksi tombol (data-aksi), mode coba, PWA & pembaruan otomatis, log update.
+// Dompet Keluarga · Semua aksi tombol (data-aksi), mode coba, PWA & pembaruan otomatis, log update.
 // Bagian dari aplikasi (dimuat berurutan di index.html: app.js → app-*.js → muda.js; semua berbagi lingkup global).
 
 // ---------- Aksi (event delegation) ----------
@@ -195,8 +195,8 @@ const AKSI = {
     // Bot bersama: buku ini akan dibagikan ke akun robot bot → minta persetujuan dulu.
     if (t.bersama && !t.pengguna.length && !await tanya(
       S.data.namaBuku
-        ? T('Supaya bisa mencatat lewat Telegram, spreadsheet buku "{buku}" dibagikan (bisa mengubah) ke akun bot Catatan Keuanganku. Pengelola bot secara teknis bisa membuka isinya. Akses bot dicabut otomatis saat semua akun Telegram diputus.', { buku: namaT(S.data.namaBuku) })
-        : T('Supaya bisa mencatat lewat Telegram, spreadsheet buku "ini" dibagikan (bisa mengubah) ke akun bot Catatan Keuanganku. Pengelola bot secara teknis bisa membuka isinya. Akses bot dicabut otomatis saat semua akun Telegram diputus.'),
+        ? T('Supaya bisa mencatat lewat Telegram, spreadsheet buku "{buku}" dibagikan (bisa mengubah) ke akun bot Dompet Keluarga. Pengelola bot secara teknis bisa membuka isinya. Akses bot dicabut otomatis saat semua akun Telegram diputus.', { buku: namaT(S.data.namaBuku) })
+        : T('Supaya bisa mencatat lewat Telegram, spreadsheet buku "ini" dibagikan (bisa mengubah) ke akun bot Dompet Keluarga. Pengelola bot secara teknis bisa membuka isinya. Akses bot dicabut otomatis saat semua akun Telegram diputus.'),
       T('Setuju & lanjut'), true)) return;
     el.disabled = true;
     loading(true);
@@ -211,7 +211,7 @@ const AKSI = {
     }
   },
   'putus-telegram': async el => {
-    if (!await tanya(T('Putuskan akun Telegram ini dari Catatan Keuanganku?'), T('Putuskan'))) return;
+    if (!await tanya(T('Putuskan akun Telegram ini dari Dompet Keluarga?'), T('Putuskan'))) return;
     if (await kirim(el, 'putuskanTelegram', [el.dataset.id], T('Akun Telegram diputuskan'))) bukaFormTelegram();
   },
   'simpan-gemini': async el => {

@@ -432,7 +432,7 @@ const SERVER = (() => {
   }
 
   async function bagikan_(id, email) {
-    const pesan = T('Ayo catat keuangan keluarga bareng di Catatan Keuanganku. Buka link ini dan masuk dengan akun Google ini: {link}', { link: linkUndangan_(id) });
+    const pesan = T('Ayo catat keuangan keluarga bareng di Dompet Keluarga. Buka link ini dan masuk dengan akun Google ini: {link}', { link: linkUndangan_(id) });
     try {
       await GOOGLE.api(DRIVE + '/files/' + id + '/permissions?sendNotificationEmail=true&emailMessage=' + encodeURIComponent(pesan), {
         method: 'POST',

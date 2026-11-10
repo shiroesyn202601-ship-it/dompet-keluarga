@@ -1,4 +1,4 @@
-// Catatan Keuanganku · Fitur tambahan: pintasan, tarik untuk memperbarui, transaksi dobel, detail, pilih banyak, label, tur, avatar, emas. Memulai aplikasi.
+// Dompet Keluarga · Fitur tambahan: pintasan, tarik untuk memperbarui, transaksi dobel, detail, pilih banyak, label, tur, avatar, emas. Memulai aplikasi.
 // Bagian dari aplikasi (dimuat berurutan di index.html: app.js → app-*.js → muda.js; semua berbagi lingkup global).
 
 // ---------- Pintasan ikon aplikasi & berbagi dari aplikasi lain ----------
