@@ -21,7 +21,7 @@ Panduan untuk **pengguna** ada di [README](../README.md); rencana pengembangan d
 | `web/assets/google.js` | Login Google, pemanggil API, Google Picker |
 | `web/assets/db.js` | Baca/tulis spreadsheet (transaksi, kategori, dompet, pengaturan) |
 | `web/assets/struk.js` | Baca foto struk berlapis: AI foto, OCR + AI, OCR |
-| `web/assets/app.js` | Tampilan & interaksi |
+| `web/assets/app.js`, `app-*.js` | Tampilan & interaksi, dipecah per bagian dan dimuat berurutan (semua berbagi lingkup global): `app.js` inti (state, utilitas, muat & render) → `app-halaman.js` → `app-form.js` → `app-aksi.js` → `app-catatan.js` → `app-interaksi.js` → `app-fitur.js` (memulai aplikasi). Kode yang langsung berjalan saat file dimuat hanya boleh memakai isi file yang sudah dimuat sebelumnya; fungsi yang dipanggil belakangan bebas memakai apa saja. |
 | `web/assets/styles.css` | Tampilan (CSS) |
 | `bot/Kode.gs`, `bot/appsscript.json` | Bot Telegram (Google Apps Script), lihat bagian **Bot Telegram** |
 | `web/manifest.webmanifest`, `web/sw.js`, `web/ikon/` | PWA: bisa dipasang di layar utama, update otomatis |
