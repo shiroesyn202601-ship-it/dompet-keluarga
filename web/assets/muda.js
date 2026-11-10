@@ -973,15 +973,15 @@ async function gambarStory(k, aman) {
   };
   const kotak = (x, y, w, h, isi, rad) => { g.fillStyle = isi; g.beginPath(); g.roundRect(x, y, w, h, rad || 36); g.fill(); };
 
-  // Latar: gradien ungu → merah muda → oranye dengan lingkaran cahaya.
+  // Latar: gradien teal tua → teal → amber (warna merek) dengan lingkaran cahaya.
   const latar = g.createLinearGradient(0, 0, W, H);
-  latar.addColorStop(0, '#312e81'); latar.addColorStop(.45, '#7c3aed'); latar.addColorStop(.8, '#db2777'); latar.addColorStop(1, '#f97316');
+  latar.addColorStop(0, '#062a2e'); latar.addColorStop(.45, '#0e7c86'); latar.addColorStop(.8, '#14b8a6'); latar.addColorStop(1, '#f5a524');
   g.fillStyle = latar; g.fillRect(0, 0, W, H);
   [[900, 260, 340, 'rgba(255,255,255,.10)'], [120, 1500, 420, 'rgba(255,255,255,.07)'], [1000, 1700, 260, 'rgba(255,255,255,.08)']].forEach(([x, y, rad, w]) => {
     g.fillStyle = w; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
   });
 
-  teks('👛  Catatan Keuanganku', P, 150, 36, 'rgba(255,255,255,.8)', 700);
+  teks('Catatan Keuanganku', P, 150, 36, 'rgba(255,255,255,.8)', 700);
   teks(T('RANGKUMAN BULAN'), P, 250, 34, 'rgba(255,255,255,.7)', 800);
   teks(namaBulan(k), P, 340, 78, '#ffffff', 800, 'left', W - P * 2);
 

@@ -326,7 +326,7 @@ const ILUSTRASI = (() => {
    * Dipakai di kartu kosong, kalimat insight Beranda, dan hasil "Cek sebelum beli".
    */
   function maskot(mood) {
-    const tua = '#1E1B4B';
+    const tua = '#08363A';
     const mata = {
       senang: `<path d="M19 37q3-4 6 0M31 37q3-4 6 0" stroke="${tua}" stroke-width="2.6" fill="none" ${R}/>`,
       bangga: `<path d="M19 37q3-4 6 0M31 37q3-4 6 0" stroke="${tua}" stroke-width="2.6" fill="none" ${R}/>`,
@@ -349,16 +349,16 @@ const ILUSTRASI = (() => {
       biasa: '',
       cemas: `<path d="M43 22c2 3 2.6 4.6 1 6a2.4 2.4 0 0 1-3.4-3c.4-1 1.4-2 2.4-3z" fill="#7DD3FC"/>`,
       sedih: `<path d="M20 41c1.4 2.2 1.8 3.4.7 4.4a1.8 1.8 0 0 1-2.6-2.2c.3-.8 1.1-1.5 1.9-2.2z" fill="#7DD3FC"/>`,
-      tidur: `<text x="50" y="14" font-size="9" font-weight="800" font-family="system-ui,sans-serif" fill="#A5B4FC">z</text><text x="56" y="8" font-size="7" font-weight="800" font-family="system-ui,sans-serif" fill="#A5B4FC">z</text>`,
+      tidur: `<text x="50" y="14" font-size="9" font-weight="800" font-family="system-ui,sans-serif" fill="#8ED9DC">z</text><text x="56" y="8" font-size="7" font-weight="800" font-family="system-ui,sans-serif" fill="#8ED9DC">z</text>`,
     };
     const m = mata[mood] ? mood : 'biasa';
     return `<svg class="maskot maskot-${m}" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
       <circle cx="25" cy="14" r="8" fill="#FACC15" stroke="#CA8A04" stroke-width="2"/><path d="M25 10v8" stroke="#CA8A04" stroke-width="2" ${R}/>
       <g class="maskot-badan">
-        <rect x="6" y="18" width="50" height="38" rx="13" fill="#6366F1"/>
-        <path d="M6 31V28a10 10 0 0 1 10-10h30a10 10 0 0 1 10 10v3z" fill="#818CF8"/>
-        <rect x="44" y="31" width="16" height="13" rx="6.5" fill="#A5B4FC"/><circle cx="51" cy="37.5" r="2.4" fill="#4338CA"/>
-        <rect x="11" y="28" width="30" height="24" rx="10" fill="#EEF2FF"/>
+        <rect x="6" y="18" width="50" height="38" rx="13" fill="#14A3A8"/>
+        <path d="M6 31V28a10 10 0 0 1 10-10h30a10 10 0 0 1 10 10v3z" fill="#4FC3C7"/>
+        <rect x="44" y="31" width="16" height="13" rx="6.5" fill="#8ED9DC"/><circle cx="51" cy="37.5" r="2.4" fill="#0B5C63"/>
+        <rect x="11" y="28" width="30" height="24" rx="10" fill="#ECFBFB"/>
         ${mata[m]}${mulut[m]}${hiasan[m]}
       </g>
     </svg>`;

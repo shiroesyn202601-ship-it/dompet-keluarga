@@ -1021,10 +1021,10 @@ async function bagikanLaporan(k) {
   };
 
   const latar = g.createLinearGradient(0, 0, W, H);
-  latar.addColorStop(0, '#0c111d'); latar.addColorStop(1, '#1f1b4d');
+  latar.addColorStop(0, '#062a2e'); latar.addColorStop(1, '#0e5a60');
   g.fillStyle = latar; g.fillRect(0, 0, W, H);
 
-  teks('👛  Catatan Keuanganku', P, 130, 34, 'rgba(255,255,255,.7)', 600);
+  teks('Catatan Keuanganku', P, 130, 34, 'rgba(255,255,255,.7)', 600);
   teks(T('Ringkasan keuangan'), P, 220, 44, '#ffffff', 600);
   teks(namaBulan(k), P, 290, 60, '#ffffff', 800);
 
@@ -1096,10 +1096,10 @@ async function bagikanTahunan(th) {
     g.font = `${tebal || 700} ${ukuran}px "Plus Jakarta Sans", system-ui, sans-serif`; g.fillStyle = warna; g.textAlign = rata2 || 'left'; g.fillText(s, x, y);
   };
   const latar = g.createLinearGradient(0, 0, W, H);
-  latar.addColorStop(0, '#0c111d'); latar.addColorStop(1, '#1f1b4d');
+  latar.addColorStop(0, '#062a2e'); latar.addColorStop(1, '#0e5a60');
   g.fillStyle = latar; g.fillRect(0, 0, W, H);
 
-  teks('👛  Catatan Keuanganku', P, 120, 32, 'rgba(255,255,255,.7)', 600);
+  teks('Catatan Keuanganku', P, 120, 32, 'rgba(255,255,255,.7)', 600);
   teks(T('Kilas balik'), P, 200, 44, '#ffffff', 600);
   teks(String(th), P, 280, 84, '#ffffff', 800);
 
