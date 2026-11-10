@@ -60,6 +60,8 @@ Object.assign(KAMUS, {
   '📴 Tersimpan di HP. Dikirim otomatis begitu ada sinyal.': '📴 Saved on this phone. It will be sent automatically once you are back online.',
   '{n} transaksi tertunda terkirim ✔': ['{n} pending transaction sent ✔', '{n} pending transactions sent ✔'],
   'Memperbarui data': 'Updating data',
+  '📅 Menampilkan {periode}, bukan periode sekarang.': '📅 Showing {periode}, not the current period.',
+  'Ke periode sekarang': 'Go to current period',
   '📴 Offline · menampilkan data terakhir. Transaksi baru tetap bisa dicatat.': '📴 Offline · showing your latest data. You can still add new transactions.',
   '🔄 Menampilkan data terakhir · tersambung lagi begitu Anda mengetuk layar': '🔄 Showing your latest data · reconnects as soon as you tap the screen',
   '📝 {n} catatan menunggu dikirim': ['📝 {n} note waiting to be sent', '📝 {n} notes waiting to be sent'],

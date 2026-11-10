@@ -16,6 +16,12 @@ const AKSI = {
     await muat();
     loading(false);
   },
+  'bulan-ini': async () => {
+    S.bulan = ''; // kosong = periode berjalan, ditentukan server dari tanggal gajian
+    loading(true);
+    await muat();
+    loading(false);
+  },
   'filter-tipe': el => { S.filterTipe = el.dataset.tipe; render(); },
 
   'tambah-trx': () => {

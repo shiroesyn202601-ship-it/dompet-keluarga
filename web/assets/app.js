@@ -425,6 +425,8 @@ function bannerStatus() {
   const menunggu = daftar.length - gagal.length;
   return (DEMO.aktif() ? `<div class="status-bar demo">${T('👀 Mode coba · data contoh, hanya di HP ini')} <button type="button" data-aksi="demo-masuk">${T('Pakai sungguhan')}</button></div>` : '') +
     (S.menyegarkan ? `<div class="bilah-segar" role="status" aria-label="${T('Memperbarui data')}"><i></i></div>` : '') +
+    (S.data && !S.data.perluSetup && S.bulan && ['beranda', 'riwayat'].includes(S.tab) && S.bulan !== periodeSekarang()
+      ? `<div class="status-bar">${T('📅 Menampilkan {periode}, bukan periode sekarang.', { periode: esc(namaBulan(S.bulan)) })} <button type="button" data-aksi="bulan-ini">${T('Ke periode sekarang')}</button></div>` : '') +
     (S.offline ? `<div class="status-bar">${T('📴 Offline · menampilkan data terakhir. Transaksi baru tetap bisa dicatat.')}</div>` : '') +
     (!S.offline && S.sesiHabis ? `<div class="status-bar">${T('🔄 Menampilkan data terakhir · tersambung lagi begitu Anda mengetuk layar')}</div>` : '') +
     (catatanTertunda().length ? `<div class="status-bar">${T('📝 {n} catatan menunggu dikirim', { n: catatanTertunda().length })}</div>` : '') +
@@ -598,7 +600,8 @@ function pulihkanPosisi() {
     if (!p || !(Date.now() - p.waktu < POSISI_BERLAKU_MS)) return;
     if (!['beranda', 'riwayat', 'dompet', 'laporan', 'lainnya', 'catatan', 'sholat', 'catatan-edit'].includes(p.tab)) return;
     S.tab = p.tab === 'catatan-edit' ? 'catatan' : p.tab;
-    S.bulan = p.bulan || '';
+    // Periode sengaja TIDAK dipulihkan: refresh selalu membuka periode berjalan. Dulu periode lama (mis. Juli)
+    // terbawa terus karena waktunya diperbarui tiap render, jadi Beranda tampak kosong (Rp0) walau di-refresh.
     S.tahun = p.tahun || S.tahun;
   } catch (e) { /* abaikan */ }
 }
