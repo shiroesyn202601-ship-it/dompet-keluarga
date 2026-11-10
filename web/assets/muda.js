@@ -981,7 +981,7 @@ async function gambarStory(k, aman) {
     g.fillStyle = w; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
   });
 
-  teks('Dompet Keluarga', P, 150, 36, 'rgba(255,255,255,.8)', 700);
+  kopMerek(g, P, 150, 36, 'rgba(255,255,255,.95)');
   teks(T('RANGKUMAN BULAN'), P, 250, 34, 'rgba(255,255,255,.7)', 800);
   teks(namaBulan(k), P, 340, 78, '#ffffff', 800, 'left', W - P * 2);
 
@@ -1022,14 +1022,14 @@ async function gambarStory(k, aman) {
   if (streak >= 3) lencana.push(T('🔥 {n} hari beruntun mencatat', { n: streak }));
   if (!aman) lencana.push(T('💸 Keluar {jumlah}', { jumlah: 'Rp' + rpPendek(r.keluar) }));
   let ly = 1640;
-  lencana.slice(0, 3).forEach(s => {
+  lencana.slice(0, 2).forEach(s => { // paling banyak 2, supaya ajakan + alamat di bawah tetap lega
     g.font = `700 34px "Plus Jakarta Sans", system-ui, sans-serif`;
     const w = Math.min(W - P * 2, g.measureText(s).width + 64);
     kotak(P, ly - 52, w, 76, 'rgba(255,255,255,.18)', 38);
     teks(s, P + 32, ly, 34, '#ffffff', 700, 'left', W - P * 2 - 64);
     ly += 96;
   });
-  teks(T('Dicatat dengan Dompet Keluarga'), W / 2, H - 60, 28, 'rgba(255,255,255,.65)', 600, 'center');
+  kakiMerek(g, W, H - 50, 30, 'rgba(255,255,255,.8)');
   return c;
 }
 

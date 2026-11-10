@@ -1025,7 +1025,7 @@ async function bagikanLaporan(k) {
   latar.addColorStop(0, '#062a2e'); latar.addColorStop(1, '#0e5a60');
   g.fillStyle = latar; g.fillRect(0, 0, W, H);
 
-  teks('Dompet Keluarga', P, 130, 34, 'rgba(255,255,255,.7)', 600);
+  kopMerek(g, P, 130, 34, 'rgba(255,255,255,.92)');
   teks(T('Ringkasan keuangan'), P, 220, 44, '#ffffff', 600);
   teks(namaBulan(k), P, 290, 60, '#ffffff', 800);
 
@@ -1039,20 +1039,53 @@ async function bagikanLaporan(k) {
   kotak(P + lebar + 24, 350, lebar, T('Pengeluaran'), rp(r.keluar), '#fb7593');
   kotak(P, 544, W - P * 2, T('Selisih') + (r.masuk ? ' · ' + T('{persen}% dari pemasukan', { persen: Math.round((r.masuk - r.keluar) / r.masuk * 100) }) : ''), rp(r.masuk - r.keluar), '#ffffff');
 
-  teks(T('Pengeluaran terbesar'), P, 820, 36, '#ffffff', 700);
+  teks(T('Pengeluaran terbesar'), P, 800, 36, '#ffffff', 700);
   const maks = Math.max(1, ...top.map(x => x.v));
   top.forEach((x, i) => {
-    const y = 880 + i * 82;
+    const y = 856 + i * 78;
     teks(ikonKategori(x.n, TIPE.KELUAR) + '  ' + namaT(x.n), P, y + 30, 32, '#ffffff', 600);
     teks(rp(x.v) + (r.keluar ? `  ${Math.round(x.v / r.keluar * 100)}%` : ''), W - P, y + 30, 32, 'rgba(255,255,255,.85)', 700, 'right');
     g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.roundRect(P, y + 46, W - P * 2, 12, 6); g.fill();
-    g.fillStyle = '#8b8cf8'; g.beginPath(); g.roundRect(P, y + 46, Math.max(12, (W - P * 2) * x.v / maks), 12, 6); g.fill();
+    g.fillStyle = '#5fd0c8'; g.beginPath(); g.roundRect(P, y + 46, Math.max(12, (W - P * 2) * x.v / maks), 12, 6); g.fill();
   });
   if (!top.length) teks(T('Belum ada pengeluaran.'), P, 900, 32, 'rgba(255,255,255,.7)', 600);
-  teks(T('Dicatat dengan Dompet Keluarga'), W / 2, H - 70, 28, 'rgba(255,255,255,.5)', 600, 'center');
+  kakiMerek(g, W, H - 44, 28, 'rgba(255,255,255,.6)');
 
   const keterangan = T('Ringkasan keuangan {bulan}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}.', { bulan: namaBulan(k), masuk: rp(r.masuk), keluar: rp(r.keluar), selisih: rp(r.masuk - r.keluar) });
   await bagikanKanvas(c, 'ringkasan-' + k + '.png', T('Ringkasan {bulan}', { bulan: namaBulan(k) }), keterangan);
+}
+
+// ---------- Merek di gambar bagikan (ringkasan, kilas balik, Story) ----------
+// Logo + nama di atas, ajakan + alamat aplikasi di bawah, supaya yang melihat tahu harus membuka apa.
+// Alamat diarahkan ke halaman pengenalan (tombol "Coba tanpa akun"); ganti di sini kalau nanti ada link pendek.
+const TAUTAN_PROMO = 'shiroesyn202601-ship-it.github.io/dompet-keluarga';
+const FONT_MEREK = (ukuran, tebal) => `${tebal} ${ukuran}px "Plus Jakarta Sans", system-ui, sans-serif`;
+/** Logo dompet-rumah (= ikon/logo.svg) di (x, y) dengan sisi s piksel. */
+function gambarLogo(g, x, y, s) {
+  const atap = new Path2D('M256 92 418 206V380a32 32 0 0 1-32 32H126a32 32 0 0 1-32-32V206Z');
+  const bulat = (bx, by, w, h, r) => { g.beginPath(); if (g.roundRect) g.roundRect(bx, by, w, h, r); else g.rect(bx, by, w, h); g.fill(); };
+  g.save();
+  g.translate(x, y); g.scale(s / 512, s / 512);
+  g.fillStyle = '#fff4e3'; bulat(0, 0, 512, 512, 112);
+  g.fillStyle = g.strokeStyle = '#0e7c86'; g.lineWidth = 20; g.lineJoin = 'round'; g.fill(atap); g.stroke(atap);
+  g.fillStyle = '#f5a524'; bulat(300, 262, 138, 84, 42);
+  g.fillStyle = '#fff4e3'; g.beginPath(); g.arc(352, 304, 17, 0, Math.PI * 2); g.fill();
+  g.restore();
+}
+/** Logo + "Dompet Keluarga"; y = garis dasar teks. */
+function kopMerek(g, x, y, ukuran, warna) {
+  const s = Math.round(ukuran * 1.75);
+  gambarLogo(g, x, Math.round(y - ukuran * 0.36 - s / 2), s);
+  g.font = FONT_MEREK(ukuran, 800); g.fillStyle = warna; g.textAlign = 'left';
+  g.fillText('Dompet Keluarga', x + s + Math.round(ukuran * 0.45), y);
+}
+/** Ajakan + alamat aplikasi di tengah bawah; y = garis dasar baris alamat (paling bawah). */
+function kakiMerek(g, W, y, ukuran, warna) {
+  g.textAlign = 'center';
+  g.font = FONT_MEREK(ukuran, 600); g.fillStyle = warna;
+  g.fillText(T('Dicatat dengan Dompet Keluarga · coba gratis'), W / 2, y - Math.round(ukuran * 1.5));
+  g.font = FONT_MEREK(ukuran, 800); g.fillStyle = '#ffffff';
+  g.fillText(TAUTAN_PROMO, W / 2, y);
 }
 
 /** Kanvas → PNG → menu berbagi HP; kalau browser tidak mendukung berbagi file, gambarnya diunduh. */
@@ -1100,7 +1133,7 @@ async function bagikanTahunan(th) {
   latar.addColorStop(0, '#062a2e'); latar.addColorStop(1, '#0e5a60');
   g.fillStyle = latar; g.fillRect(0, 0, W, H);
 
-  teks('Dompet Keluarga', P, 120, 32, 'rgba(255,255,255,.7)', 600);
+  kopMerek(g, P, 120, 32, 'rgba(255,255,255,.92)');
   teks(T('Kilas balik'), P, 200, 44, '#ffffff', 600);
   teks(String(th), P, 280, 84, '#ffffff', 800);
 
@@ -1143,7 +1176,7 @@ async function bagikanTahunan(th) {
       teks(rp(x.v) + (keluar ? `  ${Math.round(x.v / keluar * 100)}%` : ''), W - P, yy, 28, 'rgba(255,255,255,.85)', 700, 'right');
     });
   }
-  teks(T('Dicatat dengan Dompet Keluarga'), W / 2, H - 36, 26, 'rgba(255,255,255,.5)', 600, 'center');
+  teks(T('Dompet Keluarga · coba gratis di {tautan}', { tautan: TAUTAN_PROMO }), W / 2, H - 30, 24, 'rgba(255,255,255,.7)', 700, 'center');
 
   const keterangan = T('Kilas balik keuangan {tahun}: pemasukan {masuk}, pengeluaran {keluar}, selisih {selisih}.', { tahun: th, masuk: rp(masuk), keluar: rp(keluar), selisih: rp(masuk - keluar) });
   await bagikanKanvas(c, 'kilas-balik-' + th + '.png', T('Kilas balik {tahun}', { tahun: th }), keterangan);
