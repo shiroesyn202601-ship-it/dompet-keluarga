@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<!-- Logo Dompet Keluarga: dompet yang tutupnya membentuk atap rumah. Sumber untuk ikon PNG di folder ini. -->
+<rect width="512" height="512" rx="112" fill="#fff4e3"/>
+<path d="M256 92 418 206V380a32 32 0 0 1-32 32H126a32 32 0 0 1-32-32V206Z" fill="#0e7c86" stroke="#0e7c86" stroke-width="20" stroke-linejoin="round"/><rect x="300" y="262" width="138" height="84" rx="42" fill="#f5a524"/><circle cx="352" cy="304" r="17" fill="#fff4e3"/>
+</svg>
