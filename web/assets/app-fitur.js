@@ -450,6 +450,17 @@ function ajakAiDulu(lanjut) {
   bukaFormGemini(true);
   return true;
 }
+/**
+ * Fitur suara (pintasan Suara, 🎤 di form catat, tulis catatan dengan suara) wajib AI Gemini: tanpa kunci di buku ini,
+ * mikrofon tidak dinyalakan dan lembar setup Gemini dibuka (tanpa "Lanjut tanpa AI"). Benar = diblokir.
+ * Mode coba dikecualikan (kunci tidak bisa diisi di sana), supaya fiturnya tetap bisa dicoba.
+ */
+function suaraButuhAi() {
+  if (!S.data || DEMO.aktif() || (S.data.kunciGemini || []).length) return false;
+  lanjutTanpaAi = null;
+  bukaFormGemini('suara');
+  return true;
+}
 /** Tombol di lembar ajakan: tutup lembarnya, lalu jalankan fitur yang tadi diketuk (versi tanpa AI). */
 function teruskanTanpaAi() {
   const lanjut = lanjutTanpaAi;

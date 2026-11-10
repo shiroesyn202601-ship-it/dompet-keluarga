@@ -551,6 +551,7 @@ function dengarLagi() {
 
 function mulaiDikte() {
   if (dikte.aktif) return hentikanDikte();
+  if (suaraButuhAi()) return; // fitur suara wajib AI Gemini (draf catatan tetap tersimpan)
   Object.assign(dikte, { aktif: true, awalSesi: true, tahap: 'siap', sementara: '', galat: false });
   tampilDikte();
   try { dengarLagi(); } catch (e) { hentikanDikte(); toast(T('Mikrofon tidak bisa dipakai.'), true); }

@@ -1525,6 +1525,7 @@ function meterBentrok(galat) {
 
 AKSI.suara = el => {
   if (suaraAktif) { suaraAktif.stop(); return; }
+  if (suaraButuhAi()) return; // fitur suara wajib AI Gemini
   const r = new PengenalSuara();
   r.lang = BAHASA === 'en' ? 'en-US' : 'id-ID';
   r.interimResults = true;

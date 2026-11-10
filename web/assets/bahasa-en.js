@@ -1672,6 +1672,10 @@ Object.assign(KAMUS, {
 Object.assign(KAMUS, {
   'Coba dulu tanpa akun': 'Try it without an account',
   // Fitur AI (Gemini): ⚙️ → Fitur AI & ajakan setelah masuk
+  "Catat & tulis catatan dengan suara": "Record & write notes by voice",
+  "\"Kemarin bensin 30 ribu sama parkir 5 ribu\" langsung jadi dua transaksi bertanggal benar. Juga untuk menulis catatan.": "\"Yesterday fuel 30k and parking 5k\" becomes two transactions with the right date. Also for writing notes.",
+  "Fitur suara butuh AI": "Voice features need AI",
+  "Catat dan tulis dengan suara memakai <b>AI Gemini</b> untuk memahami ucapan Anda. Aktifkan dulu: gratis, sekitar 2 menit, lalu ketuk 🎤 lagi.": "Recording and writing by voice use <b>Gemini AI</b> to understand what you say. Turn it on first: free, about 2 minutes, then tap 🎤 again.",
   "Fitur AI (Gemini)": "AI features (Gemini)",
   "Baca foto struk dengan akurat": "Read receipt photos accurately",
   "Toko, kategori, tanggal, dan tiap barang terbaca. Tanpa AI hanya nominal & tanggal yang ditebak.": "Store, category, date and every item are read. Without AI only the amount and date are guessed.",
@@ -1680,8 +1684,6 @@ Object.assign(KAMUS, {
   "Ringkasan periode dalam bahasa sehari-hari, lengkap dengan saran hemat.": "A plain-language summary of the period, with tips to save.",
   'Pendapat AI di "{fitur}"': 'AI opinion in "{fitur}"',
   "Saran sebelum belanja, dengan menimbang keuangan Anda bulan ini.": "Advice before you buy, weighing your finances this month.",
-  "Catat dengan suara, kalimat bebas": "Record by voice, in your own words",
-  "\"Kemarin bensin 30 ribu sama parkir 5 ribu\" langsung jadi dua transaksi bertanggal benar.": "\"Yesterday fuel 30k and parking 5k\" becomes two transactions with the right date.",
   "Bot Telegram yang pintar": "A smarter Telegram bot",
   "Kirim pesan suara, tanya \"bulan ini habis berapa?\", atau ngobrol bebas.": "Send voice notes, ask \"how much did we spend this month?\", or just chat.",
   "Aktif": "On",

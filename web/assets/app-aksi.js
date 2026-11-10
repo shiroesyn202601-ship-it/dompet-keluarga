@@ -670,7 +670,7 @@ const AKSI = {
   },
   'cepat-transfer': () => bukaFormTrx(null, { tipe: TIPE.TRANSFER }, T('Transfer')),
   'cepat-suara': () => {
-    if (ajakAiDulu(AKSI['cepat-suara'])) return; // tanpa AI kalimat bebas terbaca terbatas
+    if (suaraButuhAi()) return; // fitur suara wajib AI Gemini
     // Buka form lalu langsung nyalakan mic (masih dalam ketukan pengguna, syarat izin mikrofon).
     AKSI['tambah-trx']();
     if (F) F.tanpaFokus = true; // keyboard jangan terbuka selagi mendengarkan

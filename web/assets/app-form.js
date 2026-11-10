@@ -1602,7 +1602,7 @@ const FITUR_AI = () => [
   ['laporan', T('Riwayat harga barang'), 'mati', T('Harga tiap barang di struk tercatat, jadi tahu kapan dan di mana lebih murah.')],
   ['ramal', T('Penjelasan laporan'), 'mati', T('Ringkasan periode dalam bahasa sehari-hari, lengkap dengan saran hemat.')],
   ['tas', T('Pendapat AI di "{fitur}"', { fitur: T('Cek beli') }), 'mati', T('Saran sebelum belanja, dengan menimbang keuangan Anda bulan ini.')],
-  ['mic', T('Catat dengan suara, kalimat bebas'), 'terbatas', T('"Kemarin bensin 30 ribu sama parkir 5 ribu" langsung jadi dua transaksi bertanggal benar.')],
+  ['mic', T('Catat & tulis catatan dengan suara'), 'mati', T('"Kemarin bensin 30 ribu sama parkir 5 ribu" langsung jadi dua transaksi bertanggal benar. Juga untuk menulis catatan.')],
   ['obrolan', T('Bot Telegram yang pintar'), 'mati', T('Kirim pesan suara, tanya "bulan ini habis berapa?", atau ngobrol bebas.')],
 ];
 function daftarFiturAi(aktif) {
@@ -1613,9 +1613,11 @@ function daftarFiturAi(aktif) {
 
 /**
  * ⚙️ → Fitur AI. ajak = dibuka saat memakai fitur AI (buku belum punya kunci): ada tombol "Lanjut tanpa AI" & "Jangan tampilkan lagi".
+ * ajak === 'suara' = fitur suara diketuk tanpa kunci (suaraButuhAi): wajib AI, jadi tanpa pilihan lanjut tanpa AI.
  * Cukup satu kunci. Kunci cadangan (dipakai bergiliran saat kuota habis) disembunyikan di bagian lipat.
  */
 function bukaFormGemini(ajak) {
+  const wajib = ajak === 'suara';
   const daftar = S.data.kunciGemini;
   const isian = (label, tombol) => `
     <div class="grup-form">
@@ -1623,7 +1625,8 @@ function bukaFormGemini(ajak) {
       <input class="field" id="g-kunci" type="password" autocomplete="off" placeholder="AIza…">
     </div>
     <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="simpan-gemini">${tombol}</button></div>`;
-  bukaSheet(ajak ? T('Aktifkan AI, gratis') : T('Fitur AI (Gemini)'), `
+  bukaSheet(wajib ? T('Fitur suara butuh AI') : ajak ? T('Aktifkan AI, gratis') : T('Fitur AI (Gemini)'), `
+    ${wajib && !daftar.length ? `<p class="kotak-wajib-ai">${T('Catat dan tulis dengan suara memakai <b>AI Gemini</b> untuk memahami ucapan Anda. Aktifkan dulu: gratis, sekitar 2 menit, lalu ketuk 🎤 lagi.')}</p>` : ''}
     <p style="margin-top:0">${daftar.length
       ? T('AI Gemini <b>aktif untuk seluruh keluarga</b>, termasuk bot Telegram. Fitur di bawah ini sudah bisa dipakai.')
       : T('Dompet Keluarga jadi jauh lebih pintar dengan <b>AI Gemini dari Google</b>. Gratis, sekitar 2 menit, dan cukup sekali untuk seluruh keluarga, termasuk bot Telegram.')}</p>
@@ -1649,7 +1652,9 @@ function bukaFormGemini(ajak) {
       ${isian(T('Kunci Gemini'), T('Simpan'))}`}
     <p class="info-kecil" style="text-align:left">${T('Kunci disimpan di spreadsheet keluarga, jadi otomatis dipakai semua anggota, dan <b>bisa dilihat semua anggota</b> yang membuka spreadsheet. Pakai kunci gratis khusus untuk aplikasi ini, jangan kunci yang terhubung ke penagihan (billing).')}</p>
     <p class="info-kecil" style="text-align:left">${T('Yang dikirim ke Gemini hanya yang diperlukan fitur itu (mis. foto struk). Pada kunci gratis, Google dapat memakai isi permintaan untuk meningkatkan layanannya. <a href="privasi.html">Selengkapnya</a>')}</p>
-    ${ajak && !daftar.length ? `<div class="aksi-form">
+    ${wajib && !daftar.length ? `<div class="aksi-form">
+      <button type="button" class="btn btn-kedua" data-aksi="tutup-sheet">${T('Nanti saja')}</button>
+    </div>` : ajak && !daftar.length ? `<div class="aksi-form">
       <button type="button" class="btn btn-kedua" data-aksi="ajak-ai-lanjut">${lanjutTanpaAi ? T('Lanjut tanpa AI') : T('Nanti saja')}</button>
     </div>
     <button type="button" class="tombol-teks" style="display:block;margin:4px auto 0" data-aksi="ajak-ai-tolak">${T('Jangan tampilkan lagi')}</button>` : ''}`);
