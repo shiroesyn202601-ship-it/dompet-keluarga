@@ -1692,6 +1692,7 @@ Object.assign(KAMUS, {
   "Cara mengaktifkan": "How to turn it on",
   "Yang dikirim ke Gemini hanya yang diperlukan fitur itu (mis. foto struk). Pada kunci gratis, Google dapat memakai isi permintaan untuk meningkatkan layanannya. <a href=\"privasi.html\">Selengkapnya</a>": "Only what a feature needs is sent to Gemini (e.g. the receipt photo). With a free key, Google may use request content to improve its services. <a href=\"privasi.html\">Learn more</a>",
   "Nanti saja": "Maybe later",
+  "Lanjut tanpa AI": "Continue without AI",
   "Jangan tampilkan lagi": "Don't show again",
   "Oke. AI tetap bisa diaktifkan kapan saja di ⚙️ → Fitur AI.": "Okay. You can turn on AI anytime in ⚙️ → AI features.",
   "✨ Aktifkan AI untuk penjelasan periode ini": "✨ Turn on AI to explain this period",

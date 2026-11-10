@@ -327,7 +327,6 @@ async function muat() {
       kirimCatatanTertunda();
       cadangkanNanti();
       cekTur();
-      cekAjakAi(); // buku tanpa kunci Gemini: ajak mengaktifkan AI (menunggu tur selesai)
     }
   } catch (e) {
     if (S.menyegarkan) { S.menyegarkan = false; if (S.data) render(); }

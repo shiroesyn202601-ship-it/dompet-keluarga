@@ -427,27 +427,35 @@ function tutupTur() {
   el.hidden = true;
   tur = null;
   tulisHp('dk_tur_tunda', null);
-  cekAjakAi(); // sesudah tur perkenalan: giliran ajakan mengaktifkan AI
   return true;
 }
 
 /**
- * Ajakan mengaktifkan AI setelah masuk, kalau buku ini belum punya kunci Gemini (⚙️ → Fitur AI, mode ajak).
- * Tidak muncul di mode coba, saat offline, selama tur / lembar lain / kilas balik terbuka.
- * Sekali tampil = jeda 7 hari (menutup lembarnya sama dengan "Nanti saja"); "Jangan tampilkan lagi" = tidak muncul lagi di HP ini.
+ * Ajakan mengaktifkan AI saat pengguna mau memakai fitur yang terbantu AI (mis. foto struk, catat suara),
+ * kalau buku ini belum punya kunci Gemini. Tidak lagi muncul otomatis setelah masuk.
+ * Benar = lembar ajakan ditampilkan; lanjut() dijalankan dari tombol "Lanjut tanpa AI" (masih ketukan pengguna,
+ * jadi kamera/mikrofon tetap boleh dibuka). Salah = tidak perlu ajakan, pemanggil langsung lanjut sendiri.
+ * Tidak muncul di mode coba, saat offline, atau saat lembar lain terbuka.
+ * Sekali tampil = jeda 7 hari; "Jangan tampilkan lagi" = tidak muncul lagi di HP ini.
  */
 const JEDA_AJAK_AI = 7 * 864e5;
-function cekAjakAi() {
-  const bisa = () => S.data && !S.data.perluSetup && !DEMO.aktif() && !S.offline && navigator.onLine
-    && !(S.data.kunciGemini || []).length && !tur && !bacaHp('dk_tur_tunda') && $('#sheet').hidden
-    && !document.querySelector('#kilas:not([hidden]), #ingat:not([hidden])') && $('#kunci').hidden && $('#sesi').hidden && $('#tanya').hidden;
+let lanjutTanpaAi = null;
+function ajakAiDulu(lanjut) {
+  if (!S.data || S.data.perluSetup || DEMO.aktif() || S.offline || !navigator.onLine) return false;
+  if ((S.data.kunciGemini || []).length || !$('#sheet').hidden) return false;
   const v = bacaHp('dk_ajak_ai');
-  if (v === 'tolak' || (v && Date.now() - Number(v) < JEDA_AJAK_AI) || !bisa()) return;
-  setTimeout(() => {
-    if (!bisa()) return;
-    tulisHp('dk_ajak_ai', String(Date.now()));
-    bukaFormGemini(true);
-  }, 2500);
+  if (v === 'tolak' || (v && Date.now() - Number(v) < JEDA_AJAK_AI)) return false;
+  tulisHp('dk_ajak_ai', String(Date.now()));
+  lanjutTanpaAi = lanjut;
+  bukaFormGemini(true);
+  return true;
+}
+/** Tombol di lembar ajakan: tutup lembarnya, lalu jalankan fitur yang tadi diketuk (versi tanpa AI). */
+function teruskanTanpaAi() {
+  const lanjut = lanjutTanpaAi;
+  lanjutTanpaAi = null;
+  tutupSheet();
+  if (lanjut) lanjut();
 }
 
 /** Dipanggil setelah data tampil: tur ditunda sampai setup/gabung selesai. */

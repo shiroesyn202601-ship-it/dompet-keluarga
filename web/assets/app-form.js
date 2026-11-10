@@ -1595,7 +1595,7 @@ function bukaFormTelegram(kode, muatan = kode) {
 
 /**
  * Fitur yang memakai AI Gemini: [ikon, judul, keadaan tanpa AI ('mati' | 'terbatas'), keterangan].
- * Ditampilkan di ⚙️ → Fitur AI dan di ajakan setelah masuk (cekAjakAi di app-fitur.js).
+ * Ditampilkan di ⚙️ → Fitur AI dan di ajakan saat memakai fitur AI (ajakAiDulu di app-fitur.js).
  */
 const FITUR_AI = () => [
   ['kamera', T('Baca foto struk dengan akurat'), 'terbatas', T('Toko, kategori, tanggal, dan tiap barang terbaca. Tanpa AI hanya nominal & tanggal yang ditebak.')],
@@ -1612,7 +1612,7 @@ function daftarFiturAi(aktif) {
 }
 
 /**
- * ⚙️ → Fitur AI. ajak = dibuka otomatis setelah masuk (buku belum punya kunci): ada tombol "Nanti saja" & "Jangan tampilkan lagi".
+ * ⚙️ → Fitur AI. ajak = dibuka saat memakai fitur AI (buku belum punya kunci): ada tombol "Lanjut tanpa AI" & "Jangan tampilkan lagi".
  * Cukup satu kunci. Kunci cadangan (dipakai bergiliran saat kuota habis) disembunyikan di bagian lipat.
  */
 function bukaFormGemini(ajak) {
@@ -1650,7 +1650,7 @@ function bukaFormGemini(ajak) {
     <p class="info-kecil" style="text-align:left">${T('Kunci disimpan di spreadsheet keluarga, jadi otomatis dipakai semua anggota, dan <b>bisa dilihat semua anggota</b> yang membuka spreadsheet. Pakai kunci gratis khusus untuk aplikasi ini, jangan kunci yang terhubung ke penagihan (billing).')}</p>
     <p class="info-kecil" style="text-align:left">${T('Yang dikirim ke Gemini hanya yang diperlukan fitur itu (mis. foto struk). Pada kunci gratis, Google dapat memakai isi permintaan untuk meningkatkan layanannya. <a href="privasi.html">Selengkapnya</a>')}</p>
     ${ajak && !daftar.length ? `<div class="aksi-form">
-      <button type="button" class="btn btn-kedua" data-aksi="tutup-sheet">${T('Nanti saja')}</button>
+      <button type="button" class="btn btn-kedua" data-aksi="ajak-ai-lanjut">${lanjutTanpaAi ? T('Lanjut tanpa AI') : T('Nanti saja')}</button>
     </div>
     <button type="button" class="tombol-teks" style="display:block;margin:4px auto 0" data-aksi="ajak-ai-tolak">${T('Jangan tampilkan lagi')}</button>` : ''}`);
 }

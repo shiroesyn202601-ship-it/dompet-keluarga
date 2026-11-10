@@ -135,7 +135,8 @@ const AKSI = {
   },
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
-  'ajak-ai-tolak': () => { tulisHp('dk_ajak_ai', 'tolak'); tutupSheet(); toast(T('Oke. AI tetap bisa diaktifkan kapan saja di ⚙️ → Fitur AI.')); },
+  'ajak-ai-lanjut': () => teruskanTanpaAi(),
+  'ajak-ai-tolak': () => { tulisHp('dk_ajak_ai', 'tolak'); toast(T('Oke. AI tetap bisa diaktifkan kapan saja di ⚙️ → Fitur AI.')); teruskanTanpaAi(); },
   'telegram': () => bukaFormTelegram(),
   'cari-global': () => bukaCariGlobal(),
   'log-update': () => { $('#toast').hidden = true; bukaLogUpdate(); },
@@ -660,6 +661,8 @@ const AKSI = {
   'atur-anggaran': () => bukaFormAnggaran(),
   'rincian-anggaran': () => bukaRincianAnggaran(),
   'cepat-struk': () => {
+    // Belum ada kunci Gemini: tawarkan AI dulu (struk terbaca jauh lebih lengkap); "Lanjut tanpa AI" → kamera.
+    if (ajakAiDulu(AKSI['cepat-struk'])) return;
     // Langsung buka kamera (masih dalam ketukan pengguna supaya tidak diblokir browser);
     // struk dibaca di latar belakang tanpa membuka form. Di komputer, capture diabaikan → pemilih file.
     sumberStruk = 'cepat';
@@ -667,6 +670,7 @@ const AKSI = {
   },
   'cepat-transfer': () => bukaFormTrx(null, { tipe: TIPE.TRANSFER }, T('Transfer')),
   'cepat-suara': () => {
+    if (ajakAiDulu(AKSI['cepat-suara'])) return; // tanpa AI kalimat bebas terbaca terbatas
     // Buka form lalu langsung nyalakan mic (masih dalam ketukan pengguna, syarat izin mikrofon).
     AKSI['tambah-trx']();
     if (F) F.tanpaFokus = true; // keyboard jangan terbuka selagi mendengarkan
@@ -958,6 +962,7 @@ const AKSI = {
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'demo-mulai', 'demo-masuk', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
   'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'bagikan-tahunan', 'cetak-laporan','salin-link', 'pasang-aplikasi', 'suara', 'cepat-suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
+  'ajak-ai-lanjut', 'ajak-ai-tolak', // meneruskan ke kamera / mikrofon
 ]);
 
 /**
