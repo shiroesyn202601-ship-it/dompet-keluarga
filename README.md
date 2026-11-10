@@ -1,5 +1,7 @@
 # Dompet Keluarga
 
+**Uang keluarga akur, sampai gajian berikutnya.**
+
 Catat keuangan keluarga bersama dari HP. Gratis, tanpa iklan, dan **semua data tersimpan di Google Drive Anda sendiri**.
 
 **Buka aplikasi:** https://shiroesyn202601-ship-it.github.io/dompet-keluarga/

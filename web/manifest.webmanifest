@@ -1,7 +1,7 @@
 {
   "name": "Dompet Keluarga",
   "short_name": "Dompet",
-  "description": "Catat keuangan keluarga bersama, tersimpan di Google Spreadsheet milik sendiri.",
+  "description": "Uang keluarga akur, sampai gajian berikutnya. Dicatat berdua, data di Google Drive Anda sendiri.",
   "lang": "id",
   "id": "./",
   "start_url": "./",
