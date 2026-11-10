@@ -48,7 +48,7 @@
         background: radial-gradient(60% 60% at 30% 30%, color-mix(in srgb, #14a3a8 24%, transparent), transparent 70%),
                     radial-gradient(50% 50% at 80% 20%, color-mix(in srgb, #f5a524 18%, transparent), transparent 70%); }
       .pembuka .lebar { display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: center; }
-      .lencana { display: inline-flex; gap: 6px; align-items: center; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
+      .lencana { display: inline-flex; flex-direction: row; gap: 6px; align-items: center; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
         background: var(--primary-soft); color: var(--primary); }
       .pembuka h1 { margin: 16px 0 14px; font-size: clamp(32px, 6vw, 52px); line-height: 1.08; font-weight: 800; letter-spacing: -.02em; }
       .pembuka h1 em { font-style: normal; background: linear-gradient(90deg, #0e7c86, #f5a524); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -60,30 +60,20 @@
       .ajakan .kedua { background: var(--card); color: var(--text); border: 1px solid color-mix(in srgb, var(--text) 10%, transparent); }
       .catatan-kecil { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
 
-      /* Tiruan layar HP (HTML biasa, bukan gambar) */
-      .hp { justify-self: center; width: 290px; padding: 12px; border-radius: 40px; background: #0b0c10;
-        box-shadow: 0 30px 70px rgba(6, 42, 46, .35), inset 0 0 0 2px #2a2d38; }
-      .hp-layar { border-radius: 30px; overflow: hidden; background: #f4f5f8; color: #0c111d; padding: 16px 14px 18px; font-size: 12px; }
-      .hp-kepala { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-      .hp-kepala i { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #0e7c86, #f5a524); flex: none; }
-      .hp-kepala small { display: block; color: #667085; font-size: 10px; }
-      .hp-kepala b { font-size: 13px; }
-      .hp-saldo { border-radius: 20px; padding: 14px; color: #fff; background: linear-gradient(140deg, #062a2e, #0b4f55 60%, #0e7c86); }
-      .hp-saldo small { opacity: .8; font-size: 10px; }
-      .hp-saldo strong { display: block; font-size: 24px; font-weight: 800; margin: 2px 0 10px; letter-spacing: -.01em; }
-      .hp-saldo strong span { font-size: 12px; opacity: .8; margin-right: 2px; }
-      .hp-dua { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-      .hp-dua div { border-radius: 12px; padding: 7px 9px; background: rgba(255, 255, 255, .12); font-size: 10px; }
-      .hp-dua b { display: block; font-size: 12px; }
-      .hp-aman { margin-top: 8px; padding: 6px 9px; border-radius: 999px; background: rgba(255, 255, 255, .14); font-size: 10px; font-weight: 700; }
-      .hp-judul { margin: 14px 2px 8px; font-weight: 800; font-size: 12px; }
-      .hp-trx { display: flex; align-items: center; gap: 9px; padding: 8px 10px; margin-bottom: 6px; border-radius: 14px; background: #fff; }
-      .hp-trx i { width: 28px; height: 28px; border-radius: 10px; display: grid; place-items: center; font-style: normal; font-size: 14px; background: #f1f2f6; flex: none; }
-      .hp-trx span { flex: 1; min-width: 0; }
-      .hp-trx span b { display: block; font-size: 11.5px; }
-      .hp-trx span small { color: #667085; font-size: 9.5px; }
-      .hp-trx em { font-style: normal; font-weight: 800; font-size: 11.5px; color: #e3335c; }
-      .hp-trx em.masuk { color: #079455; }
+      /* Bingkai HP berisi tangkapan layar asli (gambar/layar-*.webp) */
+      .hp { justify-self: center; width: 290px; padding: 10px; border-radius: 42px; background: #0b0c10;
+        box-shadow: 0 30px 70px rgba(6, 42, 46, .3), inset 0 0 0 2px #2a2d38; }
+      .hp img { display: block; width: 100%; height: auto; border-radius: 32px; }
+      .hp.kecil { width: 100%; max-width: 250px; margin: 0 auto; padding: 8px; border-radius: 36px; box-shadow: 0 18px 40px rgba(6, 42, 46, .22), inset 0 0 0 2px #2a2d38; }
+      .hp.kecil img { border-radius: 28px; }
+      .galeri { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; }
+      .galeri figure { margin: 0; text-align: center; }
+      .galeri figcaption { margin-top: 14px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+      .galeri figcaption b { display: block; color: var(--text); font-size: 16px; margin-bottom: 2px; }
+      .lencana svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+      .ulasan { margin: 0; }
+      .ulasan blockquote { margin: 0 0 12px; font-size: 15.5px; line-height: 1.55; }
+      .ulasan figcaption { color: var(--muted); font-size: 13.5px; font-weight: 700; }
 
       /* Bagian umum */
       section.bagian { padding: 44px 0; }
@@ -92,7 +82,8 @@
 
       .tiga { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
       .kotak { padding: 20px; border-radius: 22px; background: var(--card); border: 1px solid color-mix(in srgb, var(--text) 6%, transparent); }
-      .kotak .ik { font-size: 28px; line-height: 1; }
+      .kotak .ik { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); }
+      .kotak .ik svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
       .kotak h3 { margin: 12px 0 6px; font-size: 17px; font-weight: 800; }
       .kotak p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.55; }
 
@@ -131,6 +122,7 @@
         .pembuka { padding-top: 32px; }
         .pembuka .lebar { grid-template-columns: 1fr; gap: 32px; }
         .tiga, .langkah { grid-template-columns: 1fr; }
+        .galeri { grid-template-columns: 1fr; gap: 32px; }
       }
       @media (max-width: 420px) {
         .ajakan a { width: 100%; }
@@ -139,6 +131,28 @@
     </style>
   </head>
   <body>
+    <!-- Ikon garis (gaya sama dengan aplikasi), dipakai lewat <use href="#i-…"> -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+      <symbol id="i-berdua" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M21.5 20a6.5 6.5 0 0 0-4-6"/></symbol>
+      <symbol id="i-hadiah" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5"/></symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+      <symbol id="i-struk" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></symbol>
+      <symbol id="i-kilat" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></symbol>
+      <symbol id="i-offline" viewBox="0 0 24 24"><path d="m2 2 20 20"/><path d="M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5.2-2.8M19 13a10 10 0 0 0-2.3-1.6M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.7 5"/><path d="M12 20h.01"/></symbol>
+      <symbol id="i-obrolan" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/></symbol>
+      <symbol id="i-ulang" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+      <symbol id="i-buku" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></symbol>
+      <symbol id="i-gembok" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><path d="M12 15v2"/></symbol>
+      <symbol id="i-ramal" viewBox="0 0 24 24"><path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/></symbol>
+      <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+      <symbol id="i-tas" viewBox="0 0 24 24"><path d="M5 8h14l-1.2 12.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9z"/><path d="M9 11V7a3 3 0 0 1 6 0v4"/></symbol>
+      <symbol id="i-celengan" viewBox="0 0 24 24"><path d="M19 9.5c-.5-3-3.6-5.5-7.5-5.5C7.4 4 4 7 4 10.7c0 2 1 3.8 2.6 5V19h3v-1.5h4V19h3v-3.2c1-.7 1.8-1.6 2.3-2.8H21v-3.5z"/><path d="M15.5 9.5h.01"/></symbol>
+      <symbol id="i-tangan" viewBox="0 0 24 24"><path d="M11 14h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 16"/><path d="m7 20 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.8-2.8l-4.2 3.9"/><path d="m2 15 6 6"/></symbol>
+      <symbol id="i-grafik" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15v3M12 10v8M17 6v12"/></symbol>
+      <symbol id="i-gajian" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 15 2 2 4-4"/></symbol>
+      <symbol id="i-api" viewBox="0 0 24 24"><path d="M12 22c4 0 7-2.7 7-6.7 0-3.3-2.3-5.6-3.6-7.3-.4 1.8-1.4 3-2.6 3.6.2-3.4-1.4-6.6-4.3-8.6.2 3-1.4 5-3 6.8C4.3 11.2 5 13.6 5 15.3 5 19.3 8 22 12 22z"/></symbol>
+    </svg>
     <header class="bilah">
       <div class="lebar">
         <img src="ikon/ikon-192.png" alt="">
@@ -151,7 +165,7 @@
       <section class="pembuka">
         <div class="lebar">
           <div>
-            <span class="lencana">🔒 Data di Google Drive Anda sendiri</span>
+            <span class="lencana"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gembok"/></svg>Data di Google Drive Anda sendiri</span>
             <h1>Uang keluarga <em>akur,</em> sampai gajian berikutnya.</h1>
             <p class="sub">Anda dan pasangan mencatat dari HP masing-masing, angkanya langsung sama, dan aplikasi memberi tahu berapa yang aman dibelanjakan tiap hari. Gratis, tanpa iklan, dan semua catatan tersimpan di Google Drive Anda, bukan di server orang lain.</p>
             <div class="ajakan">
@@ -161,24 +175,7 @@
             <p class="catatan-kecil">Mode coba berisi data contoh satu keluarga. Tidak perlu login, tidak perlu pasang apa pun.</p>
           </div>
 
-          <div class="hp" aria-hidden="true">
-            <div class="hp-layar">
-              <div class="hp-kepala"><i></i><div><small>Halo,</small><b>Sari</b></div></div>
-              <div class="hp-saldo">
-                <small>Total saldo dompet</small>
-                <strong><span>Rp</span>16.858.500</strong>
-                <div class="hp-dua">
-                  <div>Pemasukan<b>Rp9.500.000</b></div>
-                  <div>Pengeluaran<b>Rp3.124.000</b></div>
-                </div>
-                <div class="hp-aman">● Aman dibelanjakan Rp226.000/hari</div>
-              </div>
-              <div class="hp-judul">Transaksi terakhir</div>
-              <div class="hp-trx"><i>🛒</i><span><b>Sayur &amp; lauk di pasar</b><small>Andi · Belanja Harian · Tunai</small></span><em>−Rp85rb</em></div>
-              <div class="hp-trx"><i>☕</i><span><b>Kopi susu</b><small>Sari · Makan &amp; Minum · GoPay</small></span><em>−Rp24rb</em></div>
-              <div class="hp-trx"><i>💼</i><span><b>Gaji bulanan</b><small>Sari · Gaji · BCA</small></span><em class="masuk">+Rp9,5jt</em></div>
-            </div>
-          </div>
+          <div class="hp"><img src="gambar/layar-beranda.webp" width="600" height="1200" alt="Tampilan Beranda Dompet Keluarga: total saldo, pemasukan, pengeluaran, dan berapa yang aman dibelanjakan per hari"></div>
         </div>
       </section>
 
@@ -188,17 +185,17 @@
           <p class="pengantar">Aplikasi keuangan biasanya dibuat untuk satu orang. Yang ini dibuat untuk rumah tangga.</p>
           <div class="tiga">
             <div class="kotak">
-              <div class="ik">🗂️</div>
+              <div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-folder"/></svg></div>
               <h3>Datanya milik Anda</h3>
               <p>Aplikasi ini tidak punya server. Semua catatan ada di spreadsheet di Google Drive Anda, bisa dibuka di Google Sheets atau diunduh ke Excel kapan saja.</p>
             </div>
             <div class="kotak">
-              <div class="ik">👨‍👩‍👧</div>
+              <div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-berdua"/></svg></div>
               <h3>Dicatat bersama</h3>
               <p>Undang pasangan atau anggota keluarga lewat email atau link WhatsApp. Semua melihat saldo yang sama dan tahu siapa mencatat apa.</p>
             </div>
             <div class="kotak">
-              <div class="ik">🎁</div>
+              <div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hadiah"/></svg></div>
               <h3>Gratis, tanpa iklan</h3>
               <p>Tidak ada langganan dan tidak ada iklan. Cukup akun Google yang sudah Anda punya.</p>
             </div>
@@ -208,17 +205,29 @@
 
       <section class="bagian">
         <div class="lebar">
+          <h2>Lihat tampilannya</h2>
+          <p class="pengantar">Tangkapan layar asli dari mode coba, dengan data contoh satu keluarga.</p>
+          <div class="galeri">
+            <figure><div class="hp kecil"><img src="gambar/layar-beranda.webp" width="600" height="1200" loading="lazy" alt="Beranda: saldo semua dompet dan aman dibelanjakan per hari"></div><figcaption><b>Beranda</b>Saldo, tagihan mendatang, dan aman dibelanjakan per hari.</figcaption></figure>
+            <figure><div class="hp kecil"><img src="gambar/layar-laporan.webp" width="600" height="1200" loading="lazy" alt="Laporan: pemasukan dan pengeluaran per bulan"></div><figcaption><b>Laporan</b>Pemasukan &amp; pengeluaran per bulan, tren, dan sorotan.</figcaption></figure>
+            <figure><div class="hp kecil"><img src="gambar/layar-story.webp" width="600" height="1067" loading="lazy" alt="Gambar Story rangkuman bulan"></div><figcaption><b>Bagikan ke Story</b>Rangkuman bulan yang bisa dibagikan, bisa tanpa nominal.</figcaption></figure>
+          </div>
+        </div>
+      </section>
+
+      <section class="bagian">
+        <div class="lebar">
           <h2>Mencatat tidak lagi merepotkan</h2>
           <p class="pengantar">Pilih cara yang paling cepat untuk Anda. Aplikasi mengisi sisanya.</p>
           <div class="fitur">
-            <div class="kotak"><div class="ik">🎙️</div><h3>Catat dengan suara</h3><p>"Makan siang 35 ribu pakai tunai, parkir 5 ribu", dan dua transaksi langsung tercatat.</p></div>
-            <div class="kotak"><div class="ik">🧾</div><h3>Foto struk</h3><p>Nominal, kategori, dan tanggal terbaca dari foto. Fotonya tersimpan sebagai bukti.</p></div>
-            <div class="kotak"><div class="ik">⚡</div><h3>Ketik cepat</h3><p>Tulis <i>bakso 25rb gopay</i>, tekan Enter, selesai. Paham rb, jt, goceng, ceban.</p></div>
-            <div class="kotak"><div class="ik">📴</div><h3>Tetap jalan tanpa sinyal</h3><p>Catat saat offline, dan transaksinya terkirim sendiri begitu ada sinyal.</p></div>
-            <div class="kotak"><div class="ik">💬</div><h3>Lewat Telegram</h3><p>Kirim pesan atau foto struk ke bot, dan langsung masuk ke buku keluarga.</p></div>
-            <div class="kotak"><div class="ik">🔁</div><h3>Tagihan rutin</h3><p>Listrik, internet, SPP, cicilan muncul di Beranda menjelang jatuh tempo.</p></div>
-            <div class="kotak"><div class="ik">📒</div><h3>Beberapa buku</h3><p>Pisahkan keuangan Keluarga, Pribadi, dan Usaha, masing-masing bisa dibagikan ke orang berbeda.</p></div>
-            <div class="kotak"><div class="ik">🔐</div><h3>Kunci PIN &amp; samarkan</h3><p>Kunci dengan PIN atau sidik jari, dan samarkan angka saat HP dipinjam orang lain.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-mic"/></svg></div><h3>Catat dengan suara</h3><p>"Makan siang 35 ribu pakai tunai, parkir 5 ribu", dan dua transaksi langsung tercatat.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-struk"/></svg></div><h3>Foto struk</h3><p>Nominal, kategori, dan tanggal terbaca dari foto. Fotonya tersimpan sebagai bukti.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-kilat"/></svg></div><h3>Ketik cepat</h3><p>Tulis <i>bakso 25rb gopay</i>, tekan Enter, selesai. Paham rb, jt, goceng, ceban.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-offline"/></svg></div><h3>Tetap jalan tanpa sinyal</h3><p>Catat saat offline, dan transaksinya terkirim sendiri begitu ada sinyal.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-obrolan"/></svg></div><h3>Lewat Telegram</h3><p>Kirim pesan atau foto struk ke bot, dan langsung masuk ke buku keluarga.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-ulang"/></svg></div><h3>Tagihan rutin</h3><p>Listrik, internet, SPP, cicilan muncul di Beranda menjelang jatuh tempo.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-buku"/></svg></div><h3>Beberapa buku</h3><p>Pisahkan keuangan Keluarga, Pribadi, dan Usaha, masing-masing bisa dibagikan ke orang berbeda.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gembok"/></svg></div><h3>Kunci PIN &amp; samarkan</h3><p>Kunci dengan PIN atau sidik jari, dan samarkan angka saat HP dipinjam orang lain.</p></div>
           </div>
         </div>
       </section>
@@ -228,14 +237,14 @@
           <h2>Uangnya cukup sampai gajian?</h2>
           <p class="pengantar">Bukan sekadar catatan. Aplikasi membantu Anda memutuskan.</p>
           <div class="fitur">
-            <div class="kotak"><div class="ik">📅</div><h3>Aman dibelanjakan per hari</h3><p>Berapa yang aman dipakai tiap hari sampai gajian, sudah dikurangi tagihan yang belum dibayar.</p></div>
-            <div class="kotak"><div class="ik">🎯</div><h3>Anggaran &amp; amplop</h3><p>Batas belanja per kategori, peringatan di 80%, dan sisa bulan ini bisa dibawa ke bulan depan.</p></div>
-            <div class="kotak"><div class="ik">🛍️</div><h3>Cek sebelum beli</h3><p>Ketik barang dan harganya, lalu dapat penilaian: aman, harus berhemat, atau jangan dulu.</p></div>
-            <div class="kotak"><div class="ik">🐷</div><h3>Tabungan bertarget</h3><p>Dana darurat, liburan, umroh. Aplikasi menghitung berapa yang perlu disetor tiap bulan.</p></div>
-            <div class="kotak"><div class="ik">🤝</div><h3>Utang, piutang &amp; patungan</h3><p>Catat siapa meminjam, bagi tagihan makan bareng, dan kirim pengingat lewat WhatsApp.</p></div>
-            <div class="kotak"><div class="ik">📊</div><h3>Laporan yang jujur</h3><p>Dibanding bulan lalu di hari yang sama, tren per kategori, kekayaan bersih, dan kilas balik setahun.</p></div>
-            <div class="kotak"><div class="ik">🗓️</div><h3>Ikut tanggal gajian</h3><p>Gajian tanggal 25? Semua ringkasan dan anggaran dihitung dari 25 sampai 24 bulan berikutnya.</p></div>
-            <div class="kotak"><div class="ik">🔥</div><h3>Streak &amp; tantangan</h3><p>Hari tanpa belanja, 52 minggu menabung, dan lencana yang bisa dikejar berdua.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-ramal"/></svg></div><h3>Aman dibelanjakan per hari</h3><p>Berapa yang aman dipakai tiap hari sampai gajian, sudah dikurangi tagihan yang belum dibayar.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-target"/></svg></div><h3>Anggaran &amp; amplop</h3><p>Batas belanja per kategori, peringatan di 80%, dan sisa bulan ini bisa dibawa ke bulan depan.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-tas"/></svg></div><h3>Cek sebelum beli</h3><p>Ketik barang dan harganya, lalu dapat penilaian: aman, harus berhemat, atau jangan dulu.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-celengan"/></svg></div><h3>Tabungan bertarget</h3><p>Dana darurat, liburan, umroh. Aplikasi menghitung berapa yang perlu disetor tiap bulan.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-tangan"/></svg></div><h3>Utang, piutang &amp; patungan</h3><p>Catat siapa meminjam, bagi tagihan makan bareng, dan kirim pengingat lewat WhatsApp.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-grafik"/></svg></div><h3>Laporan yang jujur</h3><p>Dibanding bulan lalu di hari yang sama, tren per kategori, kekayaan bersih, dan kilas balik setahun.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gajian"/></svg></div><h3>Ikut tanggal gajian</h3><p>Gajian tanggal 25? Semua ringkasan dan anggaran dihitung dari 25 sampai 24 bulan berikutnya.</p></div>
+            <div class="kotak"><div class="ik"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-api"/></svg></div><h3>Streak &amp; tantangan</h3><p>Hari tanpa belanja, 52 minggu menabung, dan lencana yang bisa dikejar berdua.</p></div>
           </div>
         </div>
       </section>
@@ -251,6 +260,19 @@
           </div>
         </div>
       </section>
+
+      <!-- TESTIMONI: isi HANYA dengan ulasan pengguna sungguhan (minta izin menampilkan namanya), lalu hapus tanda komentar ini.
+      <section class="bagian">
+        <div class="lebar">
+          <h2>Kata mereka yang sudah pakai</h2>
+          <div class="tiga">
+            <figure class="kotak ulasan"><blockquote>"…"</blockquote><figcaption>Nama, kota</figcaption></figure>
+            <figure class="kotak ulasan"><blockquote>"…"</blockquote><figcaption>Nama, kota</figcaption></figure>
+            <figure class="kotak ulasan"><blockquote>"…"</blockquote><figcaption>Nama, kota</figcaption></figure>
+          </div>
+        </div>
+      </section>
+      -->
 
       <section class="bagian">
         <div class="lebar">
