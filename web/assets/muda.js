@@ -794,6 +794,34 @@ async function ubahTantanganLalu(ubah) {
   }
 }
 
+// ---------- Tabungan bawaan tantangan ----------
+// Tantangan 52 minggu / sisihkan % / celengan harian tanpa tabungan pilihan membuat tabungan baru sendiri.
+// Tabungan itu dihapus lagi kalau tantangannya batal tersimpan atau dilepas sebelum diisi, supaya halaman
+// Dompet tidak memuat "52 Minggu Menabung" padahal tidak ada tantangan yang berjalan.
+const NAMA_TABUNGAN_TANTANGAN = () => [T('52 Minggu Menabung'), T('Sisihan Pemasukan'), T('Celengan Harian')];
+function tabunganTantanganKosong(nama, kecuali) {
+  const pola = new RegExp('^(' + NAMA_TABUNGAN_TANTANGAN().map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')( \\d{4})*$');
+  const w = daftarTabungan().find(x => x.nama === nama);
+  return !!(w && pola.test(w.nama) && w.tenggat && !w.saldo
+    && !(tantanganData().aktif || []).some(t => t.tabungan === nama && t.id !== kecuali));
+}
+/** Hapus tabungan bawaan tantangan yang kosong (penghapusan ditolak server kalau sudah ada transaksinya). */
+async function hapusTabunganTantangan(daftar) {
+  let n = 0;
+  for (const nama of daftar) {
+    try { await api('hapusDompet', nama); n++; } catch (e) { /* sudah dipakai transaksi / tidak berhak: biarkan */ }
+  }
+  return n;
+}
+/** Sekali per sesi setelah data dimuat: bersihkan sisa tabungan bawaan tantangan yang tidak dipakai lagi. */
+let tabunganTantanganDicek = false;
+async function bersihkanTabunganTantangan() {
+  if (tabunganTantanganDicek || DEMO.aktif() || S.offline || !navigator.onLine || !S.data || !S.data.tantangan || !S.data.dompet) return;
+  tabunganTantanganDicek = true;
+  const yatim = daftarTabungan().map(w => w.nama).filter(n => tabunganTantanganKosong(n));
+  if (yatim.length && (await hapusTabunganTantangan(yatim))) await muat();
+}
+
 /** Tantangan yang baru saja selesai dipindah ke riwayat (sekali), dengan perayaan kalau berhasil. */
 let cekTantanganJalan = false;
 async function cekTantanganSelesai() {
@@ -1276,11 +1304,12 @@ let KARTU_DOMPET_BUKA = '';
 function deretKartuDompet(dompet) {
   if (!dompet.length) return `<section class="kartu" style="padding:4px 16px">${kosong('👛', T('Belum ada dompet.'))}</section>`;
   return `<div class="tumpuk-dompet" role="list" aria-label="${T('Dompet||jamak')}">
-    ${dompet.map(w => {
+    ${dompet.map((w, i) => {
       const c = warnaKartu(w);
       const nama = esc(namaT(w.nama));
       const logo = c.label ? `<b class="kd-merek">${esc(c.label)}</b>` : `<span class="kd-ilus">${ilus(w.ikon)}</span>`;
-      return `<div class="kd-item ${KARTU_DOMPET_BUKA === w.nama ? 'buka' : ''}" role="listitem" data-nama="${esc(w.nama)}" style="--c:${c.bg};--fg:${c.fg}">
+      // Motif latar bergiliran (lingkaran, garis, ombak, titik, cincin, segi), jadi kartu bersebelahan tidak kembar.
+      return `<div class="kd-item pola-${i % 6} ${KARTU_DOMPET_BUKA === w.nama ? 'buka' : ''}" role="listitem" data-nama="${esc(w.nama)}" style="--c:${c.bg};--fg:${c.fg}">
         <button type="button" class="kd-strip" data-aksi="buka-kartu-dompet" data-nama="${esc(w.nama)}" aria-expanded="${KARTU_DOMPET_BUKA === w.nama}"
           aria-label="${nama}: ${rp(w.saldo)}">
           <span class="kd-logo"><span class="kd-ilus">${ilus(w.ikon)}</span></span>
@@ -1448,7 +1477,10 @@ Object.assign(AKSI, {
       return isi;
     });
     el.disabled = false;
-    if (!baru) return;
+    if (!baru) {
+      if (tabunganBaru && (await hapusTabunganTantangan([cfg.tabungan]))) await muat(); // batal: tabungan barunya ikut dibuang
+      return;
+    }
     if (tabunganBaru) await muat(); // tabungan baru ikut tampil
     TG = null;
     getarHalus([12, 50, 12]);
@@ -1459,8 +1491,12 @@ Object.assign(AKSI, {
   'lepas-tantangan': async el => {
     const t = (tantanganData().aktif || []).find(x => x.id === el.dataset.id);
     if (!t || !(await tanya(T('Lepas tantangan "{judul}"?', { judul: judulTantangan(t) }), T('Lepas')))) return;
+    const kosongkan = t.tabungan && tabunganTantanganKosong(t.tabungan, t.id);
     const baru = await ubahTantanganLalu(isi => { isi.aktif = (isi.aktif || []).filter(x => x.id !== t.id); return isi; });
-    if (baru) { toast(T('Tantangan dilepas')); segarkanKebiasaan(); }
+    if (!baru) return;
+    if (kosongkan && (await hapusTabunganTantangan([t.tabungan]))) await muat(); // tabungan bawaannya belum diisi: ikut dihapus
+    toast(T('Tantangan dilepas'));
+    segarkanKebiasaan();
   },
   'setor-tantangan': el => {
     const t = (tantanganData().aktif || []).find(x => x.id === el.dataset.id);

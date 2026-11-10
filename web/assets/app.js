@@ -327,6 +327,7 @@ async function muat() {
       kirimCatatanTertunda();
       cadangkanNanti();
       cekTur();
+      if (typeof bersihkanTabunganTantangan === 'function') setTimeout(bersihkanTabunganTantangan, 3000);
     }
   } catch (e) {
     if (S.menyegarkan) { S.menyegarkan = false; if (S.data) render(); }
@@ -439,12 +440,25 @@ function bannerStatus() {
     (S.menyegarkan ? `<div class="bilah-segar" role="status" aria-label="${T('Memperbarui data')}"><i></i></div>` : '') +
     (S.data && !S.data.perluSetup && S.bulan && ['beranda', 'riwayat'].includes(S.tab) && S.bulan !== periodeSekarang()
       ? `<div class="status-bar">${T('📅 Menampilkan {periode}, bukan periode sekarang.', { periode: esc(namaBulan(S.bulan)) })} <button type="button" data-aksi="bulan-ini">${T('Ke periode sekarang')}</button></div>` : '') +
+    tawaranPasang() +
     (S.offline ? `<div class="status-bar">${T('📴 Offline · menampilkan data terakhir. Transaksi baru tetap bisa dicatat.')}</div>` : '') +
     (!S.offline && S.sesiHabis ? `<div class="status-bar">${T('🔄 Menampilkan data terakhir · tersambung lagi begitu Anda mengetuk layar')}</div>` : '') +
     (catatanTertunda().length ? `<div class="status-bar">${T('📝 {n} catatan menunggu dikirim', { n: catatanTertunda().length })}</div>` : '') +
     (menunggu ? `<div class="status-bar">${T('📤 {n} transaksi menunggu dikirim', { n: menunggu })}${S.offline ? '' : ` <button type="button" data-aksi="kirim-tertunda">${T('Kirim sekarang')}</button>`}</div>` : '') +
     gagal.map(t => `<div class="status-bar gagal">${T('⚠️ {jumlah} {kategori} tidak bisa dikirim: {alasan}', { jumlah: rp(t.jumlah), kategori: esc(namaT(t.kategori || 'Transfer')), alasan: esc(t.gagal) })}
       <button type="button" data-aksi="ulang-tertunda" data-id="${esc(t.idBaru)}">${T('Catat ulang')}</button></div>`).join('');
+}
+
+/**
+ * Dibuka dari browser HP (bukan aplikasi terpasang): tawaran memasang aplikasi di Beranda, bergaya sama dengan
+ * baris status periode. "Nanti" menyembunyikannya selama 14 hari.
+ */
+const HP_BROWSER = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function tawaranPasang() {
+  if (MODE_APLIKASI || !HP_BROWSER || DEMO.aktif() || S.tab !== 'beranda' || !S.data || S.data.perluSetup) return '';
+  if (Date.now() - (Number(bacaHp('dk_tawar_pasang')) || 0) < 14 * 864e5) return '';
+  return `<div class="status-bar">${T('📲 Pasang Dompet Keluarga di HP: dibuka lebih cepat dari layar utama & tetap jalan saat offline.')}
+    <span class="aksi-status"><button type="button" class="tunda" data-aksi="nanti-pasang">${T('Nanti')}</button><button type="button" data-aksi="pasang-aplikasi">${T('Pasang')}</button></span></div>`;
 }
 
 /** Pilihan bahasa (nama tiap bahasa ditulis dalam bahasanya sendiri). Mengganti = muat ulang, lihat bahasa.js. */
@@ -557,18 +571,28 @@ async function pilihDanHubungkan(idFile) {
 }
 
 // Navigasi bawah HP: beberapa halaman menu yang digeser kiri/kanan (styles.css → .nav-geser), ＋ tetap di tengah.
-// Halaman yang memuat tab aktif ditampilkan otomatis; titik penanda di bawah ＋ mengikuti posisi geser.
+// Halaman yang memuat tab aktif ditampilkan otomatis. Digeser lagi saat sudah mentok di halaman terakhir →
+// kembali ke halaman pertama (dan sebaliknya), jadi menu berputar.
 function aturGeserNav() {
   const geser = $('#nav-geser');
   if (!geser) return;
-  const titik = [...document.querySelectorAll('#nav .nav-titik i')];
-  const tandai = () => {
-    const ke = Math.round(geser.scrollLeft / (geser.clientWidth || 1));
-    titik.forEach((t, i) => t.classList.toggle('aktif', i === ke));
-  };
   if (!geser.dataset.siap) {
     geser.dataset.siap = '1';
-    geser.addEventListener('scroll', tandai, { passive: true });
+    let awal = null;
+    geser.addEventListener('touchstart', e => {
+      const t = e.touches[0];
+      awal = e.touches.length === 1 ? { x: t.clientX, y: t.clientY, kiri: geser.scrollLeft } : null;
+    }, { passive: true });
+    geser.addEventListener('touchend', e => {
+      if (!awal) return;
+      const t = e.changedTouches[0], dx = t.clientX - awal.x, dy = t.clientY - awal.y;
+      const maks = geser.scrollWidth - geser.clientWidth;
+      if (maks > 0 && Math.abs(dx) > 36 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        if (dx < 0 && awal.kiri >= maks - 2) geser.scrollTo({ left: 0, behavior: 'smooth' });
+        else if (dx > 0 && awal.kiri <= 2) geser.scrollTo({ left: maks, behavior: 'smooth' });
+      }
+      awal = null;
+    }, { passive: true });
   }
   // Hanya saat tab berganti (bukan tiap render ulang karena sinkron data), supaya halaman menu yang sedang
   // dibuka pengguna tidak tiba-tiba melompat.
@@ -579,7 +603,6 @@ function aturGeserNav() {
     }
     geser.dataset.tab = S.tab;
   }
-  tandai();
 }
 
 function render() {

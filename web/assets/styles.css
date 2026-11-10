@@ -149,17 +149,23 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 
 /* Kartu saldo: gaya kartu bank gelap dengan cahaya aksen */
 .kartu-saldo {
-  position: relative; overflow: hidden; color: #fff; border: 0; padding: 22px 20px 18px;
+  position: relative; overflow: hidden; isolation: isolate; color: #fff; border: 0; padding: 22px 20px 18px;
   background:
-    radial-gradient(120% 90% at 100% 0%, rgba(45, 212, 191, .42), transparent 55%),
-    radial-gradient(80% 70% at 0% 100%, rgba(245, 165, 36, .28), transparent 60%),
-    linear-gradient(140deg, var(--hero-1), var(--hero-2));
-  box-shadow: 0 14px 34px rgba(6, 42, 46, .28);
+    radial-gradient(90% 75% at 100% 0%, rgba(45, 212, 191, .38), transparent 62%),
+    radial-gradient(70% 60% at 0% 100%, rgba(245, 165, 36, .22), transparent 65%),
+    linear-gradient(150deg, var(--hero-1) 10%, var(--hero-2));
+  box-shadow: 0 14px 34px rgba(6, 42, 46, .28), inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+/* Dekorasi: garis kontur melingkar dari pojok kanan atas yang memudar + dua bidang kaca miring. */
+.kartu-saldo::before, .kartu-saldo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.kartu-saldo::before {
+  background: repeating-radial-gradient(circle at 100% 0%, transparent 0 22px, rgba(255, 255, 255, .085) 22px 23.5px);
+  -webkit-mask-image: radial-gradient(circle at 100% 0%, #000 10%, transparent 62%); mask-image: radial-gradient(circle at 100% 0%, #000 10%, transparent 62%);
 }
 .kartu-saldo::after {
-  content: ""; position: absolute; width: 220px; height: 220px; right: -80px; bottom: -120px;
-  border-radius: 50%; border: 1px solid rgba(255, 255, 255, .08); box-shadow: 0 0 0 28px rgba(255, 255, 255, .03);
-  pointer-events: none;
+  background:
+    linear-gradient(112deg, transparent 58%, rgba(255, 255, 255, .055) 58% 71%, transparent 71%),
+    linear-gradient(112deg, transparent 74%, rgba(255, 255, 255, .035) 74% 79%, transparent 79%);
 }
 .kartu-saldo small { opacity: .72; font-size: 13px; }
 .kartu-saldo .besar { font-size: 34px; font-weight: 800; margin: 2px 0 16px; letter-spacing: -.02em; }
@@ -356,10 +362,6 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 }
 .bottomnav .fab svg.ik { width: 26px; height: 26px; stroke-width: 2.4; }
 .bottomnav .fab:active { transform: translateX(-50%) scale(.95); }
-/* Penanda halaman menu (di bawah tombol ＋) */
-.nav-titik { position: absolute; left: 50%; bottom: 9px; transform: translateX(-50%); display: flex; gap: 4px; pointer-events: none; }
-.nav-titik i { width: 5px; height: 5px; border-radius: 99px; background: var(--line); transition: width .2s, background .2s; }
-.nav-titik i.aktif { width: 12px; background: var(--primary); }
 
 /* ---------- Bottom sheet ---------- */
 .sheet { position: fixed; inset: 0; z-index: 20; }
@@ -491,6 +493,8 @@ body.samar #view :is(.besar, .nominal, .ringkas b, .selisih b, .tile b, .bento b
 .status-bar.demo { background: color-mix(in srgb, #f59e0b 16%, var(--card)); }
 .status-bar.demo button { padding: 6px 12px; border-radius: 999px; background: var(--primary); color: #fff; }
 .status-bar button { font-size: 13px; font-weight: 800; color: var(--primary); }
+.status-bar .aksi-status { display: flex; gap: 16px; margin-left: auto; }
+.status-bar button.tunda { color: var(--muted); font-weight: 700; }
 /* ---------- Antrian struk (dibaca di latar belakang) ---------- */
 .antrian {
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 15;
@@ -1858,6 +1862,32 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
   background: rgba(0, 0, 0, .22); color: #fff; }
 .kd-tutup svg.ik { width: 18px; height: 18px; transform: rotate(-90deg); }
 .kd-penuh .kd-nirkontak { margin-right: 44px; }
+/* Motif latar per kartu (muda.js → deretKartuDompet memberi pola-0..5 bergiliran). pola-0 = lingkaran di atas.
+   Motif lain menutup seluruh kartu dan dipudarkan dengan mask; ::after jadi cahaya lembut di kanan atas. */
+.kd-item:not(.pola-0) :is(.kd-strip, .kartu-dompet)::before { inset: 0; width: auto; height: auto; border: 0; border-radius: 0; }
+.kd-item:not(.pola-0) :is(.kd-strip, .kartu-dompet)::after { inset: auto; right: -18%; top: -70%; width: 60%; height: auto; aspect-ratio: 1;
+  background: radial-gradient(circle, rgba(255, 255, 255, .17), transparent 68%); }
+/* garis miring */
+.pola-1 :is(.kd-strip, .kartu-dompet)::before { background: repeating-linear-gradient(-55deg, rgba(255, 255, 255, .1) 0 2px, transparent 2px 12px);
+  -webkit-mask-image: linear-gradient(100deg, transparent 28%, #000 90%); mask-image: linear-gradient(100deg, transparent 28%, #000 90%); }
+/* ombak */
+.pola-2 :is(.kd-strip, .kartu-dompet)::before {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='20'%3E%3Cpath d='M0 10c10 0 10-8 20-8s10 8 20 8 10-8 20-8 10 8 20 8' fill='none' stroke='%23fff' stroke-opacity='.17' stroke-width='2'/%3E%3C/svg%3E") 0 100% / 80px 20px;
+  -webkit-mask-image: linear-gradient(to top, #000, transparent 85%); mask-image: linear-gradient(to top, #000, transparent 85%); }
+/* titik */
+.pola-3 :is(.kd-strip, .kartu-dompet)::before { background: radial-gradient(rgba(255, 255, 255, .24) 1.2px, transparent 1.7px) 0 0 / 11px 11px;
+  -webkit-mask-image: linear-gradient(125deg, #000, transparent 60%); mask-image: linear-gradient(125deg, #000, transparent 60%); }
+/* cincin dari pojok kiri bawah */
+.pola-4 :is(.kd-strip, .kartu-dompet)::before { background: repeating-radial-gradient(circle at 0 100%, transparent 0 15px, rgba(255, 255, 255, .1) 15px 17px);
+  -webkit-mask-image: radial-gradient(circle at 0 100%, #000 20%, transparent 80%); mask-image: radial-gradient(circle at 0 100%, #000 20%, transparent 80%); }
+/* segi (zigzag) */
+.pola-5 :is(.kd-strip, .kartu-dompet)::before {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, .08) 25%, transparent 25%) -14px 0 / 28px 28px,
+    linear-gradient(225deg, rgba(255, 255, 255, .08) 25%, transparent 25%) -14px 0 / 28px 28px,
+    linear-gradient(315deg, rgba(255, 255, 255, .08) 25%, transparent 25%) 0 0 / 28px 28px,
+    linear-gradient(45deg, rgba(255, 255, 255, .08) 25%, transparent 25%) 0 0 / 28px 28px;
+  -webkit-mask-image: linear-gradient(to left, #000, transparent 75%); mask-image: linear-gradient(to left, #000, transparent 75%); }
 @media (prefers-reduced-motion: reduce) { .kd-strip, .kd-penuh { transition: none; } }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1895,7 +1925,7 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
   }
   .bottomnav .hanya-lebar { display: flex; }
   .nav-geser, .nav-hal { display: contents; }
-  .nav-celah, .nav-titik { display: none; }
+  .nav-celah { display: none; }
   .bottomnav .fab .hanya-lebar { display: inline; }
   .nav-merek { order: 0; align-items: center; gap: 10px; padding: 0 8px 18px; }
   .nav-merek img { width: 34px; height: 34px; border-radius: 10px; }

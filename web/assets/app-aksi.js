@@ -944,11 +944,15 @@ const AKSI = {
   },
 
   'pasang-aplikasi': async () => {
-    if (!ajakanPasang) return;
+    if (!ajakanPasang) return bukaSheet(T('Pasang sebagai aplikasi'), kartuPasang()); // iPhone / browser tanpa tombol pasang: panduan
     ajakanPasang.prompt();
     await ajakanPasang.userChoice.catch(() => null);
     ajakanPasang = null;
-    if (S.tab === 'lainnya') render();
+    if (['lainnya', 'beranda'].includes(S.tab)) render();
+  },
+  'nanti-pasang': () => {
+    tulisHp('dk_tawar_pasang', String(Date.now()));
+    render();
   },
 
   'pilih-ikon': el => {
@@ -1140,10 +1144,12 @@ function siapkanVersi(v) {
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   ajakanPasang = e;
-  if (S.data && S.tab === 'lainnya') render();
+  if (S.data && ['lainnya', 'beranda'].includes(S.tab) && $('#sheet').hidden) render();
 });
 window.addEventListener('appinstalled', () => {
   ajakanPasang = null;
+  tulisHp('dk_tawar_pasang', String(Date.now()));
+  if (S.data && $('#sheet').hidden) render();
   toast(T('Aplikasi terpasang ✔ Buka dari layar utama HP'));
 });
 
