@@ -61,9 +61,11 @@ terjemahkanHalaman(); // teks statis index.html (lihat bahasa.js)
 
 // Splash logo (index.html → #splash): ditutup begitu isi pertama tampil. Pembukaan pertama per sesi minimal
 // 0,9 detik supaya animasinya terlihat utuh; muat ulang berikutnya tidak ditahan. Paling lama 1,6 detik.
+// Hanya saat dibuka dari browser: aplikasi terpasang sudah punya splash bawaan sistem (lihat styles.css).
 (function aturSplash() {
   const el = document.getElementById('splash');
   if (!el) return;
+  if (matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone === true) { el.remove(); return; }
   let pernah = false;
   try { pernah = sessionStorage.getItem('dk_splash') === '1'; sessionStorage.setItem('dk_splash', '1'); } catch (e) { /* mode privat */ }
   const minimal = pernah ? 0 : 900;

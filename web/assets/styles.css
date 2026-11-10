@@ -1684,6 +1684,9 @@ body.samar #view .ringkas-ai p, body.samar #view .baris-anggaran-lap .nilai, bod
 .splash { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 24px;
   background: var(--bg); text-align: center; transition: opacity .3s ease, visibility .3s; }
 .splash.tutup { opacity: 0; visibility: hidden; }
+/* Aplikasi terpasang: Android sudah menampilkan splash bawaan (ikon diam), jadi splash animasi tidak dipakai
+   supaya tidak ada dua splash berturut-turut. Disembunyikan lewat CSS agar tidak sempat tergambar. */
+@media (display-mode: standalone), (display-mode: fullscreen) { .splash { display: none; } }
 .splash svg { width: 104px; height: 104px; margin-bottom: 8px; overflow: hidden; border-radius: 23px;
   filter: drop-shadow(0 14px 26px rgba(14, 124, 134, .28)); }
 .splash b { font-size: 22px; font-weight: 800; letter-spacing: -.01em; color: var(--text); animation: sp-muncul .4s .3s both; }
