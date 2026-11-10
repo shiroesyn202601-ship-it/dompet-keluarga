@@ -115,9 +115,13 @@ bukaSheet = function (...args) { // eslint-disable-line no-func-assign
 
 const maskot = mood => (typeof ILUSTRASI !== 'undefined' && ILUSTRASI.maskot ? ILUSTRASI.maskot(mood) : '');
 
-// Kartu kosong: maskot yang sedang tidur + ikon kecil keterangannya.
+// Kartu kosong: maskot dengan ekspresi sesuai keadaan + lencana kecil berikon garis (emoji kalau belum ada padanannya).
+// Pencarian tanpa hasil = bingung; ajakan memulai (catat, dompet, tabungan) = senang; selebihnya = tidur.
+const KOSONG_IKON = { '🔍': 'cari', '👛': 'dompet', '🐷': 'celengan', '🤝': 'tangan', '🔁': 'tagihan', '🧾': 'tagihan', '✍️': 'pensil', '🗓️': 'kalender', '🌤️': 'kalender', '👥': 'berdua' };
+const KOSONG_MOOD = { '🔍': 'cemas', '✍️': 'senang', '👛': 'senang', '🐷': 'senang' };
 kosong = function (ikon, teks) { // eslint-disable-line no-func-assign
-  return `<div class="kosong"><span class="kosong-maskot">${maskot('tidur')}<i aria-hidden="true">${ikon}</i></span>${teks}</div>`;
+  const garis = KOSONG_IKON[ikon] && IKON[KOSONG_IKON[ikon]];
+  return `<div class="kosong"><span class="kosong-maskot">${maskot(KOSONG_MOOD[ikon] || 'tidur')}<i class="${garis ? 'garis' : ''}" aria-hidden="true">${garis ? svg(KOSONG_IKON[ikon]) : ikon}</i></span>${teks}</div>`;
 };
 
 // geserHari(iso, n) sudah ada di app.js.
