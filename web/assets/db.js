@@ -554,7 +554,7 @@ const SERVER = (() => {
       rutin: olahRutin_(rut),
       catatan: adaCatatan ? olahCatatan_(cat) : [],
       bisaCatatan: adaCatatan,
-      log: lg.filter(r => r[0] !== '').slice(-200).map(r => ({ waktu: dariSerial_(r[0]), oleh: String(r[1]), aksi: String(r[2]), ringkasan: String(r[3]), idTrx: String(r[4] || '') })).reverse(),
+      log: lg.filter(r => r[0] !== '' && String(r[2]) !== 'galat').slice(-200).map(r => ({ waktu: dariSerial_(r[0]), oleh: String(r[1]), aksi: String(r[2]), ringkasan: String(r[3]), idTrx: String(r[4] || '') })).reverse(),
       pembanding: pembanding_(d.transaksi, bulan, mulai),
       setara: setara_(d.transaksi, mulai),
       anggaranLabel: anggaranLabel_(set),
@@ -1273,6 +1273,13 @@ const SERVER = (() => {
     try {
       await tambahBaris_(id, TABEL.log, [[serialSekarang_(), GOOGLE.email(), aksi, String(ringkasan).slice(0, 200), teks_(idTrx)]]);
     } catch (e) { console.warn('Log tidak tercatat:', e); }
+  }
+
+  /** Error JavaScript dari HP pengguna (lihat laporGalat di app.js), dicatat ke sheet Log dengan Aksi "galat". */
+  async function catatGalat(pesan) {
+    const id = await db_();
+    await catatLog_(id, 'galat', pesan);
+    return true;
   }
 
   // ---------- Ubah / hapus banyak transaksi sekaligus (Riwayat: pilih banyak) ----------
@@ -2139,7 +2146,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, simpanAvatar, mutasiEmas, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, simpanAvatar, mutasiEmas, catatGalat, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };

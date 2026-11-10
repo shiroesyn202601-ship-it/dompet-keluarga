@@ -26,6 +26,37 @@ const DOMPET_UMUM = [['Tunai', '💵'], ['BCA', '🏦BCA'], ['BRI', '🏦BRI'], 
   ['Jago', '🏦Jago'], ['SeaBank', '🏦SeaBank'], ['blu', '🏦blu'], ['GoPay', '📱GoPay'], ['OVO', '📱OVO'], ['DANA', '📱DANA'],
   ['ShopeePay', '📱ShopeePay'], ['LinkAja', '📱LinkAja']];
 let F = null; // state form yang sedang terbuka
+
+// ---------- Laporan error ----------
+// Error JavaScript yang tidak tertangani di HP pengguna dicatat ke sheet Log spreadsheet keluarga itu sendiri
+// (Aksi = "galat"), tanpa layanan luar. Maksimal 5 per sesi, pesan yang sama sekali saja; tidak di mode coba/offline.
+const galatTerlapor = new Set();
+function laporGalat(pesan, lokasi) {
+  try {
+    pesan = String(pesan || '').replace(/^Uncaught\s+/, '').replace(/^Error:\s*/, '').slice(0, 140);
+    if (!pesan || /^Script error\.?$|ResizeObserver loop/i.test(pesan)) return;
+    if (galatTerlapor.has(pesan) || galatTerlapor.size >= 5) return;
+    if (DEMO.aktif() || !GOOGLE.sudahMasuk() || !S.data || S.data.perluSetup || S.offline || !navigator.onLine) return;
+    galatTerlapor.add(pesan);
+    const ua = navigator.userAgent;
+    const perangkat = (ua.match(/Android [\d.]+|iPhone OS [\d_]+|iPad|Windows NT [\d.]+|Mac OS X [\d_]+|Linux/) || ['?'])[0]
+      + ' · ' + ((ua.match(/(Edg|SamsungBrowser|Firefox|CriOS)\/\d+/) || ua.match(/(Chrome|Version)\/\d+/) || ['?'])[0]);
+    let versi = '';
+    try { versi = versiAwal ? 'v' + versiAwal : ''; } catch (e) { /* belum dimuat */ }
+    SERVER.catatGalat([pesan, lokasi, S.tab, versi, perangkat].filter(Boolean).join(' · ')).catch(() => {});
+  } catch (e) { /* laporan error tidak boleh menimbulkan error baru */ }
+}
+window.addEventListener('error', e => {
+  if (e.filename && !e.filename.startsWith(location.origin)) return; // skrip pihak lain (ekstensi, Google)
+  laporGalat(e.message, e.filename ? e.filename.split('/').pop() + ':' + e.lineno : '');
+});
+window.addEventListener('unhandledrejection', e => {
+  const r = e.reason;
+  if (!r || r.jaringan || r.name === 'AbortError' || (typeof GOOGLE !== 'undefined' && r instanceof GOOGLE.PerluMasuk)) return;
+  const asal = String(r.stack || '').split('\n').find(b => b.includes(location.origin)) || '';
+  laporGalat(r.message || String(r), (asal.match(/([\w-]+\.js:\d+)/) || [])[1] || '');
+});
+
 terjemahkanHalaman(); // teks statis index.html (lihat bahasa.js)
 
 // Font dipasang di sini, bukan sebagai <link rel="stylesheet"> di index.html, supaya layar pertama
