@@ -3,6 +3,15 @@
 Dipakai untuk media sosial, Play Store, presentasi, dan materi promosi. Ikon aplikasi ada di `web/ikon/`
 (sumbernya `web/ikon/logo.svg`, sama dengan `logo.svg` di sini).
 
+Logo: dompet teal yang tutupnya membentuk atap rumah, dua lembar uang hijau terselip di belakangnya, pengait amber.
+Ikon di `web/ikon/`:
+- `ikon-192.png` / `ikon-512.png`: logo saja, dipakai di dalam aplikasi (di sebelah tulisan nama).
+- `ikon-nama-192.png` / `ikon-nama-512.png`: logo + tulisan "Dompet Keluarga", ikon `any` di manifest supaya nama ikut tampil di splash Android.
+- `maskable-512.png`: logo saja, ikon layar utama Android (tanpa tulisan, karena di ukuran ikon tulisan tidak terbaca).
+- `apple-touch-icon.png`, `favicon-32.png`: logo saja.
+
+Gambar logo yang digambar ulang lewat kanvas (gambar bagikan) ada di `gambarLogo` di `web/assets/app-halaman.js`; samakan kalau logo berubah.
+
 ## File
 
 | File | Untuk |
@@ -50,7 +59,7 @@ Kalimat pendukung (pilih sesuai ruang):
 | Hijau | `#079455` | Khusus pemasukan |
 | Merah koral | `#d63c2f` (gelap: `#ff8a7a`) | Khusus pengeluaran |
 
-Hijau dan merah koral hanya untuk arti uang masuk/keluar. Jangan dipakai sebagai warna hiasan. Hindari pink dan ungu: tidak termasuk warna merek.
+Hijau dan merah koral hanya untuk arti uang masuk/keluar. Jangan dipakai sebagai warna hiasan. (Pengecualian: lembar uang di logo memakai hijau muda `#5fb48e` / `#7cc8a4`.) Hindari pink dan ungu: tidak termasuk warna merek.
 
 ## Huruf
 

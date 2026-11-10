@@ -1060,16 +1060,27 @@ async function bagikanLaporan(k) {
 // Alamat diarahkan ke halaman pengenalan (tombol "Coba tanpa akun"); ganti di sini kalau nanti ada link pendek.
 const TAUTAN_PROMO = 'bit.ly/dompet-keluarga'; // → tentang.html (dibuat di bitly.com)
 const FONT_MEREK = (ukuran, tebal) => `${tebal} ${ukuran}px "Plus Jakarta Sans", system-ui, sans-serif`;
-/** Logo dompet-rumah (= ikon/logo.svg) di (x, y) dengan sisi s piksel. */
+/** Logo dompet-rumah + dua lembar uang (= ikon/logo.svg) di (x, y) dengan sisi s piksel. */
 function gambarLogo(g, x, y, s) {
-  const atap = new Path2D('M256 92 418 206V380a32 32 0 0 1-32 32H126a32 32 0 0 1-32-32V206Z');
-  const bulat = (bx, by, w, h, r) => { g.beginPath(); if (g.roundRect) g.roundRect(bx, by, w, h, r); else g.rect(bx, by, w, h); g.fill(); };
+  const atap = new Path2D('M256 108 418 222V384a32 32 0 0 1-32 32H126a32 32 0 0 1-32-32V222Z');
+  const kotak = (bx, by, w, h, r) => { g.beginPath(); if (g.roundRect) g.roundRect(bx, by, w, h, r); else g.rect(bx, by, w, h); };
+  const bulat = (bx, by, w, h, r) => { kotak(bx, by, w, h, r); g.fill(); };
+  /** Lembar uang 210×124 berpusat di (cx, cy), diputar r derajat. */
+  const uang = (cx, cy, r, isi, aksen) => {
+    g.save(); g.translate(cx, cy); g.rotate(r * Math.PI / 180);
+    g.fillStyle = isi; bulat(-105, -62, 210, 124, 16);
+    g.globalAlpha = 0.55; g.strokeStyle = aksen; g.lineWidth = 7; kotak(-91, -48, 182, 96, 8); g.stroke();
+    g.fillStyle = aksen; g.beginPath(); g.arc(0, 0, 29.5, 0, Math.PI * 2); g.fill();
+    g.restore();
+  };
   g.save();
   g.translate(x, y); g.scale(s / 512, s / 512);
   g.fillStyle = '#fff4e3'; bulat(0, 0, 512, 512, 112);
+  uang(193, 132, -16, '#5fb48e', '#2f7f5f');
+  uang(325, 132, 14, '#7cc8a4', '#3f9a76');
   g.fillStyle = g.strokeStyle = '#0e7c86'; g.lineWidth = 20; g.lineJoin = 'round'; g.fill(atap); g.stroke(atap);
-  g.fillStyle = '#f5a524'; bulat(300, 262, 138, 84, 42);
-  g.fillStyle = '#fff4e3'; g.beginPath(); g.arc(352, 304, 17, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#f5a524'; bulat(300, 278, 138, 84, 42);
+  g.fillStyle = '#fff4e3'; g.beginPath(); g.arc(352, 320, 17, 0, Math.PI * 2); g.fill();
   g.restore();
 }
 /** Logo + "Dompet Keluarga"; y = garis dasar teks. */
