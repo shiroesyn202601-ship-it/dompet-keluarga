@@ -1,5 +1,5 @@
 /**
- * Dompet Keluarga — bot Telegram (Google Apps Script).
+ * Catatan Keuanganku — bot Telegram (Google Apps Script).
  *
  * Bot ini membaca & menulis spreadsheet keluarga yang sama dengan aplikasi web.
  * Pesan bebas ("makan bakso 25rb pakai gopay") diterjemahkan Gemini menjadi perintah,
@@ -46,7 +46,7 @@ const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep
 const NAMA_BULAN_PANJANG = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
 const BANTUAN = [
-  '<b>Dompet Keluarga</b> — catat keuangan cukup dengan chat 💬',
+  '<b>Catatan Keuanganku</b> — catat keuangan cukup dengan chat 💬',
   '',
   '<b>Catat</b>',
   '• <i>makan bakso 25rb</i>',
@@ -172,7 +172,7 @@ function doPost(e) {
 }
 
 function doGet() {
-  return HtmlService.createHtmlOutput('Bot Dompet Keluarga aktif.');
+  return HtmlService.createHtmlOutput('Bot Catatan Keuanganku aktif.');
 }
 
 /** Telegram bisa mengirim ulang update yang sama; setiap update_id hanya diproses sekali. */
@@ -399,7 +399,7 @@ function jawabTanya_(d, pengguna, pertanyaan, chatId) {
   if (!kunci.length) return 'Untuk tanya-jawab, AI perlu diaktifkan dulu: tambahkan kunci Gemini di aplikasi (⚙️ → Baca struk dengan AI).';
   const riwayat = obrolan_(chatId);
   const prompt = [
-    'Kamu asisten AI serba bisa di bot Telegram "Dompet Keluarga" yang ramah, jujur, dan praktis, seperti ngobrol dengan Gemini. Kamu sedang chat dengan ' + pengguna.nama + '.',
+    'Kamu asisten AI serba bisa di bot Telegram "Catatan Keuanganku" yang ramah, jujur, dan praktis, seperti ngobrol dengan Gemini. Kamu sedang chat dengan ' + pengguna.nama + '.',
     'Sekarang ' + tglPanjang_(hariIni_()) + ' ' + hariIni_().slice(0, 4) + ', pukul ' + Utilities.formatDate(new Date(), TZ, 'HH:mm') + ' WIB.',
     'Jawab dalam bahasa Indonesia santai dan langsung ke inti.',
     '- Pertanyaan tentang keuangan keluarga ini (saldo, pengeluaran, anggaran, tabungan, emas, utang, rencana beli): gunakan HANYA angka dari DATA KEUANGAN di bawah;',
@@ -589,7 +589,7 @@ function petunjukPerintah_(d, terakhir, pengguna, pesan, chatId) {
   const hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][new Date().getDay()];
   const nama = tp => d.kategori.filter(k => k.tipe === tp).map(k => k.nama).join(', ');
   return [
-    'Kamu asisten pencatat keuangan keluarga "Dompet Keluarga". Terjemahkan pesan pengguna menjadi perintah JSON.',
+    'Kamu asisten pencatat keuangan keluarga "Catatan Keuanganku". Terjemahkan pesan pengguna menjadi perintah JSON.',
     'Hari ini ' + hari + ', ' + hariIni + '. Pengguna: ' + pengguna.nama + '.',
     'Kategori pengeluaran: ' + nama(TIPE.KELUAR),
     'Kategori pemasukan: ' + nama(TIPE.MASUK),
@@ -915,9 +915,9 @@ function bukaUntuk_(idTelegram, chatId, lain, tanpaTransaksi) {
 function belumTerhubung_(chatId) {
   if (!chatId) return;
   kirim_(chatId, [
-    '👋 Halo! Akun Telegram ini belum terhubung ke <b>Dompet Keluarga</b>.',
+    '👋 Halo! Akun Telegram ini belum terhubung ke <b>Catatan Keuanganku</b>.',
     '',
-    'Buka aplikasi Dompet Keluarga → ⚙️ → <b>Bot Telegram</b> → <b>Hubungkan akun Telegram saya</b>, lalu ketuk <b>Buka Telegram & hubungkan</b>.',
+    'Buka aplikasi Catatan Keuanganku → ⚙️ → <b>Bot Telegram</b> → <b>Hubungkan akun Telegram saya</b>, lalu ketuk <b>Buka Telegram & hubungkan</b>.',
   ].join('\n'));
 }
 

@@ -1,4 +1,4 @@
-// Dompet Keluarga · Lembar & form: transaksi, tampilan & keamanan, input cepat, rutin, aktivitas, pencarian, foto struk, dompet, kategori.
+// Catatan Keuanganku · Lembar & form: transaksi, tampilan & keamanan, input cepat, rutin, aktivitas, pencarian, foto struk, dompet, kategori.
 // Bagian dari aplikasi (dimuat berurutan di index.html: app.js → app-*.js → muda.js; semua berbagi lingkup global).
 
 // ---------- Bottom sheet ----------
@@ -366,8 +366,8 @@ async function daftarBio() {
   const cred = await navigator.credentials.create({
     publicKey: {
       challenge: crypto.getRandomValues(new Uint8Array(32)),
-      rp: { name: 'Dompet Keluarga' },
-      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: GOOGLE.email() || 'pengguna', displayName: 'Dompet Keluarga' },
+      rp: { name: 'Catatan Keuanganku' },
+      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: GOOGLE.email() || 'pengguna', displayName: 'Catatan Keuanganku' },
       pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
       authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
       timeout: 60000,

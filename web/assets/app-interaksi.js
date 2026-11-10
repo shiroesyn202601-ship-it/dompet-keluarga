@@ -1,4 +1,4 @@
-// Dompet Keluarga · Sholat & kiblat, gestur (kembali, geser, seret), suara, kilas balik, kartu konfirmasi suara/struk.
+// Catatan Keuanganku · Sholat & kiblat, gestur (kembali, geser, seret), suara, kilas balik, kartu konfirmasi suara/struk.
 // Bagian dari aplikasi (dimuat berurutan di index.html: app.js → app-*.js → muda.js; semua berbagi lingkup global).
 
 // ---------- Jadwal sholat & kiblat ----------

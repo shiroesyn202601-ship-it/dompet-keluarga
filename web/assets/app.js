@@ -297,7 +297,7 @@ async function muat() {
       await api('hubungkanDatabase', S.gabung);
       S.gabung = '';
       tulisHp('dk_tur_tunda', '1'); // anggota baru: tur singkat setelah data tampil
-      toast(T('Berhasil bergabung ke Dompet Keluarga ✔'));
+      toast(T('Berhasil bergabung ke Catatan Keuanganku ✔'));
     }
     S.data = await api('getData', S.bulan);
     semuaTrxCari = null; // pencarian / label membaca ulang data terbaru
@@ -450,7 +450,7 @@ function tampilMasuk() {
   $('#view').innerHTML = `
     <div class="sambut">
       <img class="logo" src="ikon/ikon-192.png" alt="">
-      <h1>Dompet Keluarga</h1>
+      <h1>Catatan Keuanganku</h1>
       <p>${T('Catat keuangan keluarga bersama. Semua data tersimpan di Google Spreadsheet milik Anda sendiri.')}</p>
       ${S.gabung ? `<p>${T('<b>Anda diundang bergabung.</b> Masuk dengan akun Google yang diundang untuk melanjutkan.')}</p>` : ''}
       ${email ? `

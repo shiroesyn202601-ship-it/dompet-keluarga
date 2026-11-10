@@ -1,4 +1,4 @@
-// Dompet Keluarga · Catatan & pengingat: kalender, daftar tugas, catatan offline, draf, dikte, overlay pengingat.
+// Catatan Keuanganku · Catatan & pengingat: kalender, daftar tugas, catatan offline, draf, dikte, overlay pengingat.
 // Bagian dari aplikasi (dimuat berurutan di index.html: app.js → app-*.js → muda.js; semua berbagi lingkup global).
 
 // ---------- Catatan & pengingat (kalender) ----------

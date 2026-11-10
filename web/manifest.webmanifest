@@ -1,6 +1,6 @@
 {
-  "name": "Dompet Keluarga",
-  "short_name": "Dompet",
+  "name": "Catatan Keuanganku",
+  "short_name": "Keuanganku",
   "description": "Catat keuangan keluarga bersama, tersimpan di Google Spreadsheet milik sendiri.",
   "lang": "id",
   "id": "./",
