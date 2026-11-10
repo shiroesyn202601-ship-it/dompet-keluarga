@@ -1007,14 +1007,13 @@ body.tanpa-nav #view:has(.bilah-catatan) { padding-bottom: calc(165px + env(safe
 
 /* ---------- Laporan: sorotan, donat, pola belanja ---------- */
 .sorotan { display: flex; flex-direction: column; gap: 8px; }
-.butir-sorotan { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
-.butir-sorotan.baik { border-color: color-mix(in srgb, var(--masuk) 28%, var(--line)); box-shadow: inset 3px 0 0 var(--masuk); }
-.butir-sorotan.buruk { border-color: color-mix(in srgb, var(--keluar) 28%, var(--line)); box-shadow: inset 3px 0 0 var(--keluar); }
-.ikon-sorotan { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 12px; background: var(--card-2); font-size: 18px; }
-.butir-sorotan.baik .ikon-sorotan { background: color-mix(in srgb, var(--masuk) 14%, var(--card)); }
-.butir-sorotan.buruk .ikon-sorotan { background: color-mix(in srgb, var(--keluar) 14%, var(--card)); }
-.butir-sorotan.baik .isi b { color: var(--masuk); }
-.butir-sorotan.buruk .isi b { color: var(--keluar); }
+.butir-sorotan { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--card-2); }
+/* Dicampur ke putih kartu (bukan abu-abu --card-2) supaya hijau/merahnya segar, tidak kusam */
+.butir-sorotan.baik { background: linear-gradient(135deg, color-mix(in srgb, var(--masuk) 15%, var(--card)), color-mix(in srgb, var(--masuk) 6%, var(--card))); }
+.butir-sorotan.buruk { background: linear-gradient(135deg, color-mix(in srgb, var(--keluar) 13%, var(--card)), color-mix(in srgb, var(--keluar) 5%, var(--card))); }
+.ikon-sorotan { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 12px; background: var(--card); font-size: 18px; }
+.butir-sorotan.baik .isi b { color: color-mix(in srgb, var(--masuk) 80%, var(--text)); }
+.butir-sorotan.buruk .isi b { color: color-mix(in srgb, var(--keluar) 80%, var(--text)); }
 .ikon-sorotan > .ilus { width: 100%; height: 100%; vertical-align: 0; }
 .ikon-sorotan:has(> .ilus) { background: none; }
 .butir-sorotan .isi { min-width: 0; }
