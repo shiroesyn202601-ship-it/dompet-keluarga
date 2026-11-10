@@ -69,6 +69,12 @@ const BANTUAN = [
   '• <i>aman nggak kalau beli HP 3 juta bulan ini?</i>',
   '• <i>kalau nabung 500rb sebulan, kapan dana darurat penuh?</i>',
   '• <i>catat makan 40rb, terus sisa anggaran makan berapa?</i>',
+  '• <i>emasku sekarang berapa gram, untung nggak?</i>',
+  '',
+  '<b>Ngobrol bebas</b> — seperti chat ke Gemini',
+  '• <i>hari ini tanggal berapa?</i>',
+  '• <i>resep sop ayam untuk 4 orang</i>',
+  '• <i>kalau 2 porsi saja?</i> (bot ingat obrolan ±1 jam terakhir)',
 ].join('\n');
 
 // ======================================================================
@@ -297,7 +303,7 @@ function prosesTeksBebas_(chatId, teks, pengguna, d) {
   // Pertanyaan murni langsung dijawab dengan data lengkap: satu panggilan AI, bukan dua.
   if (kunci.length && pertanyaanMurni_(teks)) {
     console.log('Pertanyaan langsung');
-    return kirim_(chatId, jawabTanya_(d, pengguna, teks));
+    return kirim_(chatId, jawabTanya_(d, pengguna, teks, chatId));
   }
 
   let hasil;
@@ -371,8 +377,10 @@ function jalankanPerintah_(d, chatId, x, terakhir, pengguna, balasan, tambahan, 
     case 'bantuan': return kirim_(chatId, BANTUAN);
     case 'tanya':
       tg_('sendChatAction', { chat_id: chatId, action: 'typing' });
-      return kirim_(chatId, jawabTanya_(d, pengguna, x.pertanyaan || pesanAsli));
-    case 'ngobrol': return kirim_(chatId, htmlTerbatas_(balasan || 'Siap! 😊'));
+      return kirim_(chatId, jawabTanya_(d, pengguna, x.pertanyaan || pesanAsli, chatId));
+    case 'ngobrol':
+      catatObrolan_(chatId, pesanAsli, balasan || 'Siap! 😊');
+      return kirim_(chatId, htmlTerbatas_(balasan || 'Siap! 😊'));
     default: return kirim_(chatId, htmlTerbatas_(balasan || 'Maaf, saya belum paham.') + '\n\nKetik /bantuan untuk contoh.');
   }
 }
@@ -381,32 +389,57 @@ function jalankanPerintah_(d, chatId, x, terakhir, pengguna, balasan, tambahan, 
  * Menjawab pertanyaan/analisis bebas dengan data keuangan terbaru (termasuk transaksi
  * yang baru dicatat dari pesan yang sama). Angka diambil dari ringkasan yang dihitung kode.
  */
-function jawabTanya_(d, pengguna, pertanyaan) {
+function jawabTanya_(d, pengguna, pertanyaan, chatId) {
   const kunci = kunciGemini_(d.pengaturan);
   if (!kunci.length) return 'Untuk tanya-jawab, AI perlu diaktifkan dulu: tambahkan kunci Gemini di aplikasi (⚙️ → Baca struk dengan AI).';
+  const riwayat = obrolan_(chatId);
   const prompt = [
-    'Kamu asisten keuangan keluarga "Dompet Keluarga" yang ramah, jujur, dan praktis. Kamu sedang chat dengan ' + pengguna.nama + '.',
-    'Jawab dalam bahasa Indonesia santai, singkat (maksimal 6 kalimat atau poin), langsung ke inti.',
-    'Gunakan HANYA angka dari data di bawah; boleh menghitung (selisih, persen, perkiraan) tapi jangan mengarang data yang tidak ada.',
-    'Kalau datanya tidak cukup, katakan terus terang dan sarankan cara mencatatnya.',
-    'Format: teks biasa. Boleh <b>tebal</b> untuk angka penting. Jangan pakai markdown, tabel, atau tag HTML lain. Tulis rupiah seperti Rp25.000.',
+    'Kamu asisten AI serba bisa di bot Telegram "Dompet Keluarga" yang ramah, jujur, dan praktis, seperti ngobrol dengan Gemini. Kamu sedang chat dengan ' + pengguna.nama + '.',
+    'Sekarang ' + tglPanjang_(hariIni_()) + ' ' + hariIni_().slice(0, 4) + ', pukul ' + Utilities.formatDate(new Date(), TZ, 'HH:mm') + ' WIB.',
+    'Jawab dalam bahasa Indonesia santai dan langsung ke inti.',
+    '- Pertanyaan tentang keuangan keluarga ini (saldo, pengeluaran, anggaran, tabungan, emas, utang, rencana beli): gunakan HANYA angka dari DATA KEUANGAN di bawah;',
+    '  boleh menghitung (selisih, persen, perkiraan) tapi jangan mengarang data. Kalau datanya tidak cukup, katakan terus terang dan sarankan cara mencatatnya. Maksimal 6 kalimat atau poin.',
+    '- Pertanyaan atau obrolan di luar keuangan (pengetahuan umum, tanggal & hari, resep, tips, terjemahan, ide, hitung-hitungan, curhat): jawab dengan pengetahuanmu',
+    '  seperti asisten AI biasa. Jangan menolak hanya karena tidak ada di data keuangan, dan jangan mengaitkannya ke keuangan kalau tidak diminta.',
+    '  Panjang menyesuaikan: obrolan singkat 1–3 kalimat; resep atau penjelasan boleh lengkap (bahan & langkah bernomor), maksimal ±2.500 karakter.',
+    '- Untuk hal yang bisa berubah setelah pengetahuanmu (berita, harga pasar selain data di bawah, cuaca), katakan bahwa kamu tidak bisa memastikan kondisi terkini.',
+    '- Pakai PERCAKAPAN SEBELUMNYA supaya nyambung (mis. "yang tadi", "kalau 2 porsi?").',
+    'Format: teks biasa, baris baru boleh. Boleh <b>tebal</b> untuk hal penting. Jangan pakai markdown (*, #), tabel, atau tag HTML lain. Tulis rupiah seperti Rp25.000.',
     '',
     'DATA KEUANGAN:',
     konteksKeuangan_(d),
     '',
-    'PERTANYAAN PENGGUNA: """' + pertanyaan + '"""',
+    riwayat.length ? 'PERCAKAPAN SEBELUMNYA (terlama dulu):\n' + riwayat.map(x => 'Pengguna: ' + x.q + '\nKamu: ' + x.a).join('\n') + '\n' : '',
+    'PESAN PENGGUNA: """' + pertanyaan + '"""',
   ].join('\n');
   const model = d.pengaturan.GEMINI_MODEL_TANYA || 'gemini-flash-latest';
   const h = jalankanGemini_(kunci, model, [{ sumber: 'tanya', pikir: PIKIR_TANYA, parts: [{ text: prompt }] }],
     { type: 'OBJECT', properties: { jawaban: { type: 'STRING' } }, required: ['jawaban'] })[0];
   waktu_('AI menjawab pertanyaan');
   if (h instanceof Error) return '⚠️ ' + html_(h.message) + '. Sementara itu, coba /ringkasan atau /anggaran.';
-  return htmlTerbatas_(h.jawaban || 'Maaf, saya belum bisa menjawab itu.');
+  const jawaban = String(h.jawaban || 'Maaf, saya belum bisa menjawab itu.').replace(/^\s*[*-]\s+/gm, '• ').replace(/^#+\s*/gm, '');
+  catatObrolan_(chatId, pertanyaan, jawaban);
+  return htmlTerbatas_(jawaban);
+}
+
+// Ingatan obrolan singkat per chat (CacheService, 1 jam): 6 tanya-jawab terakhir, supaya "yang tadi" nyambung.
+const BATAS_OBROLAN = 6;
+function obrolan_(chatId) {
+  if (!chatId) return [];
+  try { return JSON.parse(CacheService.getScriptCache().get('obrolan_' + chatId) || '[]'); } catch (e) { return []; }
+}
+function catatObrolan_(chatId, q, a) {
+  if (!chatId) return;
+  try {
+    const isi = obrolan_(chatId).concat([{ q: String(q || '').slice(0, 400), a: String(a || '').replace(/<\/?[bi]>/g, '').slice(0, 600) }]).slice(-BATAS_OBROLAN);
+    CacheService.getScriptCache().put('obrolan_' + chatId, JSON.stringify(isi), 3600);
+  } catch (e) { /* ingatan tidak penting */ }
 }
 
 /** Ringkasan data untuk AI: semua angka dihitung di sini supaya AI tidak salah menjumlah. */
 function konteksKeuangan_(d) {
-  const s = saldo_(d);
+  const s = nilaiSekarang_(d);
+  const emas = infoEmas_(d);
   const ini = bulanIni_();
   const lalu = bulanSebelum_(ini);
   const a = ringkasBulan_(d, ini);
@@ -429,8 +462,10 @@ function konteksKeuangan_(d) {
     'Utang-piutang: ' + (d.dompet.filter(w => w.jenis === JENIS.UTANG && s[w.nama]).map(w => w.nama
       + (s[w.nama] > 0 ? ' berutang ke kita ' + rp_(s[w.nama]) : ': kita berutang ' + rp_(-s[w.nama]))
       + (w.tenggat ? ' (jatuh tempo ' + w.tenggat + ')' : '')).join('; ') || 'tidak ada') + '.',
-    'Aset: ' + (d.dompet.filter(w => w.jenis === JENIS.ASET).map(w => w.nama + ' ' + rp_(s[w.nama])).join(', ') || 'belum ada')
-      + '. Kekayaan bersih (semua dompet, tabungan, aset, piutang − utang): ' + rp_(d.dompet.reduce((x, w) => x + (s[w.nama] || 0), 0)) + '.',
+    'Aset: ' + (d.dompet.filter(w => w.jenis === JENIS.ASET && !emas[w.nama]).map(w => w.nama + ' ' + rp_(s[w.nama])).join(', ') || (Object.keys(emas).length ? '(selain emas) tidak ada' : 'belum ada'))
+      + '.' + (Object.keys(emas).length ? '\nEmas (dicatat dalam gram; nilainya dari harga hari ini):\n' + Object.keys(emas).map(n => '- ' + teksEmasUntukAi_(n, emas[n])).join('\n')
+        + '\nTotal emas: ' + gram_(Object.keys(emas).reduce((x, n) => x + emas[n].gram, 0)) + '.' : '')
+      + ' Kekayaan bersih (semua dompet, tabungan, aset, piutang − utang): ' + rp_(d.dompet.reduce((x, w) => x + (s[w.nama] || 0), 0)) + '.',
     '',
     'BULAN INI (' + namaBulan_(ini) + '): pemasukan ' + rp_(a.masuk) + ', pengeluaran ' + rp_(a.keluar) + ', selisih ' + rp_(a.masuk - a.keluar) + '.',
     'Pengeluaran per kategori bulan ini:',
@@ -545,10 +580,11 @@ function petunjukPerintah_(d, terakhir, pengguna, pesan) {
     '- "ubah": ubah transaksi yang sudah ada. ref = T1 untuk yang paling terakhir, atau pilih yang cocok dengan deskripsi. Isi hanya field yang berubah.',
     '- "hapus": isi ref.',
     '- "saldo", "ringkasan" (isi bulan yyyy-mm jika disebut), "riwayat", "anggaran": hanya untuk permintaan laporan standar (mis. "/saldo", "lihat ringkasan").',
-    '- "tanya": pertanyaan, analisis, perbandingan, saran, atau perhitungan tentang keuangan (mis. "boros di mana?", "bandingkan dengan bulan lalu",',
-    '  "aman beli HP 3jt?", "kapan dana darurat penuh?", "sisa anggaran makan berapa?"). Isi pertanyaan dengan pertanyaan lengkapnya.',
+    '- "tanya": pertanyaan APA PUN yang butuh jawaban: tentang keuangan (mis. "boros di mana?", "bandingkan dengan bulan lalu", "aman beli HP 3jt?",',
+    '  "emasku berapa gram?") MAUPUN di luar keuangan (mis. "hari ini tanggal berapa", "resep sop ayam", "arti kata X", "ide kado", "terjemahkan ini").',
+    '  Isi pertanyaan dengan pertanyaan lengkapnya. Jangan pakai "tidak_jelas" untuk pertanyaan di luar keuangan.',
     '  Kalau pesan berisi catat sekaligus pertanyaan, buat "catat" dulu lalu "tanya".',
-    '- "ngobrol": sapaan, terima kasih, basa-basi, atau curhat ringan → isi balasan dengan jawaban ramah dan natural (1–2 kalimat), boleh sebut fitur yang relevan.',
+    '- "ngobrol": hanya sapaan, terima kasih, atau basa-basi pendek → isi balasan dengan jawaban ramah dan natural (1–2 kalimat). Pertanyaan atau curhat yang butuh jawaban → "tanya".',
     '- "bantuan": jika pengguna bertanya cara memakai bot.',
     '- "tidak_jelas": hanya jika benar-benar tidak bisa dipahami; isi balasan dengan pertanyaan klarifikasi yang ramah.',
     '- komentar: jika ada "catat", boleh isi 1 kalimat singkat yang relevan dan bermanfaat berdasarkan DATA (mis. anggaran kategori itu hampir habis,',
@@ -1178,8 +1214,10 @@ function peringatanAnggaran_(d, t) {
 }
 
 function teksSaldo_(d) {
-  const s = saldo_(d);
-  const baris = jenis => d.dompet.filter(w => w.jenis === jenis).map(w => String(w.ikon).replace(/^(\p{Extended_Pictographic}️?)[A-Za-z].*$/u, '$1') + ' ' + html_(w.nama) + ': <b>' + rp_(s[w.nama]) + '</b>'
+  const s = nilaiSekarang_(d);
+  const emas = infoEmas_(d);
+  const baris = jenis => d.dompet.filter(w => w.jenis === jenis).map(w => String(w.ikon).replace(/^(\p{Extended_Pictographic}️?)[A-Za-z].*$/u, '$1') + ' ' + html_(w.nama) + ': '
+    + (emas[w.nama] ? gram_(emas[w.nama].gram) + ' · ' : '') + '<b>' + (emas[w.nama] && emas[w.nama].nilai === null ? 'harga belum ada' : rp_(s[w.nama])) + '</b>'
     + (w.target ? ' / ' + rp_(w.target) + ' (' + Math.floor(Math.max(0, s[w.nama]) / w.target * 100) + '%)' : ''));
   const dompet = baris(JENIS.DOMPET);
   const tabungan = baris(JENIS.TABUNGAN);
@@ -1260,6 +1298,21 @@ function jsonTg_(res) {
 }
 
 function kirim_(chatId, teks, tombol) {
+  teks = String(teks || '');
+  if (teks.length > 3900) {
+    const bagian = [];
+    let sisa = teks;
+    while (sisa.length > 3900) {
+      let potong = sisa.lastIndexOf('\n', 3900);
+      if (potong < 1500) potong = 3900;
+      bagian.push(sisa.slice(0, potong));
+      sisa = sisa.slice(potong).replace(/^\n+/, '');
+    }
+    bagian.push(sisa);
+    let r;
+    bagian.forEach((b, i) => { r = kirim_(chatId, b, i === bagian.length - 1 ? tombol : null); });
+    return r;
+  }
   const data = {
     chat_id: chatId, text: teks, parse_mode: 'HTML', disable_web_page_preview: true,
     reply_markup: tombol ? { inline_keyboard: tombol } : undefined,
@@ -1891,6 +1944,71 @@ function ambilHargaEmas_(platform, hari) {
   const hasil = {};
   platform.forEach(k => { if (hargaEmasPagi_[k]) hasil[k] = hargaEmasPagi_[k]; });
   return hasil;
+}
+
+const NAMA_PLATFORM_EMAS = { pegadaian: 'Pegadaian', bsi: 'BSI', antam: 'Antam', galeri24: 'Galeri 24',
+  sampoerna: 'Sampoerna Gold', treasury: 'Treasury', pluang: 'Pluang', lainnya: 'Lainnya' };
+
+/**
+ * Detail emas buku ini (Pengaturan EMAS + HARGA_EMAS), dihitung sekali per pesan:
+ * { namaAset: { gram, platform, harga: { beli, jual, tgl, manual? } | null, nilai (rupiah | null), modal } }.
+ * Harga yang belum diambil hari ini diambil sekarang lalu disimpan ke spreadsheet (dipakai bersama aplikasi).
+ * Nilai = gram × harga jual (buyback), sama dengan aplikasi; tanpa harga → null (pakai saldo rupiah).
+ */
+function infoEmas_(d) {
+  if (d.emas_) return d.emas_;
+  let emas = {}, harga = {};
+  try { emas = JSON.parse(d.pengaturan.EMAS || '{}') || {}; } catch (e) { /* kosong */ }
+  try { harga = JSON.parse(d.pengaturan.HARGA_EMAS || '{}') || {}; } catch (e) { /* kosong */ }
+  const aset = d.dompet.filter(w => w.jenis === JENIS.ASET && emas[w.nama]);
+  const hari = hariIni_();
+  const perlu = aset.map(w => emas[w.nama].platform)
+    .filter((k, i, a) => SUMBER_HARGA_EMAS[k] && a.indexOf(k) === i && (!harga[k] || harga[k].diambil !== hari));
+  if (perlu.length) {
+    try {
+      const baru = ambilHargaEmas_(perlu, hari);
+      if (Object.keys(baru).length) {
+        Object.assign(harga, baru);
+        d.pengaturan.HARGA_EMAS = JSON.stringify(harga);
+        simpanPengaturan_('HARGA_EMAS', d.pengaturan.HARGA_EMAS);
+      }
+    } catch (e) { console.warn('Harga emas tidak bisa diambil: ' + e); }
+  }
+  const hasil = {};
+  aset.forEach(w => {
+    const e = emas[w.nama];
+    const gram = Number(e.gram) || 0;
+    let h = SUMBER_HARGA_EMAS[e.platform] && harga[e.platform] && harga[e.platform].beli ? harga[e.platform] : null;
+    if (!h && (e.hargaBeli || e.hargaJual)) h = { beli: Number(e.hargaBeli) || 0, jual: Number(e.hargaJual) || 0, manual: true };
+    const perGram = h ? (h.jual || h.beli) : 0;
+    hasil[w.nama] = { gram, platform: e.platform || 'lainnya', harga: h, nilai: perGram ? Math.round(gram * perGram) : null, modal: Number(e.modal) || 0 };
+  });
+  return (d.emas_ = hasil);
+}
+
+/** Saldo semua dompet, dengan nilai aset emas memakai harga hari ini (seperti aplikasi). */
+function nilaiSekarang_(d) {
+  const s = saldo_(d);
+  const emas = infoEmas_(d);
+  Object.keys(emas).forEach(n => { if (emas[n].nilai !== null) s[n] = emas[n].nilai; });
+  return s;
+}
+
+const gram_ = g => (Math.round(g * 10000) / 10000).toLocaleString('id-ID') + ' gram';
+
+/** Satu baris keterangan emas untuk AI: berat, platform, harga, nilai, modal & untung/rugi. */
+function teksEmasUntukAi_(nama, e) {
+  const h = e.harga;
+  const bagian = [nama + ': ' + gram_(e.gram) + ' emas (' + (NAMA_PLATFORM_EMAS[e.platform] || e.platform) + ')'];
+  if (h) {
+    bagian.push('harga beli ' + rp_(h.beli) + '/gram, harga jual (buyback) ' + (h.jual ? rp_(h.jual) + '/gram' : 'tidak ada')
+      + (h.manual ? ' (diisi sendiri)' : ' (per ' + h.tgl + ')'));
+    bagian.push('nilai kalau dijual sekarang ' + rp_(e.nilai));
+    if (h.beli) bagian.push('kalau dibeli sekarang ' + rp_(Math.round(e.gram * h.beli)));
+  } else bagian.push('harga hari ini belum tersedia');
+  if (e.modal) bagian.push('modal ' + rp_(e.modal) + (e.nilai !== null ? ', ' + (e.nilai >= e.modal ? 'untung ' : 'rugi ') + rp_(Math.abs(e.nilai - e.modal))
+    + ' (' + (Math.round((e.nilai - e.modal) / e.modal * 1000) / 10).toLocaleString('id-ID') + '%)' : ''));
+  return bagian.join(', ');
 }
 
 /** p: isi Pengaturan buku yang sedang dibuka (pakaiSpreadsheet_). */
