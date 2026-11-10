@@ -301,7 +301,8 @@ function prosesTeksBebas_(chatId, teks, pengguna, d) {
     return jalankanPerintah_(d, chatId, cepat, terakhir, pengguna, '', '', teks);
   }
   // Pertanyaan murni langsung dijawab dengan data lengkap: satu panggilan AI, bukan dua.
-  if (kunci.length && pertanyaanMurni_(teks)) {
+  // Termasuk pertanyaan lanjutan ("kalau 2 porsi?") selama obrolan tanya-jawab masih berjalan.
+  if (kunci.length && (pertanyaanMurni_(teks) || (obrolan_(chatId).length && pertanyaanLanjutan_(teks)))) {
     console.log('Pertanyaan langsung');
     return kirim_(chatId, jawabTanya_(d, pengguna, teks, chatId));
   }
@@ -310,7 +311,7 @@ function prosesTeksBebas_(chatId, teks, pengguna, d) {
   let tambahan = '';
   if (kunci.length) {
     const model = d.pengaturan.GEMINI_MODEL_CEPAT || MODEL_CEPAT;
-    const jawaban = jalankanGemini_(kunci, model, [{ sumber: 'perintah', pikir: PIKIR_PERINTAH, parts: [{ text: petunjukPerintah_(d, terakhir, pengguna, teks) }] }], skemaPerintah_())[0];
+    const jawaban = jalankanGemini_(kunci, model, [{ sumber: 'perintah', pikir: PIKIR_PERINTAH, parts: [{ text: petunjukPerintah_(d, terakhir, pengguna, teks, chatId) }] }], skemaPerintah_())[0];
     waktu_('AI menerjemahkan pesan');
     if (jawaban instanceof Error) {
       // AI sedang tidak bisa dipakai: pesan sederhana ("bakso 25rb") tetap dicatat tanpa AI.
@@ -333,6 +334,10 @@ function prosesTeksBebas_(chatId, teks, pengguna, d) {
   console.log('Perintah: ' + JSON.stringify(hasil));
 
   const daftar = (hasil.perintah || []).filter(x => x && x.aksi);
+  if (kunci.length && !tambahan && (!daftar.length || daftar.every(x => x.aksi === 'tidak_jelas'))) {
+    tg_('sendChatAction', { chat_id: chatId, action: 'typing' });
+    return kirim_(chatId, jawabTanya_(d, pengguna, teks, chatId));
+  }
   if (!daftar.length || daftar.every(x => x.aksi === 'tidak_jelas')) {
     return kirim_(chatId, htmlTerbatas_(hasil.balasan || 'Maaf, saya belum paham. Contoh: "makan bakso 25rb".') + '\n\nKetik /bantuan untuk contoh lain.');
   }
@@ -404,7 +409,12 @@ function jawabTanya_(d, pengguna, pertanyaan, chatId) {
     '  Panjang menyesuaikan: obrolan singkat 1–3 kalimat; resep atau penjelasan boleh lengkap (bahan & langkah bernomor), maksimal ±2.500 karakter.',
     '- Untuk hal yang bisa berubah setelah pengetahuanmu (berita, harga pasar selain data di bawah, cuaca), katakan bahwa kamu tidak bisa memastikan kondisi terkini.',
     '- Pakai PERCAKAPAN SEBELUMNYA supaya nyambung (mis. "yang tadi", "kalau 2 porsi?").',
-    'Format: teks biasa, baris baru boleh. Boleh <b>tebal</b> untuk hal penting. Jangan pakai markdown (*, #), tabel, atau tag HTML lain. Tulis rupiah seperti Rp25.000.',
+    'FORMAT (dibaca di Telegram, jadi harus rapi dan mudah dipindai):',
+    '- Pakai baris baru. Jawaban lebih dari 2 kalimat dipecah jadi paragraf pendek atau daftar, dipisah satu baris kosong antar bagian.',
+    '- Judul bagian di barisnya sendiri dan ditebalkan, mis. <b>Bahan-bahan</b>, <b>Cara membuat</b>.',
+    '- Daftar (bahan, pilihan, poin) satu butir per baris diawali "• ". Langkah berurutan satu langkah per baris: "1. ", "2. ", dst.',
+    '- Boleh <b>tebal</b> untuk angka atau hal penting. Jangan pakai markdown (**, #, tabel) atau tag HTML selain <b> dan <i>. Tulis rupiah seperti Rp25.000.',
+    '- Langsung jawab tanpa pembuka panjang; jangan mengulang pertanyaan.',
     '',
     'DATA KEUANGAN:',
     konteksKeuangan_(d),
@@ -413,13 +423,32 @@ function jawabTanya_(d, pengguna, pertanyaan, chatId) {
     'PESAN PENGGUNA: """' + pertanyaan + '"""',
   ].join('\n');
   const model = d.pengaturan.GEMINI_MODEL_TANYA || 'gemini-flash-latest';
-  const h = jalankanGemini_(kunci, model, [{ sumber: 'tanya', pikir: PIKIR_TANYA, parts: [{ text: prompt }] }],
-    { type: 'OBJECT', properties: { jawaban: { type: 'STRING' } }, required: ['jawaban'] })[0];
+  const h = jalankanGemini_(kunci, model, [{ sumber: 'tanya', pikir: PIKIR_TANYA, parts: [{ text: prompt }] }], null)[0];
   waktu_('AI menjawab pertanyaan');
   if (h instanceof Error) return '⚠️ ' + html_(h.message) + '. Sementara itu, coba /ringkasan atau /anggaran.';
-  const jawaban = String(h.jawaban || 'Maaf, saya belum bisa menjawab itu.').replace(/^\s*[*-]\s+/gm, '• ').replace(/^#+\s*/gm, '');
+  const jawaban = rapikanJawaban_(h.jawaban || 'Maaf, saya belum bisa menjawab itu.');
   catatObrolan_(chatId, pertanyaan, jawaban);
   return htmlTerbatas_(jawaban);
+}
+
+/**
+ * Jawaban AI → teks rapi untuk Telegram: markdown diubah (**tebal**, # judul, * / - daftar), dan kalau AI tetap
+ * mengirim satu paragraf panjang, daftar bernomor & judul "Bahan:" / "Cara membuat:" dipecah ke baris sendiri.
+ */
+function rapikanJawaban_(s) {
+  let t = String(s || '').replace(/\r/g, '').trim();
+  t = t.replace(/^#{1,6}\s*(.+)$/gm, '<b>$1</b>')
+    .replace(/^\s*[*-]\s+/gm, '• ')
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/^\*(?!\s)(.+?)\*$/gm, '<b>$1</b>');
+  if (t.length > 250 && (t.match(/\n/g) || []).length < 2) {
+    t = t
+      .replace(/\s*(<b>)?((?:Bahan(?:-bahan)?|Bumbu(?: halus)?|Cara (?:membuat|memasak|membuatnya)|Langkah(?:-langkah)?|Tips|Catatan|Kesimpulan)(?:<\/b>)?\s*:)/gi, '\n\n$1$2')
+      .replace(/([.:;!?)])\s+(\d{1,2})\.\s+(?=\S)/g, '$1\n$2. ')
+      .replace(/;\s+(?=[a-z0-9½¼¾])/gi, '\n• ')
+      .replace(/(:)\s+(?=\d+(?:[\s,]|[.,]\d)|[0-9½¼¾]+\s*(?:gram|g|kg|buah|siung|batang|sdm|sdt|liter|ml|butir|potong|lembar)\b)/gi, '$1\n• ');
+  }
+  return t.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // Ingatan obrolan singkat per chat (CacheService, 1 jam): 6 tanya-jawab terakhir, supaya "yang tadi" nyambung.
@@ -554,8 +583,9 @@ function bersihkan_(x) {
   return o;
 }
 
-function petunjukPerintah_(d, terakhir, pengguna, pesan) {
+function petunjukPerintah_(d, terakhir, pengguna, pesan, chatId) {
   const hariIni = hariIni_();
+  const riwayat = obrolan_(chatId);
   const hari = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][new Date().getDay()];
   const nama = tp => d.kategori.filter(k => k.tipe === tp).map(k => k.nama).join(', ');
   return [
@@ -594,6 +624,8 @@ function petunjukPerintah_(d, terakhir, pengguna, pesan) {
     'RINGKASAN BULAN INI (sebelum pesan ini diproses):',
     konteksRingkas_(d),
     '',
+    riwayat.length ? 'OBROLAN SEBELUMNYA (terlama dulu). Pesan yang melanjutkan obrolan ini (mis. "kalau 2 porsi?", "yang kedua gimana?", "lanjut") → "tanya":\n'
+      + riwayat.map(x => 'Pengguna: ' + x.q + '\nBot: ' + String(x.a).slice(0, 200)).join('\n') + '\n' : '',
     'Pesan: """' + pesan + '"""',
   ].join('\n');
 }
@@ -694,6 +726,15 @@ function jalurCepat_(teks, d) {
  * Pesan yang jelas berupa pertanyaan/analisis tanpa transaksi untuk dicatat. Pesan campuran
  * ("catat makan 40rb, sisa anggaran berapa?") tetap lewat penerjemah supaya dicatat dulu.
  */
+/** "kalau 2 porsi?", "yang kedua?", "terus?", "lanjut" — pendek, tanpa kata perintah & tanpa nominal rupiah. */
+function pertanyaanLanjutan_(teks) {
+  const kecil = teks.toLowerCase().trim();
+  if (kecil.split(/\s+/).length > 12) return false;
+  if (/\b(catat|ubah|ganti|edit|hapus|batal|batalkan|beli|bayar|gaji|transfer|setor|tarik)\b/.test(kecil)) return false;
+  if (/\d\s*(rb|ribu|k|jt|juta)\b|rp\s*\d/.test(kecil)) return false;
+  return /\?\s*$/.test(kecil) || /^(kalau|kalo|terus|lalu|lanjut|yang|bagaimana|gimana|kenapa|apa|berapa|bisa|boleh|coba|jelaskan|contoh|misal|selain)\b/.test(kecil);
+}
+
 function pertanyaanMurni_(teks) {
   const kecil = teks.toLowerCase();
   if (/\b(catat|ubah|ganti|edit|hapus|batal|batalkan|tadi)\b/.test(kecil)) return false;
@@ -1467,11 +1508,11 @@ function jalankanGemini_(daftar, model, permintaan, skema, ikut) {
         const i = sisa[j];
         try {
           try {
-            hasil[i] = bacaJawabanGemini_(res);
+            hasil[i] = bacaJawabanGemini_(res, !skema);
           } catch (e) {
             if (!e.argumen || permintaan[i].pikir == null || /pro/i.test(model2[mi])) throw e;
             console.warn(permintaan[i].sumber + ': ' + model2[mi] + ' menolak permintaan (' + e.message + '), ulang tanpa pengaturan thinking');
-            hasil[i] = bacaJawabanGemini_(UrlFetchApp.fetchAll([mintaGemini_(kunci, model2[mi], permintaan[i].parts, skema, null)])[0]);
+            hasil[i] = bacaJawabanGemini_(UrlFetchApp.fetchAll([mintaGemini_(kunci, model2[mi], permintaan[i].parts, skema, null)])[0], !skema);
           }
           console.log(permintaan[i].sumber + ' memakai ' + model2[mi] + ', kunci ' + samarkanKunci_(kunci));
         } catch (e) {
@@ -1643,7 +1684,7 @@ function skemaStruk_(kategori) {
 
 /** `pikir`: anggaran thinking (token); kosong = bawaan model. */
 function mintaGemini_(kunci, model, parts, skema, pikir) {
-  const config = { responseMimeType: 'application/json', responseSchema: skema };
+  const config = skema ? { responseMimeType: 'application/json', responseSchema: skema } : {};
   // Model seri Pro tidak bisa mematikan thinking (ditolak 400), jadi dibiarkan bawaan.
   if (pikir != null && !/pro/i.test(model)) config.thinkingConfig = { thinkingBudget: pikir };
   return {
@@ -1659,7 +1700,8 @@ function mintaGemini_(kunci, model, parts, skema, pikir) {
   };
 }
 
-function bacaJawabanGemini_(res) {
+/** polos: jawaban teks biasa (tanpa skema JSON) → { jawaban: teks }. */
+function bacaJawabanGemini_(res, polos) {
   const kode = res.getResponseCode();
   if (kode !== 200) {
     console.error('Gemini HTTP ' + kode + ' ' + res.getContentText().slice(0, 1000));
@@ -1681,7 +1723,9 @@ function bacaJawabanGemini_(res) {
   }
   try {
     const parts = JSON.parse(res.getContentText()).candidates[0].content.parts;
-    return JSON.parse(parts.map(function (p) { return p.text || ''; }).join(''));
+    const teks = parts.filter(function (p) { return !p.thought; }).map(function (p) { return p.text || ''; }).join('');
+    if (polos) { if (!teks.trim()) throw new Error('kosong'); return { jawaban: teks }; }
+    return JSON.parse(teks);
   } catch (e) {
     console.error('Jawaban Gemini tidak bisa dibaca: ' + res.getContentText().slice(0, 2000));
     throw new Error('Jawaban Gemini tidak bisa dibaca.');
