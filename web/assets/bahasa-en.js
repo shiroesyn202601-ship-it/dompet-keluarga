@@ -1677,6 +1677,10 @@ Object.assign(KAMUS, {
 // ---------- Mode coba (demo.js) ----------
 Object.assign(KAMUS, {
   'Coba dulu tanpa akun': 'Try it without an account',
+  'Uang keluarga akur, sampai gajian berikutnya.': 'Family money in harmony, all the way to payday.',
+  'Dicatat berdua dari HP masing-masing, angkanya langsung sama': 'Track it together on your own phones, the numbers always match',
+  'Tahu berapa yang aman dibelanjakan tiap hari': 'Know how much is safe to spend each day',
+  'Data di Google Drive Anda sendiri, gratis tanpa iklan': 'Your data stays in your own Google Drive, free with no ads',
   'Berisi data contoh satu keluarga. Tidak perlu login, dan tidak ada yang tersimpan ke Google.': 'Comes with sample data for one family. No sign-in needed, and nothing is saved to Google.',
   'Kenalan dengan fitur-fiturnya': 'See what it can do',
   '👀 Mode coba · data contoh, hanya di HP ini': '👀 Demo mode · sample data, on this phone only',

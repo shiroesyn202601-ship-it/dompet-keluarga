@@ -137,6 +137,9 @@ const IKON = {
   senyum: '<circle cx="12" cy="12" r="9"/><path d="M8.5 14s1.3 2 3.5 2 3.5-2 3.5-2M9 9.5h.01M15 9.5h.01"/>',
   tunas: '<path d="M7 21h10M12 21v-9"/><path d="M12 12c0-3.3-2.7-6-6-6H4v1c0 3.3 2.7 6 6 6h2"/><path d="M12 10c0-2.8 2.2-5 5-5h3v1c0 2.8-2.2 5-5 5h-3"/>',
   ramal: '<path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/>',
+  // Layar masuk: keunggulan aplikasi
+  berdua: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M21.5 20a6.5 6.5 0 0 0-4-6"/>',
+  gembok: '<rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><path d="M12 15v2"/>',
   nyala: '<path d="M12 22c4 0 7-2.7 7-6.7 0-3.3-2.3-5.6-3.6-7.3-.4 1.8-1.4 3-2.6 3.6.2-3.4-1.4-6.6-4.3-8.6.2 3-1.4 5-3 6.8C4.3 11.2 5 13.6 5 15.3 5 19.3 8 22 12 22z"/>',
 };
 const svg = nama => `<svg class="ik" viewBox="0 0 24 24" aria-hidden="true">${IKON[nama]}</svg>`;
@@ -459,13 +462,18 @@ function tampilMasuk() {
     <div class="sambut">
       <img class="logo" src="ikon/ikon-192.png" alt="">
       <h1>Dompet Keluarga</h1>
-      <p>${T('Catat keuangan keluarga bersama. Semua data tersimpan di Google Spreadsheet milik Anda sendiri.')}</p>
+      <p class="tagline-masuk">${T('Uang keluarga akur, sampai gajian berikutnya.')}</p>
+      <ul class="keunggulan">
+        <li><span class="ik-bulat">${svg('berdua')}</span>${T('Dicatat berdua dari HP masing-masing, angkanya langsung sama')}</li>
+        <li><span class="ik-bulat">${svg('ramal')}</span>${T('Tahu berapa yang aman dibelanjakan tiap hari')}</li>
+        <li><span class="ik-bulat">${svg('gembok')}</span>${T('Data di Google Drive Anda sendiri, gratis tanpa iklan')}</li>
+      </ul>
       ${S.gabung ? `<p>${T('<b>Anda diundang bergabung.</b> Masuk dengan akun Google yang diundang untuk melanjutkan.')}</p>` : ''}
       ${email ? `
         <button type="button" class="btn btn-utama" data-aksi="masuk">${T('Lanjutkan sebagai {email}', { email: esc(email) })}</button>
         <button type="button" class="tombol-teks" data-aksi="masuk" data-akun-lain="1">${T('Pakai akun Google lain')}</button>`
       : `<button type="button" class="btn btn-utama" data-aksi="masuk">${T('Masuk dengan Google')}</button>`}
-      ${S.gabung ? '' : `<button type="button" class="btn btn-kedua" data-aksi="demo-mulai">${T('Coba dulu tanpa akun')}</button>
+      ${S.gabung ? '' : `<button type="button" class="btn btn-coba" data-aksi="demo-mulai">${T('Coba dulu tanpa akun')}</button>
       <p class="info-kecil" style="margin-top:4px">${T('Berisi data contoh satu keluarga. Tidak perlu login, dan tidak ada yang tersimpan ke Google.')}</p>`}
       <a class="tombol-teks" href="tentang.html">${T('Kenalan dengan fitur-fiturnya')}</a>
       <a class="tombol-teks" href="privasi.html">${T('Kebijakan privasi')}</a>
