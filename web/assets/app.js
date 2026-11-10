@@ -539,6 +539,32 @@ async function pilihDanHubungkan(idFile) {
   }
 }
 
+// Navigasi bawah HP: 2 halaman menu yang digeser kiri/kanan (styles.css → .nav-geser), ＋ tetap di tengah.
+// Halaman yang memuat tab aktif ditampilkan otomatis; titik penanda di bawah ＋ mengikuti posisi geser.
+function aturGeserNav() {
+  const geser = $('#nav-geser');
+  if (!geser) return;
+  const titik = [...document.querySelectorAll('#nav .nav-titik i')];
+  const tandai = () => {
+    const ke = Math.round(geser.scrollLeft / (geser.clientWidth || 1));
+    titik.forEach((t, i) => t.classList.toggle('aktif', i === ke));
+  };
+  if (!geser.dataset.siap) {
+    geser.dataset.siap = '1';
+    geser.addEventListener('scroll', tandai, { passive: true });
+  }
+  // Hanya saat tab berganti (bukan tiap render ulang karena sinkron data), supaya halaman menu yang sedang
+  // dibuka pengguna tidak tiba-tiba melompat.
+  if (geser.clientWidth && geser.dataset.tab !== S.tab) {
+    const hal = [...geser.querySelectorAll('.nav-hal')].findIndex(h => h.querySelector('[data-tab].aktif'));
+    if (hal >= 0 && Math.round(geser.scrollLeft / geser.clientWidth) !== hal) {
+      geser.scrollTo({ left: hal * geser.clientWidth, behavior: geser.dataset.tab ? 'smooth' : 'auto' });
+    }
+    geser.dataset.tab = S.tab;
+  }
+  tandai();
+}
+
 function render() {
   perkayaIkonDompet(S.data);
   if (S.tab !== 'riwayat') S.pilih = null;
@@ -549,6 +575,7 @@ function render() {
   document.body.dataset.tab = S.tab; // tata letak per halaman di layar lebar (styles.css → Tampilan web)
   kelompokkanBagian();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
+  aturGeserNav();
   simpanPosisi();
   setTimeout(cekPengingat, 500); // overlay pengingat catatan yang jatuh tempo hari ini
   setTimeout(() => { if (typeof cekKilasBalik === 'function') cekKilasBalik(); }, 900); // kilas balik awal periode

@@ -325,8 +325,9 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
   position: fixed; left: 50%; transform: translateX(-50%); z-index: 10;
   bottom: calc(12px + env(safe-area-inset-bottom));
   width: calc(100% - 24px); max-width: 496px; height: var(--nav-h);
-  /* Beranda · Riwayat · [＋] · Laporan · Lainnya (Dompet ada di tombol pintasan Beranda) */
-  display: grid; grid-template-columns: 1fr 1fr 70px 1fr 1fr; align-items: center; padding: 0 4px;
+  /* Dua halaman yang digeser kiri/kanan, ＋ tetap di tengah:
+     [Beranda · Riwayat · ＋ · Dompet · Laporan]  ⇄  [Catatan · Sholat · ＋ · Pengaturan] */
+  display: block; padding: 0;
   background: color-mix(in srgb, var(--card) 86%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);
   border: 1px solid var(--line); border-radius: 26px; box-shadow: var(--shadow-up);
@@ -337,13 +338,28 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .bottomnav button.aktif { color: var(--primary); font-weight: 700; }
 .bottomnav button.aktif svg.ik { background: var(--primary-soft); }
 /* Tombol catat di tengah navigasi, sedikit menonjol ke atas supaya jadi aksi utama */
+.nav-geser {
+  display: flex; height: 100%; overflow-x: auto; overflow-y: hidden; border-radius: inherit;
+  scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none;
+}
+.nav-geser::-webkit-scrollbar { display: none; }
+.nav-hal {
+  flex: 0 0 100%; box-sizing: border-box; height: 100%; padding: 0 4px; scroll-snap-align: start; scroll-snap-stop: always;
+  display: grid; grid-template-columns: 1fr 1fr 70px 1fr 1fr; align-items: center;
+}
+/* Tombol catat: tidak ikut tergeser, sedikit menonjol ke atas supaya jadi aksi utama */
 .bottomnav .fab {
-  justify-self: center; height: 56px; width: 56px; margin-top: -18px; border-radius: 20px;
+  position: absolute; left: 50%; top: -18px; transform: translateX(-50%); z-index: 1;
+  height: 56px; width: 56px; border-radius: 20px;
   background: var(--primary); color: var(--on-primary);
   box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 45%, transparent);
 }
 .bottomnav .fab svg.ik { width: 26px; height: 26px; stroke-width: 2.4; }
-.bottomnav .fab:active { transform: scale(.95); }
+.bottomnav .fab:active { transform: translateX(-50%) scale(.95); }
+/* Penanda halaman menu (di bawah tombol ＋) */
+.nav-titik { position: absolute; left: 50%; bottom: 9px; transform: translateX(-50%); display: flex; gap: 4px; pointer-events: none; }
+.nav-titik i { width: 5px; height: 5px; border-radius: 99px; background: var(--line); transition: width .2s, background .2s; }
+.nav-titik i.aktif { width: 12px; background: var(--primary); }
 
 /* ---------- Bottom sheet ---------- */
 .sheet { position: fixed; inset: 0; z-index: 20; }
@@ -1804,6 +1820,8 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
     background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; overflow-y: auto;
   }
   .bottomnav .hanya-lebar { display: flex; }
+  .nav-geser, .nav-hal { display: contents; }
+  .nav-celah, .nav-titik { display: none; }
   .bottomnav .fab .hanya-lebar { display: inline; }
   .nav-merek { order: 0; align-items: center; gap: 10px; padding: 0 8px 18px; }
   .nav-merek img { width: 34px; height: 34px; border-radius: 10px; }
@@ -1816,10 +1834,11 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
   .bottomnav button.aktif { background: var(--primary-soft); }
   .bottomnav button.aktif svg.ik { background: none; }
   .bottomnav .fab {
-    order: 1; justify-self: auto; justify-content: center; width: 100%; height: 48px; margin: 0 0 16px; border-radius: 14px;
+    order: 1; position: static; transform: none; justify-self: auto; justify-content: center; width: 100%; height: 48px; margin: 0 0 16px; border-radius: 14px;
     font-size: 15px; font-weight: 800; color: var(--on-primary); gap: 8px;
   }
   .bottomnav .fab svg.ik { width: 20px; height: 20px; }
+  .bottomnav .fab:active { transform: scale(.98); }
   .bottomnav .nav-bawah { margin-top: auto; }
 
   /* Isi halaman */
