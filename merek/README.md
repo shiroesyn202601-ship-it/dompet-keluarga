@@ -5,9 +5,10 @@ Dipakai untuk media sosial, Play Store, presentasi, dan materi promosi. Ikon apl
 
 Logo: dompet teal yang tutupnya membentuk atap rumah, dua lembar uang hijau terselip di belakangnya, pengait amber.
 Ikon di `web/ikon/`:
-- `ikon-192.png` / `ikon-512.png`: logo saja, dipakai di dalam aplikasi (di sebelah tulisan nama).
-- `ikon-nama-192.png` / `ikon-nama-512.png`: logo + tulisan "Dompet Keluarga", ikon `any` di manifest supaya nama ikut tampil di splash Android.
-- `maskable-512.png`: logo saja, ikon layar utama Android (tanpa tulisan, karena di ukuran ikon tulisan tidak terbaca).
+- `ikon-192.png` / `ikon-512.png`: logo saja, ikon `any` di manifest dan di dalam aplikasi.
+- `maskable-512.png`: logo saja, ikon layar utama Android. Splash Android juga memakai ikon ini; splash tidak bisa
+  diberi nama tanpa menaruh tulisan di ikon layar utama (tidak terbaca di ukuran ikon), jadi sengaja tanpa nama.
+  Nama lengkap tampil sebagai label di bawah ikon (`short_name` di manifest).
 - `apple-touch-icon.png`, `favicon-32.png`: logo saja.
 
 Gambar logo yang digambar ulang lewat kanvas (gambar bagikan) ada di `gambarLogo` di `web/assets/app-halaman.js`; samakan kalau logo berubah.
