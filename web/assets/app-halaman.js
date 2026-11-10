@@ -1036,7 +1036,7 @@ async function bagikanLaporan(k) {
   };
   const lebar = (W - P * 2 - 24) / 2;
   kotak(P, 350, lebar, T('Pemasukan'), rp(r.masuk), '#3ccb8b');
-  kotak(P + lebar + 24, 350, lebar, T('Pengeluaran'), rp(r.keluar), '#fb7593');
+  kotak(P + lebar + 24, 350, lebar, T('Pengeluaran'), rp(r.keluar), '#ff8a7a');
   kotak(P, 544, W - P * 2, T('Selisih') + (r.masuk ? ' · ' + T('{persen}% dari pemasukan', { persen: Math.round((r.masuk - r.keluar) / r.masuk * 100) }) : ''), rp(r.masuk - r.keluar), '#ffffff');
 
   teks(T('Pengeluaran terbesar'), P, 800, 36, '#ffffff', 700);
@@ -1144,7 +1144,7 @@ async function bagikanTahunan(th) {
   };
   const lebar = (W - P * 2 - 24) / 2;
   kotak(P, 330, lebar, T('Pemasukan'), rp(masuk), '#3ccb8b');
-  kotak(P + lebar + 24, 330, lebar, T('Pengeluaran'), rp(keluar), '#fb7593');
+  kotak(P + lebar + 24, 330, lebar, T('Pengeluaran'), rp(keluar), '#ff8a7a');
   kotak(P, 504, lebar, T('Selisih') + (masuk ? ` · ${Math.round((masuk - keluar) / masuk * 100)}%` : ''), rp(masuk - keluar), '#ffffff');
   kotak(P + lebar + 24, 504, lebar, T('Rata-rata / bulan'), rp(rata.nilai), '#ffffff');
 
@@ -1154,7 +1154,7 @@ async function bagikanTahunan(th) {
   const kolom = gw / 12, bw = Math.min(22, (kolom - 14) / 2);
   data.forEach((x, i) => {
     const cx = gx + i * kolom + kolom / 2;
-    [[x.masuk, '#3ccb8b', cx - bw - 2], [x.keluar, '#fb7593', cx + 2]].forEach(([v, warna, bx]) => {
+    [[x.masuk, '#3ccb8b', cx - bw - 2], [x.keluar, '#ff8a7a', cx + 2]].forEach(([v, warna, bx]) => {
       const h = v / maks * gh;
       if (h < 1) return;
       g.fillStyle = warna; g.beginPath(); g.roundRect(bx, gy + gh - h, bw, h, 6); g.fill();
@@ -1519,7 +1519,7 @@ function kartuAnggaranLaporan(bulan, data, pilih) {
 
 /** Transaksi rinci hanya tersedia untuk periode yang sedang dimuat (S.data.bulan); periode lain cukup ringkasan bulanan. */
 const trxLaporan = pilih => (S.data.bulan === pilih ? S.data.transaksi : null);
-const WARNA_DONAT = ['#6366F1', '#F97316', '#10B981', '#EC4899', '#0EA5E9', '#94A3B8'];
+const WARNA_DONAT = ['#0E7C86', '#F5A524', '#2A78D6', '#E8553E', '#65A30D', '#94A3B8']; // teal dan amber merek lebih dulu, tanpa pink/ungu
 const NAMA_HARI_SEMINGGU = [T('Sen'), T('Sel'), T('Rab'), T('Kam'), T('Jum'), T('Sab'), T('Min')];
 
 /** Wawasan otomatis untuk periode terpilih, disusun dari yang paling berguna. */

@@ -2,6 +2,26 @@ const PILIHAN_IKON = ['🍜', '🛒', '⛽', '🚗', '🛵', '💡', '🏠', '�
   '🎮', '✈️', '🐱', '📞', '🔧', '🧾', '💼', '🎁', '🏪', '📈', '💰', '💵', '🏦', '📱', '💳', '👛',
   '🐷', '🎯', '🏖️', '🎓', '💍', '🕋', '🏍️', '🛡️'];
 
+// ---------- Splash (logo + nama, di index.html) ----------
+// Ditutup begitu isi #view pertama kali diganti (Beranda, layar masuk, setup, atau data offline), paling cepat
+// 700 ms sejak halaman dibuka supaya tidak sekadar berkedip; paling lambat 8 detik apa pun yang terjadi.
+(() => {
+  const splash = document.getElementById('splash');
+  const view = document.getElementById('view');
+  if (!splash || !view) return;
+  let tutup = false;
+  const tutupSplash = () => {
+    if (tutup) return;
+    tutup = true;
+    setTimeout(() => {
+      splash.classList.add('hilang');
+      setTimeout(() => splash.remove(), 400);
+    }, Math.max(0, 700 - performance.now()));
+  };
+  new MutationObserver((m, o) => { o.disconnect(); tutupSplash(); }).observe(view, { childList: true });
+  setTimeout(tutupSplash, 8000);
+})();
+
 const S = {
   data: null,
   bulan: '', // kunci periode 'yyyy-mm' yang dilihat; '' = periode berjalan (diisi setelah data dimuat)

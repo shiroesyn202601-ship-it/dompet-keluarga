@@ -48,9 +48,9 @@ Kalimat pendukung (pilih sesuai ruang):
 | Amber | `#f5a524` | Aksen: pengait dompet di logo, sorotan kecil |
 | Krem | `#fff4e3` | Latar logo |
 | Hijau | `#079455` | Khusus pemasukan |
-| Merah muda | `#e3335c` | Khusus pengeluaran |
+| Merah koral | `#d63c2f` (gelap: `#ff8a7a`) | Khusus pengeluaran |
 
-Hijau dan merah muda hanya untuk arti uang masuk/keluar. Jangan dipakai sebagai warna hiasan.
+Hijau dan merah koral hanya untuk arti uang masuk/keluar. Jangan dipakai sebagai warna hiasan. Hindari pink dan ungu: tidak termasuk warna merek.
 
 ## Huruf
 
