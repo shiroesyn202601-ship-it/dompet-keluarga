@@ -1453,6 +1453,76 @@ Object.assign(AKSI, {
   },
 });
 
+// ---------- Meter suara: batang .gelombang-suara naik-turun mengikuti suara yang masuk ke mikrofon ----------
+// Pengenal suara browser tidak memberi level suara, jadi mikrofon dibuka sekali lagi lewat getUserMedia dan
+// dibaca dengan AnalyserNode. Gagal / tidak didukung → batang tetap memakai animasi CSS biasa.
+// Di sebagian HP mikrofon tidak bisa dipakai dua kali sekaligus (pengenal galat 'audio-capture'):
+// meter dimatikan permanen di HP itu (dk_meter_mati), supaya pencatatan suara tetap jalan.
+let meterSesi = 0, meter = null;
+function mulaiMeterSuara() {
+  if (meter || bacaHp('dk_meter_mati')) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return;
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const sesi = ++meterSesi;
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(aliran => {
+    if (sesi !== meterSesi || meter) { aliran.getTracks().forEach(t => t.stop()); return; } // sudah dihentikan
+    const ctx = new Ctx();
+    const an = ctx.createAnalyser();
+    an.fftSize = 256;
+    an.smoothingTimeConstant = 0.55;
+    ctx.createMediaStreamSource(aliran).connect(an);
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    const data = new Uint8Array(an.frequencyBinCount);
+    // Pita suara manusia ±150 Hz–4 kHz ≈ bin 1–22 (lebar bin = sampleRate / fftSize).
+    const lebarBin = ctx.sampleRate / an.fftSize;
+    const binAwal = Math.max(1, Math.round(150 / lebarBin)), binAkhir = Math.round(4000 / lebarBin);
+    meter = { aliran, ctx, rAF: 0 };
+    const gambar = () => {
+      if (!meter) return;
+      an.getByteFrequencyData(data);
+      document.querySelectorAll('.gelombang-suara').forEach(g => {
+        const bar = g.children, n = bar.length;
+        if (!n) return;
+        g.classList.add('hidup');
+        const tinggi = g.clientHeight || 30;
+        for (let i = 0; i < n; i++) {
+          // Batang tengah = frekuensi rendah (paling keras saat bicara), makin ke tepi makin tinggi frekuensinya.
+          const jarak = Math.abs(i - (n - 1) / 2) / ((n - 1) / 2 || 1);
+          const dari = Math.round(binAwal + jarak * (binAkhir - binAwal) * 0.8);
+          let jumlah = 0;
+          for (let b = dari; b < dari + 3; b++) jumlah += data[b] || 0;
+          const v = Math.min(1, (jumlah / 3 / 255) * (1.3 + jarak * 0.6)); // frekuensi tinggi lebih pelan → dikuatkan
+          bar[i].style.height = Math.round(5 + v * (tinggi - 5)) + 'px';
+        }
+      });
+      meter.rAF = requestAnimationFrame(gambar);
+    };
+    gambar();
+  }).catch(() => { /* izin ditolak / mic sibuk: animasi CSS biasa */ });
+}
+function hentikanMeterSuara() {
+  meterSesi++;
+  const m = meter;
+  meter = null;
+  if (m) {
+    cancelAnimationFrame(m.rAF);
+    m.aliran.getTracks().forEach(t => t.stop());
+    m.ctx.close().catch(() => {});
+  }
+  document.querySelectorAll('.gelombang-suara.hidup').forEach(g => {
+    g.classList.remove('hidup');
+    [...g.children].forEach(i => { i.style.height = ''; });
+  });
+}
+/** Pengenal suara gagal karena mikrofon dipakai meter: matikan meter di HP ini. */
+function meterBentrok(galat) {
+  if (galat !== 'audio-capture' || !meter) return false;
+  tulisHp('dk_meter_mati', '1');
+  hentikanMeterSuara();
+  return true;
+}
+
 AKSI.suara = el => {
   if (suaraAktif) { suaraAktif.stop(); return; }
   const r = new PengenalSuara();
@@ -1462,7 +1532,7 @@ AKSI.suara = el => {
   suaraAktif = r;
   panelSuara('siap');
   const input = $('#f-cepat');
-  r.onaudiostart = () => { panelSuara('dengar'); if (navigator.vibrate) navigator.vibrate(30); };
+  r.onaudiostart = () => { panelSuara('dengar'); if (navigator.vibrate) navigator.vibrate(30); mulaiMeterSuara(); };
   r.onspeechstart = () => panelSuara('bicara');
   r.onresult = ev => {
     const teks = Array.from(ev.results).map(x => x[0].transcript).join(' ').trim();
@@ -1474,12 +1544,14 @@ AKSI.suara = el => {
     }
   };
   r.onerror = ev => {
-    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') toast(T('Izinkan akses mikrofon untuk mencatat dengan suara.'), true);
+    if (meterBentrok(ev.error)) toast(T('Mikrofon terputus. Ketuk 🎤 sekali lagi.'), true);
+    else if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') toast(T('Izinkan akses mikrofon untuk mencatat dengan suara.'), true);
     else if (ev.error === 'no-speech') toast(T('Suara tidak terdengar. Coba lagi lebih dekat ke HP.'), true);
     else if (ev.error === 'network') toast(T('Pengenalan suara butuh sinyal internet.'), true);
   };
   r.onend = () => {
     suaraAktif = null;
+    hentikanMeterSuara();
     panelSuara('');
   };
   try { r.start(); } catch (e) { suaraAktif = null; panelSuara(''); }

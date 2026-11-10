@@ -517,7 +517,7 @@ function dengarLagi() {
   r.interimResults = true;
   r.maxAlternatives = 1;
   dikte.r = r;
-  r.onaudiostart = () => { if (dikte.tahap === 'siap' && navigator.vibrate) navigator.vibrate(30); dikte.tahap = 'dengar'; tampilDikte(); };
+  r.onaudiostart = () => { if (dikte.tahap === 'siap' && navigator.vibrate) navigator.vibrate(30); dikte.tahap = 'dengar'; tampilDikte(); mulaiMeterSuara(); };
   r.onresult = ev => {
     let sementara = '';
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
@@ -530,6 +530,7 @@ function dengarLagi() {
   };
   r.onerror = ev => {
     if (ev.error === 'no-speech' || ev.error === 'aborted') return; // jeda biasa: dengar lagi
+    if (meterBentrok(ev.error)) return; // mic dipakai meter gelombang: meter dimatikan, pengenal dengar lagi
     dikte.galat = true;
     if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') toast(T('Izinkan akses mikrofon untuk menulis dengan suara.'), true);
     else if (ev.error === 'network') toast(T('Menulis dengan suara butuh sinyal internet.'), true);
@@ -556,6 +557,7 @@ function hentikanDikte() {
   const r = dikte.r;
   Object.assign(dikte, { aktif: false, r: null, tahap: '', sementara: '' });
   if (r) { r.onend = null; try { r.stop(); } catch (e) { /* sudah berhenti */ } }
+  hentikanMeterSuara();
   tampilDikte();
 }
 

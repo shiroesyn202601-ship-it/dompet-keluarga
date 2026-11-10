@@ -705,6 +705,8 @@ select.field, select.field:focus { appearance: none; -webkit-appearance: none; c
 .gelombang-suara i:nth-child(6) { animation-delay: -.75s !important; } .gelombang-suara i:nth-child(7) { animation-delay: -.9s !important; }
 @keyframes gelombang { 0%, 100% { height: 6px; } 50% { height: 26px; } }
 .panel-suara[data-tahap="dengar"] .gelombang-suara i { --t: 14px; }
+/* Meter suara aktif (app-interaksi.js → mulaiMeterSuara): tinggi batang diatur dari level mikrofon, bukan animasi. */
+.gelombang-suara.hidup i { animation: none !important; opacity: 1 !important; transition: height .08s linear; }
 .teks-suara { flex: 1; min-width: 0; }
 .teks-suara b { display: block; font-size: 13.5px; font-weight: 800; color: var(--keluar); }
 .teks-suara span { display: block; font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }

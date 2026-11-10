@@ -904,6 +904,7 @@ Object.assign(KAMUS, {
   'Menulis dengan suara butuh sinyal internet.': 'Writing by voice needs an internet connection.',
   'Mikrofon berhenti ({galat}).': 'Microphone stopped ({galat}).',
   'Mikrofon tidak bisa dipakai.': 'The microphone can\'t be used.',
+  'Mikrofon terputus. Ketuk 🎤 sekali lagi.': 'The microphone was interrupted. Tap 🎤 again.',
   '1 dari {n}': '1 of {n}',
   'Dari {nama}': 'From {nama}',
   'berulang {ulang}': 'repeats {ulang}',
