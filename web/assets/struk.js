@@ -258,11 +258,11 @@ const STRUK = (() => {
   }
 
   /** opsiMinta: { signal: AbortSignal, unggah: fungsi(persen) untuk kemajuan unggahan (100 = selesai, AI mulai membaca) }. */
-  async function mintaGemini(kunci, model, parts, skema, opsiMinta) {
+  async function mintaGemini(kunci, model, parts, skema, opsiMinta, tanpaPikir) {
     const { signal, unggah } = opsiMinta || {};
     const config = { responseMimeType: 'application/json', responseSchema: skema };
     // Sama seperti bot: model seri Pro tidak bisa membatasi thinking (ditolak 400), jadi dibiarkan bawaan.
-    if (!/pro/i.test(model)) config.thinkingConfig = { thinkingBudget: PIKIR_STRUK };
+    if (!/pro/i.test(model) && !tanpaPikir) config.thinkingConfig = { thinkingBudget: PIKIR_STRUK };
     let res;
     try {
       res = await kirimXhr('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
@@ -280,6 +280,8 @@ const STRUK = (() => {
       let pesan = '';
       try { pesan = JSON.parse(teks).error.message; } catch (e) { pesan = teks.slice(0, 200); }
       const kunciSalah = res.status === 400 && /API key/i.test(pesan);
+      // 400 lain: biasanya pengaturan thinking tidak didukung versi model terbaru → ulang sekali tanpa pengaturan itu.
+      if (res.status === 400 && !kunciSalah && config.thinkingConfig) return mintaGemini(kunci, model, parts, skema, opsiMinta, true);
       let err;
       if (kunciSalah) err = new Error(T('Kunci API Gemini tidak valid. Periksa lagi di ⚙️ Pengaturan.'));
       else if (res.status === 429) err = new Error(T('Kuota semua kunci Gemini sedang habis. Coba lagi nanti, atau tambah kunci lain di ⚙️ Pengaturan.'));

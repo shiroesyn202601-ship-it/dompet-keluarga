@@ -1413,14 +1413,20 @@ function jalankanGemini_(daftar, model, permintaan, skema, ikut) {
       jawaban.forEach(function (res, j) {
         const i = sisa[j];
         try {
-          hasil[i] = bacaJawabanGemini_(res);
+          try {
+            hasil[i] = bacaJawabanGemini_(res);
+          } catch (e) {
+            if (!e.argumen || permintaan[i].pikir == null || /pro/i.test(model2[mi])) throw e;
+            console.warn(permintaan[i].sumber + ': ' + model2[mi] + ' menolak permintaan (' + e.message + '), ulang tanpa pengaturan thinking');
+            hasil[i] = bacaJawabanGemini_(UrlFetchApp.fetchAll([mintaGemini_(kunci, model2[mi], permintaan[i].parts, skema, null)])[0]);
+          }
           console.log(permintaan[i].sumber + ' memakai ' + model2[mi] + ', kunci ' + samarkanKunci_(kunci));
         } catch (e) {
           hasil[i] = e;
           if (e.gantiKunci) {
             console.warn(permintaan[i].sumber + ': kunci ' + samarkanKunci_(kunci) + ' gagal (' + e.message + '), coba kunci lain');
             ulang.push(i);
-          } else if (e.gantiModel) {
+          } else if (e.gantiModel || e.argumen) {
             console.warn(permintaan[i].sumber + ': ' + model2[mi] + ' gagal (' + e.message + '), coba model cadangan');
             lainModel.push(i);
           }
@@ -1615,6 +1621,9 @@ function bacaJawabanGemini_(res) {
     else err = new Error('Gemini error ' + kode + ': ' + pesan);
     err.gantiKunci = kode === 429 || kode === 403 || (kode === 400 && /API key/i.test(pesan));
     err.gantiModel = kode >= 500 || kode === 404;
+    // 400 selain kunci: biasanya pengaturan permintaan yang tidak didukung versi model terbaru (mis. thinkingBudget
+    // setelah alias "-latest" pindah ke model baru). Diulang tanpa pengaturan thinking, lalu dengan model cadangan.
+    err.argumen = kode === 400 && !err.gantiKunci;
     throw err;
   }
   try {
