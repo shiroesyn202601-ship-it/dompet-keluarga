@@ -950,6 +950,14 @@ const AKSI = {
     ajakanPasang = null;
     if (['lainnya', 'beranda'].includes(S.tab)) render();
   },
+  'bagikan-wa-undangan': () => {
+    const input = $('#u-link');
+    if (input) window.open('https://wa.me/?text=' + encodeURIComponent(pesanUndangan(input.value)), '_blank', 'noopener');
+  },
+  'status-berikut': () => {
+    statusKe++;
+    render();
+  },
   'nanti-pasang': () => {
     tulisHp('dk_tawar_pasang', String(Date.now()));
     render();
@@ -970,6 +978,7 @@ const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'demo-mulai', 'demo-masuk', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
   'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'bagikan-tahunan', 'pratinjau-bagikan', 'pratinjau-simpan', 'cetak-laporan','salin-link', 'pasang-aplikasi', 'suara', 'cepat-suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
   'ajak-ai-lanjut', 'ajak-ai-tolak', // meneruskan ke kamera / mikrofon
+  'ajak-keluarga', 'bagikan-wa-undangan', // menu berbagi HP
 ]);
 
 /**

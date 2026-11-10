@@ -432,7 +432,8 @@ const SERVER = (() => {
   }
 
   async function bagikan_(id, email) {
-    const pesan = T('Ayo catat keuangan keluarga bareng di Dompet Keluarga. Buka link ini dan masuk dengan akun Google ini: {link}', { link: linkUndangan_(id) });
+    const dari = typeof namaPendek === 'function' && GOOGLE.email() ? '&dari=' + encodeURIComponent(namaPendek(GOOGLE.email())) : '';
+    const pesan = T('Ayo catat keuangan keluarga bareng di Dompet Keluarga. Buka link ini dan masuk dengan akun Google ini: {link}', { link: linkUndangan_(id) + dari });
     try {
       await GOOGLE.api(DRIVE + '/files/' + id + '/permissions?sendNotificationEmail=true&emailMessage=' + encodeURIComponent(pesan), {
         method: 'POST',

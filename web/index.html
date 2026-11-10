@@ -49,6 +49,18 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
+    <!-- Splash saat aplikasi dimuat: uang jatuh masuk ke dompet beratap rumah (= ikon/logo.svg). Ditutup app.js (aturSplash). -->
+    <div id="splash" class="splash" aria-hidden="true">
+      <svg viewBox="0 0 512 512">
+        <rect class="sp-ubin" width="512" height="512" rx="112" fill="#fff4e3"/>
+        <g class="sp-uang1"><g transform="rotate(-16 193 132)"><rect x="88" y="70" width="210" height="124" rx="16" fill="#5fb48e"/><rect x="102" y="84" width="182" height="96" rx="8" fill="none" stroke="#2f7f5f" stroke-opacity=".55" stroke-width="7"/><circle cx="193" cy="132" r="29.5" fill="#2f7f5f" fill-opacity=".55"/></g></g>
+        <g class="sp-uang2"><g transform="rotate(14 325 132)"><rect x="220" y="70" width="210" height="124" rx="16" fill="#7cc8a4"/><rect x="234" y="84" width="182" height="96" rx="8" fill="none" stroke="#3f9a76" stroke-opacity=".55" stroke-width="7"/><circle cx="325" cy="132" r="29.5" fill="#3f9a76" fill-opacity=".55"/></g></g>
+        <path class="sp-dompet" d="M256 108 418 222V384a32 32 0 0 1-32 32H126a32 32 0 0 1-32-32V222Z" fill="#0e7c86" stroke="#0e7c86" stroke-width="20" stroke-linejoin="round"/>
+        <g class="sp-kait"><rect x="300" y="278" width="138" height="84" rx="42" fill="#f5a524"/><circle cx="352" cy="320" r="17" fill="#fff4e3"/></g>
+      </svg>
+      <b>Dompet Keluarga</b>
+      <small data-t>Uang keluarga akur, sampai gajian berikutnya.</small>
+    </div>
     <main id="view">
       <div class="kerangka" aria-busy="true" aria-label="Memuat" data-t-label>
         <div class="k-kepala"><i class="k-bulat"></i><div><i class="k-garis" style="width:50px"></i><i class="k-garis tebal" style="width:110px"></i></div><i class="k-pil"></i></div>

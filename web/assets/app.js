@@ -59,6 +59,24 @@ window.addEventListener('unhandledrejection', e => {
 
 terjemahkanHalaman(); // teks statis index.html (lihat bahasa.js)
 
+// Splash logo (index.html → #splash): ditutup begitu isi pertama tampil. Pembukaan pertama per sesi minimal
+// 0,9 detik supaya animasinya terlihat utuh; muat ulang berikutnya tidak ditahan. Paling lama 1,6 detik.
+(function aturSplash() {
+  const el = document.getElementById('splash');
+  if (!el) return;
+  let pernah = false;
+  try { pernah = sessionStorage.getItem('dk_splash') === '1'; sessionStorage.setItem('dk_splash', '1'); } catch (e) { /* mode privat */ }
+  const minimal = pernah ? 0 : 900;
+  let ditutup = false;
+  const tutup = () => {
+    if (ditutup) return;
+    ditutup = true;
+    setTimeout(() => { el.classList.add('tutup'); setTimeout(() => el.remove(), 400); }, Math.max(0, minimal - performance.now()));
+  };
+  new MutationObserver((_, o) => { o.disconnect(); tutup(); }).observe(document.getElementById('view'), { childList: true });
+  setTimeout(tutup, 1600);
+})();
+
 // Font dipasang di sini, bukan sebagai <link rel="stylesheet"> di index.html, supaya layar pertama
 // (dan splash screen Android) tidak menunggu Google Fonts. Teks tampil dulu dengan font sistem.
 (() => {
@@ -275,6 +293,9 @@ async function mulai() {
   const m = location.hash.match(/gabung=([\w-]{20,})/);
   if (m) {
     S.gabung = m[1];
+    // &dari=Nama: nama pengundang untuk sambutan "Sari mengajak Anda…" (hanya tampilan, tidak dipercaya untuk apa pun).
+    const dari = location.hash.match(/[&#]dari=([^&]*)/);
+    try { S.pengundang = dari ? decodeURIComponent(dari[1]).replace(/[^\p{L}\p{N} .'-]/gu, '').trim().slice(0, 30) : ''; } catch (e) { S.pengundang = ''; }
     history.replaceState(null, '', location.pathname + location.search);
   }
   // ?coba (tautan "Coba sekarang" di tentang.html): langsung masuk mode coba, kecuali sudah login sungguhan.
@@ -431,22 +452,33 @@ async function kirimTertunda() {
   }
 }
 
-/** Baris status di atas halaman: offline, transaksi menunggu, atau yang gagal dikirim. */
+/**
+ * Baris status di atas halaman: offline, transaksi menunggu / gagal dikirim, periode lain, mode coba, tawaran pasang.
+ * Hanya SATU baris yang tampil (urut dari yang paling penting) supaya angka saldo tetap jadi yang pertama dilihat;
+ * kalau ada beberapa, tombol "1/3 ›" di ujungnya menggilir ke baris berikutnya.
+ */
+let statusKe = 0;
 function bannerStatus() {
   const daftar = tertunda();
   const gagal = daftar.filter(t => t.gagal);
   const menunggu = daftar.length - gagal.length;
-  return (DEMO.aktif() ? `<div class="status-bar demo">${T('👀 Mode coba · data contoh, hanya di HP ini')} <button type="button" data-aksi="demo-masuk">${T('Pakai sungguhan')}</button></div>` : '') +
-    (S.menyegarkan ? `<div class="bilah-segar" role="status" aria-label="${T('Memperbarui data')}"><i></i></div>` : '') +
-    (S.data && !S.data.perluSetup && S.bulan && ['beranda', 'riwayat'].includes(S.tab) && S.bulan !== periodeSekarang()
-      ? `<div class="status-bar">${T('📅 Menampilkan {periode}, bukan periode sekarang.', { periode: esc(namaBulan(S.bulan)) })} <button type="button" data-aksi="bulan-ini">${T('Ke periode sekarang')}</button></div>` : '') +
-    tawaranPasang() +
-    (S.offline ? `<div class="status-bar">${T('📴 Offline · menampilkan data terakhir. Transaksi baru tetap bisa dicatat.')}</div>` : '') +
-    (!S.offline && S.sesiHabis ? `<div class="status-bar">${T('🔄 Menampilkan data terakhir · tersambung lagi begitu Anda mengetuk layar')}</div>` : '') +
-    (catatanTertunda().length ? `<div class="status-bar">${T('📝 {n} catatan menunggu dikirim', { n: catatanTertunda().length })}</div>` : '') +
-    (menunggu ? `<div class="status-bar">${T('📤 {n} transaksi menunggu dikirim', { n: menunggu })}${S.offline ? '' : ` <button type="button" data-aksi="kirim-tertunda">${T('Kirim sekarang')}</button>`}</div>` : '') +
-    gagal.map(t => `<div class="status-bar gagal">${T('⚠️ {jumlah} {kategori} tidak bisa dikirim: {alasan}', { jumlah: rp(t.jumlah), kategori: esc(namaT(t.kategori || 'Transfer')), alasan: esc(t.gagal) })}
-      <button type="button" data-aksi="ulang-tertunda" data-id="${esc(t.idBaru)}">${T('Catat ulang')}</button></div>`).join('');
+  const baris = [
+    ...gagal.map(t => ({ kelas: 'gagal', isi: `${T('⚠️ {jumlah} {kategori} tidak bisa dikirim: {alasan}', { jumlah: rp(t.jumlah), kategori: esc(namaT(t.kategori || 'Transfer')), alasan: esc(t.gagal) })}
+      <button type="button" data-aksi="ulang-tertunda" data-id="${esc(t.idBaru)}">${T('Catat ulang')}</button>` })),
+    S.offline && { isi: T('📴 Offline · menampilkan data terakhir. Transaksi baru tetap bisa dicatat.') },
+    !S.offline && S.sesiHabis && { isi: T('🔄 Menampilkan data terakhir · tersambung lagi begitu Anda mengetuk layar') },
+    menunggu && { isi: `${T('📤 {n} transaksi menunggu dikirim', { n: menunggu })}${S.offline ? '' : ` <button type="button" data-aksi="kirim-tertunda">${T('Kirim sekarang')}</button>`}` },
+    catatanTertunda().length && { isi: T('📝 {n} catatan menunggu dikirim', { n: catatanTertunda().length }) },
+    S.data && !S.data.perluSetup && S.bulan && ['beranda', 'riwayat'].includes(S.tab) && S.bulan !== periodeSekarang()
+      && { isi: `${T('📅 Menampilkan {periode}, bukan periode sekarang.', { periode: esc(namaBulan(S.bulan)) })} <button type="button" data-aksi="bulan-ini">${T('Ke periode sekarang')}</button>` },
+    DEMO.aktif() && { kelas: 'demo', isi: `${T('👀 Mode coba · data contoh, hanya di HP ini')} <button type="button" data-aksi="demo-masuk">${T('Pakai sungguhan')}</button>` },
+    tawaranPasang(),
+  ].filter(Boolean);
+  const segar = S.menyegarkan ? `<div class="bilah-segar" role="status" aria-label="${T('Memperbarui data')}"><i></i></div>` : '';
+  if (!baris.length) return segar;
+  const ke = statusKe % baris.length, b = baris[ke];
+  const gilir = baris.length > 1 ? `<button type="button" class="status-gilir" data-aksi="status-berikut" aria-label="${T('Pesan berikutnya ({ke} dari {n})', { ke: ke + 1, n: baris.length })}">${ke + 1}/${baris.length} ›</button>` : '';
+  return `<div class="status-bar ${b.kelas || ''}"><span class="isi-status">${b.isi}</span>${gilir}</div>` + segar;
 }
 
 /**
@@ -455,10 +487,10 @@ function bannerStatus() {
  */
 const HP_BROWSER = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 function tawaranPasang() {
-  if (MODE_APLIKASI || !HP_BROWSER || DEMO.aktif() || S.tab !== 'beranda' || !S.data || S.data.perluSetup) return '';
-  if (Date.now() - (Number(bacaHp('dk_tawar_pasang')) || 0) < 14 * 864e5) return '';
-  return `<div class="status-bar">${T('📲 Pasang Dompet Keluarga di HP: dibuka lebih cepat dari layar utama & tetap jalan saat offline.')}
-    <span class="aksi-status"><button type="button" class="tunda" data-aksi="nanti-pasang">${T('Nanti')}</button><button type="button" data-aksi="pasang-aplikasi">${T('Pasang')}</button></span></div>`;
+  if (MODE_APLIKASI || !HP_BROWSER || DEMO.aktif() || S.tab !== 'beranda' || !S.data || S.data.perluSetup) return null;
+  if (Date.now() - (Number(bacaHp('dk_tawar_pasang')) || 0) < 14 * 864e5) return null;
+  return { isi: `${T('📲 Pasang Dompet Keluarga di HP: dibuka lebih cepat dari layar utama & tetap jalan saat offline.')}
+    <span class="aksi-status"><button type="button" class="tunda" data-aksi="nanti-pasang">${T('Nanti')}</button><button type="button" data-aksi="pasang-aplikasi">${T('Pasang')}</button></span>` };
 }
 
 /** Pilihan bahasa (nama tiap bahasa ditulis dalam bahasanya sendiri). Mengganti = muat ulang, lihat bahasa.js. */
@@ -483,7 +515,10 @@ function tampilMasuk() {
         <li><span class="ik-bulat">${svg('ramal')}</span>${T('Tahu berapa yang aman dibelanjakan tiap hari')}</li>
         <li><span class="ik-bulat">${svg('gembok')}</span>${T('Data di Google Drive Anda sendiri, gratis tanpa iklan')}</li>
       </ul>
-      ${S.gabung ? `<p>${T('<b>Anda diundang bergabung.</b> Masuk dengan akun Google yang diundang untuk melanjutkan.')}</p>` : ''}
+      ${S.gabung ? `<div class="kartu-undangan">
+        <span class="avatar-undangan" aria-hidden="true">${esc((S.pengundang || '👋').charAt(0).toUpperCase())}</span>
+        <div><b>${S.pengundang ? T('{nama} mengajak Anda mencatat keuangan keluarga bersama', { nama: esc(S.pengundang) }) : T('Anda diajak mencatat keuangan keluarga bersama')}</b>
+        <small>${T('Masuk dengan akun Google yang diundang. Setelah itu, catatan Anda berdua langsung tersambung di satu buku.')}</small></div></div>` : ''}
       ${email ? `
         <button type="button" class="btn btn-utama" data-aksi="masuk">${T('Lanjutkan sebagai {email}', { email: esc(email) })}</button>
         <button type="button" class="tombol-teks" data-aksi="masuk" data-akun-lain="1">${T('Pakai akun Google lain')}</button>`

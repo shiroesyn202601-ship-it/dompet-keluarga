@@ -56,8 +56,6 @@ function viewBeranda() {
       <div class="kepala-kanan">${pemilihBulan(true)}<button type="button" class="tombol-ikon tombol-cari" data-aksi="cari-global" aria-label="${T('Cari transaksi, catatan & fitur')}">${svg('cari')}</button><button type="button" class="tombol-ikon tombol-cari" data-aksi="tab" data-tab="lainnya" aria-label="${T('Pengaturan')}">${svg('gear')}</button></div>
     </div>
 
-    ${typeof barisInsight === 'function' ? barisInsight() : ''}
-
     <section class="kartu kartu-saldo">
       <div class="atas-saldo">
         <small>${T('Total saldo dompet')}</small>
@@ -80,6 +78,7 @@ function viewBeranda() {
       ${barisSisaAman() || `<div class="selisih">${T('Selisih {bulan}: <b>{jumlah}</b>', { bulan: esc(namaBulan(S.bulan)), jumlah: rp(masuk - keluar) })}</div>`}
     </section>
 
+    ${typeof barisInsight === 'function' ? barisInsight() : ''}
     ${aksiCepat()}
     ${bagianSekaliKetuk()}
 
@@ -1105,7 +1104,7 @@ function kakiMerek(g, W, y, ukuran, warna) {
  * kirimGambar dipanggil dari tombol di lembar ini (AKSI 'pratinjau-bagikan' / 'pratinjau-simpan').
  */
 let GAMBAR_BAGIKAN = null; // { blob, file, nama, judul, keterangan, url }
-async function bagikanKanvas(c, nama, judul, keterangan) {
+async function bagikanKanvas(c, nama, judul, keterangan, tambahan) {
   const blob = await new Promise(ok => c.toBlob(ok, 'image/png'));
   if (GAMBAR_BAGIKAN) URL.revokeObjectURL(GAMBAR_BAGIKAN.url);
   const file = new File([blob], nama, { type: 'image/png' });
@@ -1116,7 +1115,7 @@ async function bagikanKanvas(c, nama, judul, keterangan) {
     <div class="aksi-form">
       <button type="button" class="btn ${bisaBagi ? 'btn-kedua' : 'btn-utama'}" data-aksi="pratinjau-simpan">${T('⬇️ Simpan gambar')}</button>
       ${bisaBagi ? `<button type="button" class="btn btn-utama" data-aksi="pratinjau-bagikan">${T('📤 Bagikan')}</button>` : ''}
-    </div>`);
+    </div>${tambahan || ''}`);
 }
 
 /** Bagikan gambar lewat menu berbagi HP; kalau browser tidak mendukung berbagi file (atau simpan = true), gambarnya diunduh. */
@@ -1604,7 +1603,7 @@ function kartuSorotan(pilih) {
   const bisaAi = S.data.kunciGemini && S.data.kunciGemini.length;
   return `<section class="kartu">
     <div class="kepala-kartu"><h3>${T('✨ Sorotan · {bulan}', { bulan: esc(namaBulan(pilih)) })}</h3>
-      <button type="button" class="chip chip-kilas" data-aksi="kilas-putar" data-bulan="${esc(pilih)}">${T('▶ Kilas balik')}</button></div>
+      <button type="button" class="chip chip-kilas" data-aksi="kilas-putar" data-bulan="${esc(pilih)}">${T('▶ Rapor bulanan')}</button></div>
     <div id="ringkas-ai">${ai ? kotakRingkasAi(ai, pilih) : ''}</div>
     <div class="sorotan">${butir.map(b => `
       <div class="butir-sorotan ${b.kelas}"><span class="ikon-sorotan">${b.ikon}</span>
@@ -2050,7 +2049,13 @@ async function bukaAnggota(idBuku) {
   isiDaftarAnggota(buku.id);
 }
 
+/** Link undangan + nama pengundang (untuk sambutan "Sari mengajak Anda…" di layar masuk). */
+const linkUndanganDari = link => link + (/[&#]dari=/.test(link) ? '' : '&dari=' + encodeURIComponent(namaPendek(S.data.user)));
+/** Pesan WhatsApp siap kirim: ajakan + tagline + link undangan. */
+const pesanUndangan = link => T('Yuk catat keuangan keluarga bareng di Dompet Keluarga, biar angka kita selalu sama. Uang keluarga akur, sampai gajian berikutnya. Buka link ini lalu masuk dengan akun Google yang aku undang: {link}', { link });
+
 function formUndangan(idBuku, link) {
+  link = linkUndanganDari(link);
   return `
     <span class="label" style="margin-top:16px">${T('Undang anggota baru')}</span>
     <div class="grup-form">
@@ -2064,6 +2069,7 @@ function formUndangan(idBuku, link) {
         <input class="field" id="u-link" readonly value="${esc(link)}">
         <button type="button" class="btn btn-hapus" data-aksi="salin-link">${T('Salin')}</button>
       </div>
+      <button type="button" class="btn btn-wa" data-aksi="bagikan-wa-undangan">${T('💬 Kirim lewat WhatsApp')}</button>
       <p class="info-kecil" style="text-align:left">${T('Link ini hanya bisa dipakai akun yang sudah diundang lewat email di atas.')}</p>
     </div>
     <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="kirim-undangan" data-buku="${esc(idBuku || '')}">${T('Undang')}</button></div>`;

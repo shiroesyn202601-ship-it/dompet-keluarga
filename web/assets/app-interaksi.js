@@ -778,14 +778,27 @@ function cekKilasBalik() {
   bukaKilasBalik(lalu);
 }
 
+/**
+ * Nilai rapor bulanan dari porsi pemasukan yang tersisa: A ≥ 20%, B ≥ 10%, C ≥ 0%, D minus.
+ * Ritual tetap "Rapor Keuangan Keluarga" tiap awal periode; nama & tampilannya sengaja selalu sama.
+ */
+function nilaiRapor(r) {
+  const rasio = r.masuk ? Math.round((r.masuk - r.keluar) / r.masuk * 100) : null;
+  if (rasio === null) return { huruf: '–', label: T('Catat pemasukan dulu'), rasio, kelas: 'netral' };
+  if (rasio >= 20) return { huruf: 'A', label: T('Sangat sehat'), rasio, kelas: 'a' };
+  if (rasio >= 10) return { huruf: 'B', label: T('Sehat'), rasio, kelas: 'b' };
+  if (rasio >= 0) return { huruf: 'C', label: T('Cukup, masih aman'), rasio, kelas: 'c' };
+  return { huruf: 'D', label: T('Perlu perhatian'), rasio, kelas: 'd' };
+}
+
 function slideKilas(k) {
   const r = ringkasBulan(k);
   const sebelum = ringkasBulan(bulanSebelum(k));
   const top = Object.keys(r.kategori).map(n => ({ n, v: r.kategori[n] })).sort((a, b) => b.v - a.v);
   const nama = namaPendek(S.data.user);
   const slide = [];
-  slide.push(`<div class="kilas-isi tengah"><span class="kilas-emoji">✨</span><small>${T('Kilas balik')}</small>
-    <h2>${esc(namaBulan(k))}</h2><p>${T('Halo {nama}, yuk lihat ke mana uang keluarga pergi bulan itu 👀', { nama: esc(nama) })}</p></div>`);
+  slide.push(`<div class="kilas-isi tengah"><span class="kilas-emoji">📒</span><small>${T('Rapor Keuangan Keluarga')}</small>
+    <h2>${esc(namaBulan(k))}</h2><p>${T('Halo {nama}, saatnya terima rapor: ke mana uang keluarga pergi bulan itu 👀', { nama: esc(nama) })}</p></div>`);
   slide.push(`<div class="kilas-isi"><small>${T('Total pengeluaran')}</small><div class="kilas-angka keluar">${rp(r.keluar)}</div>
     <div class="kilas-baris"><span>${T('💰 Pemasukan')}</span><b>${rp(r.masuk)}</b></div>
     <div class="kilas-baris"><span>${r.masuk >= r.keluar ? T('🟢 Sisa') : T('🔴 Minus')}</span><b>${rp(Math.abs(r.masuk - r.keluar))}</b></div></div>`);
@@ -803,8 +816,9 @@ function slideKilas(k) {
       <p>${p > 0 ? T('Pengeluaran naik {jumlah}. Cek lagi kategori yang membengkak, ya.', { jumlah: rp(r.keluar - sebelum.keluar) })
         : p < 0 ? T('Hemat {jumlah} dari bulan sebelumnya. Mantap! 🎉', { jumlah: rp(sebelum.keluar - r.keluar) }) : T('Pengeluaran sama persis. Konsisten!')}</p></div>`);
   }
-  const rasio = r.masuk ? Math.round((r.masuk - r.keluar) / r.masuk * 100) : null;
-  slide.push(`<div class="kilas-isi tengah"><span class="kilas-emoji">${rasio === null ? '📒' : rasio >= 20 ? '🏆' : rasio >= 0 ? '💪' : '🫶'}</span>
+  const nilai = nilaiRapor(r), rasio = nilai.rasio;
+  slide.push(`<div class="kilas-isi tengah"><small>${T('Nilai rapor')}</small>
+    <span class="nilai-rapor ${nilai.kelas}" aria-label="${T('Nilai {huruf}', { huruf: nilai.huruf })}">${nilai.huruf}</span>
     <h2>${rasio === null ? T('Terus mencatat!') : rasio >= 20 ? T('Keuangan sehat!') : rasio >= 0 ? T('Masih aman') : T('Bulan yang berat')}</h2>
     <p>${rasio === null ? T('Catat pemasukan juga supaya rangkumannya lengkap.')
       : rasio >= 20 ? T('{persen}% pemasukan berhasil disisihkan. Pertahankan!', { persen: rasio })
@@ -826,7 +840,7 @@ function bukaKilasBalik(k) {
     el.className = 'kilas';
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-modal', 'true');
-    el.setAttribute('aria-label', T('Kilas balik bulanan'));
+    el.setAttribute('aria-label', T('Rapor Keuangan Keluarga'));
     document.body.appendChild(el);
   }
   el.innerHTML = `

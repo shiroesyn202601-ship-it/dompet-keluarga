@@ -22,7 +22,7 @@ function konfeti(emoji) {
   const daftar = emoji || ['🎉', '✨', '💰', '🎊', '⭐'];
   const el = document.createElement('div');
   el.className = 'konfeti';
-  el.innerHTML = Array.from({ length: 28 }, (_, i) => `<i style="--x:${Math.round(Math.random() * 100)}%;--t:${(Math.random() * .6).toFixed(2)}s;--r:${Math.round(Math.random() * 720 - 360)}deg">${daftar[i % daftar.length]}</i>`).join('');
+  el.innerHTML = Array.from({ length: 18 }, (_, i) => `<i style="--x:${Math.round(Math.random() * 100)}%;--t:${(Math.random() * .6).toFixed(2)}s;--r:${Math.round(Math.random() * 720 - 360)}deg">${daftar[i % daftar.length]}</i>`).join('');
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3200);
 }
@@ -33,10 +33,85 @@ rayakanTabungan = function (w) { // eslint-disable-line no-func-assign
   const kunci = 'dk_tercapai_' + (S.data.spreadsheetId || '') + '_' + w.nama;
   if (bacaHp(kunci)) return;
   tulisHp(kunci, '1');
-  konfeti();
-  getar();
-  toast(T('🎉 Selamat! Target {nama} tercapai!', { nama: namaT(w.nama) }));
+  rayakan({ emoji: '🐷', besar: true, toast: T('🎉 Selamat! Target {nama} tercapai!', { nama: namaT(w.nama) }),
+    judul: T('Target {nama} tercapai!', { nama: namaT(w.nama) }), sub: T('Sedikit demi sedikit, akhirnya terkumpul juga.') });
 };
+
+// ---------- Perayaan & gambar pencapaian ----------
+// Konfeti hanya untuk pencapaian besar (target tabungan, tantangan berhasil, streak ≥ 30 hari); yang kecil cukup
+// getar + toast. Setiap perayaan menawarkan "Bagikan": gambar 9:16 bermerek (tanpa nominal rupiah) yang sekaligus
+// mengajak keluarga lain mencoba aplikasi.
+let PENCAPAIAN = null; // { emoji, judul, sub }
+function rayakan({ emoji, judul, sub, toast: pesan, besar, bisaBagi = true }) {
+  if (besar) konfeti([emoji, '🎉', '✨', '⭐']);
+  if (besar) getar(); else getarHalus([15, 60, 15]);
+  PENCAPAIAN = bisaBagi ? { emoji, judul, sub } : null;
+  toast(pesan, false, bisaBagi ? { label: T('Bagikan'), aksi: 'bagikan-pencapaian' } : null);
+}
+
+/** Pecah teks jadi baris-baris selebar maks piksel (font kanvas harus sudah diatur). */
+function barisKanvas(g, teks, maks) {
+  const kata = String(teks).split(/\s+/), baris = [];
+  let kini = '';
+  kata.forEach(k => {
+    const coba = kini ? kini + ' ' + k : k;
+    if (g.measureText(coba).width > maks && kini) { baris.push(kini); kini = k; } else kini = coba;
+  });
+  if (kini) baris.push(kini);
+  return baris;
+}
+
+/** Gambar pencapaian 1080×1920: kop merek, emoji besar, judul, keterangan, tagline, ajakan + alamat aplikasi. */
+async function gambarPencapaian(p) {
+  const W = 1080, H = 1920, P = 84;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  try { await document.fonts.ready; } catch (e) { /* font cadangan */ }
+  const latar = g.createLinearGradient(0, 0, W, H);
+  latar.addColorStop(0, '#062a2e'); latar.addColorStop(.5, '#0e7c86'); latar.addColorStop(.85, '#14b8a6'); latar.addColorStop(1, '#f5a524');
+  g.fillStyle = latar; g.fillRect(0, 0, W, H);
+  // Garis kontur melingkar di belakang emoji (sama dengan dekorasi kartu saldo).
+  g.save();
+  for (let r = 260; r < 1100; r += 70) {
+    g.strokeStyle = `rgba(255,255,255,${Math.max(0, .13 - r / 9000).toFixed(3)})`; g.lineWidth = 3;
+    g.beginPath(); g.arc(W / 2, 760, r, 0, Math.PI * 2); g.stroke();
+  }
+  g.restore();
+  kopMerek(g, P, 150, 36, 'rgba(255,255,255,.95)');
+  g.textAlign = 'center';
+  g.font = FONT_MEREK(32, 800); g.fillStyle = 'rgba(255,255,255,.72)';
+  g.fillText(T('PENCAPAIAN KELUARGA'), W / 2, 420);
+  g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.arc(W / 2, 760, 220, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.22)'; g.beginPath(); g.arc(W / 2, 760, 170, 0, Math.PI * 2); g.fill();
+  g.font = '210px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
+  g.fillText(p.emoji, W / 2, 775);
+  g.textBaseline = 'alphabetic';
+  g.font = FONT_MEREK(78, 800); g.fillStyle = '#ffffff';
+  let y = 1130;
+  barisKanvas(g, p.judul, W - P * 2).slice(0, 3).forEach(b => { g.fillText(b, W / 2, y); y += 96; });
+  if (p.sub) {
+    g.font = FONT_MEREK(40, 600); g.fillStyle = 'rgba(255,255,255,.85)';
+    y += 10;
+    barisKanvas(g, p.sub, W - P * 2.5).slice(0, 3).forEach(b => { g.fillText(b, W / 2, y); y += 56; });
+  }
+  g.font = FONT_MEREK(36, 700); g.fillStyle = 'rgba(255,255,255,.95)';
+  g.fillText('“' + T('Uang keluarga akur, sampai gajian berikutnya.') + '”', W / 2, 1640);
+  kakiMerek(g, W, 1830, 34, 'rgba(255,255,255,.85)');
+  return c;
+}
+
+/** Ajakan memakai aplikasi (teks + link) lewat menu berbagi HP, atau WhatsApp kalau tidak didukung. */
+async function ajakKeluargaLain() {
+  const teks = T('Kami mencatat keuangan keluarga pakai Dompet Keluarga: dicatat berdua dari HP masing-masing, angkanya langsung sama. Gratis, tanpa iklan. Uang keluarga akur, sampai gajian berikutnya. Coba di sini: {link}', { link: 'https://' + TAUTAN_PROMO });
+  if (navigator.share) {
+    try { await navigator.share({ text: teks }); } catch (e) { /* dibatalkan */ }
+    return;
+  }
+  window.open('https://wa.me/?text=' + encodeURIComponent(teks), '_blank', 'noopener');
+}
+const KOTAK_AJAK = () => `<div class="kotak-ajak"><span>${T('Keluarga lain juga perlu akur soal uang. Ajak mereka coba, gratis.')}</span>
+  <button type="button" class="btn btn-kedua" data-aksi="ajak-keluarga">${T('🤝 Ajak keluarga lain')}</button></div>`;
 
 /** Angka besar ([data-gulir="kunci"][data-nilai]) bergulir dari nilai sebelumnya saat berubah, mis. setelah mencatat. */
 const ANGKA_LALU = {};
@@ -117,7 +192,8 @@ const maskot = mood => (typeof ILUSTRASI !== 'undefined' && ILUSTRASI.maskot ? I
 
 // Kartu kosong: maskot dengan ekspresi sesuai keadaan + lencana kecil berikon garis (emoji kalau belum ada padanannya).
 // Pencarian tanpa hasil = bingung; ajakan memulai (catat, dompet, tabungan) = senang; selebihnya = tidur.
-const KOSONG_IKON = { '🔍': 'cari', '👛': 'dompet', '🐷': 'celengan', '🤝': 'tangan', '🔁': 'tagihan', '🧾': 'tagihan', '✍️': 'pensil', '🗓️': 'kalender', '🌤️': 'kalender', '👥': 'berdua' };
+const KOSONG_IKON = { '🔍': 'cari', '👛': 'dompet', '🐷': 'celengan', '🤝': 'tangan', '🔁': 'tagihan', '🧾': 'tagihan', '✍️': 'pensil', '🗓️': 'kalender', '🌤️': 'kalender', '👥': 'berdua', '🏷️': 'label', '🆕': 'nyala' };
+IKON.label = '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>';
 const KOSONG_MOOD = { '🔍': 'cemas', '✍️': 'senang', '👛': 'senang', '🐷': 'senang' };
 kosong = function (ikon, teks) { // eslint-disable-line no-func-assign
   const garis = KOSONG_IKON[ikon] && IKON[KOSONG_IKON[ikon]];
@@ -840,9 +916,8 @@ async function cekTantanganSelesai() {
     tulisLokal('data', S.data);
     const menang = beres.find(x => x.st.selesai === 'berhasil');
     if (menang) {
-      konfeti(['🏆', '🎉', '✨', '🔥', '⭐']);
-      getar();
-      toast(T('🏆 Tantangan "{judul}" berhasil!', { judul: judulTantangan(menang.t) }));
+      rayakan({ emoji: '🏆', besar: true, toast: T('🏆 Tantangan "{judul}" berhasil!', { judul: judulTantangan(menang.t) }),
+        judul: T('Tantangan "{judul}" berhasil!', { judul: judulTantangan(menang.t) }), sub: T('Komitmen kecil yang dijaga bersama, hasilnya nyata.') });
     } else {
       toast(T('Tantangan "{judul}" belum berhasil. Coba lagi, ya 💪', { judul: judulTantangan(beres[0].t) }));
     }
@@ -877,6 +952,7 @@ async function centangTantangan(id, centang) {
 
 /** Sekali per pencapaian: konfeti saat streak mencapai 3, 7, 14, 30, … hari. */
 function cekPencapaianStreak() {
+  if (DEMO.aktif()) return; // data contoh sudah ber-streak panjang: jangan disambut konfeti begitu mode coba dibuka
   const s = hitungStreak();
   if (!s.hariIni) return;
   const capai = MILESTONE_STREAK.filter(m => s.n >= m).pop();
@@ -887,11 +963,9 @@ function cekPencapaianStreak() {
   const mulaiStreak = geserHari(hariIni(), -(s.n - 1));
   if (mulaiLalu === mulaiStreak && Number(capaiLalu) >= capai) return;
   tulisHp(kunci, mulaiStreak + '|' + capai);
-  setTimeout(() => {
-    konfeti(['🔥', '✨', '⭐', '🎉']);
-    getarHalus([15, 60, 15]);
-    toast(T('🔥 {n} hari beruntun mencatat! Keren!', { n: capai }));
-  }, 600);
+  setTimeout(() => rayakan({ emoji: '🔥', besar: capai >= 30, bisaBagi: capai >= 7,
+    toast: T('🔥 {n} hari beruntun mencatat! Keren!', { n: capai }),
+    judul: T('{n} hari beruntun mencatat keuangan!', { n: capai }), sub: T('Tiap rupiah tercatat, keluarga jadi tahu uangnya ke mana.') }), 600);
 }
 
 function kartuTantangan() {
@@ -1210,8 +1284,15 @@ async function gambarStory(k, aman) {
   });
 
   kopMerek(g, P, 150, 36, 'rgba(255,255,255,.95)');
-  teks(T('RANGKUMAN BULAN'), P, 250, 34, 'rgba(255,255,255,.7)', 800);
-  teks(namaBulan(k), P, 340, 78, '#ffffff', 800, 'left', W - P * 2);
+  // Periode yang sudah selesai = Rapor Keuangan Keluarga dengan nilai A–D; periode berjalan = rangkuman sementara.
+  const nilai = !berjalan && typeof nilaiRapor === 'function' ? nilaiRapor(r) : null;
+  teks(nilai ? T('RAPOR KEUANGAN KELUARGA') : T('RANGKUMAN BULAN'), P, 250, 34, 'rgba(255,255,255,.7)', 800);
+  teks(namaBulan(k), P, 340, 78, '#ffffff', 800, 'left', W - P * 2 - (nilai && nilai.huruf !== '–' ? 170 : 0));
+  if (nilai && nilai.huruf !== '–') {
+    g.fillStyle = 'rgba(255,255,255,.95)'; g.beginPath(); g.arc(W - P - 66, 292, 66, 0, Math.PI * 2); g.fill();
+    teks(nilai.huruf, W - P - 66, 322, 86, '#0e7c86', 800, 'center');
+    teks(T('NILAI'), W - P - 66, 392, 24, 'rgba(255,255,255,.8)', 800, 'center');
+  }
 
   // Julukan
   kotak(P, 410, W - P * 2, 380, 'rgba(255,255,255,.14)', 48);
@@ -1271,7 +1352,7 @@ async function bukaBagikanStory(k) {
     </div>
     <div class="pratinjau-story" id="pratinjau-story" aria-busy="true"></div>
     <p class="info-kecil" id="ket-story">${T('Aman dibagikan: hanya persen & emoji, tanpa angka rupiah.')}</p>
-    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="story-bagikan">${T('📤 Bagikan')}</button></div>`);
+    <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="story-bagikan">${T('📤 Bagikan')}</button></div>${KOTAK_AJAK()}`);
   await gambarPratinjauStory();
 }
 async function gambarPratinjauStory() {
@@ -1571,6 +1652,13 @@ Object.assign(AKSI, {
     gambarCekBeli();
   },
 
+  'bagikan-pencapaian': async () => {
+    const p = PENCAPAIAN;
+    if (!p) return;
+    const c = await gambarPencapaian(p);
+    await bagikanKanvas(c, 'pencapaian-dompet-keluarga.png', T('Bagikan pencapaian'), p.judul + ' · ' + T('Dicatat dengan Dompet Keluarga'), KOTAK_AJAK());
+  },
+  'ajak-keluarga': () => ajakKeluargaLain(),
   'bagikan-story': el => bukaBagikanStory(el.dataset.bulan),
   'story-mode': async el => {
     if (!STORY) return;
