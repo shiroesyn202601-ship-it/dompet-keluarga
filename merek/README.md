@@ -9,6 +9,8 @@ Ikon di `web/ikon/`:
 - `maskable-512.png`: logo saja, ikon layar utama Android. Splash Android juga memakai ikon ini; splash tidak bisa
   diberi nama tanpa menaruh tulisan di ikon layar utama (tidak terbaca di ukuran ikon), jadi sengaja tanpa nama.
   Nama lengkap tampil sebagai label di bawah ikon (`short_name` di manifest).
+- `monokrom-512.png`: siluet putih di latar transparan (`purpose: monochrome`), untuk ikon bertema Android 13+ —
+  sistem mewarnainya mengikuti tema HP. Detail (uang, kancing) dibentuk dari celah transparan.
 - `apple-touch-icon.png`, `favicon-32.png`: logo saja.
 
 Gambar logo yang digambar ulang lewat kanvas (gambar bagikan) ada di `gambarLogo` di `web/assets/app-halaman.js`; samakan kalau logo berubah.
