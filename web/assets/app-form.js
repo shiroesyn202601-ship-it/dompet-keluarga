@@ -318,8 +318,10 @@ function tulisHp(k, v) {
 }
 
 const WARNA_BILAH = { light: '#f4f5f8', dark: '#0b0c10' }; // = --bg tiap tema
-/** '' = otomatis ikut perangkat, 'light', atau 'dark'. Dipasang awal di index.html supaya tidak berkedip. */
+/** '' = belum memilih (ikut perangkat, bawaan), 'light', atau 'dark'. Dipasang awal di index.html supaya tidak berkedip. */
 const temaDipilih = () => bacaHp('dk_tema') || '';
+/** Tema yang sedang tampil: pilihan pengguna (Terang/Gelap), atau ikut tema perangkat selama belum memilih. */
+const temaAktif = () => temaDipilih() || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 /** Ukuran tampilan: '' (normal) | 'besar' | 'sangat' — seluruh aplikasi diperbesar (zoom), bukan hanya huruf. */
 const ukuranDipilih = () => bacaHp('dk_ukuran') || '';
 function aturUkuran(u) {

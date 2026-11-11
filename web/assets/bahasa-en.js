@@ -471,7 +471,6 @@ Object.assign(KAMUS, {
   'Tetap gelap': 'Always dark',
   'Tetap terang': 'Always light',
   'Ikut pengaturan HP': 'Follows phone settings',
-  'Otomatis': 'Automatic',
   'Terang': 'Light',
   'Gelap': 'Dark',
   'Tampilan': 'Layout',

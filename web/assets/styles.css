@@ -409,6 +409,8 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
 .segmen { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--card-2); border-radius: 16px; padding: 4px; margin-bottom: 18px; }
 .segmen button { padding: 10px 4px; border-radius: 12px; font-size: 14px; font-weight: 700; color: var(--muted); }
 .segmen button.aktif { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(16, 24, 40, .12); }
+.segmen.segmen-kecil { flex: none; margin: 0; border-radius: 999px; padding: 3px; }
+.segmen.segmen-kecil button { padding: 7px 14px; border-radius: 999px; font-size: 13px; }
 
 .input-jumlah { display: flex; align-items: baseline; gap: 8px; background: var(--card-2); border-radius: 20px; padding: 14px 18px; margin-bottom: 18px; border: 2px solid transparent; }
 .input-jumlah:focus-within { border-color: var(--primary); }

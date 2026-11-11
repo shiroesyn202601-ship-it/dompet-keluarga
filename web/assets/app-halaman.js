@@ -2022,14 +2022,12 @@ function viewLainnya() {
             `<option value="${g}" ${(GAYA === 'santai' ? 'santai' : '') === g ? 'selected' : ''}>${l}</option>`).join('')}</select>
         </span>
       </label>` : ''}
-      <label class="baris baris-pilih">
-        <span class="ikon-bulat">${temaDipilih() === 'dark' ? '🌙' : temaDipilih() === 'light' ? '☀️' : '🌓'}</span>
+      <div class="baris">
+        <span class="ikon-bulat">${temaAktif() === 'dark' ? '🌙' : '☀️'}</span>
         <span class="isi"><b>${T('Tema')}</b><small>${temaDipilih() ? (temaDipilih() === 'dark' ? T('Tetap gelap') : T('Tetap terang')) : T('Ikut pengaturan HP')}</small></span>
-        <span class="pilih-kecil">
-          <select id="pilih-tema" aria-label="${T('Tema')}">${[['', T('Otomatis')], ['light', T('Terang')], ['dark', T('Gelap')]].map(([t, l]) =>
-            `<option value="${t}" ${temaDipilih() === t ? 'selected' : ''}>${l}</option>`).join('')}</select>
-        </span>
-      </label>
+        <span class="segmen segmen-kecil" role="group" aria-label="${T('Tema')}">${[['light', T('Terang')], ['dark', T('Gelap')]].map(([t, l]) =>
+          `<button type="button" class="${temaAktif() === t ? 'aktif' : ''}" data-aksi="tema" data-t="${t}" aria-pressed="${temaAktif() === t}">${l}</button>`).join('')}</span>
+      </div>
       ${layarLebar() || tampilanDipilih() ? `<label class="baris baris-pilih">
         <span class="ikon-bulat">${tampilanDipilih() === 'hp' ? '📱' : '🖥️'}</span>
         <span class="isi"><b>${T('Tampilan')}</b><small>${tampilanDipilih() === 'hp' ? T('Seperti di HP, di tengah layar') : T('Layar lebar dengan menu di samping')}</small></span>
