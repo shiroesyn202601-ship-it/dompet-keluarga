@@ -678,6 +678,16 @@ const AKSI = {
     setTimeout(() => { const t = $('.tombol-suara'); if (t && !suaraAktif) AKSI.suara(t); }, 30);
   },
   'ringkas-periode': () => bukaRingkasPeriode(),
+  'atur-menu': () => bukaAturMenu(),
+  'geser-menu': el => {
+    const u = urutanMenu(), i = Number(el.dataset.i), j = i + Number(el.dataset.arah);
+    if (j < 0 || j >= u.length) return;
+    [u[i], u[j]] = [u[j], u[i]];
+    simpanUrutanMenu(u);
+    const fokus = document.querySelector(`#atur-menu [data-aksi="geser-menu"][data-i="${j}"][data-arah="${el.dataset.arah}"]`);
+    if (fokus && !fokus.disabled) fokus.focus({ preventScroll: true }); // tekan berulang = terus naik/turun
+  },
+  'reset-menu': () => simpanUrutanMenu(null),
   'atur-pintasan': () => bukaAturPintasan(),
   'pilih-pintasan': el => {
     const p = pintasanDipilih();

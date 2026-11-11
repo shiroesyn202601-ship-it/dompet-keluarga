@@ -172,6 +172,35 @@ function isiAturPintasan() {
 function bukaAturPintasan() {
   bukaSheet(T('Atur Pintasan'), `<div id="atur-pintasan">${isiAturPintasan()}</div>`);
 }
+/** Lembar Urutan menu: daftar menu per halaman menu bawah, tiap baris dengan tombol naik/turun. */
+function isiAturMenu() {
+  const peta = {};
+  tombolMenu().forEach(b => { peta[kunciMenu(b)] = b; });
+  const urut = urutanMenu();
+  const panah = (i, arah, mati, label) => `<button type="button" class="tombol-ikon" data-aksi="geser-menu" data-i="${i}" data-arah="${arah}" ${mati ? 'disabled' : ''} aria-label="${label}">
+    <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="${arah < 0 ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}"/></svg></button>`;
+  let html = `<p style="margin-top:0">${T('Atur urutan menu di bagian bawah layar. Tiap halaman berisi 4 menu (2 di kiri dan 2 di kanan tombol ＋); geser menu ke kiri/kanan untuk pindah halaman.')}</p>`;
+  for (let h = 0; h * 4 < urut.length; h++) {
+    html += `<h4 class="sub-laporan">${T('Halaman {n}', { n: h + 1 })}</h4>` + urut.slice(h * 4, h * 4 + 4).map((k, j) => {
+      const i = h * 4 + j, b = peta[k];
+      return `<div class="baris baris-menu">
+        <span class="ikon-bulat">${b.querySelector('svg').outerHTML}</span>
+        <span class="isi"><b>${esc(b.textContent.trim())}</b></span>
+        ${panah(i, -1, i === 0, T('Naikkan'))}${panah(i, 1, i === urut.length - 1, T('Turunkan'))}
+      </div>`;
+    }).join('');
+  }
+  return html + `<div class="aksi-form"><button type="button" class="btn btn-kedua" data-aksi="reset-menu">${T('Kembalikan urutan awal')}</button></div>`;
+}
+function bukaAturMenu() {
+  bukaSheet(T('Urutan menu'), `<div id="atur-menu">${isiAturMenu()}</div>`);
+}
+function simpanUrutanMenu(daftar) {
+  tulisHp('dk_menu', daftar ? JSON.stringify(daftar) : null);
+  terapkanUrutanMenu();
+  if ($('#atur-menu')) $('#atur-menu').innerHTML = isiAturMenu();
+  if (S.tab === 'lainnya') render();
+}
 function simpanPintasan(daftar) {
   tulisHp('dk_pintasan', daftar ? JSON.stringify(daftar) : null);
   if ($('#atur-pintasan')) $('#atur-pintasan').innerHTML = isiAturPintasan();
@@ -1987,6 +2016,7 @@ function viewLainnya() {
         </span>
       </label>
       ${baris('atur-pintasan', '⚡', T('Pintasan di Beranda'), pintasanDipilih().map(k => PINTASAN[k][1]).join(' · ') || T('Belum ada pintasan'))}
+      ${baris('atur-menu', '🧭', T('Urutan menu'), tombolMenu().slice(0, 4).map(b => esc(b.textContent.trim())).join(' · '))}
       <button class="baris" data-aksi="samar" role="switch" aria-checked="${modeSamar()}">
         <span class="ikon-bulat">👁</span>
         <span class="isi"><b>${T('Sembunyikan nominal')}</b><small>${modeSamar() ? T('Angka disamarkan') : T('Samarkan angka saat HP dilihat orang lain')}</small></span>

@@ -509,7 +509,7 @@ function tampilMasuk() {
   const email = GOOGLE.email();
   $('#view').innerHTML = `
     <div class="sambut">
-      <img class="logo" src="ikon/ikon-192.png" alt="">
+      <img class="logo" src="ikon/logo.svg" alt="">
       <h1>Dompet Keluarga</h1>
       <p class="tagline-masuk">${T('Uang keluarga akur, sampai gajian berikutnya.')}</p>
       <ul class="keunggulan">
@@ -640,6 +640,35 @@ function aturGeserNav() {
     }
     geser.dataset.tab = S.tab;
   }
+}
+
+// Urutan menu bawah bisa diatur sendiri (Pengaturan → Urutan menu), disimpan di HP ini. Tombol di index.html
+// ditata ulang ke halaman-halaman .nav-hal: 4 menu per halaman, 2 di kiri ＋ dan 2 di kanan. Di layar lebar
+// urutan yang sama dipakai sidebar.
+const kunciMenu = b => b.dataset.tab || b.dataset.aksi;
+const tombolMenu = () => [...document.querySelectorAll('#nav-geser .nav-hal > button:not(.hanya-lebar)')];
+let URUTAN_MENU_AWAL = null;
+function urutanMenu() {
+  if (!URUTAN_MENU_AWAL) URUTAN_MENU_AWAL = tombolMenu().map(kunciMenu);
+  let p = null;
+  try { p = JSON.parse(bacaHp('dk_menu')); } catch (e) { /* abaikan */ }
+  const pakai = (Array.isArray(p) ? p : []).filter((k, i, a) => URUTAN_MENU_AWAL.includes(k) && a.indexOf(k) === i);
+  return pakai.concat(URUTAN_MENU_AWAL.filter(k => !pakai.includes(k))); // menu baru (belum ada di simpanan) di belakang
+}
+function terapkanUrutanMenu() {
+  const geser = $('#nav-geser');
+  if (!geser) return;
+  const urut = urutanMenu();
+  const peta = {};
+  tombolMenu().forEach(b => { peta[kunciMenu(b)] = b; });
+  const tambahan = [...geser.querySelectorAll('.nav-hal > .hanya-lebar')];
+  const hal = [...geser.querySelectorAll('.nav-hal')];
+  hal.forEach((h, i) => {
+    const isi = urut.slice(i * 4, i * 4 + 4).map(k => peta[k]);
+    h.replaceChildren(...isi.slice(0, 2), h.querySelector('.nav-celah') || document.createElement('span'), ...isi.slice(2));
+  });
+  hal[hal.length - 1].append(...tambahan);
+  delete geser.dataset.tab; // render berikutnya menampilkan halaman menu yang memuat tab aktif
 }
 
 function render() {

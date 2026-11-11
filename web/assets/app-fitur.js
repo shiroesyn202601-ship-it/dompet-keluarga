@@ -1144,6 +1144,7 @@ document.addEventListener('input', e => {
 });
 
 if (ukuranDipilih()) document.documentElement.dataset.ukuran = ukuranDipilih();
+terapkanUrutanMenu();
 // Dimulai setelah semua skrip (termasuk muda.js yang menambah fitur ke AKSI, PINTASAN, render) selesai dimuat.
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mulai);
 else mulai();
