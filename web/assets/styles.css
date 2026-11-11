@@ -2212,8 +2212,8 @@ body.samar #view .harga-ubah, body.samar .barang-harga b { filter: blur(7px); }
 .kartu-papan.tertunda { opacity: .75; border-style: dashed; }
 .kp-buka { display: block; width: 100%; padding: 14px 14px 6px; text-align: left; color: inherit; background: none; }
 .kp-judul { display: block; font-size: 15px; font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
-.kp-isi { display: -webkit-box; -webkit-line-clamp: 9; -webkit-box-orient: vertical; overflow: hidden; margin-top: 6px;
-  font-size: 13.5px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; opacity: .85; }
+.kp-isi { display: block; max-height: 12.5em; overflow: hidden; margin-top: 6px; font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; opacity: .85; }
+.kp-isi ul, .kp-isi ol { margin: 2px 0; padding-left: 1.3em; }
 .kartu-papan .daftar-centang { padding: 0 6px 0 8px; }
 .kartu-papan .centang { padding: 5px 4px; font-size: 13.5px; }
 .kp-kaki { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 38px; padding: 0 4px 4px 14px; }
@@ -2230,3 +2230,21 @@ body.samar #view .harga-ubah, body.samar .barang-harga b { filter: blur(7px); }
 .papan-kepala-arsip { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; font-size: 17px; }
 .tautan-papan { margin-top: 12px; }
 .btn-arsip-catatan { flex: none; padding-left: 16px; padding-right: 16px; }
+
+/* ---------- Editor format catatan ---------- */
+.alat-format { position: sticky; top: calc(env(safe-area-inset-top) + 4px); z-index: 2; display: flex; align-items: center; gap: 2px;
+  margin: 4px 0 10px; padding: 4px; border-radius: 14px; background: var(--card-2); overflow-x: auto; scrollbar-width: none; }
+.alat-format::-webkit-scrollbar { display: none; }
+.alat-format button { flex: none; display: grid; place-items: center; width: 40px; height: 38px; border-radius: 10px; color: var(--muted); }
+.alat-format button .ik { width: 19px; height: 19px; }
+.alat-format button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.alat-format button.aktif { color: var(--primary); background: var(--primary-soft); }
+.pemisah-alat { flex: none; width: 1px; height: 22px; margin: 0 4px; background: var(--line); }
+.editor-catatan { min-height: 180px; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; text-align: left; } /* induknya rata tengah */
+.kp-isi { text-align: left; }
+.bungkus-editor { position: relative; }
+.petunjuk-editor { display: none; position: absolute; top: 4px; left: 0; right: 0; font-size: 16px; line-height: 1.6; color: var(--muted); opacity: .7; pointer-events: none; }
+.bungkus-editor.kosong .petunjuk-editor { display: block; }
+.editor-catatan ul, .editor-catatan ol { margin: 2px 0; padding-left: 1.5em; }
+.editor-catatan li { padding-left: 2px; }
+.editor-catatan:focus-visible { outline: none; }

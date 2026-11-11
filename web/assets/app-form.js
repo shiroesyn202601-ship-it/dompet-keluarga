@@ -1060,7 +1060,7 @@ async function jalankanCariGlobal(q) {
   const angkaQ = q.replace(/\D/g, '');
   const cocokTrx = t => [t.catatan, t.kategori, t.dompet, t.dompetTujuan].some(x => String(x || '').toLowerCase().includes(q))
     || (angkaQ.length >= 3 && String(t.jumlah).includes(angkaQ));
-  const catatan = daftarCatatan().filter(c => (c.judul + ' ' + c.isi).toLowerCase().includes(q)).slice(0, 10);
+  const catatan = daftarCatatan().filter(c => (c.judul + ' ' + polosMd(c.isi)).toLowerCase().includes(q)).slice(0, 10);
   const fitur = htmlFitur(cariFitur(q));
   if (!semuaTrxCari) {
     kotak.innerHTML = fitur + KERANGKA_DAFTAR;
@@ -1072,7 +1072,7 @@ async function jalankanCariGlobal(q) {
   S.hasilGlobal = trx;
   $('#hasil-global').innerHTML = fitur + (catatan.length ? `<h4 class="sub-laporan">📝 ${T('Catatan ({n})', { n: catatan.length })}</h4>` + catatan.map(c => `
       <button type="button" class="kal-item" data-aksi="ubah-catatan" data-id="${esc(c.id)}" style="--w:${warnaCatatan(c.warna)}">
-        <span class="isi"><b>${esc(c.judul)}</b><small>${c.tanggal ? esc(labelHariPendek(c.tanggal)) : '📌 ' + T('Tanpa tanggal')}${c.isi ? ' · ' + esc(c.isi.replace(/\[( |x)\] ?/gi, '').slice(0, 80)) : ''}</small></span>
+        <span class="isi"><b>${esc(c.judul)}</b><small>${c.tanggal ? esc(labelHariPendek(c.tanggal)) : '📌 ' + T('Tanpa tanggal')}${c.isi ? ' · ' + esc(polosMd(c.isi).replace(/\[( |x)\] ?/gi, '').slice(0, 80)) : ''}</small></span>
       </button>`).join('') : '')
     + (trx.length ? `<h4 class="sub-laporan">💳 ${T('Transaksi ({n})', { n: trx.length + (trx.length === 40 ? '+' : '') })}</h4>` + trx.map(t => {
       const tgl = `<small class="tgl-cari">${esc(labelHariPendek(t.tanggal))}</small>`;

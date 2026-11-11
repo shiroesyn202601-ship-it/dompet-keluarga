@@ -158,7 +158,7 @@ function cocokCari(c, q) {
   if (!q) return true;
   // Tanda baca diabaikan, jadi "wifi" menemukan "Wi-Fi".
   const norm = x => String(x).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '');
-  const teks = norm(c.judul + ' ' + c.isi);
+  const teks = norm(c.judul + ' ' + polosMd(c.isi));
   return norm(q).split(/\s+/).filter(Boolean).every(k => teks.includes(k));
 }
 
@@ -201,7 +201,7 @@ function kartuPapan(c) {
   return `
     <article class="kartu-papan ${c.tertunda ? 'tertunda' : ''}" data-warna="${esc(c.warna || 'polos')}" style="--w:${warnaCatatan(c.warna || 'polos')}">
       <button type="button" class="kp-buka" data-aksi="ubah-catatan" data-id="${esc(c.id)}">
-        <b class="kp-judul">${esc(c.judul)}</b>${!tugas && c.isi ? `<span class="kp-isi">${esc(c.isi)}</span>` : ''}
+        <b class="kp-judul">${esc(c.judul)}</b>${!tugas && c.isi ? `<span class="kp-isi">${mdKeHtml(c.isi)}</span>` : ''}
       </button>
       ${tugas ? daftarCentang(c) : ''}
       <div class="kp-kaki">
@@ -273,6 +273,114 @@ function gantiBulanKalender(n) {
   renderKalender();
 }
 
+// ---------- Format teks catatan (tebal, miring, poin, nomor, perataan) ----------
+// Disimpan di kolom Isi sebagai Markdown sederhana supaya tetap terbaca di spreadsheet & bot Telegram:
+//   **tebal**  *miring*  ++garis bawah++  ~~coret~~  "- poin"  "1. nomor"  "[tengah] baris" / "[kanan] baris";
+//   bintang biasa ditulis \* (tanda + dan ~ ganda jarang dipakai di teks biasa, jadi tidak di-escape).
+// Di aplikasi ditampilkan berformat (mdKeHtml) dan disunting dengan editor contenteditable (htmlKeMd).
+const POLA_RATA = /^\[(tengah|kanan)\] ?/;
+const POLA_POIN = /^\s*[-•] (.*)$/;
+const POLA_NOMOR = /^\s*\d+[.)] (.*)$/;
+
+function inlineMd(teks) {
+  const simpan = '\u0001';
+  return esc(teks.replace(/\\\*/g, simpan))
+    .replace(/\*\*(?=\S)(.+?)(?<=\S)\*\*/g, '<b>$1</b>')
+    .replace(/\*(?=\S)(.+?)(?<=\S)\*/g, '<i>$1</i>')
+    .replace(/\+\+(?=\S)(.+?)(?<=\S)\+\+/g, '<u>$1</u>')
+    .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '<s>$1</s>')
+    .split(simpan).join('*');
+}
+
+/** Markdown sederhana → HTML (untuk editor & tampilan kartu). */
+function mdKeHtml(md) {
+  if (!String(md || '').trim()) return ''; // editor benar-benar kosong, supaya perataan & daftar menempel di baris pertama
+  const baris = String(md || '').split('\n');
+  let html = '';
+  for (let i = 0; i < baris.length; i++) {
+    const b = baris[i];
+    const daftar = POLA_POIN.test(b) ? ['ul', POLA_POIN] : POLA_NOMOR.test(b) ? ['ol', POLA_NOMOR] : null;
+    if (daftar) {
+      let li = '';
+      while (i < baris.length && daftar[1].test(baris[i])) { li += `<li>${inlineMd(baris[i].match(daftar[1])[1])}</li>`; i++; }
+      i--;
+      html += `<${daftar[0]}>${li}</${daftar[0]}>`;
+      continue;
+    }
+    const rata = (b.match(POLA_RATA) || [])[1];
+    const isi = b.replace(POLA_RATA, '');
+    html += `<div${rata ? ` style="text-align:${rata === 'tengah' ? 'center' : 'right'}"` : ''}>${isi ? inlineMd(isi) : '<br>'}</div>`;
+  }
+  return html;
+}
+
+/** Teks polos tanpa tanda format (untuk ringkasan satu baris & pencarian). */
+const polosMd = md => String(md || '').split('\n')
+  .map(b => b.replace(POLA_RATA, '').replace(POLA_POIN, '• $1').replace(/\\\*/g, '\u0001').replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(?=\S)(.+?)(?<=\S)\*/g, '$1')
+    .replace(/\+\+(?=\S)(.+?)(?<=\S)\+\+/g, '$1').replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '$1').split('\u0001').join('*'))
+  .join('\n');
+
+/** Isi editor (DOM contenteditable) → Markdown sederhana. */
+function htmlKeMd(akar) {
+  const baris = [];
+  let buf = '';
+  let rataSekarang = '';
+  const lepas = s => s.replace(/\*/g, '\\*').replace(/ /g, ' ');
+  const bungkus = (isi, tanda) => {
+    const m = isi.match(/^(\s*)([\s\S]*?)(\s*)$/);
+    return m[2] ? m[1] + tanda + m[2] + tanda + m[3] : isi;
+  };
+  const inline = el => {
+    let s = '';
+    el.childNodes.forEach(n => {
+      if (n.nodeType === 3) s += lepas(n.nodeValue);
+      else if (n.nodeType === 1) {
+        if (n.tagName === 'BR') s += ' ';
+        else if (/^(B|STRONG)$/.test(n.tagName) || Number(n.style.fontWeight) >= 600 || n.style.fontWeight === 'bold') s += bungkus(inline(n), '**');
+        else if (/^(I|EM)$/.test(n.tagName) || n.style.fontStyle === 'italic') s += bungkus(inline(n), '*');
+        else if (n.tagName === 'U' || /underline/.test(n.style.textDecoration)) s += bungkus(inline(n), '++');
+        else if (/^(S|STRIKE|DEL)$/.test(n.tagName) || /line-through/.test(n.style.textDecoration)) s += bungkus(inline(n), '~~');
+        else s += inline(n);
+      }
+    });
+    return s;
+  };
+  const awalan = () => rataSekarang === 'center' ? '[tengah] ' : rataSekarang === 'right' || rataSekarang === 'end' ? '[kanan] ' : '';
+  const tutup = paksa => { if (buf || paksa) { baris.push(buf.trim() ? awalan() + buf.replace(/\s+$/, '') : ''); } buf = ''; };
+  const jalan = (el, rata) => {
+    el.childNodes.forEach(n => {
+      if (n.nodeType === 3) { rataSekarang = rata; buf += lepas(n.nodeValue); return; }
+      if (n.nodeType !== 1) return;
+      const tag = n.tagName;
+      if (tag === 'BR') { rataSekarang = rata; tutup(true); return; }
+      if (tag === 'UL' || tag === 'OL') {
+        tutup();
+        let no = 0;
+        n.querySelectorAll(':scope > li').forEach(li => baris.push((tag === 'UL' ? '- ' : ++no + '. ') + inline(li).trim()));
+        return;
+      }
+      if (/^(DIV|P|H[1-6]|BLOCKQUOTE|LI|SECTION)$/.test(tag)) {
+        tutup();
+        const sebelum = baris.length;
+        jalan(n, n.style.textAlign || rata);
+        rataSekarang = n.style.textAlign || rata;
+        tutup();
+        if (baris.length === sebelum) baris.push('');
+        return;
+      }
+      // Elemen sebaris (b, i, span…)
+      rataSekarang = rata;
+      const wadah = document.createElement('span');
+      wadah.appendChild(n.cloneNode(true));
+      buf += inline(wadah);
+    });
+  };
+  jalan(akar, akar.style.textAlign || '');
+  tutup();
+  while (baris.length && !baris[baris.length - 1]) baris.pop();
+  return baris.join('\n');
+}
+
 // ---------- Daftar tugas (to-do) di catatan ----------
 // Disimpan di kolom Isi sebagai baris "[ ] item" / "[x] item", jadi tetap terbaca di spreadsheet & tanpa kolom baru.
 const POLA_TUGAS = /^\[( |x)\] ?(.*)$/i;
@@ -299,7 +407,7 @@ function itemCatatan(c) {
   if (!tugas) {
     return `
       <button type="button" class="kal-item" data-aksi="ubah-catatan" data-id="${esc(c.id)}" style="--w:${warnaCatatan(c.warna)}">
-        <span class="isi"><b>${esc(c.judul)}</b>${c.isi ? `<small>${esc(c.isi)}</small>` : ''}<small class="kal-meta">${meta}</small></span>
+        <span class="isi"><b>${esc(c.judul)}</b>${c.isi ? `<small>${esc(polosMd(c.isi))}</small>` : ''}<small class="kal-meta">${meta}</small></span>
         <span class="panah">${svg('maju')}</span>
       </button>`;
   }
@@ -376,11 +484,11 @@ Object.assign(AKSI, {
     $('#c-jenis').dataset.jenis = jenis;
     if (jenis === 'tugas') {
       // Teks yang sudah ditulis jadi item per baris.
-      const baris = $('#c-isi').value.split('\n').map(b => b.replace(/^\s*([-*•]|\d+[.)])\s*/, '').trim()).filter(Boolean);
+      const baris = polosMd($('#c-isi').value).split('\n').map(b => b.replace(/^\s*([-*•]|\d+[.)])\s*/, '').trim()).filter(Boolean);
       if (baris.length) $('#c-tugas').innerHTML = baris.map(t => barisTugasForm({ teks: t, selesai: false })).join('');
     } else {
       const isi = tugasDariForm().filter(t => t.teks.trim()).map(t => '- ' + t.teks.trim()).join('\n');
-      if (isi && !$('#c-isi').value.trim()) $('#c-isi').value = isi;
+      if (isi && !$('#c-isi').value.trim()) { $('#c-isi').value = isi; isiEditorDari(isi); }
     }
     $('#c-isi-teks').hidden = jenis === 'tugas';
     $('#c-isi-tugas').hidden = jenis !== 'tugas';
@@ -559,7 +667,15 @@ function viewFormCatatan() {
       </div>
 
       <div id="c-isi-teks" ${tugas ? 'hidden' : ''}>
-        <textarea class="isi-catatan" id="c-isi" maxlength="2000" placeholder="${T('Tulis catatan… atau ketuk 🎤 untuk bicara')}" aria-label="${T('Isi catatan')}">${esc(f.isi)}</textarea>
+        ${alatFormat()}
+        <!-- Placeholder sengaja elemen terpisah: ::before di dalam contenteditable membuat perataan teks Chrome gagal. -->
+        <div class="bungkus-editor${polosMd(f.isi).trim() ? '' : ' kosong'}">
+          <div class="isi-catatan editor-catatan" id="c-editor" contenteditable="true" role="textbox" aria-multiline="true" spellcheck="true"
+            aria-label="${T('Isi catatan')}">${mdKeHtml(f.isi)}</div>
+          <span class="petunjuk-editor" aria-hidden="true">${T('Tulis catatan… atau ketuk 🎤 untuk bicara')}</span>
+        </div>
+        <!-- Sumber isi (Markdown sederhana) yang dibaca draf, dikte & simpan; selalu disamakan dengan editor di atas. -->
+        <textarea id="c-isi" hidden>${esc(f.isi)}</textarea>
       </div>
       <div id="c-isi-tugas" ${tugas ? '' : 'hidden'}>
         <div id="c-tugas">${f.tugas.map(barisTugasForm).join('')}</div>
@@ -632,9 +748,11 @@ function tambahTeksDikte(t) {
     if (!ta) return;
     const ada = ta.value.replace(/\s+$/, '');
     const sambung = !ada ? '' : dikte.awalSesi ? '\n' : ' ';
-    ta.value = ada + sambung + (dikte.awalSesi || !ada || /[.!?]$/.test(ada) ? hurufBesarAwal(t) : t);
-    tinggiIsiCatatan();
-    ta.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const kalimat = (dikte.awalSesi || !ada || /[.!?]$/.test(ada) ? hurufBesarAwal(t) : t).replace(/\*/g, '\\*');
+    ta.value = ada + sambung + kalimat;
+    isiEditorDari(ta.value);
+    const ed = $('#c-editor');
+    if (ed) ed.lastElementChild ? ed.lastElementChild.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) : ed.scrollIntoView({ block: 'nearest' });
   }
   dikte.awalSesi = false;
   simpanDraftCatatan();
@@ -692,14 +810,140 @@ function hentikanDikte() {
   tampilDikte();
 }
 
-/** Textarea isi catatan ikut memanjang sesuai isi (halaman yang scroll, bukan kotaknya). */
+/** Editor isi catatan memanjang sendiri (contenteditable); cukup perbarui tanda "kosong" untuk placeholder. */
 function tinggiIsiCatatan() {
-  const t = $('#c-isi');
-  if (!t) return;
-  t.style.height = 'auto';
-  t.style.height = Math.max(t.scrollHeight, 180) + 'px';
+  const ed = $('#c-editor');
+  if (ed) ed.parentElement.classList.toggle('kosong', !ed.textContent.trim() && !ed.querySelector('li'));
 }
-document.addEventListener('input', e => { if (e.target.id === 'c-isi') tinggiIsiCatatan(); });
+
+// ---------- Editor format catatan ----------
+// Toolbar + shortcut keyboard (konvensi Google Docs/Keep). execCommand masih didukung semua browser untuk contenteditable.
+const MOD_KEY = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘' : 'Ctrl';
+const ALAT_FORMAT = [
+  ['bold', T('Tebal'), MOD_KEY + '+B', '<path d="M7 5h6a3.5 3.5 0 0 1 0 7H7zM7 12h7a3.5 3.5 0 0 1 0 7H7z"/>'],
+  ['italic', T('Miring'), MOD_KEY + '+I', '<path d="M10 5h8M6 19h8M15 5 9 19"/>'],
+  ['underline', T('Garis bawah'), MOD_KEY + '+U', '<path d="M7 4v7a5 5 0 0 0 10 0V4M5 20h14"/>'],
+  ['strikeThrough', T('Coret'), MOD_KEY + '+Shift+X', '<path d="M4 12h16M16.5 7.5C16 5.5 14.2 4.5 12 4.5c-2.6 0-4.5 1.3-4.5 3.4 0 1.5 1 2.6 3 3.1M8 16c.4 2 2 3.5 4.4 3.5 2.7 0 4.6-1.4 4.6-3.6 0-.7-.2-1.3-.6-1.9"/>'],
+  ['insertUnorderedList', T('Poin'), MOD_KEY + '+Shift+8', '<circle cx="5" cy="7" r="1.3"/><circle cx="5" cy="12" r="1.3"/><circle cx="5" cy="17" r="1.3"/><path d="M10 7h10M10 12h10M10 17h10"/>'],
+  ['insertOrderedList', T('Nomor'), MOD_KEY + '+Shift+7', '<path d="M4 5h1.5v4M4 9h3M4 14.5a1.5 1.5 0 0 1 3 .4L4 19h3M10 7h10M10 12h10M10 17h10"/>'],
+  ['justifyLeft', T('Rata kiri'), MOD_KEY + '+Shift+L', '<path d="M4 6h16M4 10h10M4 14h16M4 18h10"/>'],
+  ['justifyCenter', T('Rata tengah'), MOD_KEY + '+Shift+E', '<path d="M4 6h16M7 10h10M4 14h16M7 18h10"/>'],
+  ['justifyRight', T('Rata kanan'), MOD_KEY + '+Shift+R', '<path d="M4 6h16M10 10h10M4 14h16M10 18h10"/>'],
+];
+function alatFormat() {
+  return `<div class="alat-format" role="toolbar" aria-label="${T('Format teks')}">${ALAT_FORMAT.map(([f, nama, kunci, ik], i) =>
+    `${i === 4 || i === 6 ? '<span class="pemisah-alat" aria-hidden="true"></span>' : ''}<button type="button" data-aksi="c-format" data-f="${f}" aria-pressed="false"
+      title="${esc(nama)} (${kunci})" aria-label="${esc(nama)}"><svg class="ik" viewBox="0 0 24 24" aria-hidden="true">${ik}</svg></button>`).join('')}</div>`;
+}
+
+/** Samakan sumber Markdown (#c-isi) dengan isi editor. */
+function sinkronEditor() {
+  const ed = $('#c-editor'), ta = $('#c-isi');
+  if (!ed || !ta) return;
+  ta.value = htmlKeMd(ed);
+  tinggiIsiCatatan();
+}
+/** Isi editor dari Markdown (dikte, ganti jenis, pulihkan draf). */
+function isiEditorDari(md) {
+  const ed = $('#c-editor');
+  if (!ed) return;
+  ed.innerHTML = mdKeHtml(md);
+  tinggiIsiCatatan();
+}
+function terapkanFormat(f) {
+  const ed = $('#c-editor');
+  if (!ed) return;
+  const sel = document.getSelection();
+  if (!ed.firstChild) { // editor kosong: Chrome butuh satu baris dulu, kalau tidak kursornya lompat keluar editor
+    ed.innerHTML = '<div><br></div>';
+    ed.focus();
+    const r = document.createRange(); r.setStart(ed.firstChild, 0); r.collapse(true);
+    sel.removeAllRanges(); sel.addRange(r);
+  } else if (!ed.contains(sel.anchorNode)) { // belum ada kursor di editor: taruh di akhir
+    ed.focus();
+    const r = document.createRange(); r.selectNodeContents(ed); r.collapse(false);
+    sel.removeAllRanges(); sel.addRange(r);
+  }
+  document.execCommand('styleWithCSS', false, false);
+  document.execCommand(f, false, null);
+  sinkronEditor();
+  statusAlatFormat();
+}
+/** Tombol toolbar menyala sesuai format di posisi kursor. */
+function statusAlatFormat() {
+  const ed = $('#c-editor');
+  if (!ed) return;
+  const di = ed.contains(document.getSelection().anchorNode);
+  document.querySelectorAll('.alat-format [data-f]').forEach(b => {
+    let on = false;
+    try { on = di && document.queryCommandState(b.dataset.f); } catch (e) { /* tidak didukung */ }
+    b.classList.toggle('aktif', on);
+    b.setAttribute('aria-pressed', on);
+  });
+}
+
+Object.assign(AKSI, { 'c-format': el => terapkanFormat(el.dataset.f) });
+
+// Tombol toolbar tidak mengambil fokus, supaya teks yang dipilih di editor tetap terpilih.
+document.addEventListener('mousedown', e => { if (e.target.closest && e.target.closest('.alat-format button')) e.preventDefault(); });
+document.addEventListener('selectionchange', () => { if (S.tab === 'catatan-edit') statusAlatFormat(); });
+
+document.addEventListener('input', e => {
+  if (e.target.id !== 'c-editor') return;
+  // Format otomatis: "- " / "* " atau "1. " di awal baris → daftar poin / nomor (seperti Google Keep & Docs).
+  if (e.inputType === 'insertText' && e.data === ' ') {
+    const sel = document.getSelection();
+    if (sel.rangeCount) {
+      const r = sel.getRangeAt(0);
+      let blok = r.startContainer.nodeType === 3 ? r.startContainer.parentElement : r.startContainer;
+      blok = blok.closest('div:not(#c-editor), li, p') || e.target;
+      if (blok.tagName !== 'LI') {
+        const awal = document.createRange();
+        awal.selectNodeContents(blok);
+        awal.setEnd(r.startContainer, r.startOffset);
+        const teks = awal.toString().replace(/ /g, ' ');
+        const perintah = /^[-*•] $/.test(teks) ? 'insertUnorderedList' : /^1[.)] $/.test(teks) ? 'insertOrderedList' : '';
+        if (perintah) { // hapus "- " lewat execCommand (bukan deleteContents) supaya baris tidak tergabung ke baris sebelumnya
+          sel.removeAllRanges(); sel.addRange(awal);
+          document.execCommand('delete', false, null);
+          document.execCommand(perintah, false, null);
+        }
+      }
+    }
+  }
+  sinkronEditor();
+});
+
+// Tempel sebagai teks polos (format dari web/Word tidak ikut), tetap satu baris per baris.
+document.addEventListener('paste', e => {
+  if (e.target.closest && e.target.closest('#c-editor')) {
+    e.preventDefault();
+    document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
+  }
+});
+
+// Shortcut keyboard di form catatan.
+document.addEventListener('keydown', e => {
+  if (S.tab !== 'catatan-edit' || !(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const tombolSimpan = document.querySelector('[data-aksi="simpan-catatan"]');
+  if (e.key === 'Enter' && tombolSimpan) { e.preventDefault(); AKSI['simpan-catatan'](tombolSimpan); return; }
+  if (!e.target.closest || !e.target.closest('#c-editor')) return;
+  const k = e.key.toLowerCase();
+  const peta = e.shiftKey
+    ? { '8': 'insertUnorderedList', '*': 'insertUnorderedList', '7': 'insertOrderedList', '&': 'insertOrderedList', l: 'justifyLeft', e: 'justifyCenter', r: 'justifyRight', x: 'strikeThrough' }
+    : { b: 'bold', i: 'italic', u: 'underline' };
+  // Shift+8/7 dicek dari kode tombol juga, karena e.key berbeda per tata letak keyboard.
+  const f = peta[k] || (e.shiftKey && { Digit8: 'insertUnorderedList', Digit7: 'insertOrderedList' }[e.code]);
+  if (!f) return;
+  e.preventDefault();
+  terapkanFormat(f);
+});
+// Alt+Shift+5 = coret (sama dengan Google Docs).
+document.addEventListener('keydown', e => {
+  if (S.tab !== 'catatan-edit' || !e.altKey || !e.shiftKey || e.code !== 'Digit5' || !e.target.closest || !e.target.closest('#c-editor')) return;
+  e.preventDefault();
+  terapkanFormat('strikeThrough');
+});
 document.addEventListener('change', e => {
   if (!S.formCatatan) return;
   if (e.target.id === 'c-tanggal') {

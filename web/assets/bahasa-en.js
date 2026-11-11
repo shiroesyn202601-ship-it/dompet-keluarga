@@ -1886,4 +1886,15 @@ Object.assign(KAMUS, {
   "Catatannya masih kosong.": "The note is still empty.",
   "Catatan diarsipkan": "Note archived",
   "Catatan dikeluarkan dari arsip": "Note unarchived",
+  // Editor format catatan
+  "Tebal": "Bold",
+  "Miring": "Italic",
+  "Poin": "Bullets",
+  "Nomor": "Numbering",
+  "Rata kiri": "Align left",
+  "Rata tengah": "Center",
+  "Rata kanan": "Align right",
+  "Format teks": "Text formatting",
+  "Garis bawah": "Underline",
+  "Coret": "Strikethrough",
 });

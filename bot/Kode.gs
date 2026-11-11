@@ -2147,7 +2147,12 @@ function pengingatBuku_(idSheet, idTerindeks, hari) {
     const daftarTugas = tugas.length && tugas.every(s => /^\[( |x)\] ?/i.test(s));
     let ket = '';
     if (daftarTugas) ket = ' · ' + tugas.filter(s => /^\[x\]/i.test(s)).length + '/' + tugas.length + ' selesai';
-    else if (tugas.length) ket = ' — ' + html_(tugas[0].slice(0, 80));
+    else if (tugas.length) { // buang tanda format catatan (**tebal**, *miring*, [tengah], - poin) dari aplikasi
+      const polos = tugas[0].replace(/^\[(tengah|kanan)\] ?/, '').replace(/^[-•] |^\d+[.)] /, '')
+        .replace(/\\\*/g, '\u0001').replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(\S.*?)\*/g, '$1')
+        .replace(/\+\+(\S.*?)\+\+/g, '$1').replace(/~~(\S.*?)~~/g, '$1').split('\u0001').join('*');
+      ket = ' — ' + html_(polos.slice(0, 80));
+    }
     baris2.push((daftarTugas ? '☑️ ' : '📌 ') + '<b>' + html_(c.judul) + '</b>' + ket);
   });
   tagihan.forEach(r => {
