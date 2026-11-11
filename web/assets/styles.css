@@ -2201,8 +2201,10 @@ body.samar #view .harga-ubah, body.samar .barang-harga b { filter: blur(7px); }
 .papan-tulis-teks { flex: 1; padding: 11px 0; text-align: left; font-size: 15px; font-weight: 600; color: var(--muted); }
 .papan-judul { margin: 4px 4px 8px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .kisi-papan { columns: 2; column-gap: 10px; margin-bottom: 14px; }
-@media (min-width: 700px) { .kisi-papan { columns: 3; } }
-@media (min-width: 1200px) { .kisi-papan { columns: 4; } }
+/* Jumlah kolom mengikuti lebar area Papan (bukan jendela), supaya tetap 2 kolom di Tampilan HP pada PC. */
+.halaman-papan { container-type: inline-size; }
+@container (min-width: 640px) { .kisi-papan { columns: 3; } }
+@container (min-width: 880px) { .kisi-papan { columns: 4; } }
 .kartu-papan { display: flex; flex-direction: column; break-inside: avoid; margin-bottom: 10px; border-radius: 16px; overflow: hidden;
   background: color-mix(in srgb, var(--w) 15%, var(--card)); border: 1px solid color-mix(in srgb, var(--w) 32%, var(--line));
   animation: muncul-panel .25s ease-out; }
