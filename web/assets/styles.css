@@ -335,7 +335,7 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
   bottom: calc(12px + env(safe-area-inset-bottom));
   width: calc(100% - 24px); max-width: 496px; height: var(--nav-h);
   /* Tiga halaman yang digeser kiri/kanan, ＋ tetap di tengah:
-     [Beranda · Riwayat · ＋ · Dompet · Laporan] ⇄ [Catatan · Sholat · ＋ · Tantangan · Cek beli] ⇄ [Anggaran · Tagihan · ＋ · Pengaturan] */
+     [Beranda · Riwayat · ＋ · Dompet · Laporan] ⇄ [Catatan · Sholat · ＋ · Tantangan · Cek beli] ⇄ [Anggaran · Tagihan · ＋ · Zakat · Pengaturan] */
   display: block; padding: 0;
   background: color-mix(in srgb, var(--card) 86%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);
@@ -356,15 +356,19 @@ svg.ik { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-wid
   flex: 0 0 100%; box-sizing: border-box; height: 100%; padding: 0 4px; scroll-snap-align: start; scroll-snap-stop: always;
   display: grid; grid-template-columns: 1fr 1fr 70px 1fr 1fr; align-items: center;
 }
-/* Tombol catat: tidak ikut tergeser, sedikit menonjol ke atas supaya jadi aksi utama */
+/* Tombol catat: tidak ikut tergeser, bulat di tengah bar (tidak menonjol keluar); gradasi + cincin lembut
+   supaya tetap jadi aksi utama tanpa terlihat menempel. */
 .bottomnav .fab {
-  position: absolute; left: 50%; top: -6px; transform: translateX(-50%); z-index: 1;
-  height: 52px; width: 52px; border-radius: 18px;
-  background: var(--primary); color: var(--on-primary);
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--primary) 40%, transparent);
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 1;
+  height: 50px; width: 50px; border-radius: 50%;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--primary) 78%, #fff), var(--primary) 65%);
+  color: var(--on-primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 13%, transparent),
+    0 6px 14px color-mix(in srgb, var(--primary) 32%, transparent), inset 0 1px 0 rgba(255, 255, 255, .28);
+  transition: transform .15s;
 }
-.bottomnav .fab svg.ik { width: 26px; height: 26px; stroke-width: 2.4; }
-.bottomnav .fab:active { transform: translateX(-50%) scale(.95); }
+.bottomnav .fab svg.ik { width: 24px; height: 24px; stroke-width: 2.6; }
+.bottomnav .fab:active { transform: translate(-50%, -50%) scale(.92); }
 
 /* ---------- Bottom sheet ---------- */
 .sheet { position: fixed; inset: 0; z-index: 20; }
@@ -1994,6 +1998,7 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
   :root:not([data-tampilan="hp"]) .bottomnav .fab {
     order: 1; position: static; transform: none; justify-self: auto; justify-content: center; width: 100%; height: 48px; margin: 0 0 16px; border-radius: 14px;
     font-size: 15px; font-weight: 800; color: var(--on-primary); gap: 8px;
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--primary) 30%, transparent), inset 0 1px 0 rgba(255, 255, 255, .22);
   }
   :root:not([data-tampilan="hp"]) .bottomnav .fab svg.ik { width: 20px; height: 20px; }
   :root:not([data-tampilan="hp"]) .bottomnav .fab:active { transform: scale(.98); }

@@ -476,6 +476,7 @@ Object.assign(KAMUS, {
   'Gelap': 'Dark',
   'Tampilan': 'Layout',
   'Tampilan HP': 'Phone layout',
+  'Zakat': 'Zakat',
   'Web': 'Web',
   'HP': 'Phone',
   'Seperti di HP, di tengah layar': 'Like on a phone, centered on screen',
