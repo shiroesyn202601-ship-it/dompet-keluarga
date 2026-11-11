@@ -832,6 +832,51 @@ function slideKilas(k) {
   return slide;
 }
 
+/*
+ * Dekorasi slide Rapor: ilustrasi SVG bertema isi slide (uang & koin, batang grafik, panah, tunas, gelombang…),
+ * bentuk tegas warna tema + aksen suasana (--k-1/--k-2), ditaruh di tepi layar supaya angka di tengah tetap terbaca.
+ * Kanvas 390×844 (rasio HP), di-"slice" mengikuti layar. Tiap bentuk dibungkus <g> posisi + <g> animasi supaya
+ * transform CSS (melayang/putar/jatuh) tidak menimpa posisinya.
+ */
+const BENTUK_KILAS = {
+  uang: '<rect x="-46" y="-26" width="92" height="52" rx="8" class="d-uang"/><rect x="-38" y="-18" width="76" height="36" rx="4" class="d-garis"/><circle r="11" class="d-tengah"/>',
+  koin: '<circle r="20" class="d2"/><circle r="14" class="d-garis-gelap"/><text y="5" text-anchor="middle" class="d-rp">Rp</text>',
+  kilau: '<path d="M0-14C2-4 4-2 14 0C4 2 2 4 0 14C-2 4-4 2-14 0C-4-2-2-4 0-14Z" class="dw"/>',
+  cincin: '<circle r="60" class="d-cincin"/><circle r="92" class="d-cincin tipis"/><circle r="124" class="d-cincin tipis"/>',
+  titik: Array.from({ length: 5 }, (_, b) => Array.from({ length: 5 }, (_, k) => `<circle cx="${k * 14}" cy="${b * 14}" r="2.2" class="dw redup"/>`).join('')).join(''),
+  panah: '<path d="M-10 30V-6H-24L0-32L24-6H10V30Z" class="d1"/>',
+  daun: '<path d="M0 30C0 10 0-4 0-12" class="d-batang"/><path d="M0-4C-22-6-30-22-28-34C-12-32 0-22 0-4Z" class="d2"/><path d="M0 6C20 2 30-12 30-24C14-24 2-14 0 6Z" class="d1"/>',
+  ledakan: (() => { // bintang 16 sudut
+    let d = '';
+    for (let i = 0; i < 32; i++) { const r = i % 2 ? 38 : 56, a = Math.PI * i / 16; d += (i ? 'L' : 'M') + (Math.cos(a) * r).toFixed(1) + ' ' + (Math.sin(a) * r).toFixed(1); }
+    return `<path d="${d}Z" class="d2"/>`;
+  })(),
+  segitiga: '<path d="M0-22L22 16H-22Z" class="d1"/><path d="M0-6V4" class="d-garis-gelap tebal"/><circle cy="10" r="2" class="d-tengah-gelap"/>',
+};
+const pasangBentuk = (b, x, y, opsi = {}) => `<g transform="translate(${x} ${y}) rotate(${opsi.r || 0}) scale(${opsi.s || 1})"><g class="ag ${opsi.a || ''}" style="animation-delay:${opsi.t || 0}s">${BENTUK_KILAS[b]}</g></g>`;
+function dekorKilas(s) {
+  const B = pasangBentuk;
+  const kilau = [[70, 96], [340, 210], [26, 730], [362, 650], [250, 806], [180, 40]].map(([x, y], i) => B('kilau', x, y, { a: 'kerlip', t: i * .6, s: .7 + (i % 3) * .3 })).join('');
+  const isi = {
+    buka: B('cincin', 372, 70) + B('uang', 70, 150, { r: -18, a: 'melayang' }) + B('uang', 320, 730, { r: 14, a: 'melayang', t: 1.2 })
+      + B('koin', 300, 175, { a: 'melayang', t: .6 }) + B('koin', 76, 700, { s: 1.3, a: 'melayang', t: 1.8 }) + B('titik', 24, 560) + B('titik', 300, 40),
+    total: [[40, -.2, -20], [150, 1.4, 10], [262, .7, -8], [352, 2.1, 22]].map(([x, t, r]) => B('uang', x, -60, { r, a: 'jatuh', t, s: .8 })).join('')
+      + B('koin', 330, 120, { a: 'melayang' }) + B('koin', 60, 760, { s: 1.4, a: 'melayang', t: .9 }) + B('titik', 290, 680),
+    top: [0, 1, 2, 3, 4].map(i => `<rect x="${22 + i * 72}" y="${844 - [80, 130, 60, 165, 105][i]}" width="54" height="${[80, 130, 60, 165, 105][i] + 20}" rx="12" class="${i === 3 ? 'd1 batang-tumbuh sorot' : 'd-batang-latar batang-tumbuh'}" style="animation-delay:${i * .12}s"/>`).join('')
+      + B('ledakan', 340, 110, { s: .9, a: 'putar' }) + B('titik', 30, 60),
+    julukan: B('ledakan', 64, 120, { s: 1.1, a: 'putar' }) + B('ledakan', 340, 740, { s: 1.5, a: 'putar', t: 2 }) + B('cincin', 360, 160, { s: .6 })
+      + B('koin', 300, 90, { a: 'melayang' }) + B('titik', 26, 640),
+    naik: '<path d="M-10 760L80 690L150 720L250 600L330 560L410 470" class="d-garis-naik"/>' + B('panah', 340, 150, { a: 'melayang' })
+      + B('panah', 60, 130, { s: .6, a: 'melayang', t: 1 }) + B('segitiga', 300, 420 + 300, { s: 1.2 }) + B('titik', 26, 40),
+    hemat: B('daun', 60, 790, { s: 1.8, a: 'goyang' }) + B('daun', 340, 800, { s: 1.3, a: 'goyang', t: 1 }) + B('daun', 200, 830, { s: .9, a: 'goyang', t: .5 })
+      + [0, 1, 2, 3].map(i => B('koin', 320, 690 - i * 16, { s: 1.1 })).join('') + B('cincin', 30, 60, { s: .8 }),
+    sama: [600, 650, 700].map((y, i) => `<path d="M-20 ${y}q50 -36 100 0t100 0t100 0t100 0t100 0" class="d-gelombang" style="animation-delay:${i * .4}s"/>`).join('')
+      + B('koin', 320, 130, { a: 'melayang' }) + B('cincin', 40, 80, { s: .7 }),
+  };
+  const rapor = B('cincin', 360, 60, { s: .8 }) + B('koin', 60, 140, { a: 'melayang' }) + B('uang', 320, 760, { r: -12, a: 'melayang', t: 1 }) + B('titik', 24, 700);
+  return `<svg class="kilas-dekor" viewBox="0 0 390 844" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${isi[s] || rapor}${kilau}</svg>`;
+}
+
 function bukaKilasBalik(k) {
   const slide = slideKilas(k);
   let el = $('#kilas');
@@ -851,7 +896,7 @@ function bukaKilasBalik(k) {
       // Latar tiap slide mengikuti suasananya (data-suasana di isi slide); slide bagus diberi konfeti.
       const s = (h.match(/data-suasana="([\w-]+)"/) || [])[1] || 'buka';
       const konfeti = /^(hemat|rapor-a)$/.test(s) ? `<div class="kilas-konfeti" aria-hidden="true">${'<i></i>'.repeat(14)}</div>` : '';
-      return `<section class="kilas-slide" data-i="${i}" data-suasana="${s}">${konfeti}${h}</section>`;
+      return `<section class="kilas-slide" data-i="${i}" data-suasana="${s}">${dekorKilas(s)}${konfeti}${h}</section>`;
     }).join('')}</div>
     <button type="button" class="kilas-zona kiri" data-aksi="kilas-mundur" aria-label="${T('Sebelumnya')}"></button>
     <button type="button" class="kilas-zona kanan" data-aksi="kilas-maju" aria-label="${T('Berikutnya')}"></button>`;

@@ -1176,6 +1176,36 @@ function latarMeriah(g, W, H, suasana) {
   const bawah = g.createLinearGradient(0, H * .55, 0, H);
   bawah.addColorStop(0, 'rgba(0,0,0,0)'); bawah.addColorStop(1, 'rgba(0,0,0,.35)');
   g.fillStyle = bawah; g.fillRect(0, 0, W, H);
+
+  // Ilustrasi tegas di pojok kanan atas (area kosong di samping judul), senada dengan dekorasi slide Rapor.
+  g.save();
+  g.strokeStyle = 'rgba(255,255,255,.14)';
+  [[150, 16], [215, 5], [280, 5]].forEach(([r, t]) => { g.lineWidth = t; g.beginPath(); g.arc(W - 30, 90, r, 0, Math.PI * 2); g.stroke(); });
+  g.fillStyle = 'rgba(255,255,255,.28)';
+  for (let b = 0; b < 5; b++) for (let k = 0; k < 5; k++) { g.beginPath(); g.arc(W - 330 + k * 30, 40 + b * 30, 4.5, 0, Math.PI * 2); g.fill(); }
+  const uang = (x, y, rot, s) => { // = uang di logo & slide Rapor
+    g.save(); g.translate(x, y); g.rotate(rot); g.scale(s, s);
+    g.fillStyle = '#5fb48e'; g.beginPath(); g.roundRect(-92, -52, 184, 104, 16); g.fill();
+    g.strokeStyle = 'rgba(47,127,95,.6)'; g.lineWidth = 6; g.beginPath(); g.roundRect(-76, -36, 152, 72, 8); g.stroke();
+    g.fillStyle = 'rgba(47,127,95,.55)'; g.beginPath(); g.arc(0, 0, 22, 0, Math.PI * 2); g.fill();
+    g.restore();
+  };
+  const koin = (x, y, r) => {
+    g.fillStyle = k2; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = r * .1; g.beginPath(); g.arc(x, y, r * .7, 0, Math.PI * 2); g.stroke();
+    g.font = `800 ${Math.round(r * .55)}px "Plus Jakarta Sans", system-ui, sans-serif`; g.fillStyle = 'rgba(0,0,0,.32)'; g.textAlign = 'center';
+    g.fillText('Rp', x, y + r * .2);
+  };
+  const kilau = (x, y, r, a) => { // bintang 4 sudut
+    g.fillStyle = `rgba(255,255,255,${a})`; g.beginPath(); g.moveTo(x, y - r);
+    g.quadraticCurveTo(x + r * .14, y - r * .14, x + r, y); g.quadraticCurveTo(x + r * .14, y + r * .14, x, y + r);
+    g.quadraticCurveTo(x - r * .14, y + r * .14, x - r, y); g.quadraticCurveTo(x - r * .14, y - r * .14, x, y - r); g.fill();
+  };
+  uang(W - 150, 250, -.3, 1);
+  koin(W - 300, 300, 34);
+  g.fillStyle = k1; g.beginPath(); g.arc(W - 70, 330, 16, 0, Math.PI * 2); g.fill();
+  kilau(W - 380, 210, 22, .9); kilau(W - 60, 40, 14, .7); kilau(54, H - 52, 16, .6); kilau(W - 54, H - 64, 22, .8);
+  g.restore();
 }
 /** Logo + "Dompet Keluarga"; y = garis dasar teks. */
 function kopMerek(g, x, y, ukuran, warna) {
