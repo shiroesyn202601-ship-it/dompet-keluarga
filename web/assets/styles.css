@@ -2248,3 +2248,11 @@ body.samar #view .harga-ubah, body.samar .barang-harga b { filter: blur(7px); }
 .editor-catatan ul, .editor-catatan ol { margin: 2px 0; padding-left: 1.5em; }
 .editor-catatan li { padding-left: 2px; }
 .editor-catatan:focus-visible { outline: none; }
+/* Ikon arsip (SVG) di Papan & form catatan */
+.btn-arsip-catatan, .judul-arsip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.papan-buka-arsip { display: flex; align-items: center; gap: 6px; width: max-content; }
+.papan-buka-arsip .ik { width: 17px; height: 17px; }
+.btn-arsip-catatan .ik, .judul-arsip .ik { width: 20px; height: 20px; }
+.papan-kosong span .ik { width: 48px; height: 48px; stroke-width: 1.5; }
+.aksi-catatan .btn-arsip-catatan { flex: none; padding: 13px 14px; }
+@media (max-width: 459px) { .label-arsip { display: none; } } /* HP: cukup ikon supaya Hapus & Simpan tetap muat */

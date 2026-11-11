@@ -152,6 +152,9 @@ function htmlCatatanTanpaTanggal() {
 // Catatan buku ini, jadi seluruh anggota keluarga melihat papan yang sama (Google Keep tidak bisa dipakai bersama).
 const catatanPapan = () => daftarCatatan().filter(c => !c.tanggal);
 const hitungPapan = () => catatanPapan().filter(c => !c.arsip).length;
+// Ikon kotak arsip (gaya Google Keep): emoji 🗄 terlalu kecil & kurang jelas di HP.
+const IKON_ARSIP = '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M12 11.5v5M9.5 14 12 16.5 14.5 14"/></svg>';
+const IKON_KELUAR_ARSIP = '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M12 17v-5M9.5 14.5 12 12l2.5 2.5"/></svg>';
 const urutPapan = (a, b) => String(b.diubah || '').localeCompare(String(a.diubah || ''));
 
 function cocokCari(c, q) {
@@ -172,11 +175,11 @@ function htmlPapan() {
   const nArsip = semua.filter(c => c.arsip).length;
   const kisi = d => `<div class="kisi-papan">${d.map(kartuPapan).join('')}</div>`;
   const kosong = q ? ['🔍', T('Tidak ada catatan yang cocok dengan "{q}".', { q: esc(q) })]
-    : arsip ? ['🗄', T('Belum ada catatan yang diarsipkan.')]
+    : arsip ? [IKON_ARSIP, T('Belum ada catatan yang diarsipkan.')]
     : ['💡', T('Tulis ide, daftar belanja, resep, atau info penting keluarga di sini. Semua anggota keluarga bisa melihatnya.')];
   return `
     <label class="cari-papan">${svg('cari')}<input type="search" id="cari-papan" placeholder="${T('Cari catatan')}" value="${esc(S.cariPapan || '')}" aria-label="${T('Cari catatan')}" enterkeyhint="search"></label>
-    ${arsip ? `<div class="papan-kepala-arsip"><button type="button" class="tombol-ikon" data-aksi="papan-arsip-tutup" aria-label="${T('Kembali ke Papan')}">${svg('kembali')}</button><b>🗄 ${T('Arsip')}</b></div>`
+    ${arsip ? `<div class="papan-kepala-arsip"><button type="button" class="tombol-ikon" data-aksi="papan-arsip-tutup" aria-label="${T('Kembali ke Papan')}">${svg('kembali')}</button><b class="judul-arsip">${IKON_ARSIP}${T('Arsip')}</b></div>`
       : `<div class="papan-tulis">
         <button type="button" class="papan-tulis-teks" data-aksi="papan-baru">${T('Tulis catatan…')}</button>
         <button type="button" class="tombol-ikon" data-aksi="papan-baru" data-jenis="tugas" aria-label="${T('Daftar tugas baru')}">
@@ -187,7 +190,7 @@ function htmlPapan() {
       ${lain.length ? kisi(lain) : ''}
       ${daftar.length ? '' : `<div class="papan-kosong"><span aria-hidden="true">${kosong[0]}</span><p>${kosong[1]}</p></div>`}
     </div>
-    ${!arsip && nArsip ? `<button type="button" class="chip papan-buka-arsip" data-aksi="papan-arsip-buka">🗄 ${T('Arsip ({n})', { n: nArsip })}</button>` : ''}
+    ${!arsip && nArsip ? `<button type="button" class="chip papan-buka-arsip" data-aksi="papan-arsip-buka">${IKON_ARSIP}${T('Arsip ({n})', { n: nArsip })}</button>` : ''}
     ${S.data.bisaCatatan === false ? '<p class="info-kecil">' + T('⚠️ Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).') + '</p>' : ''}`;
 }
 
@@ -197,7 +200,7 @@ function kartuPapan(c) {
   const pin = `<button type="button" class="kp-tombol kp-pin ${c.sematkan ? 'nyala' : ''}" data-aksi="papan-sematkan" data-id="${esc(c.id)}" aria-pressed="${!!c.sematkan}"
       aria-label="${c.sematkan ? T('Lepas sematan') : T('Sematkan')}"><svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l-1 6 4 4H6l4-4-1-6ZM12 13v8"/></svg></button>`;
   const keluarArsip = `<button type="button" class="kp-tombol" data-aksi="papan-arsip" data-id="${esc(c.id)}" data-v="0" aria-label="${T('Keluarkan dari arsip')}">
-      <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>`;
+      ${IKON_KELUAR_ARSIP}</button>`;
   return `
     <article class="kartu-papan ${c.tertunda ? 'tertunda' : ''}" data-warna="${esc(c.warna || 'polos')}" style="--w:${warnaCatatan(c.warna || 'polos')}">
       <button type="button" class="kp-buka" data-aksi="ubah-catatan" data-id="${esc(c.id)}">
@@ -700,7 +703,8 @@ function viewFormCatatan() {
         <div class="aksi-catatan">
           ${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button type="button" class="tombol-dikte" id="tombol-dikte" data-aksi="suara-catatan" aria-label="${T('Tulis dengan suara')}">
             <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>` : ''}
-          ${f.id && !f.tanggal ? `<button type="button" class="btn btn-hapus btn-arsip-catatan" data-aksi="c-arsip" aria-label="${f.arsip ? T("Keluarkan dari arsip") : T("Arsipkan")}">${f.arsip ? "↩︎" : "🗄"}</button>` : ""}
+          ${f.id && !f.tanggal ? `<button type="button" class="btn btn-kedua btn-arsip-catatan" data-aksi="c-arsip" aria-label="${f.arsip ? T('Keluarkan dari arsip') : T('Arsipkan')}"
+            title="${f.arsip ? T('Keluarkan dari arsip') : T('Arsipkan')}">${f.arsip ? IKON_KELUAR_ARSIP : IKON_ARSIP}<span class="label-arsip">${f.arsip ? T('Keluarkan') : T('Arsipkan')}</span></button>` : ''}
           ${f.id ? `<button type="button" class="btn btn-hapus btn-hapus-catatan" data-aksi="hapus-catatan">${T('🗑 Hapus')}</button>` : ''}
           <button type="button" class="btn btn-utama" data-aksi="simpan-catatan">${T('Simpan')}</button>
         </div>
