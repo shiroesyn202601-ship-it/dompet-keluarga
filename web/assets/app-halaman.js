@@ -1970,6 +1970,14 @@ function viewLainnya() {
             `<option value="${t}" ${temaDipilih() === t ? 'selected' : ''}>${l}</option>`).join('')}</select>
         </span>
       </label>
+      ${layarLebar() || tampilanDipilih() ? `<label class="baris baris-pilih">
+        <span class="ikon-bulat">${tampilanDipilih() === 'hp' ? '📱' : '🖥️'}</span>
+        <span class="isi"><b>${T('Tampilan')}</b><small>${tampilanDipilih() === 'hp' ? T('Seperti di HP, di tengah layar') : T('Layar lebar dengan menu di samping')}</small></span>
+        <span class="pilih-kecil">
+          <select id="pilih-tampilan" aria-label="${T('Tampilan')}">${[['', T('Web')], ['hp', T('HP')]].map(([t, l]) =>
+            `<option value="${t}" ${tampilanDipilih() === t ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        </span>
+      </label>` : ''}
       <label class="baris baris-pilih">
         <span class="ikon-bulat">🔠</span>
         <span class="isi"><b>${T('Ukuran tampilan')}</b><small>${T('Perbesar teks & tombol supaya lebih mudah dibaca')}</small></span>

@@ -327,6 +327,14 @@ function aturUkuran(u) {
   if (u) document.documentElement.dataset.ukuran = u;
   else delete document.documentElement.dataset.ukuran;
 }
+/** Di PC (layar ≥ 960px): '' = tampilan web (sidebar, dua kolom), 'hp' = tampilan HP di tengah layar. Dipasang awal di index.html. */
+const tampilanDipilih = () => bacaHp('dk_tampilan') || '';
+const layarLebar = () => matchMedia('(min-width: 960px)').matches;
+function aturTampilan(t) {
+  tulisHp('dk_tampilan', t || null);
+  if (t) document.documentElement.dataset.tampilan = t;
+  else delete document.documentElement.dataset.tampilan;
+}
 
 function aturTema(t) {
   tulisHp('dk_tema', t || null);

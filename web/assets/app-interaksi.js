@@ -478,6 +478,7 @@ document.addEventListener('change', e => {
   if (e.target.id === 'pilih-bahasa') gantiBahasa(e.target.value);
   if (e.target.id === 'pilih-gaya') { tulisHp('dk_gaya_ditawarkan', '1'); gantiGaya(e.target.value); }
   if (e.target.id === 'pilih-tema') { aturTema(e.target.value); render(); }
+  if (e.target.id === 'pilih-tampilan') { aturTampilan(e.target.value); render(); }
   if (e.target.id === 'pilih-ukuran') { aturUkuran(e.target.value); render(); }
 });
 

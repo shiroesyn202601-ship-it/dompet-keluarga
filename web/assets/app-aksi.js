@@ -289,6 +289,7 @@ const AKSI = {
     el.disabled = false;
   },
   'tema': el => { aturTema(el.dataset.t); render(); },
+  'tampilan-hp': () => { aturTampilan('hp'); render(); toast(T('Tampilan HP aktif. Kembali ke tampilan web lewat Pengaturan → Tampilan')); },
   'samar': () => { aturSamar(!modeSamar()); render(); },
   'atur-kunci': () => bukaFormKunci(),
   'simpan-kunci': async el => {
