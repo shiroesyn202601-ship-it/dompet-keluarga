@@ -1142,7 +1142,19 @@ let pembaruanDitunda = false;
 let pembaruanSiap = '';    // versi baru yang sudah diunduh ke cache, tinggal dimuat ulang
 let sedangCekVersi = false;
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+// Di komputer pengembang (localhost) service worker tidak dipakai: cache-nya baru diperbarui saat versi.txt naik
+// (hanya saat deploy), jadi perubahan kode tidak akan terlihat. Yang terlanjur terpasang dicabut beserta cache-nya.
+const DI_LOKAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+if ('serviceWorker' in navigator) {
+  if (!DI_LOKAL) navigator.serviceWorker.register('sw.js').catch(() => {});
+  else {
+    navigator.serviceWorker.getRegistrations().then(rs => {
+      if (!rs.length) return;
+      Promise.all(rs.map(r => r.unregister()).concat(caches.keys().then(k => Promise.all(k.map(n => caches.delete(n))))))
+        .then(() => { if (navigator.serviceWorker.controller) location.reload(); });
+    }).catch(() => {});
+  }
+}
 
 /**
  * Versi isi yang sedang berjalan, dibaca SEKARANG (saat app.js dimuat) sebelum ada pembaruan cache.
