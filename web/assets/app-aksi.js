@@ -569,6 +569,19 @@ const AKSI = {
   },
   'buka-undangan': el => gantiBuku('hubungkanDatabase', [el.dataset.id], T('Buku {nama} dibuka ✔', { nama: el.dataset.nama })),
   'buka-zakat': () => bukaZakat(),
+  'info-nisab': el => {
+    const ket = document.getElementById(el.dataset.id);
+    if (!ket) return;
+    ket.hidden = !ket.hidden;
+    el.setAttribute('aria-expanded', String(!ket.hidden));
+  },
+  'perbarui-harga-zakat': async el => {
+    const sumber = sumberHargaZakat();
+    el.disabled = true;
+    const ok = await muatHargaEmas([sumber], true);
+    if (!ok) toast(T('Harga {platform} belum bisa diambil. Coba lagi nanti.', { platform: namaPlatformEmas(sumber) }), true);
+    if ($('#z-sumber')) bukaZakat(true);
+  },
   'hitung-zakat': () => { tulisHp('dk_harga_emas', String(angka($('#z-emas').value) || '') || null); bukaZakat(); },
   'catat-zakat': el => {
     // Kategori sosial/donasi kalau ada; kalau tidak, biarkan pengguna memilih.

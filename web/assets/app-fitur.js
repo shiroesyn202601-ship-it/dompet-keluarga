@@ -742,13 +742,6 @@ function nilaiAset(w) {
   const n = e ? nilaiDariEmas(e) : null;
   return n === null ? w.saldo : n;
 }
-/** Harga emas per gram untuk zakat: harga beli dari cache (Antam/Pegadaian dulu). */
-function hargaEmasAcuan() {
-  const c = cacheHargaEmas();
-  const x = ['antam', 'pegadaian', 'bsi', 'galeri24'].map(k => c[k]).find(h => h && h.beli);
-  return x ? x.beli : 0;
-}
-
 let hargaEmasJalan = null;
 const hargaEmasDicoba = new Set(); // platform yang sudah dicoba hari ini (gagal pun), supaya tidak mengulang terus
 /** Ambil harga hari ini untuk platform-platform ini. paksa = abaikan cache. Hasil: true kalau semuanya berhasil. */

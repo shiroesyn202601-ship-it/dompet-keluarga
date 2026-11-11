@@ -440,8 +440,14 @@ const KADAR_ZAKAT = 0.025;
  * Perkiraan zakat dari data yang ada. Maal: harta (dompet + tabungan + aset + piutang − utang) ≥ nisab 85 g emas.
  * Penghasilan: pemasukan periode ini ≥ nisab/12 (pendapat yang umum dipakai di Indonesia). Haul tidak diperiksa.
  */
-function bukaZakat() {
-  const hargaEmas = Number(bacaHp('dk_harga_emas')) || hargaEmasAcuan();
+/** Sumber harga emas zakat: id platform (harga beli otomatis, sama dengan aset emas) atau 'manual' (diisi sendiri). */
+const sumberHargaZakat = () => bacaHp('dk_zakat_sumber') || (bacaHp('dk_harga_emas') ? 'manual' : 'antam');
+function bukaZakat(sudahDimuat) {
+  const sumber = sumberHargaZakat();
+  const otomatis = sumber !== 'manual' && !!platformEmas(sumber)[2];
+  const hEmas = otomatis ? cacheHargaEmas()[sumber] : null;
+  const hargaEmas = otomatis ? (hEmas && hEmas.beli) || 0 : Number(bacaHp('dk_harga_emas')) || 0;
+  const memuat = otomatis && !sudahDimuat && navigator.onLine && kapanDiambil(hEmas) !== hariIni();
   const k = hitungKekayaan();
   const harta = k.bersih;
   const masuk = total(S.data.transaksi, TIPE.MASUK);
@@ -452,20 +458,45 @@ function bukaZakat() {
     <section class="kartu" style="margin:12px 0 0">
       <h3 style="margin-bottom:6px">${judul}</h3>
       <div class="baris-rincian"><span>${jenis === 'maal' ? T('Harta bersih saat ini') : T('Pemasukan {bulan}', { bulan: esc(namaBulan(S.bulan)) })}</span><span>${rp(dasar)}</span></div>
-      <div class="baris-rincian"><span>${jenis === 'maal' ? T('Nisab ({gram} g emas)', { gram: NISAB_EMAS_GRAM }) : T('Nisab per bulan')}</span><span>${hargaEmas ? rp(Math.round(batas)) : '—'}</span></div>
+      <div class="baris-rincian"><span>${jenis === 'maal' ? T('Nisab ({gram} g emas)', { gram: NISAB_EMAS_GRAM }) : T('Nisab per bulan')}
+        <button type="button" class="info-nisab" data-aksi="info-nisab" data-id="nisab-${jenis}" aria-expanded="false" aria-controls="nisab-${jenis}" aria-label="${T('Dasar perhitungan nisab')}">
+          <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5v.01"/></svg></button></span>
+        <span>${hargaEmas ? rp(Math.round(batas)) : '—'}</span></div>
+      <div class="ket-nisab" id="nisab-${jenis}" hidden>${jenis === 'maal' ? `
+        <p>${T('Nisab zakat maal adalah {gram} gram emas. Dasarnya hadis: "Tidak ada kewajiban zakat atasmu (pada emas) hingga engkau memiliki 20 dinar" (HR. Abu Dawud). 1 dinar = 4,25 gram emas, jadi 20 dinar = 85 gram. Ukuran ini juga dipakai BAZNAS.', { gram: NISAB_EMAS_GRAM })}</p>
+        <p class="rumus">${hargaEmas ? T('{gram} gram × {harga} = {nisab}', { gram: NISAB_EMAS_GRAM, harga: rp(hargaEmas), nisab: rp(Math.round(batas)) }) : T('Isi harga emas dulu untuk melihat hitungannya.')}</p>
+        <p>${T('Zakat 2,5% wajib bila harta bersih (dompet, tabungan, aset, dan piutang dikurangi utang) mencapai nisab dan sudah dimiliki selama 1 tahun hijriah (haul).')}</p>` : `
+        <p>${T('Nisab zakat penghasilan disamakan dengan nisab emas, {gram} gram per tahun, mengikuti Fatwa MUI No. 3 Tahun 2003 dan ketentuan BAZNAS. Karena penghasilan diterima tiap bulan, nisabnya dibagi 12.', { gram: NISAB_EMAS_GRAM })}</p>
+        <p class="rumus">${hargaEmas ? T('{gram} gram × {harga} ÷ 12 = {nisab}', { gram: NISAB_EMAS_GRAM, harga: rp(hargaEmas), nisab: rp(Math.round(batas)) }) : T('Isi harga emas dulu untuk melihat hitungannya.')}</p>
+        <p>${T('Zakat 2,5% dari pemasukan bulan ini wajib bila pemasukan mencapai nisab per bulan.')}</p>`}
+        <p class="sumber-harga">${hargaEmas ? T('Sumber: {sumber}, harga beli per gram.', { sumber: esc(otomatis ? keteranganHargaEmas(hEmas, sumber) : T('Harga diisi sendiri')) }) : ''}</p>
+      </div>
       <div class="baris-rincian"><span><b>${T('Zakat 2,5%')}</b></span><b>${!hargaEmas ? T('Isi harga emas') : zakat ? rp(zakat) : T('Belum wajib')}</b></div>
       ${zakat ? `<button type="button" class="tombol-tambah" style="margin-top:10px" data-aksi="catat-zakat" data-jumlah="${zakat}" data-jenis="${jenis}">${T('Catat pembayaran {jumlah}', { jumlah: rp(zakat) })}</button>` : ''}
     </section>`;
   bukaSheet(T('Kalkulator Zakat'), `
     <div class="grup-form">
-      <label class="label" for="z-emas">${T('Harga emas per gram (Rp)')}</label>
-      <input class="field input-rp" id="z-emas" inputmode="numeric" placeholder="${T('mis. 1.500.000')}" value="${formatAngka(hargaEmas)}">
-      <p class="info-kecil" style="text-align:left">${T('Lihat harga emas hari ini (mis. di situs Antam), lalu ketuk Hitung. Disimpan di HP ini.')}</p>
+      <label class="label" for="z-sumber">${T('Harga emas per gram')}</label>
+      <select class="field" id="z-sumber">${PLATFORM_EMAS.filter(p => p[2]).map(p =>
+        `<option value="${p[0]}" ${sumber === p[0] ? 'selected' : ''}>${T('Otomatis · {platform}', { platform: esc(p[1]) })}</option>`).join('')}
+        <option value="manual" ${otomatis ? '' : 'selected'}>${T('Isi sendiri')}</option></select>
     </div>
-    <div class="aksi-form" style="margin-top:0"><button type="button" class="btn btn-hapus" style="flex:1" data-aksi="hitung-zakat">${T('Hitung')}</button></div>
+    ${otomatis ? `
+      <div class="kotak-harga-emas">
+        <div class="baris-rincian"><span>${T('Harga beli /gram')}</span><b>${hargaEmas ? rp(hargaEmas) : memuat ? T('Mengambil…') : '—'}</b></div>
+        <small>${hargaEmas ? esc(keteranganHargaEmas(hEmas, sumber)) : memuat ? T('Mengambil harga hari ini…') : T('Harga {platform} belum bisa diambil. Coba lagi nanti.', { platform: namaPlatformEmas(sumber) })}</small>
+      </div>
+      <div class="aksi-form" style="margin-top:0"><button type="button" class="btn btn-kedua" style="flex:1" data-aksi="perbarui-harga-zakat" ${memuat ? 'disabled' : ''}>${T('🔄 Perbarui harga')}</button></div>` : `
+      <div class="grup-form">
+        <input class="field input-rp" id="z-emas" inputmode="numeric" aria-label="${T('Harga emas per gram (Rp)')}" placeholder="${T('mis. 1.500.000')}" value="${formatAngka(hargaEmas)}">
+        <p class="info-kecil" style="text-align:left">${T('Lihat harga emas hari ini (mis. di situs Antam), lalu ketuk Hitung. Disimpan di HP ini.')}</p>
+      </div>
+      <div class="aksi-form" style="margin-top:0"><button type="button" class="btn btn-hapus" style="flex:1" data-aksi="hitung-zakat">${T('Hitung')}</button></div>`}
     ${hasil(T('💰 Zakat maal (harta)'), harta, nisab, maal, 'maal')}
     ${hasil(T('💼 Zakat penghasilan'), masuk, nisab / 12, penghasilan, 'penghasilan')}
     <p class="info-kecil" style="text-align:left">${T('Ini perkiraan. Zakat maal juga mensyaratkan harta sudah dimiliki selama 1 tahun (haul). Untuk kepastian, tanyakan ke lembaga amil zakat atau ustadz.')}</p>`);
+  // Harga hari ini diambil sekali saat lembar dibuka (sudahDimuat mencegah lembar membuka ulang dirinya terus-menerus).
+  if (memuat) muatHargaEmas([sumber]).finally(() => { if ($('#z-sumber') && sumberHargaZakat() === sumber) bukaZakat(true); });
 }
 
 // ---------- Templat cepat (tabungan & tagihan rutin) ----------

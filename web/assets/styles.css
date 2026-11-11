@@ -2067,6 +2067,14 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
 .kotak-harga-emas .baris-rincian:last-of-type { border-bottom: 0; }
 .kotak-harga-emas small { display: block; color: var(--muted); font-size: 12px; }
 .baris-rincian b.masuk { color: var(--masuk); } .baris-rincian b.keluar { color: var(--keluar); }
+/* Kalkulator zakat: ikon info di baris nisab, membuka dasar perhitungannya */
+.info-nisab { display: inline-grid; place-items: center; width: 24px; height: 24px; margin: -4px 0 -4px 2px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--primary); vertical-align: middle; cursor: pointer; }
+.info-nisab svg.ik { width: 17px; height: 17px; }
+.info-nisab[aria-expanded="true"] { background: var(--primary-soft); }
+.ket-nisab { background: var(--card-2); border-radius: 12px; padding: 4px 12px; margin: 2px 0 8px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.ket-nisab p { margin: 8px 0; }
+.ket-nisab .rumus { color: var(--text); font-weight: 700; }
+.ket-nisab .sumber-harga:empty { display: none; }
 .ket-riwayat-emas { display: block; font-size: 12px; color: var(--muted); }
 
 /* Riwayat harga barang */
