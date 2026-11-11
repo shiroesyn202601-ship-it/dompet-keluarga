@@ -1442,7 +1442,7 @@ slideKilas = function (k) { // eslint-disable-line no-func-assign
   if (r.keluar || r.masuk) {
     const ps = personaBulan(r);
     const tanpa = S.data.jejak ? hariTanpaBelanja(k) : 0;
-    slide.splice(Math.max(1, slide.length - 1), 0, `<div class="kilas-isi tengah"><span class="kilas-emoji">${ps.emoji}</span>
+    slide.splice(Math.max(1, slide.length - 1), 0, `<div class="kilas-isi tengah" data-suasana="julukan"><span class="kilas-emoji">${ps.emoji}</span>
       <small>${T('Julukan Anda bulan itu')}</small><h2>${esc(ps.nama)}</h2><p>${esc(ps.ket)}</p>
       ${tanpa ? `<div class="kilas-baris"><span>${T('🌱 Hari tanpa belanja')}</span><b>${tanpa}</b></div>` : ''}</div>`);
   }

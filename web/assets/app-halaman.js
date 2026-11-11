@@ -1080,16 +1080,14 @@ async function bagikanLaporan(k) {
     g.font = font(ukuran, tebal); g.fillStyle = warna; g.textAlign = rata || 'left'; g.fillText(s, x, y);
   };
 
-  const latar = g.createLinearGradient(0, 0, W, H);
-  latar.addColorStop(0, '#062a2e'); latar.addColorStop(1, '#0e5a60');
-  g.fillStyle = latar; g.fillRect(0, 0, W, H);
+  latarMeriah(g, W, H, nilaiRapor(r).kelas); // warna mengikuti nilai rapor periode ini
 
   kopMerek(g, P, 130, 34, 'rgba(255,255,255,.92)');
   teks(T('Ringkasan keuangan'), P, 220, 44, '#ffffff', 600);
   teks(namaBulan(k), P, 290, 60, '#ffffff', 800);
 
   const kotak = (x, y, w, label, nilai, warna) => {
-    g.fillStyle = 'rgba(255,255,255,.08)'; g.beginPath(); g.roundRect(x, y, w, 170, 28); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.roundRect(x, y, w, 170, 28); g.fill();
     teks(label, x + 32, y + 62, 30, 'rgba(255,255,255,.7)', 600);
     teks(nilai, x + 32, y + 128, 46, warna, 800);
   };
@@ -1141,6 +1139,43 @@ function gambarLogo(g, x, y, s) {
   g.fillStyle = '#f5a524'; bulat(300, 278, 138, 84, 42);
   g.fillStyle = '#fff4e3'; g.beginPath(); g.arc(352, 320, 17, 0, Math.PI * 2); g.fill();
   g.restore();
+}
+/**
+ * Latar gambar yang dibagikan, senada dengan slide Rapor Keuangan: dasar selalu teal tema aplikasi; yang berganti per suasana
+ * hanya dekorasinya (dua bola cahaya). Suasana: 'a' (sangat sehat) | 'b' | 'c' | 'd' (perlu perhatian) | 'netral' | 'tahun'.
+ */
+const PALET_LATAR = {
+  a: ['#4ade80', '#fde047'],
+  b: ['#67e8f9', '#5fb48e'],
+  c: ['#fbbf24', '#fb923c'],
+  d: ['#f87171', '#c084fc'],
+  netral: ['#94a3b8', '#60a5fa'],
+  tahun: ['#f5a524', '#f472b6'],
+};
+function latarMeriah(g, W, H, suasana) {
+  const [k1, k2] = PALET_LATAR[suasana] || PALET_LATAR.b;
+  const dasar = g.createLinearGradient(0, 0, W * .4, H);
+  dasar.addColorStop(0, '#0e7c86'); dasar.addColorStop(.6, '#073b40'); dasar.addColorStop(1, '#062a2e');
+  g.fillStyle = dasar; g.fillRect(0, 0, W, H);
+  const bola = (x, y, r, warna, kuat) => {
+    const rg = g.createRadialGradient(x, y, 0, x, y, r);
+    const a8 = Math.round(kuat * 255).toString(16).padStart(2, '0');
+    rg.addColorStop(0, warna + a8); rg.addColorStop(1, warna + '00');
+    g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  };
+  bola(W * .05, H * .02, W * .8, k1, .45);
+  bola(W * 1.02, H * .55, W * .65, k2, .35);
+  bola(W * .2, H * 1.02, W * .55, k1, .22);
+  // Titik kilau acak tapi tetap (sama tiap kali digambar).
+  let benih = 7;
+  const acak = () => (benih = (benih * 9301 + 49297) % 233280) / 233280;
+  for (let i = 0; i < 36; i++) {
+    g.fillStyle = `rgba(255,255,255,${(.08 + acak() * .22).toFixed(2)})`;
+    g.beginPath(); g.arc(acak() * W, acak() * H, 2 + acak() * 5, 0, Math.PI * 2); g.fill();
+  }
+  const bawah = g.createLinearGradient(0, H * .55, 0, H);
+  bawah.addColorStop(0, 'rgba(0,0,0,0)'); bawah.addColorStop(1, 'rgba(0,0,0,.35)');
+  g.fillStyle = bawah; g.fillRect(0, 0, W, H);
 }
 /** Logo + "Dompet Keluarga"; y = garis dasar teks. */
 function kopMerek(g, x, y, ukuran, warna) {
@@ -1219,20 +1254,14 @@ async function bagikanTahunan(th) {
   const teks = (s, x, y, ukuran, warna, tebal, rata2) => {
     g.font = `${tebal || 700} ${ukuran}px "Plus Jakarta Sans", system-ui, sans-serif`; g.fillStyle = warna; g.textAlign = rata2 || 'left'; g.fillText(s, x, y);
   };
-  const latar = g.createLinearGradient(0, 0, W, H);
-  latar.addColorStop(0, '#062a2e'); latar.addColorStop(1, '#0e5a60');
-  g.fillStyle = latar; g.fillRect(0, 0, W, H);
-  // Lingkaran cahaya halus (sama seperti Story)
-  [[920, 280, 320, 'rgba(255,255,255,.06)'], [100, 1560, 380, 'rgba(255,255,255,.04)']].forEach(([x, y, r, w]) => {
-    g.fillStyle = w; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
-  });
+  latarMeriah(g, W, H, 'tahun');
 
   kopMerek(g, P, 150, 36, 'rgba(255,255,255,.95)');
   teks(T('Kilas balik').toUpperCase(), P, 260, 34, 'rgba(255,255,255,.7)', 800);
   teks(String(th), P, 380, 128, '#ffffff', 800);
 
   const kotak = (x, y, w, label, nilai, warna) => {
-    g.fillStyle = 'rgba(255,255,255,.09)'; g.beginPath(); g.roundRect(x, y, w, 190, 32); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.roundRect(x, y, w, 190, 32); g.fill();
     teks(label, x + 34, y + 66, 30, 'rgba(255,255,255,.72)', 600);
     teks(nilai, x + 34, y + 142, 48, warna, 800);
   };

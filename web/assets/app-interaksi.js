@@ -798,27 +798,27 @@ function slideKilas(k) {
   const top = Object.keys(r.kategori).map(n => ({ n, v: r.kategori[n] })).sort((a, b) => b.v - a.v);
   const nama = namaPendek(S.data.user);
   const slide = [];
-  slide.push(`<div class="kilas-isi tengah"><span class="kilas-emoji">📒</span><small>${T('Rapor Keuangan Keluarga')}</small>
+  slide.push(`<div class="kilas-isi tengah" data-suasana="buka"><span class="kilas-emoji">📒</span><small>${T('Rapor Keuangan Keluarga')}</small>
     <h2>${esc(namaBulan(k))}</h2><p>${T('Halo {nama}, saatnya terima rapor: ke mana uang keluarga pergi bulan itu 👀', { nama: esc(nama) })}</p></div>`);
-  slide.push(`<div class="kilas-isi"><small>${T('Total pengeluaran')}</small><div class="kilas-angka keluar">${rp(r.keluar)}</div>
+  slide.push(`<div class="kilas-isi" data-suasana="total"><small>${T('Total pengeluaran')}</small><div class="kilas-angka keluar">${rp(r.keluar)}</div>
     <div class="kilas-baris"><span>${T('💰 Pemasukan')}</span><b>${rp(r.masuk)}</b></div>
     <div class="kilas-baris"><span>${r.masuk >= r.keluar ? T('🟢 Sisa') : T('🔴 Minus')}</span><b>${rp(Math.abs(r.masuk - r.keluar))}</b></div></div>`);
   if (top.length) {
-    slide.push(`<div class="kilas-isi"><small>${T('Paling banyak untuk')}</small>
+    slide.push(`<div class="kilas-isi" data-suasana="top"><small>${T('Paling banyak untuk')}</small>
       <div class="kilas-ilus">${ilus(ikonKategori(top[0].n, TIPE.KELUAR))}</div>
       <h2>${esc(namaT(top[0].n))}</h2><p><b>${rp(top[0].v)}</b> · ${T('{persen}% dari pengeluaran', { persen: r.keluar ? Math.round(top[0].v / r.keluar * 100) : 0 })}</p>
       ${top.slice(1, 4).map((x, i) => `<div class="kilas-baris"><span>${i + 2}. ${esc(namaT(x.n))}</span><b>${rp(x.v)}</b></div>`).join('')}</div>`);
   }
   if (sebelum.keluar && r.keluar) {
     const p = Math.round((r.keluar - sebelum.keluar) / sebelum.keluar * 100);
-    slide.push(`<div class="kilas-isi tengah"><span class="kilas-emoji">${p > 0 ? '📈' : p < 0 ? '📉' : '⚖️'}</span>
+    slide.push(`<div class="kilas-isi tengah" data-suasana="${p > 0 ? 'naik' : p < 0 ? 'hemat' : 'sama'}"><span class="kilas-emoji">${p > 0 ? '📈' : p < 0 ? '📉' : '⚖️'}</span>
       <small>${T('Dibanding {bulan}', { bulan: esc(namaBulan(bulanSebelum(k))) })}</small>
       <div class="kilas-angka ${p > 0 ? 'keluar' : 'masuk'}">${p > 0 ? '+' : p < 0 ? '−' : ''}${Math.abs(p)}%</div>
       <p>${p > 0 ? T('Pengeluaran naik {jumlah}. Cek lagi kategori yang membengkak, ya.', { jumlah: rp(r.keluar - sebelum.keluar) })
         : p < 0 ? T('Hemat {jumlah} dari bulan sebelumnya. Mantap! 🎉', { jumlah: rp(sebelum.keluar - r.keluar) }) : T('Pengeluaran sama persis. Konsisten!')}</p></div>`);
   }
   const nilai = nilaiRapor(r), rasio = nilai.rasio;
-  slide.push(`<div class="kilas-isi tengah"><small>${T('Nilai rapor')}</small>
+  slide.push(`<div class="kilas-isi tengah" data-suasana="rapor-${nilai.kelas}"><small>${T('Nilai rapor')}</small>
     <span class="nilai-rapor ${nilai.kelas}" aria-label="${T('Nilai {huruf}', { huruf: nilai.huruf })}">${nilai.huruf}</span>
     <h2>${rasio === null ? T('Terus mencatat!') : rasio >= 20 ? T('Keuangan sehat!') : rasio >= 0 ? T('Masih aman') : T('Bulan yang berat')}</h2>
     <p>${rasio === null ? T('Catat pemasukan juga supaya rangkumannya lengkap.')
@@ -847,7 +847,12 @@ function bukaKilasBalik(k) {
   el.innerHTML = `
     <div class="kilas-bar">${slide.map(() => '<i><b></b></i>').join('')}</div>
     <button type="button" class="kilas-x" data-aksi="kilas-tutup" aria-label="${T('Tutup')}">✕</button>
-    <div class="kilas-panggung">${slide.map((h, i) => `<section class="kilas-slide" data-i="${i}">${h}</section>`).join('')}</div>
+    <div class="kilas-panggung">${slide.map((h, i) => {
+      // Latar tiap slide mengikuti suasananya (data-suasana di isi slide); slide bagus diberi konfeti.
+      const s = (h.match(/data-suasana="([\w-]+)"/) || [])[1] || 'buka';
+      const konfeti = /^(hemat|rapor-a)$/.test(s) ? `<div class="kilas-konfeti" aria-hidden="true">${'<i></i>'.repeat(14)}</div>` : '';
+      return `<section class="kilas-slide" data-i="${i}" data-suasana="${s}">${konfeti}${h}</section>`;
+    }).join('')}</div>
     <button type="button" class="kilas-zona kiri" data-aksi="kilas-mundur" aria-label="${T('Sebelumnya')}"></button>
     <button type="button" class="kilas-zona kanan" data-aksi="kilas-maju" aria-label="${T('Berikutnya')}"></button>`;
   el.hidden = false;

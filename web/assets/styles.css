@@ -1179,7 +1179,7 @@ body.tanpa-nav #view:has(.bilah-catatan) { padding-bottom: calc(165px + env(safe
 
 /* ---------- Kilas balik bulanan ---------- */
 .kilas { position: fixed; inset: 0; z-index: 80; color: #fff; overflow: hidden;
-  background: radial-gradient(120% 80% at 20% 0%, #0e7c86 0%, #062a2e 55%, #0b0c10 100%); animation: muncul-panel .3s ease-out; }
+  background: #0b0c10; animation: muncul-panel .3s ease-out; }
 .kilas[hidden] { display: none; }
 .kilas-bar { position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 14px; right: 14px; z-index: 3; display: flex; gap: 4px; }
 .kilas-bar i { flex: 1; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .25); overflow: hidden; }
@@ -1194,6 +1194,49 @@ body.tanpa-nav #view:has(.bilah-catatan) { padding-bottom: calc(165px + env(safe
 .kilas-slide { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 80px 26px 60px;
   opacity: 0; transform: translateY(16px) scale(.98); transition: opacity .35s, transform .45s cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
 .kilas-slide.aktif { opacity: 1; transform: none; z-index: 3; } /* ketukan tembus ke zona maju/mundur di bawahnya */
+/* Latar semua slide tetap warna tema (teal); yang berganti per suasana hanya dekorasinya: dua bola cahaya (--k-1, --k-2)
+   yang bergerak pelan, titik kilau, dan konfeti untuk hasil bagus. */
+.kilas-slide { --k-1: #f5a524; --k-2: #5fb48e;
+  background: radial-gradient(circle at 12% 18%, rgba(255, 255, 255, .6) 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 82% 12%, rgba(255, 255, 255, .35) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 90% 40%, rgba(255, 255, 255, .35) 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 8% 62%, rgba(255, 255, 255, .6) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 70% 78%, rgba(255, 255, 255, .35) 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 30% 88%, rgba(255, 255, 255, .35) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 55% 8%, rgba(255, 255, 255, .6) 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 94% 86%, rgba(255, 255, 255, .35) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 22% 40%, rgba(255, 255, 255, .35) 0 2.5px, transparent 3.5px),
+    radial-gradient(circle at 62% 52%, rgba(255, 255, 255, .6) 0 1.5px, transparent 2.5px),
+    radial-gradient(130% 90% at 50% 110%, rgba(0, 0, 0, .5), transparent 60%), linear-gradient(165deg, #0e7c86, #073b40 60%, #062a2e); }
+.kilas-slide::before, .kilas-slide::after { content: ''; position: absolute; z-index: 0; width: 70vmax; height: 70vmax; border-radius: 50%;
+  filter: blur(70px); opacity: .45; pointer-events: none; }
+.kilas-slide::before { background: var(--k-1); top: -30vmax; left: -22vmax; animation: bola-kilas 14s ease-in-out infinite alternate; }
+.kilas-slide::after { background: var(--k-2); bottom: -34vmax; right: -26vmax; animation: bola-kilas 17s ease-in-out infinite alternate-reverse; }
+@keyframes bola-kilas { 50% { transform: translate(8vmax, 6vmax) scale(1.12); } to { transform: translate(-4vmax, 10vmax) scale(.95); } }
+.kilas-slide[data-suasana="total"] { --k-1: #fb923c; --k-2: #f43f5e; }
+.kilas-slide[data-suasana="top"] { --k-1: #38bdf8; --k-2: #a78bfa; }
+.kilas-slide[data-suasana="julukan"] { --k-1: #e879f9; --k-2: #fbbf24; }
+.kilas-slide[data-suasana="naik"] { --k-1: #f97316; --k-2: #ef4444; }
+.kilas-slide[data-suasana="hemat"], .kilas-slide[data-suasana="rapor-a"] { --k-1: #4ade80; --k-2: #fde047; }
+.kilas-slide[data-suasana="sama"], .kilas-slide[data-suasana="rapor-b"] { --k-1: #67e8f9; --k-2: #5fb48e; }
+.kilas-slide[data-suasana="rapor-c"] { --k-1: #fbbf24; --k-2: #fb923c; }
+.kilas-slide[data-suasana="rapor-d"] { --k-1: #f87171; --k-2: #c084fc; }
+.kilas-slide[data-suasana="rapor-netral"] { --k-1: #94a3b8; --k-2: #60a5fa; }
+.kilas-slide[data-suasana="naik"] .kilas-angka.keluar { color: #fed7aa; }
+.kilas-slide[data-suasana="total"] .kilas-angka.keluar { color: #fff; text-shadow: 0 4px 24px rgba(251, 146, 60, .6); }
+/* Konfeti untuk slide hemat & nilai A: jatuh terus selama slide tampil. */
+.kilas-konfeti { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+.kilas-konfeti i { position: absolute; top: -12px; width: 8px; height: 14px; border-radius: 2px; background: #fde047; opacity: 0; }
+.kilas-slide.aktif .kilas-konfeti i { animation: konfeti-kilas 3.2s linear infinite; }
+.kilas-konfeti i:nth-child(3n) { background: #f472b6; } .kilas-konfeti i:nth-child(3n+1) { background: #fff; } .kilas-konfeti i:nth-child(4n) { background: #4ade80; width: 6px; height: 6px; border-radius: 50%; }
+.kilas-konfeti i:nth-child(1) { left: 6%; animation-delay: 0s; } .kilas-konfeti i:nth-child(2) { left: 14%; animation-delay: 1.1s; }
+.kilas-konfeti i:nth-child(3) { left: 22%; animation-delay: .5s; } .kilas-konfeti i:nth-child(4) { left: 30%; animation-delay: 2s; }
+.kilas-konfeti i:nth-child(5) { left: 38%; animation-delay: .2s; } .kilas-konfeti i:nth-child(6) { left: 46%; animation-delay: 1.6s; }
+.kilas-konfeti i:nth-child(7) { left: 54%; animation-delay: .8s; } .kilas-konfeti i:nth-child(8) { left: 62%; animation-delay: 2.4s; }
+.kilas-konfeti i:nth-child(9) { left: 70%; animation-delay: .4s; } .kilas-konfeti i:nth-child(10) { left: 78%; animation-delay: 1.3s; }
+.kilas-konfeti i:nth-child(11) { left: 86%; animation-delay: 2.7s; } .kilas-konfeti i:nth-child(12) { left: 94%; animation-delay: .9s; }
+.kilas-konfeti i:nth-child(13) { left: 10%; animation-delay: 2.2s; } .kilas-konfeti i:nth-child(14) { left: 66%; animation-delay: 1.9s; }
+@keyframes konfeti-kilas { 0% { opacity: 1; transform: translateY(0) rotate(0); } 100% { opacity: .9; transform: translateY(105vh) translateX(30px) rotate(540deg); } }
 .kilas-slide.aktif .kilas-aksi { pointer-events: auto; }
 .kilas-isi { width: 100%; max-width: 420px; position: relative; z-index: 3; }
 .kilas-isi.tengah { text-align: center; }
@@ -1216,7 +1259,7 @@ body.tanpa-nav #view:has(.bilah-catatan) { padding-bottom: calc(165px + env(safe
 .kepala-kartu { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .kepala-kartu h3 { margin: 0; }
 .chip-kilas { flex: none; font-size: 12px; padding: 6px 12px; min-height: 32px; }
-@media (prefers-reduced-motion: reduce) { .kilas-slide, .kilas-emoji, .kilas-ilus { transition: none; animation: none; } .kilas-bar i.jalan b { animation: none; width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .kilas-slide, .kilas-emoji, .kilas-ilus, .kilas-slide::before, .kilas-slide::after { transition: none; animation: none; } .kilas-konfeti { display: none; } .kilas-bar i.jalan b { animation: none; width: 100%; } }
 
 /* Kartu suara berisi beberapa transaksi */
 .daftar-banyak { display: flex; flex-direction: column; border-radius: 16px; background: var(--card-2); padding: 2px 6px 2px 10px; max-height: 46vh; overflow-y: auto; }
