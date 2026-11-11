@@ -251,6 +251,34 @@ document.addEventListener('change', e => {
   simpanLokasi({ nama, lat, lng });
 });
 
+/**
+ * Simpan form catatan. tambahan: isian yang ikut diubah (mis. { arsip: true } dari tombol Arsipkan).
+ * Catatan tanpa tanggal boleh tanpa judul (seperti Google Keep): judulnya diambil dari baris pertama isinya.
+ */
+async function simpanFormCatatan(el, tambahan) {
+  hentikanDikte();
+  simpanDraftCatatan();
+  const f = S.formCatatan;
+  const isi = f.jenis === 'tugas' ? tulisTugas(f.tugas) : f.isi;
+  let judul = f.judul.trim();
+  if (!judul && !f.tanggal) {
+    const pertama = (f.jenis === 'tugas' ? (f.tugas.find(t => t.teks.trim()) || {}).teks : String(isi).split('\n').find(b => b.trim())) || '';
+    judul = pertama.trim().slice(0, 60);
+  }
+  const input = Object.assign({
+    id: f.id, judul, tanggal: f.tanggal, pengingat: f.pengingat, ulang: f.ulang, warna: f.warna, sematkan: !!f.sematkan, isi,
+  }, tambahan);
+  if (!input.judul) return toast(f.tanggal ? T('Isi judul catatannya dulu.') : T('Catatannya masih kosong.'), true);
+  if ('arsip' in input && (S.offline || !navigator.onLine)) return toast(T('📴 Butuh sinyal untuk menyematkan atau mengarsipkan.'), true);
+  if (S.offline || !navigator.onLine) return antreCatatan(input, f.id);
+  const pesan = 'arsip' in input ? (input.arsip ? T('Catatan diarsipkan') : T('Catatan dikeluarkan dari arsip'))
+    : input.pengingat ? T('Pengingat tersimpan 🔔') : T('Catatan tersimpan ✔');
+  if (await kirim(el, 'simpanCatatan', [input], pesan, e => e.jaringan && antreCatatan(input, f.id))) {
+    buangDrafCatatan(f.id);
+    bukaKalender(input.tanggal);
+  }
+}
+
 Object.assign(AKSI, {
   'kalender': () => bukaKalender(),
   'kal-tgl': el => {
@@ -288,22 +316,32 @@ Object.assign(AKSI, {
     const f = $('.form-catatan');
     if (f) f.style.setProperty('--w', warnaCatatan(S.formCatatan.warna));
   },
-  'simpan-catatan': async el => {
-    hentikanDikte();
-    simpanDraftCatatan();
-    const f = S.formCatatan;
-    const input = {
-      id: f.id, judul: f.judul, tanggal: f.tanggal, pengingat: f.pengingat, ulang: f.ulang, warna: f.warna,
-      isi: f.jenis === 'tugas' ? tulisTugas(f.tugas) : f.isi,
-    };
-    if (!input.judul.trim()) return toast(T('Isi judul catatannya dulu.'), true);
-    if (S.offline || !navigator.onLine) return antreCatatan(input, f.id);
-    if (await kirim(el, 'simpanCatatan', [input], input.pengingat ? T('Pengingat tersimpan 🔔') : T('Catatan tersimpan ✔'),
-      e => e.jaringan && antreCatatan(input, f.id))) {
-      buangDrafCatatan(f.id);
-      bukaKalender(input.tanggal);
-    }
+  'simpan-catatan': el => simpanFormCatatan(el),
+  'c-sematkan': el => {
+    const on = S.formCatatan.sematkan = !S.formCatatan.sematkan;
+    el.setAttribute('aria-checked', on);
+    el.classList.toggle('nyala', on);
   },
+  // Arsipkan / keluarkan dari arsip dari form = simpan isian sekaligus mengubah status arsipnya.
+  'c-arsip': el => simpanFormCatatan(el, { arsip: !S.formCatatan.arsip }),
+  'mode-catatan': el => {
+    aturModeCatatan(el.dataset.mode);
+    S.lihatArsip = false;
+    render();
+  },
+  'papan-baru': el => bukaFormCatatan(null, '', el.dataset.jenis),
+  'papan-sematkan': el => {
+    const c = daftarCatatan().find(x => x.id === el.dataset.id);
+    if (c) aturDiPapan(c.id, { sematkan: !c.sematkan });
+  },
+  'papan-arsip': el => aturDiPapan(el.dataset.id, { arsip: el.dataset.v !== '0' }, el.dataset.v !== '0' ? T('Catatan diarsipkan') : T('Catatan dikeluarkan dari arsip')),
+  'papan-arsip-urung': () => {
+    $('#toast').hidden = true;
+    if (arsipTerakhir) aturDiPapan(arsipTerakhir, { arsip: false });
+    arsipTerakhir = '';
+  },
+  'papan-arsip-buka': () => { S.lihatArsip = true; render(); window.scrollTo(0, 0); },
+  'papan-arsip-tutup': () => { S.lihatArsip = false; render(); },
   'hapus-catatan': async el => {
     const tgl = S.formCatatan.tanggal;
     const idDraf = S.formCatatan.id;

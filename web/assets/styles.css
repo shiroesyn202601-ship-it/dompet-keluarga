@@ -2186,3 +2186,45 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
 .barang-struk { margin-top: 10px; font-size: 14px; }
 .barang-struk summary { cursor: pointer; color: var(--muted); font-size: 13px; font-weight: 600; }
 body.samar #view .harga-ubah, body.samar .barang-harga b { filter: blur(7px); }
+
+/* ---------- Papan catatan (catatan tanpa tanggal, gaya Google Keep) ---------- */
+.mode-catatan { margin-bottom: 14px; }
+.jumlah-mode { display: inline-block; min-width: 20px; margin-left: 4px; padding: 1px 6px; border-radius: 999px; font-size: 11px; line-height: 16px;
+  background: var(--primary-soft); color: var(--primary); }
+.cari-papan { display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 16px; margin-bottom: 12px; border-radius: 999px;
+  background: var(--card); border: 1.5px solid var(--line); color: var(--muted); }
+.cari-papan:focus-within { border-color: var(--primary); }
+.cari-papan .ik { width: 19px; height: 19px; }
+.cari-papan input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font: inherit; font-size: 15px; color: var(--text); }
+.papan-tulis { display: flex; align-items: center; gap: 4px; padding: 5px 5px 5px 18px; margin-bottom: 18px; border-radius: 16px;
+  background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.papan-tulis-teks { flex: 1; padding: 11px 0; text-align: left; font-size: 15px; font-weight: 600; color: var(--muted); }
+.papan-judul { margin: 4px 4px 8px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.kisi-papan { columns: 2; column-gap: 10px; margin-bottom: 14px; }
+@media (min-width: 700px) { .kisi-papan { columns: 3; } }
+@media (min-width: 1200px) { .kisi-papan { columns: 4; } }
+.kartu-papan { display: flex; flex-direction: column; break-inside: avoid; margin-bottom: 10px; border-radius: 16px; overflow: hidden;
+  background: color-mix(in srgb, var(--w) 15%, var(--card)); border: 1px solid color-mix(in srgb, var(--w) 32%, var(--line));
+  animation: muncul-panel .25s ease-out; }
+.kartu-papan[data-warna="polos"] { background: var(--card); border-color: var(--line); }
+.kartu-papan.tertunda { opacity: .75; border-style: dashed; }
+.kp-buka { display: block; width: 100%; padding: 14px 14px 6px; text-align: left; color: inherit; background: none; }
+.kp-judul { display: block; font-size: 15px; font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
+.kp-isi { display: -webkit-box; -webkit-line-clamp: 9; -webkit-box-orient: vertical; overflow: hidden; margin-top: 6px;
+  font-size: 13.5px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; opacity: .85; }
+.kartu-papan .daftar-centang { padding: 0 6px 0 8px; }
+.kartu-papan .centang { padding: 5px 4px; font-size: 13.5px; }
+.kp-kaki { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 38px; padding: 0 4px 4px 14px; }
+.kp-kaki small { font-size: 11.5px; font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kp-tombol { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; color: var(--muted); }
+.kp-tombol:active { background: color-mix(in srgb, var(--w) 20%, transparent); }
+.kp-tombol .ik { width: 18px; height: 18px; }
+.kp-pin.nyala { color: var(--primary); }
+.kp-pin.nyala .ik { fill: currentColor; }
+.papan-kosong { padding: 40px 24px; text-align: center; color: var(--muted); }
+.papan-kosong span { display: block; font-size: 44px; margin-bottom: 8px; }
+.papan-kosong p { margin: 0 auto; max-width: 300px; line-height: 1.5; }
+.papan-buka-arsip { display: flex; margin: 4px auto 8px; }
+.papan-kepala-arsip { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; font-size: 17px; }
+.tautan-papan { margin-top: 12px; }
+.btn-arsip-catatan { flex: none; padding-left: 16px; padding-right: 16px; }

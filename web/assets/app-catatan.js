@@ -6,9 +6,10 @@
 // Catatan berpengingat muncul sebagai overlay saat aplikasi dibuka di tanggalnya (atau sampai 7 hari sesudahnya
 // kalau terlewat), sampai ditutup "Oke" di HP itu. "Ingatkan besok" menunda sehari.
 
-const WARNA_CATATAN = [['biru', '#3b82f6'], ['hijau', '#10b981'], ['kuning', '#f59e0b'], ['merah', '#ef4444'], ['ungu', '#8b5cf6']];
+// 'polos' = kartu tanpa warna di Papan (garis abu-abu di kalender).
+const WARNA_CATATAN = [['biru', '#3b82f6'], ['hijau', '#10b981'], ['kuning', '#f59e0b'], ['merah', '#ef4444'], ['ungu', '#8b5cf6'], ['polos', '#94a3b8']];
 const warnaCatatan = k => (WARNA_CATATAN.find(w => w[0] === k) || WARNA_CATATAN[0])[1];
-const NAMA_WARNA = { biru: T('biru'), hijau: T('hijau'), kuning: T('kuning'), merah: T('merah'), ungu: T('ungu') };
+const NAMA_WARNA = { biru: T('biru'), hijau: T('hijau'), kuning: T('kuning'), merah: T('merah'), ungu: T('ungu'), polos: T('tanpa warna') };
 const NAMA_HARI_PENDEK = [T('Sen'), T('Sel'), T('Rab'), T('Kam'), T('Jum'), T('Sab'), T('Min||hari')];
 const daftarCatatan = () => (S.data && S.data.catatan) || []; // data offline versi lama belum punya catatan
 
@@ -50,21 +51,37 @@ function bukaHalaman(tab) {
   if (pindah) window.scrollTo(0, 0);
 }
 
-/** Halaman kalender bulanan (mulai Senin). S.kal = { bulan: 'yyyy-mm', pilih: 'yyyy-mm-dd' }. */
+/**
+ * Halaman kalender bulanan (mulai Senin). S.kal = { bulan: 'yyyy-mm', pilih: 'yyyy-mm-dd' }.
+ * pilih: tanggal yang dibuka di Kalender; '' = catatan tanpa tanggal → buka Papan; undefined = mode terakhir.
+ */
 function bukaKalender(pilih) {
+  if (pilih === '') aturModeCatatan('papan');
+  else if (pilih) aturModeCatatan('kalender');
   const tgl = pilih || (S.kal && S.kal.pilih) || hariIni();
   S.kal = { bulan: tgl.slice(0, 7), pilih: tgl };
   bukaHalaman('catatan');
 }
 
+/** Halaman Catatan punya dua mode: 'kalender' (catatan bertanggal & pengingat) dan 'papan' (tanpa tanggal, gaya Google Keep). Diingat per HP. */
+const modeCatatan = () => bacaHp('dk_mode_catatan') === 'papan' ? 'papan' : 'kalender';
+const aturModeCatatan = m => tulisHp('dk_mode_catatan', m === 'papan' ? 'papan' : null);
+
 function viewCatatan() {
   if (!S.kal) S.kal = { bulan: hariIni().slice(0, 7), pilih: hariIni() };
+  const papan = modeCatatan() === 'papan';
+  const n = hitungPapan();
   return `
     <div class="kepala kepala-kembali">
       <button class="tombol-ikon" data-aksi="tab" data-tab="beranda" aria-label="${T('Kembali')}">${svg('kembali')}</button>
       <h1>${T('Catatan & Pengingat')}</h1>
     </div>
-    <section class="kartu halaman-kalender"><div id="kalender">${htmlKalender()}</div></section>`;
+    <div class="segmen mode-catatan" role="tablist" aria-label="${T('Tampilan catatan')}">
+      <button type="button" role="tab" aria-selected="${!papan}" class="${papan ? '' : 'aktif'}" data-aksi="mode-catatan" data-mode="kalender">📅 ${T('Kalender')}</button>
+      <button type="button" role="tab" aria-selected="${papan}" class="${papan ? 'aktif' : ''}" data-aksi="mode-catatan" data-mode="papan">📌 ${T('Papan')}${n ? ` <span class="jumlah-mode">${n}</span>` : ''}</button>
+    </div>
+    ${papan ? `<section class="halaman-papan" id="papan">${htmlPapan()}</section>`
+      : `<section class="kartu halaman-kalender"><div id="kalender">${htmlKalender()}</div></section>`}`;
 }
 
 function renderKalender() {
@@ -120,11 +137,117 @@ function htmlKalender() {
     <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tambah-catatan">${T('＋ Catatan')}</button></div>`;
 }
 
-/** Catatan tanpa tanggal: selalu tampil di bawah kalender, apa pun tanggal yang dipilih. */
+/** Di bawah kalender: tautan ke Papan, tempat catatan tanpa tanggal. */
 function htmlCatatanTanpaTanggal() {
-  const daftar = daftarCatatan().filter(c => !c.tanggal);
-  if (!daftar.length) return '';
-  return `<h3 class="kal-judul-hari">📌 ${T('Tanpa tanggal')}</h3>${daftar.map(itemCatatan).join('')}`;
+  const n = hitungPapan();
+  if (!n) return '';
+  return `<button type="button" class="baris tautan-papan" data-aksi="mode-catatan" data-mode="papan">
+      <span class="ikon-bulat">📌</span><span class="isi"><b>${T('Catatan tanpa tanggal')}</b><small>${T('{n} catatan di Papan', { n })}</small></span>
+      <span class="panah">${svg('maju')}</span></button>`;
+}
+
+// ---------- Papan catatan (gaya Google Keep) ----------
+// Catatan tanpa tanggal tampil sebagai kartu berwarna bersusun (2 kolom di HP, lebih banyak di layar lebar).
+// Disematkan di atas, sisanya urut terakhir diubah; Arsip menyembunyikan tanpa menghapus. Semua tetap di sheet
+// Catatan buku ini, jadi seluruh anggota keluarga melihat papan yang sama (Google Keep tidak bisa dipakai bersama).
+const catatanPapan = () => daftarCatatan().filter(c => !c.tanggal);
+const hitungPapan = () => catatanPapan().filter(c => !c.arsip).length;
+const urutPapan = (a, b) => String(b.diubah || '').localeCompare(String(a.diubah || ''));
+
+function cocokCari(c, q) {
+  if (!q) return true;
+  // Tanda baca diabaikan, jadi "wifi" menemukan "Wi-Fi".
+  const norm = x => String(x).toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '');
+  const teks = norm(c.judul + ' ' + c.isi);
+  return norm(q).split(/\s+/).filter(Boolean).every(k => teks.includes(k));
+}
+
+function htmlPapan() {
+  const q = (S.cariPapan || '').trim();
+  const arsip = !!S.lihatArsip;
+  const semua = catatanPapan();
+  const daftar = semua.filter(c => !!c.arsip === arsip && cocokCari(c, q)).sort(urutPapan);
+  const sematan = arsip ? [] : daftar.filter(c => c.sematkan);
+  const lain = arsip ? daftar : daftar.filter(c => !c.sematkan);
+  const nArsip = semua.filter(c => c.arsip).length;
+  const kisi = d => `<div class="kisi-papan">${d.map(kartuPapan).join('')}</div>`;
+  const kosong = q ? ['🔍', T('Tidak ada catatan yang cocok dengan "{q}".', { q: esc(q) })]
+    : arsip ? ['🗄', T('Belum ada catatan yang diarsipkan.')]
+    : ['💡', T('Tulis ide, daftar belanja, resep, atau info penting keluarga di sini. Semua anggota keluarga bisa melihatnya.')];
+  return `
+    <label class="cari-papan">${svg('cari')}<input type="search" id="cari-papan" placeholder="${T('Cari catatan')}" value="${esc(S.cariPapan || '')}" aria-label="${T('Cari catatan')}" enterkeyhint="search"></label>
+    ${arsip ? `<div class="papan-kepala-arsip"><button type="button" class="tombol-ikon" data-aksi="papan-arsip-tutup" aria-label="${T('Kembali ke Papan')}">${svg('kembali')}</button><b>🗄 ${T('Arsip')}</b></div>`
+      : `<div class="papan-tulis">
+        <button type="button" class="papan-tulis-teks" data-aksi="papan-baru">${T('Tulis catatan…')}</button>
+        <button type="button" class="tombol-ikon" data-aksi="papan-baru" data-jenis="tugas" aria-label="${T('Daftar tugas baru')}">
+          <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="6" height="6" rx="1.5"/><path d="m4.5 7 1.2 1.2L8 6M12 7h9"/><rect x="3" y="14" width="6" height="6" rx="1.5"/><path d="M12 17h9"/></svg></button>
+      </div>`}
+    <div id="papan-isi">
+      ${sematan.length ? `<h3 class="papan-judul">📌 ${T('Disematkan')}</h3>${kisi(sematan)}${lain.length ? `<h3 class="papan-judul">${T('Lainnya||papan')}</h3>` : ''}` : ''}
+      ${lain.length ? kisi(lain) : ''}
+      ${daftar.length ? '' : `<div class="papan-kosong"><span aria-hidden="true">${kosong[0]}</span><p>${kosong[1]}</p></div>`}
+    </div>
+    ${!arsip && nArsip ? `<button type="button" class="chip papan-buka-arsip" data-aksi="papan-arsip-buka">🗄 ${T('Arsip ({n})', { n: nArsip })}</button>` : ''}
+    ${S.data.bisaCatatan === false ? '<p class="info-kecil">' + T('⚠️ Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).') + '</p>' : ''}`;
+}
+
+function kartuPapan(c) {
+  const tugas = bacaTugas(c.isi);
+  const selesai = tugas ? tugas.filter(t => t.selesai).length : 0;
+  const pin = `<button type="button" class="kp-tombol kp-pin ${c.sematkan ? 'nyala' : ''}" data-aksi="papan-sematkan" data-id="${esc(c.id)}" aria-pressed="${!!c.sematkan}"
+      aria-label="${c.sematkan ? T('Lepas sematan') : T('Sematkan')}"><svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l-1 6 4 4H6l4-4-1-6ZM12 13v8"/></svg></button>`;
+  const keluarArsip = `<button type="button" class="kp-tombol" data-aksi="papan-arsip" data-id="${esc(c.id)}" data-v="0" aria-label="${T('Keluarkan dari arsip')}">
+      <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>`;
+  return `
+    <article class="kartu-papan ${c.tertunda ? 'tertunda' : ''}" data-warna="${esc(c.warna || 'polos')}" style="--w:${warnaCatatan(c.warna || 'polos')}">
+      <button type="button" class="kp-buka" data-aksi="ubah-catatan" data-id="${esc(c.id)}">
+        <b class="kp-judul">${esc(c.judul)}</b>${!tugas && c.isi ? `<span class="kp-isi">${esc(c.isi)}</span>` : ''}
+      </button>
+      ${tugas ? daftarCentang(c) : ''}
+      <div class="kp-kaki">
+        <small>${tugas ? `☑️ ${selesai}/${tugas.length} · ` : ''}${c.oleh ? esc(namaPendek(c.oleh)) : ''}${c.tertunda ? ' · 📤' : ''}</small>
+        ${c.arsip ? keluarArsip : pin}
+      </div>
+    </article>`;
+}
+
+function renderPapan() {
+  const isi = $('#papan-isi');
+  if (!isi) return;
+  // Hanya kartunya yang digambar ulang, supaya kotak cari tidak kehilangan fokus saat mengetik.
+  const sementara = document.createElement('div');
+  sementara.innerHTML = htmlPapan();
+  isi.replaceWith(sementara.querySelector('#papan-isi'));
+}
+
+document.addEventListener('input', e => {
+  if (e.target.id !== 'cari-papan') return;
+  S.cariPapan = e.target.value;
+  renderPapan();
+});
+
+let arsipTerakhir = ''; // untuk tombol Urungkan di toast "Diarsipkan"
+/** Sematkan / arsipkan langsung dari Papan: tampilan berubah dulu, lalu disimpan; kalau gagal dikembalikan. */
+async function aturDiPapan(id, ubah, pesan) {
+  const c = daftarCatatan().find(x => x.id === id);
+  if (!c) return;
+  if (c.tertunda) return toast(T('Catatan ini belum terkirim. Tunggu sampai ada sinyal.'), true);
+  if (S.offline || !navigator.onLine) return toast(T('📴 Butuh sinyal untuk menyematkan atau mengarsipkan.'), true);
+  const lama = { sematkan: c.sematkan, arsip: c.arsip, diubah: c.diubah };
+  const kini = new Date();
+  // Format sama dengan dariSerial_ di db.js (jam lokal, tanpa zona), supaya urutan Papan langsung benar.
+  const diubah = new Date(kini - kini.getTimezoneOffset() * 6e4).toISOString().slice(0, 19);
+  Object.assign(c, ubah, ubah.arsip ? { sematkan: false } : {}, { diubah });
+  if (S.tab === 'catatan') render();
+  try {
+    await api('aturCatatan', id, ubah);
+    if (ubah.arsip) arsipTerakhir = id;
+    if (pesan) toast(pesan, false, ubah.arsip ? { label: T('Urungkan'), aksi: 'papan-arsip-urung' } : undefined);
+  } catch (e) {
+    Object.assign(c, lama);
+    if (S.tab === 'catatan') render();
+    if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
+  }
 }
 
 /** Geser kiri/kanan di kalender untuk ganti bulan. */
@@ -237,6 +360,7 @@ function centangTugas(id, i) {
 }
 function segarkanCentang(c) {
   if ($('#kalender')) renderKalender();
+  if ($('#papan-isi')) renderPapan();
   const overlay = document.querySelector('#ingat .ingat-isi');
   if (overlay && overlay.querySelector(`[data-id="${CSS.escape(c.id)}"]`)) overlay.innerHTML = daftarCentang(c, true);
 }
@@ -298,14 +422,15 @@ document.addEventListener('keydown', e => {
  * Form catatan sebagai halaman penuh (tab 'catatan-edit'). c: catatan yang diubah (null = baru); tanggal: untuk catatan baru.
  * Isian disimpan di S.formCatatan & dibaca ulang dari layar sebelum render, supaya muat ulang data di latar tidak menghapus ketikan.
  */
-/** tanggal '' = catatan tanpa tanggal (tanpa pengingat & pengulangan). */
-function bukaFormCatatan(c, tanggal) {
-  const x = c || { judul: '', isi: '', tanggal: tanggal === '' ? '' : tanggal || hariIni(), pengingat: tanggal !== '', ulang: '', warna: 'biru' };
+/** tanggal '' = catatan tanpa tanggal (tanpa pengingat & pengulangan). jenis 'tugas' = catatan baru langsung berupa daftar tugas. */
+function bukaFormCatatan(c, tanggal, jenis) {
+  // Catatan baru tanpa tanggal (Papan) mulai tanpa warna, seperti Google Keep.
+  const x = c || { judul: '', isi: '', tanggal: tanggal === '' ? '' : tanggal || hariIni(), pengingat: tanggal !== '', ulang: '', warna: tanggal === '' ? 'polos' : 'biru' };
   const tugas = bacaTugas(x.isi);
   S.formCatatan = {
     id: c ? c.id : '', oleh: c ? c.oleh : '', judul: x.judul, tanggal: x.tanggal, pengingat: x.pengingat, ulang: x.ulang,
-    warna: x.warna || 'biru', jenis: tugas ? 'tugas' : 'teks', isi: tugas ? '' : x.isi, tugas: tugas || [{ teks: '', selesai: false }],
-    fokus: !c,
+    warna: x.warna || 'biru', jenis: tugas || jenis === 'tugas' ? 'tugas' : 'teks', isi: tugas ? '' : x.isi, tugas: tugas || [{ teks: '', selesai: false }],
+    sematkan: !!(c && c.sematkan), arsip: !!(c && c.arsip), fokus: !c,
   };
   // Form dibuka ulang dari form yang masih tampil (mis. "Buang" draf): buang tampilan lama dulu, karena render()
   // membaca isian dari layar (simpanDraftCatatan) dan isian lama akan menimpa form yang baru.
@@ -326,7 +451,7 @@ function antreCatatan(input, idLama) {
   tulisLokal('catatan_tertunda', bacaLokal('catatan_tertunda', []).filter(c => c.id !== x.id).concat([x]));
   // Tampil langsung di kalender (data lokal), sebelum terkirim.
   const daftar = S.data.catatan || (S.data.catatan = []);
-  const lokal = { id: x.id, tanggal: x.tanggal, judul: x.judul, isi: x.isi, pengingat: x.pengingat, ulang: x.ulang, warna: x.warna, oleh: S.data.user, tertunda: true };
+  const lokal = { id: x.id, tanggal: x.tanggal, judul: x.judul, isi: x.isi, pengingat: x.pengingat, ulang: x.ulang, warna: x.warna, sematkan: !x.tanggal && !!x.sematkan, arsip: false, diubah: new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 19), oleh: S.data.user, tertunda: true };
   const i = daftar.findIndex(c => c.id === x.id);
   if (i >= 0) daftar[i] = lokal; else daftar.push(lokal);
   tulisLokal('data', S.data);
@@ -356,7 +481,7 @@ async function kirimCatatanTertunda() {
 // ---------- Draf catatan (tersimpan di HP selama belum disimpan ke spreadsheet) ----------
 const kunciDrafCatatan = id => 'dk_draf_catatan_' + (S.data && S.data.spreadsheetId || '') + '_' + (id || 'baru');
 const jejakCatatan = f => JSON.stringify([f.judul, f.jenis === 'tugas' ? '' : f.isi, f.jenis === 'tugas' ? tulisTugas(f.tugas || []) : '',
-  f.jenis, f.tanggal, f.pengingat, f.ulang, f.warna]);
+  f.jenis, f.tanggal, f.pengingat, f.ulang, f.warna, !!f.sematkan]);
 function bacaDrafCatatan(id) {
   try {
     const d = JSON.parse(bacaHp(kunciDrafCatatan(id)));
@@ -371,7 +496,7 @@ function catatDrafCatatan() {
   simpanDraftCatatan();
   if (jejakCatatan(f) === f.awal) return buangDrafCatatan(f.id);
   tulisHp(kunciDrafCatatan(f.id), JSON.stringify({ waktu: Date.now(), isian: {
-    judul: f.judul, isi: f.isi, tugas: f.tugas, jenis: f.jenis, tanggal: f.tanggal, pengingat: f.pengingat, ulang: f.ulang, warna: f.warna,
+    judul: f.judul, isi: f.isi, tugas: f.tugas, jenis: f.jenis, tanggal: f.tanggal, pengingat: f.pengingat, ulang: f.ulang, warna: f.warna, sematkan: f.sematkan,
   } }));
 }
 let timerDrafCatatan = 0;
@@ -424,7 +549,7 @@ function viewFormCatatan() {
       <h1>${f.id ? T('Ubah catatan') : T('Catatan baru')}</h1>
     </div>
     <div class="form-catatan" style="--w:${warnaCatatan(f.warna)}">
-      <input class="judul-catatan" id="c-judul" maxlength="80" enterkeyhint="next" placeholder="${T('Judul')}" value="${esc(f.judul)}" aria-label="${T('Judul')}">
+      <input class="judul-catatan" id="c-judul" maxlength="80" enterkeyhint="next" placeholder="${f.tanggal ? T('Judul') : T('Judul (boleh kosong)')}" value="${esc(f.judul)}" aria-label="${T('Judul')}">
 
       <div class="saklar-jenis" id="c-jenis" data-jenis="${f.jenis}" role="tablist" aria-label="${T('Jenis catatan')}">
         <button type="button" role="tab" aria-selected="${!tugas}" class="${tugas ? '' : 'aktif'}" data-aksi="c-jenis" data-v="teks">
@@ -454,10 +579,12 @@ function viewFormCatatan() {
           <label class="chip-opsi ${f.ulang ? 'nyala' : ''}">🔁 <span id="c-ulang-label">${LABEL_ULANG.find(u => u[0] === f.ulang)[1]}</span>
             <select id="c-ulang" aria-label="${T('Ulangi')}">${LABEL_ULANG.map(([v, , l]) => `<option value="${v}" ${f.ulang === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
           <button type="button" class="chip-opsi" data-aksi="c-warna" aria-label="${T('Ganti warna (sekarang {warna})', { warna: esc(NAMA_WARNA[f.warna] || f.warna) })}"><i class="titik-warna"></i></button>
+          ${f.tanggal ? "" : `<button type="button" class="chip-opsi ${f.sematkan ? "nyala" : ""}" data-aksi="c-sematkan" role="switch" aria-checked="${!!f.sematkan}">📌 ${T("Sematkan")}</button>`}
         </div>
         <div class="aksi-catatan">
           ${(window.SpeechRecognition || window.webkitSpeechRecognition) ? `<button type="button" class="tombol-dikte" id="tombol-dikte" data-aksi="suara-catatan" aria-label="${T('Tulis dengan suara')}">
             <svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>` : ''}
+          ${f.id && !f.tanggal ? `<button type="button" class="btn btn-hapus btn-arsip-catatan" data-aksi="c-arsip" aria-label="${f.arsip ? T("Keluarkan dari arsip") : T("Arsipkan")}">${f.arsip ? "↩︎" : "🗄"}</button>` : ""}
           ${f.id ? `<button type="button" class="btn btn-hapus btn-hapus-catatan" data-aksi="hapus-catatan">${T('🗑 Hapus')}</button>` : ''}
           <button type="button" class="btn btn-utama" data-aksi="simpan-catatan">${T('Simpan')}</button>
         </div>

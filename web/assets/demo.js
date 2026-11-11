@@ -21,7 +21,7 @@ const DEMO = (() => {
   const EMAIL_PASANGAN = 'andi@coba.invalid';
 
   let nyala = false;
-  const VERSI_CONTOH = 2; // naikkan kalau data contoh ditambah fitur baru
+  const VERSI_CONTOH = 3; // naikkan kalau data contoh ditambah fitur baru
   let st = null;          // { email, n, ss: { id: { sheets: [{ sheetId, title, rows, lindung }] } }, files: { id: {...} }, izin: { id: [...] } }
   const isiFoto = new Map(); // foto lampiran (Blob) hanya di memori; tidak muat di localStorage
   let asli = null;        // fungsi GOOGLE yang asli, dipasang lagi saat mode coba berakhir
@@ -360,7 +360,7 @@ const DEMO = (() => {
     Dompet: ['Nama', 'Ikon', 'Saldo Awal', 'Jenis', 'Target', 'Tenggat'],
     Pengaturan: ['Kunci', 'Nilai'],
     Rutin: ['ID', 'Nama', 'Tipe', 'Jumlah', 'Kategori', 'Dompet', 'Dompet Tujuan', 'Catatan', 'Ulang', 'Mulai', 'Berikutnya'],
-    Catatan: ['ID', 'Tanggal', 'Judul', 'Isi', 'Pengingat', 'Ulang', 'Warna', 'Dibuat Oleh', 'Dibuat Pada'],
+    Catatan: ['ID', 'Tanggal', 'Judul', 'Isi', 'Pengingat', 'Ulang', 'Warna', 'Dibuat Oleh', 'Dibuat Pada', 'Sematkan', 'Arsip', 'Diubah Pada'],
     Log: ['Waktu', 'Oleh', 'Aksi', 'Ringkasan', 'ID Transaksi'],
   };
 
@@ -556,7 +556,21 @@ const DEMO = (() => {
       [idTrx(), serial(geser(hariIni, 5)), L('Bayar pajak motor', 'Pay motorbike tax'), L('Bawa STNK & KTP', 'Bring vehicle registration & ID'), 'Ya', '', 'merah', SAYA, kini],
       [idTrx(), serial(geser(hariIni, 12)), L('Ulang tahun Kakak', "Kakak's birthday"), L('Pesan kue di toko langganan', 'Order a cake'), 'Ya', 'Tahunan', 'ungu', DIA, kini],
       [idTrx(), '', L('Ide kado & rencana belanja', 'Gift ideas & shopping plans'),
-        L('[ ] Sepatu sekolah Kakak\n[ ] Rak buku\n[x] Blender', '[ ] School shoes\n[ ] Bookshelf\n[x] Blender'), '', '', 'kuning', SAYA, kini],
+        L('[ ] Sepatu sekolah Kakak\n[ ] Rak buku\n[x] Blender', '[ ] School shoes\n[ ] Bookshelf\n[x] Blender'), '', '', 'kuning', SAYA, kini, 'Ya', '', kini],
+      // Papan catatan (tanpa tanggal): disematkan, biasa, dan satu yang diarsipkan.
+      [idTrx(), '', L('Password Wi-Fi rumah', 'Home Wi-Fi password'), L('Nama: RumahKita_5G\nSandi: tanya Ibu 😄', 'Name: OurHome_5G\nPassword: ask Mom 😄'),
+        '', '', 'biru', DIA, kini, 'Ya', '', kini],
+      [idTrx(), '', L('Resep sambal Ibu', "Mom's chili sauce"), L('Cabai rawit 15, bawang merah 5, tomat 1, terasi bakar sedikit, garam & gula secukupnya. Ulek kasar, siram minyak panas.',
+        'Bird’s eye chili 15, shallots 5, tomato 1, a little toasted shrimp paste, salt & sugar to taste. Grind coarsely, pour hot oil over it.'), '', '', 'merah', DIA, kini, '', '', kini],
+      [idTrx(), '', L('Rencana liburan akhir tahun', 'Year-end holiday plan'),
+        L('[x] Pilih tujuan: Yogyakarta\n[ ] Pesan tiket kereta\n[ ] Cari penginapan dekat Malioboro\n[ ] Sisihkan Rp500rb/bulan', '[x] Pick a destination: Yogyakarta\n[ ] Book train tickets\n[ ] Find a stay near Malioboro\n[ ] Set aside Rp500k/month'),
+        '', '', 'hijau', SAYA, kini, '', '', kini],
+      [idTrx(), '', L('Ukuran baju anak', "Kids' clothing sizes"), L('Kakak: M (atasan), 30 (celana)\nAdik: S, sepatu 28', 'Kakak: M (tops), 30 (pants)\nAdik: S, shoes 28'),
+        '', '', 'ungu', SAYA, kini, '', '', kini],
+      [idTrx(), '', L('Nomor penting', 'Important numbers'), L('Tukang listrik Pak Joko · 0812-xxxx-1234\nBengkel langganan · 0813-xxxx-5678', 'Electrician Mr. Joko · 0812-xxxx-1234\nGarage · 0813-xxxx-5678'),
+        '', '', 'polos', DIA, kini, '', '', kini],
+      [idTrx(), '', L('Daftar belanja bulan lalu', "Last month's shopping list"), L('[x] Gas elpiji\n[x] Galon\n[x] Popok', '[x] LPG gas\n[x] Water gallon\n[x] Diapers'),
+        '', '', 'kuning', DIA, kini, '', 'Ya', kini],
     ];
 
     const diubah = trx.filter(r => r[2] === KELUAR && r[4] === 'Belanja Harian' && r[1] < serial(hariIni)).pop();

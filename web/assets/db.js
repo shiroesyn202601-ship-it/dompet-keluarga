@@ -38,10 +38,11 @@ const SERVER = (() => {
       kolom: ['ID', 'Nama', 'Tipe', 'Jumlah', 'Kategori', 'Dompet', 'Dompet Tujuan', 'Catatan', 'Ulang', 'Mulai', 'Berikutnya'],
     },
     // Catatan & pengingat (kalender). Pengingat = 'Ya' → muncul sebagai overlay saat aplikasi dibuka di tanggalnya.
-    // Ulang: '' | Mingguan | Bulanan | Tahunan. Warna: kunci warna di kalender (lihat WARNA_CATATAN di app.js).
+    // Ulang: '' | Mingguan | Bulanan | Tahunan. Warna: kunci warna di kalender (lihat WARNA_CATATAN di app-catatan.js).
+    // Sematkan / Arsip ('Ya' / '') khusus catatan tanpa tanggal (Papan catatan); Diubah Pada = urutan di Papan.
     catatan: {
       nama: 'Catatan',
-      kolom: ['ID', 'Tanggal', 'Judul', 'Isi', 'Pengingat', 'Ulang', 'Warna', 'Dibuat Oleh', 'Dibuat Pada'],
+      kolom: ['ID', 'Tanggal', 'Judul', 'Isi', 'Pengingat', 'Ulang', 'Warna', 'Dibuat Oleh', 'Dibuat Pada', 'Sematkan', 'Arsip', 'Diubah Pada'],
     },
     // Riwayat perubahan oleh anggota: ubah / hapus / kembalikan transaksi (pencatatan baru sudah tercatat di Dibuat Oleh).
     log: { nama: 'Log', kolom: ['Waktu', 'Oleh', 'Aksi', 'Ringkasan', 'ID Transaksi'] },
@@ -224,10 +225,19 @@ const SERVER = (() => {
     await lindungiSheet_(id);
 
     const adaLog = TABEL.log.nama in idSheet;
-    const q = [TABEL.kategori, TABEL.dompet, TABEL.transaksi].concat(adaLog ? [TABEL.log] : []).map(x => 'ranges=' + encodeURIComponent("'" + x.nama + "'!A1:Z1")).join('&');
-    const [kat, dom, trx, lg] = (await GOOGLE.api(SHEETS + '/' + id + '/values:batchGet?' + q)).valueRanges.map(v => (v.values || [[]])[0]);
+    const adaCatatan = TABEL.catatan.nama in idSheet;
+    const q = [TABEL.kategori, TABEL.dompet, TABEL.transaksi].concat(adaLog ? [TABEL.log] : [], adaCatatan ? [TABEL.catatan] : [])
+      .map(x => 'ranges=' + encodeURIComponent("'" + x.nama + "'!A1:Z1")).join('&');
+    const kepala = (await GOOGLE.api(SHEETS + '/' + id + '/values:batchGet?' + q)).valueRanges.map(v => (v.values || [[]])[0]);
+    const [kat, dom, trx] = kepala;
+    const lg = adaLog ? kepala[3] : [];
+    const cat = adaCatatan ? kepala[adaLog ? 4 : 3] : [];
     const data = [];
     const format = [];
+    if (adaCatatan && cat.length < TABEL.catatan.kolom.length) {
+      data.push({ range: "'" + TABEL.catatan.nama + "'!A1", values: [TABEL.catatan.kolom] }); // kolom Sematkan, Arsip, Diubah Pada
+      format.push(formatKolom_(idSheet[TABEL.catatan.nama], 11, 12, 'DATE_TIME', 'yyyy-mm-dd hh:mm'));
+    }
     if (adaLog && lg.length < TABEL.log.kolom.length) {
       data.push({ range: "'" + TABEL.log.nama + "'!A1", values: [TABEL.log.kolom] }); // kolom ID Transaksi
     }
@@ -278,6 +288,7 @@ const SERVER = (() => {
           },
           formatKolom_(sheetId, 1, 2, 'DATE', 'yyyy-mm-dd'),
           formatKolom_(sheetId, 8, 9, 'DATE_TIME', 'yyyy-mm-dd hh:mm'),
+          formatKolom_(sheetId, 11, 12, 'DATE_TIME', 'yyyy-mm-dd hh:mm'),
         ],
       },
     });
@@ -794,10 +805,17 @@ const SERVER = (() => {
       ulang: ULANG_CATATAN.includes(String(r[5])) ? String(r[5]) : '',
       warna: String(r[6] || ''),
       oleh: String(r[7]),
+      // Papan catatan (khusus tanpa tanggal): disematkan di atas, diarsipkan disembunyikan, urut terakhir diubah.
+      sematkan: !r[1] && String(r[9]) === 'Ya',
+      arsip: !r[1] && String(r[10]) === 'Ya',
+      diubah: dariSerial_(r[11] || r[8]),
     })).filter(c => c.tanggal === '' || /^\d{4}-\d{2}-\d{2}$/.test(c.tanggal)); // '' = catatan tanpa tanggal
   }
 
-  /** input: { id?, tanggal 'yyyy-mm-dd' atau '' (tanpa tanggal), judul, isi, pengingat (bool), ulang, warna }. */
+  /**
+   * input: { id?, tanggal 'yyyy-mm-dd' atau '' (tanpa tanggal), judul, isi, pengingat (bool), ulang, warna, sematkan?, arsip? }.
+   * sematkan/arsip yang tidak diisi = tetap seperti sebelumnya; catatan bertanggal selalu tanpa keduanya.
+   */
   async function simpanCatatan(input) {
     const judul = teks_(input.judul).slice(0, 80);
     if (!judul) throw new Error(T('Isi judul catatannya dulu.'));
@@ -809,9 +827,12 @@ const SERVER = (() => {
     if (!(TABEL.catatan.nama in idSheet)) throw new Error(T('Buku ini belum bisa menyimpan catatan (butuh akses Editor ke spreadsheet).'));
     const idCatatan = teks_(input.id) || crypto.randomUUID();
     const baris = [idCatatan, tanggal ? serialTanggal_(tanggal) : '', judul, teks_(input.isi).slice(0, 2000), tanggal && input.pengingat ? 'Ya' : '', ulang,
-      teks_(input.warna).slice(0, 12), GOOGLE.email(), serialSekarang_()];
+      teks_(input.warna).slice(0, 12), GOOGLE.email(), serialSekarang_(), '', '', serialSekarang_()];
     const [rows] = await bacaTabel_(id, ['catatan']);
     const i = input.id ? rows.findIndex(r => String(r[0]) === idCatatan) : -1;
+    const bendera = (nilai, lama) => tanggal ? '' : nilai === undefined ? (String(lama) === 'Ya' ? 'Ya' : '') : nilai ? 'Ya' : '';
+    baris[9] = bendera(input.sematkan, i >= 0 ? rows[i][9] : '');
+    baris[10] = bendera(input.arsip, i >= 0 ? rows[i][10] : '');
     if (i >= 0) {
       baris[7] = rows[i][7] || baris[7]; // pencatat & waktu dibuat tidak berubah saat diubah
       baris[8] = rows[i][8] || baris[8];
@@ -819,6 +840,21 @@ const SERVER = (() => {
     } else {
       await tambahBaris_(id, TABEL.catatan, [baris]);
     }
+    return idCatatan;
+  }
+
+  /** Sematkan / arsipkan catatan tanpa tanggal langsung dari Papan. ubah: { sematkan?, arsip? } (bool). */
+  async function aturCatatan(idCatatan, ubah) {
+    const id = await db_();
+    const [rows] = await bacaTabel_(id, ['catatan']);
+    const i = cariBaris_(rows, r => String(r[0]) === String(idCatatan));
+    const baris = rows[i].slice();
+    if (baris[1]) return idCatatan; // catatan bertanggal tidak punya sematkan/arsip
+    if ('sematkan' in ubah) baris[9] = ubah.sematkan ? 'Ya' : '';
+    if ('arsip' in ubah) baris[10] = ubah.arsip ? 'Ya' : '';
+    if (ubah.arsip) baris[9] = ''; // diarsipkan = lepas dari sematan (seperti Google Keep)
+    baris[11] = serialSekarang_();
+    await tulis_(id, rangeBaris_(TABEL.catatan, i), [baris]);
     return idCatatan;
   }
 
@@ -2254,7 +2290,7 @@ const SERVER = (() => {
   return {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
-    simpanRutin, hapusRutin, majukanRutin, simpanCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
+    simpanRutin, hapusRutin, majukanRutin, simpanCatatan, aturCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
     simpanMulaiPeriode, simpanAvatar, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
