@@ -1697,8 +1697,8 @@ function bukaFormBayar() {
     <ol class="panduan" style="padding-left:20px;margin-bottom:16px">
       <li>${T('Transfer <b>{harga}</b> ke:', { harga: rp(b.harga) })}
         <div class="baris">
-          <span class="ikon-bulat">🏦</span>
-          <span class="isi"><b>${esc(b.bank)} ${esc(b.rekening)}</b><small>${T('a.n. {nama}', { nama: esc(b.atasNama) })}</small></span>
+          <span class="ikon-bulat">${/dana|ovo|gopay|shopee|linkaja/i.test(b.bank) ? '📱' : '🏦'}</span>
+          <span class="isi"><b>${esc(b.bank)} ${esc(b.rekening)}</b>${b.atasNama ? `<small>${T('a.n. {nama}', { nama: esc(b.atasNama) })}</small>` : ''}</span>
           <button type="button" class="tombol-teks" data-aksi="salin-rekening">${T('Salin')}</button>
         </div>
       </li>

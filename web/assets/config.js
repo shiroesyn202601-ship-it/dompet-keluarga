@@ -16,10 +16,10 @@ const KONFIG = {
   bayar: {
     batasGratis: 450,  // jumlah baris di sheet Transaksi sebelum pencatatan baru dikunci
     harga: 30000,      // sekali bayar, seumur hidup
-    bank: '',          // mis. 'BCA'
-    rekening: '',      // nomor rekening
-    atasNama: '',
-    wa: '',            // nomor WhatsApp untuk kirim bukti transfer, format 628…
+    bank: 'DANA',      // nama bank / e-wallet, mis. 'BCA', 'DANA'
+    rekening: '087873369841', // nomor rekening / nomor e-wallet
+    atasNama: '',      // opsional; kosong = baris "a.n." tidak ditampilkan
+    wa: '6287873369841', // nomor WhatsApp untuk kirim bukti transfer, format 628…
     kunciPublik: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqTwaIZPUI4b0DwwOGoB1BT0GuwUioTlzEZWQrgntruoppFer08vMtBKROx+ByTzVyya88V3CPPS67ych6DLyexxp9raRNErWO4MduxajAX9uFSWFeduxFLsE8EPGn+Mj90Nzry+5ArpWbKSnsmwi16OKTXB+RZmWfUl8V3ceP518uY6TPDWedZ5LnyujBWyoPXe2HtDbGP4Cf0fKiNneleiMzhrtyCzSC7Pz+TCy21WBsZCzSWke8zLLe/AeBB/qLNaWglL3a4G3Uwh8Jy8WMO0SkHtiWGSbwmzPAzaDtndfa31Ju1Z9Y2PDcDGyrh8FVdyBw2ql4K9vh98m+ctWqQIDAQAB',
   },
 };
