@@ -14,8 +14,17 @@
   let galat = '';
   const foto = {}; // id buku → data URL bukti (sudah dimuat)
 
+  /** Token login; google.js versi lama (dari cache aplikasi) belum punya GOOGLE.token, jadi dibaca langsung dari sesi. */
+  function tokenSaya() {
+    if (typeof GOOGLE.token === 'function') return GOOGLE.token();
+    try {
+      const s = JSON.parse(localStorage.getItem('dk_sesi'));
+      return s && s.token && Date.now() < s.kadaluarsa ? s.token : null;
+    } catch (e) { return null; }
+  }
+
   async function api(isi) {
-    const token = GOOGLE.token();
+    const token = tokenSaya();
     if (!token) { tampilMasuk('Sesi login sudah habis. Masuk lagi.'); throw new Error('Sesi login habis'); }
     let j;
     try {

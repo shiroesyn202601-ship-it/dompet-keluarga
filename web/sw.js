@@ -80,6 +80,9 @@ function fileInti(req, url) {
   if (!url.pathname.startsWith(dasar)) return null;
   const jalur = url.pathname.slice(dasar.length);
   if (req.mode === 'navigate') return jalur === '' || jalur === 'index.html' ? 'index.html' : null;
+  // Halaman lain (mis. admin.html) memakai config.js/google.js yang sama tapi tidak ikut pembaruan aplikasi:
+  // ambil dari jaringan supaya tidak mendapat versi lama dari cache.
+  try { if (req.referrer && !/\/(index\.html)?$/.test(new URL(req.referrer).pathname)) return null; } catch (e) { /* referrer tidak terbaca */ }
   return INTI.includes(jalur) ? jalur : null;
 }
 
