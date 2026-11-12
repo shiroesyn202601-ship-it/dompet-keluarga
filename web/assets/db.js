@@ -1932,10 +1932,35 @@ const SERVER = (() => {
     }
   }
 
+  /**
+   * Sudah dicabut pemilik lewat /batal di bot? Ditanyakan ke web app bot (KONFIG.bayar.urlBot) paling sering
+   * sekali sehari per buku; jawabannya disimpan di HP. Gagal tersambung → pakai jawaban terakhir (awalnya: tidak dicabut),
+   * supaya pembeli sah tidak terkunci hanya karena sinyal jelek.
+   */
+  async function cekDicabut_(idBuku) {
+    if (!BAYAR.urlBot) return false;
+    const kunci = 'dk_cabut_' + idBuku;
+    let simpan = null;
+    try { simpan = JSON.parse(localStorage.getItem(kunci)); } catch (e) { /* abaikan */ }
+    if (simpan && Date.now() - simpan.t < 864e5) return !!simpan.d;
+    try {
+      const henti = new AbortController();
+      const jeda = setTimeout(() => henti.abort(), 5000);
+      const r = await fetch(BAYAR.urlBot + '?lisensi=' + encodeURIComponent(idBuku), { signal: henti.signal });
+      clearTimeout(jeda);
+      const j = await r.json();
+      if (typeof j.dicabut !== 'boolean') throw new Error('jawaban tidak dikenal');
+      try { localStorage.setItem(kunci, JSON.stringify({ t: Date.now(), d: j.dicabut })); } catch (e) { /* abaikan */ }
+      return j.dicabut;
+    } catch (e) {
+      return !!(simpan && simpan.d);
+    }
+  }
+
   /** { batas, terpakai, aktif (versi penuh), terkunci }, atau null kalau batas tidak berlaku. */
   async function statusLisensi_(idBuku, terpakai, set) {
     if (!pakaiBatas_()) return null;
-    const aktif = await lisensiSah_(idBuku, pengaturan_(set).LISENSI);
+    const aktif = await lisensiSah_(idBuku, pengaturan_(set).LISENSI) && !(await cekDicabut_(idBuku));
     return { batas: BAYAR.batasGratis, terpakai, aktif, terkunci: !aktif && terpakai >= BAYAR.batasGratis };
   }
 
@@ -1955,7 +1980,7 @@ const SERVER = (() => {
     const m = teks_(isian).match(/([\w-]{20,})\.([\w-]{100,})/);
     if (!m) throw new Error(T('Kode aktivasi tidak dikenali. Salin seluruh link atau kode dari pesan penjual.'));
     const [, idBuku, kode] = m;
-    if (dicabut_(idBuku)) throw new Error(T('Lisensi buku ini sudah dicabut. Hubungi penjual lewat WhatsApp.'));
+    if (dicabut_(idBuku) || await cekDicabut_(idBuku)) throw new Error(T('Lisensi buku ini sudah dicabut. Hubungi penjual lewat WhatsApp.'));
     if (!(await lisensiSah_(idBuku, kode))) throw new Error(T('Kode aktivasi tidak valid. Pastikan disalin lengkap.'));
     let set;
     try {

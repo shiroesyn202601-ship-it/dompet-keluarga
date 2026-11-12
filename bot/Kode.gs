@@ -177,7 +177,16 @@ function doPost(e) {
   return HtmlService.createHtmlOutput('ok');
 }
 
-function doGet() {
+/**
+ * ?lisensi=<ID spreadsheet> → {"dicabut": true|false}, dipakai aplikasi web untuk buku versi penuh (lihat cekDicabut_
+ * di web/assets/db.js), supaya /batal langsung berlaku tanpa mengubah config.js. Hanya menjawab ya/tidak, tidak membuka data apa pun.
+ */
+function doGet(e) {
+  const id = e && e.parameter && String(e.parameter.lisensi || '');
+  if (id) {
+    const isi = /^[\w-]{20,100}$/.test(id) ? { dicabut: daftarDicabut_().indexOf(id) >= 0 } : { galat: 'ID tidak valid' };
+    return ContentService.createTextOutput(JSON.stringify(isi)).setMimeType(ContentService.MimeType.JSON);
+  }
   return HtmlService.createHtmlOutput('Bot Dompet Keluarga aktif.');
 }
 
@@ -215,6 +224,11 @@ function prosesPesan_(m) {
 
   // Penautan akun: /start <ID spreadsheet>_<KODE> (tombol di aplikasi), /hubungkan …, atau KODE saja (mode lama).
   // Pemilik boleh menempel seluruh pesan WhatsApp pembeli: baris "/lunas …" di tengah pesan juga dikenali.
+  if (/^\/urlbot(?:@\w+)?$/i.test(teks) && adminTelegram_(m.from.id)) {
+    const url = properti_('WEBAPP_URL') || ScriptApp.getService().getUrl();
+    return kirim_(chatId, url ? 'URL web app bot (isi ke <code>bayar.urlBot</code> di web/assets/config.js):\n\n<code>' + html_(url) + '</code>'
+      : '⚠️ Bot belum di-deploy sebagai web app (Deploy → New deployment → Web app).');
+  }
   const lisensi = teks.match(/^\/(lunas|batal|pulihkan)(?:@\w+)?(?:\s|$)/i)
     || (adminTelegram_(m.from.id) && teks.match(/^\/(lunas)(?:@\w+)?\s/im));
   if (lisensi) return prosesLisensi_(m, lisensi[1].toLowerCase(), teks); // khusus pemilik, tanpa buku
@@ -1417,7 +1431,8 @@ function prosesLisensi_(m, perintah, teks) {
     simpanDicabut_(dicabut.concat([id]));
     return kirim_(chatId, '🚫 Lisensi buku ' + kode + ' dicabut.\n\n'
       + '• Bot: langsung berlaku. Buku ini tidak bisa mencatat transaksi baru lewat bot kalau sudah lewat ' + BATAS_GRATIS + ' transaksi.\n'
-      + '• Aplikasi: tambahkan ID ini ' + catatanApp + '. Setelah itu aplikasi pembeli ikut terkunci lagi.\n\n'
+      + '• Aplikasi: ikut terkunci lagi paling lambat sehari (aplikasi menanyakan status ke bot sekali sehari; '
+      + 'butuh <code>urlBot</code> terisi di config.js). Kalau belum diisi, tambahkan ID ini ' + catatanApp + '.\n\n'
       + 'Salah cabut? Kirim <code>/pulihkan ' + html_(id) + '</code>.');
   }
   const tadinyaDicabut = dicabut.indexOf(id) >= 0;
