@@ -199,7 +199,7 @@ function doGet(e) {
     let isi = { galat: 'ID tidak valid' };
     if (/^[\w-]{20,100}$/.test(id)) {
       const dicabut = daftarDicabut_().indexOf(id) >= 0;
-      const status = (permintaan_(id) || {}).status || '';
+      const status = statusPengajuan_(id);
       isi = { dicabut, status, kode: status === 'aktif' && !dicabut && properti_('LISENSI_KUNCI') ? tandaTanganLisensi_(id) : '' };
     }
     return ContentService.createTextOutput(JSON.stringify(isi)).setMimeType(ContentService.MimeType.JSON);
@@ -1557,21 +1557,187 @@ function putuskanBayar_(q, aksi, idPembeli) {
 
 // ---------- Permintaan aktivasi lewat aplikasi + halaman admin (web/admin.html) ----------
 // Pembeli mengunggah bukti transfer dari aplikasi; pemilik membuka admin.html, melihat buktinya, lalu menekan
-// Aktifkan / Nonaktifkan / Tolak. Status per buku: Script Property req_<ID spreadsheet> =
-// { email, buku, t, status: 'menunggu' | 'aktif' | 'ditolak' | 'nonaktif', foto (ID file di Drive pemilik), diubah }.
-// Foto bukti disimpan di Drive akun pemilik bot. Admin = ADMIN_EMAIL (pisahkan koma), bawaan: email pemilik bot.
+// Aktifkan / Nonaktifkan / Tolak. Semuanya ada di Google Drive akun pemilik bot:
+//   Dompet keluarga / Admin /  ← foto-foto bukti transfer
+//   Dompet keluarga / Admin / Pengajuan Aktivasi (spreadsheet) ← satu baris per buku, kolom KOLOM_AJU
+// ID folder & spreadsheet disimpan di Script Property ADMIN_FOLDER / ADMIN_SHEET (dibuat otomatis saat pertama dipakai).
+// Status di spreadsheet: Menunggu | Aktif | Ditolak | Nonaktif (boleh diubah langsung di sheet; terbaca dalam ±5 menit).
+// Admin = ADMIN_EMAIL (pisahkan koma), bawaan: email pemilik bot.
 
 /** Client ID OAuth aplikasi web (sama dengan KONFIG.clientId di web/assets/config.js; bukan rahasia). */
 const CLIENT_ID_APLIKASI = '669221737081-jerp2njdv8dqibrvndei3sefolm4b1d5.apps.googleusercontent.com';
+const NAMA_FOLDER_UTAMA = 'Dompet keluarga';
+const NAMA_FOLDER_ADMIN = 'Admin';
+const NAMA_SHEET_AJU = 'Pengajuan Aktivasi';
+const TAB_AJU = 'Pengajuan';
+const KOLOM_AJU = ['Dikirim', 'Email', 'Nama Buku', 'Kode Buku', 'Status', 'Bukti Transfer', 'Diubah'];
+const STATUS_AJU = { menunggu: 'Menunggu', aktif: 'Aktif', ditolak: 'Ditolak', nonaktif: 'Nonaktif' };
 
-function permintaan_(id) {
-  try { return JSON.parse(properti_('req_' + id) || 'null'); } catch (e) { return null; }
+/** Drive / Sheets REST dengan akun pemilik bot. Gagal → Error dengan .status. */
+function apiPemilik_(url, opsi) {
+  const res = UrlFetchApp.fetch(url, Object.assign({ muteHttpExceptions: true }, opsi || {}, {
+    headers: Object.assign({ Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, (opsi || {}).headers || {}),
+  }));
+  const kode = res.getResponseCode();
+  if (kode >= 300) {
+    const err = new Error('Google ' + kode + ': ' + res.getContentText().slice(0, 200));
+    err.status = kode;
+    throw err;
+  }
+  const teks = res.getContentText();
+  return teks ? JSON.parse(teks) : {};
 }
 
+function buatFolder_(nama, induk) {
+  return apiPemilik_('https://www.googleapis.com/drive/v3/files?fields=id', {
+    method: 'post', contentType: 'application/json',
+    payload: JSON.stringify({ name: nama, mimeType: 'application/vnd.google-apps.folder', parents: induk ? [induk] : undefined }),
+  }).id;
+}
+
+/** File/folder milik bot masih ada (tidak terhapus / di Sampah)? */
+function masihAda_(id) {
+  if (!id) return false;
+  try { return !apiPemilik_('https://www.googleapis.com/drive/v3/files/' + id + '?fields=trashed').trashed; } catch (e) { return false; }
+}
+
+function simpanProp_(kunci, nilai) {
+  PropertiesService.getScriptProperties().setProperty(kunci, nilai);
+  if (isiProperti_) isiProperti_[kunci] = nilai;
+}
+
+/** Folder "Dompet keluarga/Admin" (dibuat sekali). */
+function folderAdmin_() {
+  let id = properti_('ADMIN_FOLDER');
+  if (masihAda_(id)) return id;
+  id = buatFolder_(NAMA_FOLDER_ADMIN, buatFolder_(NAMA_FOLDER_UTAMA));
+  simpanProp_('ADMIN_FOLDER', id);
+  return id;
+}
+
+/** Spreadsheet "Pengajuan Aktivasi" di folder Admin (dibuat sekali; pengajuan lama di Script Properties ikut dipindah). */
+let idSheetAju_ = '';
+function sheetAju_() {
+  if (idSheetAju_) return idSheetAju_;
+  let id = properti_('ADMIN_SHEET');
+  if (masihAda_(id)) return (idSheetAju_ = id);
+  return denganKunci_(() => {
+    isiProperti_ = null;
+    id = properti_('ADMIN_SHEET');
+    if (masihAda_(id)) return (idSheetAju_ = id);
+    const folder = folderAdmin_();
+    id = apiPemilik_('https://www.googleapis.com/drive/v3/files?fields=id', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ name: NAMA_SHEET_AJU, mimeType: 'application/vnd.google-apps.spreadsheet', parents: [folder] }),
+    }).id;
+    const sheet = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + '?fields=sheets.properties.sheetId').sheets[0].properties.sheetId;
+    const kolom = (awal, akhir, px) => ({ updateDimensionProperties: { range: { sheetId: sheet, dimension: 'COLUMNS', startIndex: awal, endIndex: akhir }, properties: { pixelSize: px }, fields: 'pixelSize' } });
+    apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + ':batchUpdate', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ requests: [
+        { updateSheetProperties: { properties: { sheetId: sheet, title: TAB_AJU, gridProperties: { frozenRowCount: 1 } }, fields: 'title,gridProperties.frozenRowCount' } },
+        { repeatCell: { range: { sheetId: sheet, startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: 'userEnteredFormat.textFormat.bold' } },
+        { setDataValidation: { range: { sheetId: sheet, startRowIndex: 1, startColumnIndex: 4, endColumnIndex: 5 }, rule: {
+          condition: { type: 'ONE_OF_LIST', values: Object.keys(STATUS_AJU).map(k => ({ userEnteredValue: STATUS_AJU[k] })) }, showCustomUi: true, strict: true } } },
+        kolom(0, 1, 140), kolom(1, 2, 220), kolom(2, 3, 150), kolom(3, 4, 330), kolom(4, 5, 100), kolom(5, 6, 330), kolom(6, 7, 140),
+      ] }),
+    });
+    apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + range_(TAB_AJU + '!A1') + '?valueInputOption=RAW', {
+      method: 'put', contentType: 'application/json', payload: JSON.stringify({ values: [KOLOM_AJU] }),
+    });
+    const baris = [];
+    // Pindahan: pengajuan versi sebelumnya (Script Property req_<ID>) + fotonya dipindah ke folder Admin.
+    const semua = PropertiesService.getScriptProperties().getProperties();
+    Object.keys(semua).filter(k => /^req_/.test(k)).forEach(k => {
+      let r = {};
+      try { r = JSON.parse(semua[k]); } catch (e) { return; }
+      if (r.foto) {
+        try {
+          const lama = (apiPemilik_('https://www.googleapis.com/drive/v3/files/' + r.foto + '?fields=parents').parents || []).join(',');
+          apiPemilik_('https://www.googleapis.com/drive/v3/files/' + r.foto + '?addParents=' + folder + (lama ? '&removeParents=' + lama : ''), {
+            method: 'patch', contentType: 'application/json', payload: '{}',
+          });
+        } catch (e) { console.warn('Foto ' + r.foto + ' tidak bisa dipindah: ' + e.message); }
+      }
+      baris.push(selAju_(k.slice(4), r));
+    });
+    if (baris.length) {
+      apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + ':batchUpdate', {
+        method: 'post', contentType: 'application/json',
+        payload: JSON.stringify({ requests: [{ appendCells: { sheetId: sheet, rows: baris, fields: 'userEnteredValue,textFormatRuns' } }] }),
+      });
+    }
+    simpanProp_('ADMIN_SHEET', id);
+    Object.keys(semua).filter(k => /^req_/.test(k)).forEach(k => PropertiesService.getScriptProperties().deleteProperty(k));
+    return (idSheetAju_ = id);
+  });
+}
+
+const waktuAju_ = iso => String(iso || '').replace('T', ' ').slice(0, 16);
+const linkFoto_ = id => (id ? 'https://drive.google.com/file/d/' + id + '/view' : '');
+const idFoto_ = link => (String(link || '').match(/\/file\/d\/([\w-]+)/) || [])[1] || '';
+
+function barisAju_(id, r) {
+  return [waktuAju_(r.t), r.email || '', r.buku || '', id, STATUS_AJU[r.status] || STATUS_AJU.menunggu, linkFoto_(r.foto), waktuAju_(r.diubah)];
+}
+
+/**
+ * Satu baris untuk Sheets batchUpdate. Semua isian ditulis sebagai teks (isian dari pembeli tidak pernah jadi rumus);
+ * kolom Bukti Transfer diberi hyperlink sungguhan ke fotonya di Drive, jadi bisa langsung diklik di spreadsheet.
+ */
+function selAju_(id, r) {
+  return { values: barisAju_(id, r).map((v, i) => (i === 5 && v
+    ? { userEnteredValue: { stringValue: v }, textFormatRuns: [{ startIndex: 0, format: { link: { uri: v } } }] }
+    : { userEnteredValue: { stringValue: String(v) }, textFormatRuns: [] })) };
+}
+
+/** sheetId tab Pengajuan (untuk batchUpdate). */
+let tabAju_ = null;
+function idTabAju_() {
+  if (tabAju_ !== null) return tabAju_;
+  const s = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + '?fields=sheets.properties(sheetId,title)').sheets || [];
+  return (tabAju_ = ((s.find(x => x.properties.title === TAB_AJU) || s[0]).properties.sheetId));
+}
+
+/** Semua baris pengajuan: [{ id, email, buku, t, status (huruf kecil), foto (ID file), diubah, baris (nomor baris sheet) }]. */
+function semuaPengajuan_() {
+  const j = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + '/values/' + range_(TAB_AJU + '!A2:G'));
+  return (j.values || []).map((r, i) => ({
+    t: String(r[0] || ''), email: String(r[1] || ''), buku: String(r[2] || ''), id: String(r[3] || '').trim(),
+    status: String(r[4] || '').trim().toLowerCase() || 'menunggu', foto: idFoto_(r[5]), diubah: String(r[6] || ''), baris: i + 2,
+  })).filter(r => r.id);
+}
+
+function permintaan_(id) {
+  return semuaPengajuan_().filter(r => r.id === id).pop() || null;
+}
+
+/** Ditulis ke baris buku itu (atau baris baru). */
 function simpanPermintaan_(id, isi) {
-  const nilai = JSON.stringify(isi);
-  PropertiesService.getScriptProperties().setProperty('req_' + id, nilai);
-  if (isiProperti_) isiProperti_['req_' + id] = nilai;
+  denganKunci_(() => {
+    const ada = permintaan_(id);
+    const sheetId = idTabAju_();
+    const baris = selAju_(id, isi);
+    const fields = 'userEnteredValue,textFormatRuns';
+    apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + ':batchUpdate', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ requests: [ada
+        ? { updateCells: { rows: [baris], fields, start: { sheetId, rowIndex: ada.baris - 1, columnIndex: 0 } } }
+        : { appendCells: { sheetId, rows: [baris], fields } }] }),
+    });
+  });
+  CacheService.getScriptCache().remove('st_' + id);
+}
+
+/** Status satu buku untuk doGet (dipanggil aplikasi berkali-kali), di-cache 5 menit supaya ringan. */
+function statusPengajuan_(id) {
+  const cache = CacheService.getScriptCache();
+  const ada = cache.get('st_' + id);
+  if (ada !== null) return ada === '-' ? '' : ada;
+  let st = '';
+  try { st = (permintaan_(id) || {}).status || ''; } catch (e) { console.warn('Status pengajuan: ' + e.message); return ''; }
+  cache.put('st_' + id, st || '-', 300);
+  return st;
 }
 
 /** Token Google dari aplikasi → { email }. Hanya token yang dibuat untuk aplikasi ini (client ID sama) yang diterima. */
@@ -1605,7 +1771,7 @@ function apiLisensi_(b) {
   const akun = akunGoogle_(b && b.token);
   if (b.aksi === 'minta') return mintaAktivasi_(akun, b);
   if (!adminWeb_(akun.email)) throw new Error('Akun ' + akun.email + ' bukan admin. Masuk dengan akun Google pemilik bot.');
-  if (b.aksi === 'daftar') return { daftar: daftarPermintaan_(), admin: akun.email };
+  if (b.aksi === 'daftar') return { daftar: daftarPermintaan_(), admin: akun.email, sheet: 'https://docs.google.com/spreadsheets/d/' + sheetAju_() + '/edit' };
   if (b.aksi === 'foto') return { foto: fotoBukti_(String(b.id || '')) };
   if (b.aksi === 'atur') return aturLisensi_(String(b.id || ''), String(b.status || ''));
   throw new Error('Aksi tidak dikenal.');
@@ -1629,7 +1795,7 @@ function mintaAktivasi_(akun, b) {
 
   const mime = 'image/' + foto[1];
   const batas = 'dk' + Utilities.getUuid().replace(/-/g, '');
-  const meta = JSON.stringify({ name: 'Bukti transfer - ' + akun.email + ' - ' + nama, mimeType: mime });
+  const meta = JSON.stringify({ name: 'Bukti transfer - ' + akun.email + ' - ' + nama, mimeType: mime, parents: [folderAdmin_()] });
   const unggah = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
     method: 'post', contentType: 'multipart/related; boundary=' + batas, muteHttpExceptions: true,
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
@@ -1638,10 +1804,8 @@ function mintaAktivasi_(akun, b) {
       .concat(Utilities.base64Decode(foto[2]), Utilities.newBlob('\r\n--' + batas + '--').getBytes()),
   });
   if (unggah.getResponseCode() !== 200) throw new Error('Foto belum bisa disimpan. Coba lagi sebentar lagi.');
-  if (lama && lama.foto) {
-    UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + lama.foto, {
-      method: 'delete', headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true,
-    });
+  if (lama && lama.foto) { // foto lama diganti yang baru
+    try { apiPemilik_('https://www.googleapis.com/drive/v3/files/' + lama.foto, { method: 'delete' }); } catch (e) { /* sudah tidak ada */ }
   }
   const sekarang = sekarangIso_();
   simpanPermintaan_(id, { email: akun.email, buku: nama.slice(0, 60), t: sekarang, status: 'menunggu', foto: JSON.parse(unggah.getContentText()).id, diubah: sekarang });
@@ -1651,15 +1815,10 @@ function mintaAktivasi_(akun, b) {
 }
 
 function daftarPermintaan_() {
-  const semua = PropertiesService.getScriptProperties().getProperties();
   const dicabut = daftarDicabut_();
-  return Object.keys(semua).filter(k => /^req_/.test(k)).map(k => {
-    let r = {};
-    try { r = JSON.parse(semua[k]); } catch (e) { /* lewati */ }
-    const id = k.slice(4);
-    return { id, email: r.email || '', buku: r.buku || '', t: r.t || '', diubah: r.diubah || '', ada_foto: !!r.foto,
-      status: r.status === 'aktif' && dicabut.indexOf(id) >= 0 ? 'nonaktif' : r.status || 'menunggu' };
-  }).sort((a, b) => String(b.t).localeCompare(String(a.t)));
+  return semuaPengajuan_().map(r => ({ id: r.id, email: r.email, buku: r.buku, t: r.t, diubah: r.diubah, ada_foto: !!r.foto,
+    status: r.status === 'aktif' && dicabut.indexOf(r.id) >= 0 ? 'nonaktif' : r.status,
+    link: linkFoto_(r.foto) })).sort((x, y) => String(y.t).localeCompare(String(x.t)));
 }
 
 function fotoBukti_(id) {

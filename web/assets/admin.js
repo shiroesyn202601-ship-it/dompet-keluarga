@@ -65,7 +65,7 @@
       const j = await api({ aksi: 'daftar' });
       daftar = j.daftar || [];
       galat = '';
-      $('#akun').textContent = 'Masuk sebagai ' + j.admin;
+      $('#akun').innerHTML = 'Masuk sebagai ' + esc(j.admin) + (j.sheet ? ' · <a href="' + esc(j.sheet) + '" target="_blank" rel="noopener" style="color:var(--primary);font-weight:700">📊 Buka spreadsheet pengajuan</a>' : '');
       $('#tombol-atas').innerHTML = '<button class="teks" id="segarkan">↻ Muat ulang</button><button class="teks" id="ganti">Ganti akun</button>';
       $('#segarkan').onclick = muat;
       $('#ganti').onclick = () => masuk(true);
