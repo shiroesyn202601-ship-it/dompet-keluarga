@@ -161,6 +161,31 @@ Catatan keamanan: `CLASPRC_JSON` berisi izin login clasp ke akun Google pemilik 
 - Lama tiap langkah tercatat di **⏱ Executions** (baris `⏱ data dimuat`, `⏱ AI …`, `⏱ selesai`).
 - Data tidak di-cache, karena aplikasi web menulis langsung ke spreadsheet dan bot harus selalu melihat data terbaru. Yang di-cache hanya token akun robot (±55 menit).
 
+## Versi penuh & pembayaran
+
+Gratis sampai **450 baris di sheet Transaksi** per buku keuangan. Setelah itu pencatatan transaksi baru dikunci, baik di aplikasi maupun di bot Telegram, sampai buku itu dibeli versi penuhnya (**Rp30.000, sekali bayar**). Data lama tetap bisa dilihat, diubah, dihapus, dan diunduh. Lisensi berlaku per buku (per spreadsheet), jadi seluruh anggota keluarga di buku itu ikut terbuka di semua perangkat.
+
+**Alur jual (manual):**
+1. Pembeli membuka **⚙️ → Versi penuh** (atau tombol di baris status saat sisa ≤ 50), mentransfer ke rekeningmu, lalu mengetuk **Kirim bukti lewat WhatsApp**. Pesan WA-nya sudah berisi email, nama buku, dan baris `/lunas <kode buku>`.
+2. Kamu cek mutasi rekening. Kalau dananya sudah masuk, salin baris `/lunas …` itu dan kirim ke bot Telegram.
+3. Bot membalas dengan pesan siap kirim berisi **link aktivasi**. Teruskan pesan itu ke pembeli.
+4. Pembeli mengetuk linknya, dan versi penuh langsung aktif. Kalau link tidak terbuka di aplikasi, kode juga bisa ditempel di **⚙️ → Versi penuh → Sudah punya kode aktivasi?**
+
+**Cara kerja kodenya:** kode aktivasi adalah tanda tangan RSA-SHA256 atas `DK1:<ID spreadsheet>`, dibuat bot dengan kunci rahasia. Aplikasi memeriksanya dengan kunci publik di `config.js` lalu menyimpannya di sheet Pengaturan (kunci `LISENSI`). Kode untuk satu buku tidak berlaku di buku lain, dan tidak bisa dibuat tanpa kunci rahasia.
+
+**Setup (sekali saja):**
+1. Isi `bayar` di [web/assets/config.js](../web/assets/config.js): `bank`, `rekening`, `atasNama`, `wa` (format `628…`). Selama `rekening` atau `wa` masih kosong, batas **tidak berlaku sama sekali**.
+2. Di Apps Script bot, buka **Project Settings → Script Properties**, lalu tambahkan:
+   - `LISENSI_KUNCI` = seluruh isi file kunci rahasia (`kunci-lisensi-RAHASIA.pem`, termasuk baris `BEGIN`/`END`; boleh ditempel jadi satu baris). **Jangan pernah commit file ini** dan simpan cadangannya di tempat aman. Kalau hilang, kode aktivasi baru tidak bisa dibuat. Kalau bocor, buat pasangan kunci baru (kunci publik baru di `config.js`), dan semua kode lama jadi tidak berlaku.
+   - `ADMIN_TELEGRAM` = ID Telegram-mu. Cara tahu ID-nya: kirim `/lunas` ke bot sebelum diisi, dan bot membalas dengan ID-mu.
+   - `URL_APLIKASI` (opsional) kalau alamat aplikasi bukan GitHub Pages repo ini.
+3. Tanpa `LISENSI_KUNCI`, bot tidak membatasi apa pun (aplikasi web tetap membatasi kalau `config.js` sudah diisi).
+
+**Membuat pasangan kunci baru** (Node 15+):
+`node -e "const c=require('crypto');const k=c.generateKeyPairSync('rsa',{modulusLength:2048,publicKeyEncoding:{type:'spki',format:'der'},privateKeyEncoding:{type:'pkcs8',format:'pem'}});require('fs').writeFileSync('kunci-lisensi-RAHASIA.pem',k.privateKey);console.log(k.publicKey.toString('base64'))"`. Angka yang tercetak adalah kunci publik untuk `config.js`.
+
+**Keterbatasan:** pemeriksaan di aplikasi berjalan di browser pembeli, jadi orang yang paham teknis tetap bisa mengakalinya (DevTools, atau mengetik langsung di Google Sheets). Pemeriksaan di bot berjalan di server dan tidak bisa diakali. Menghapus baris transaksi lama memang mengembalikan kuota, tapi datanya ikut hilang.
+
 ## Mengembangkan
 - Ubah file di `web/`, lalu commit dan push ke `main`. Deploy berjalan otomatis dalam 1–2 menit (pantau di tab **Actions**).
 - `web/index.html` memasang **Content-Security-Policy**: skrip hanya dari situs ini dan Google. Menambah layanan/CDN baru → tambahkan domainnya di tag itu. Kalau isi `<script>` tema di `<head>` diubah, hitung ulang hash-nya: `node -e "const s=require('fs').readFileSync('web/index.html','utf8');console.log(require('crypto').createHash('sha256').update(s.split('<script>')[1].split('</script>')[0]).digest('base64'))"`, lalu ganti nilai `sha256-…`. Cek otomatisnya: `node .github/cek-csp.js` (juga dijalankan sebelum deploy; kalau hash tidak cocok, deploy dibatalkan).

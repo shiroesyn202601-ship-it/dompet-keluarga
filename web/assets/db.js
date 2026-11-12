@@ -588,6 +588,7 @@ const SERVER = (() => {
       emas: bacaJson_(pengaturan_(set).EMAS, {}),
       hargaEmas: bacaJson_(pengaturan_(set).HARGA_EMAS, {}),
       bulanan,
+      lisensi: await statusLisensi_(id, d.transaksi.length, set),
       transaksi: d.transaksi
         .filter(t => periodeDari_(t.tanggal, mulai) === bulan)
         .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.dibuat.localeCompare(a.dibuat)),
@@ -997,7 +998,9 @@ const SERVER = (() => {
       ]);
     } else {
       t.id = teks_(input.idBaru) || crypto.randomUUID();
-      if (input.idBaru && (await daftarId_(id)).includes(t.id)) return t.id;
+      const ids = input.idBaru || pakaiBatas_() ? await daftarId_(id) : [];
+      if (input.idBaru && ids.includes(t.id)) return t.id;
+      await pastikanKuota_(id, ids, aturan.set);
       const lampiran = input.lampiranData ? await unggahStruk_(input.lampiranData, input.tanggal, input.kabarUnggah) : '';
       await tambahBaris_(id, tbl, [[
         t.id, t.tanggal, t.tipe, t.jumlah, t.kategori, t.dompet, t.dompetTujuan, t.catatan, GOOGLE.email(), sekarang, sekarang, lampiran,
@@ -1328,6 +1331,7 @@ const SERVER = (() => {
       if (j !== JENIS.DOMPET && j !== JENIS.TABUNGAN) throw new Error(T('Pilih dompet biasa atau tabungan.'));
       if (!rp) throw new Error(T('Isi harga totalnya, atau pilih "Tanpa catat uang".'));
     }
+    if (dompet && rp) await pastikanKuota_(id, null, set0); // sebelum gram diubah, supaya tidak setengah jalan
     const g = String(Math.abs(delta)).replace('.', ',');
     const idTrx = dompet && rp ? await simpanTransaksi({
       tipe: TIPE.TRANSFER, jumlah: rp, tanggal, izinEmas: true,
@@ -1775,7 +1779,9 @@ const SERVER = (() => {
     // Periksa semuanya dulu, supaya tidak ada yang tercatat setengah jalan.
     validasiTransaksi_({ tipe: TIPE.TRANSFER, jumlah: 1, dompet: input.dompet, dompetTujuan: '_', tanggal: input.tanggal });
     if (bagianSaya) validasiTransaksi_({ tipe: TIPE.KELUAR, jumlah: bagianSaya, kategori: input.kategori, dompet: input.dompet, tanggal: input.tanggal });
-    const [dom] = await bacaTabel_(await db_(), ['dompet']);
+    const idDb = await db_();
+    await pastikanKuota_(idDb);
+    const [dom] = await bacaTabel_(idDb, ['dompet']);
     const bentrok = peserta.find(p => dom.some(r => String(r[0]).toLowerCase() === p.nama.toLowerCase() && String(r[3]) !== JENIS.UTANG));
     if (bentrok) throw new Error(T('Nama "{nama}" sudah dipakai dompet/tabungan. Pakai nama lain, mis. "{nama} (teman)".', { nama: bentrok.nama }));
 
@@ -1803,6 +1809,7 @@ const SERVER = (() => {
     if (!nama) throw new Error(T('Isi nama orangnya.'));
     if (!['piutang', 'utang'].includes(input.arah)) throw new Error(T('Pilih: meminjamkan atau meminjam.'));
     const id = await db_();
+    await pastikanKuota_(id); // sebelum baris orang baru dibuat
     const [dom] = await bacaTabel_(id, ['dompet']);
     const ada = dom.find(r => String(r[0]).toLowerCase() === nama.toLowerCase());
     if (ada && String(ada[3]) !== JENIS.UTANG) {
@@ -1890,6 +1897,72 @@ const SERVER = (() => {
 
   function samarkanKunci_(k) {
     return k.slice(0, 6) + '…' + k.slice(-4);
+  }
+
+  // ---------- Versi penuh: batas transaksi gratis & kode aktivasi ----------
+  //
+  // Kode aktivasi = tanda tangan RSA (SHA-256) atas "DK1:<ID spreadsheet>", base64url, dibuat bot Telegram
+  // lewat perintah pemilik /lunas. Disimpan di sheet Pengaturan (kunci LISENSI), jadi berlaku untuk seluruh
+  // keluarga di buku itu dan di semua perangkat. Bot memeriksa kode yang sama (lihat lisensiSah_ di bot/Kode.gs).
+
+  const BAYAR = KONFIG.bayar || {};
+  /** Batas hanya berlaku kalau pemilik sudah mengisi rekening & WhatsApp di config.js. */
+  const pakaiBatas_ = () => !!(BAYAR.rekening && BAYAR.wa && BAYAR.kunciPublik && BAYAR.batasGratis > 0);
+  let kunciPublik_ = null;
+
+  function base64Biner_(s) {
+    s = String(s).replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(s + '==='.slice((s.length + 3) % 4));
+    return Uint8Array.from(bin, c => c.charCodeAt(0));
+  }
+
+  async function lisensiSah_(idBuku, kode) {
+    kode = teks_(kode);
+    if (!kode || !idBuku || !BAYAR.kunciPublik || !(window.crypto && crypto.subtle)) return false;
+    try {
+      if (!kunciPublik_) {
+        kunciPublik_ = crypto.subtle.importKey('spki', base64Biner_(BAYAR.kunciPublik), { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+      }
+      return await crypto.subtle.verify('RSASSA-PKCS1-v1_5', await kunciPublik_, base64Biner_(kode), new TextEncoder().encode('DK1:' + idBuku));
+    } catch (e) {
+      kunciPublik_ = null;
+      return false;
+    }
+  }
+
+  /** { batas, terpakai, aktif (versi penuh), terkunci }, atau null kalau batas tidak berlaku. */
+  async function statusLisensi_(idBuku, terpakai, set) {
+    if (!pakaiBatas_()) return null;
+    const aktif = await lisensiSah_(idBuku, pengaturan_(set).LISENSI);
+    return { batas: BAYAR.batasGratis, terpakai, aktif, terkunci: !aktif && terpakai >= BAYAR.batasGratis };
+  }
+
+  /** Dipanggil sebelum transaksi baru ditulis. ids / set opsional (kalau sudah dibaca pemanggil). */
+  async function pastikanKuota_(id, ids, set) {
+    if (!pakaiBatas_()) return;
+    const [daftar, rows] = await Promise.all([ids || daftarId_(id), set || bacaTabel_(id, ['pengaturan']).then(x => x[0])]);
+    const s = await statusLisensi_(id, daftar.filter(Boolean).length, rows);
+    if (!s.terkunci) return;
+    const e = new Error(T('Batas {n} transaksi gratis sudah tercapai. Beli versi penuh untuk mencatat lagi.', { n: s.batas }));
+    e.perluBayar = true; // app.js membuka layar pembayaran
+    throw e;
+  }
+
+  /** isian: link aktivasi (…#aktivasi=<ID buku>.<kode>) atau "<ID buku>.<kode>" saja. Hasil: ID buku yang diaktifkan. */
+  async function aktifkanLisensi(isian) {
+    const m = teks_(isian).match(/([\w-]{20,})\.([\w-]{100,})/);
+    if (!m) throw new Error(T('Kode aktivasi tidak dikenali. Salin seluruh link atau kode dari pesan penjual.'));
+    const [, idBuku, kode] = m;
+    if (!(await lisensiSah_(idBuku, kode))) throw new Error(T('Kode aktivasi tidak valid. Pastikan disalin lengkap.'));
+    let set;
+    try {
+      [set] = await bacaTabel_(idBuku, ['pengaturan']);
+    } catch (e) {
+      if (e.status === 403 || e.status === 404) throw new Error(T('Kode ini untuk buku keuangan yang tidak bisa dibuka dari akun ini. Masuk dengan akun Google yang dipakai untuk buku itu.'));
+      throw e;
+    }
+    await simpanPengaturan_(idBuku, set, 'LISENSI', kode);
+    return idBuku;
   }
 
   // ---------- Bot Telegram (sheet Pengaturan, dibaca juga oleh bot di folder bot/) ----------
@@ -2291,7 +2364,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, aturCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, simpanAvatar, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, simpanAvatar, aktifkanLisensi, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };

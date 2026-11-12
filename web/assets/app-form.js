@@ -48,6 +48,7 @@ async function kirim(tombol, fungsi, args, pesan, tanganiGagal) {
     return true;
   } catch (e) {
     if (tanganiGagal && tanganiGagal(e)) return false;
+    if (e.perluBayar) return false; // layar pembayaran sudah dibuka api()
     if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true); // kartu "Sesi login berakhir" sudah tampil
     return false;
   } finally {
@@ -71,6 +72,7 @@ function gridIkon(terpilih, dompet) {
 
 /** preset: isian awal untuk transaksi baru, mis. setor/tarik tabungan. */
 function bukaFormTrx(t, preset, judul) {
+  if (!t && terkunciBayar()) return bukaFormBayar(); // mengubah transaksi lama tetap boleh
   const sumberEmas = trxEmas(t) || trxEmas(Object.assign({ tipe: '' }, preset));
   if (sumberEmas) {
     const x = t || preset;
@@ -1668,6 +1670,74 @@ function bukaFormGemini(ajak) {
       <button type="button" class="btn btn-kedua" data-aksi="ajak-ai-lanjut">${lanjutTanpaAi ? T('Lanjut tanpa AI') : T('Nanti saja')}</button>
     </div>
     <button type="button" class="tombol-teks" style="display:block;margin:4px auto 0" data-aksi="ajak-ai-tolak">${T('Jangan tampilkan lagi')}</button>` : ''}`);
+}
+
+// ---------- Versi penuh (pembayaran) ----------
+
+/**
+ * Layar beli versi penuh: transfer manual ke rekening pemilik, bukti dikirim lewat WhatsApp, lalu pemilik
+ * membalas dengan link aktivasi (dibuat bot lewat /lunas, lihat docs/PEMILIK.md → Versi penuh & pembayaran).
+ */
+function bukaFormBayar() {
+  const b = KONFIG.bayar || {};
+  const l = S.data && S.data.lisensi;
+  if (!l) return;
+  if (l.aktif) {
+    return bukaSheet(T('Versi penuh'), `
+      <p style="margin-top:0">${T('✅ <b>Versi penuh aktif</b> untuk buku ini, tanpa batas transaksi untuk seluruh keluarga, termasuk lewat bot Telegram. Terima kasih sudah mendukung Dompet Keluarga!')}</p>
+      <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tutup-sheet">${T('Tutup')}</button></div>`);
+  }
+  const pesanWa = ['Halo, saya sudah transfer ' + rp(b.harga) + ' untuk Dompet Keluarga versi penuh.',
+    'Email: ' + (S.data.user || '-'), 'Buku: ' + (S.data.namaBuku || 'Keluarga'), '', '/lunas ' + S.data.spreadsheetId].join('\n');
+  bukaSheet(T('Beli versi penuh'), `
+    <p style="margin-top:0">${l.terkunci
+      ? T('Versi gratis berisi hingga <b>{n} transaksi</b>, dan batas itu sudah tercapai. Semua data tetap aman dan tetap bisa dilihat, diubah, dan diunduh.', { n: l.batas })
+      : T('Versi gratis berisi hingga <b>{n} transaksi</b>. Sudah terpakai {terpakai}.', { n: l.batas, terpakai: l.terpakai })}</p>
+    <p>${T('Versi penuh: <b>{harga}</b>, sekali bayar untuk selamanya. Tanpa batas transaksi untuk seluruh keluarga di buku ini, termasuk lewat bot Telegram.', { harga: rp(b.harga) })}</p>
+    <ol class="panduan" style="padding-left:20px;margin-bottom:16px">
+      <li>${T('Transfer <b>{harga}</b> ke:', { harga: rp(b.harga) })}
+        <div class="baris">
+          <span class="ikon-bulat">🏦</span>
+          <span class="isi"><b>${esc(b.bank)} ${esc(b.rekening)}</b><small>${T('a.n. {nama}', { nama: esc(b.atasNama) })}</small></span>
+          <button type="button" class="tombol-teks" data-aksi="salin-rekening">${T('Salin')}</button>
+        </div>
+      </li>
+      <li>${T('Kirim bukti transfer lewat WhatsApp. Pesannya sudah terisi, tinggal lampirkan foto bukti.')}
+        <a class="btn btn-utama" style="display:block;margin:8px 0;text-align:center;text-decoration:none;color:var(--on-primary)" href="https://wa.me/${esc(String(b.wa).replace(/\D/g, ''))}?text=${encodeURIComponent(pesanWa)}" target="_blank" rel="noopener">${T('Kirim bukti lewat WhatsApp')}</a>
+      </li>
+      <li>${T('Setelah transfer dicek, Anda menerima <b>link aktivasi</b>. Ketuk linknya di HP yang sudah masuk ke Dompet Keluarga, dan versi penuh langsung aktif untuk seluruh keluarga.')}</li>
+    </ol>
+    <details class="tabel-data">
+      <summary>${T('Sudah punya kode aktivasi?')}</summary>
+      <div class="grup-form">
+        <label class="label" for="kode-aktivasi">${T('Tempel link atau kode aktivasi')}</label>
+        <textarea class="field" id="kode-aktivasi" rows="3" autocomplete="off" spellcheck="false"></textarea>
+      </div>
+      <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="aktifkan-lisensi">${T('Aktifkan')}</button></div>
+    </details>`);
+}
+
+/** Link aktivasi diketuk (#aktivasi=…): dipasang di buku yang sesuai, lalu data dimuat ulang. */
+async function prosesAktivasi(isian, tombol) {
+  const kode = isian || S.aktivasi;
+  S.aktivasi = '';
+  if (!kode || DEMO.aktif()) return;
+  if (tombol) tombol.disabled = true;
+  loading(true);
+  try {
+    const idBuku = await api('aktifkanLisensi', kode);
+    tutupSheet();
+    if (S.data && idBuku !== S.data.spreadsheetId) toast(T('Versi penuh aktif untuk buku keuangan Anda yang lain ✔'));
+    else {
+      await muat();
+      toast(T('Versi penuh aktif. Terima kasih! 🎉'));
+    }
+  } catch (e) {
+    if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
+  } finally {
+    if (tombol) tombol.disabled = false;
+    loading(false);
+  }
 }
 
 // ---------- Form dompet ----------

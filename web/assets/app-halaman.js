@@ -2041,6 +2041,9 @@ function viewLainnya() {
     <h2 class="judul-bagian">${T('Profil')}</h2>
     <section class="kartu" style="padding:4px 16px">
       ${baris('ganti-avatar', htmlAvatar(d.user), esc(namaPendek(d.user)), T('Ganti avatar · pilih gambar atau unggah foto sendiri'))}
+      ${d.lisensi && !DEMO.aktif() ? baris('versi-penuh', d.lisensi.aktif ? '⭐' : '🔓', T('Versi penuh'), d.lisensi.aktif ? T('Aktif · tanpa batas transaksi')
+        : d.lisensi.terkunci ? T('Batas {n} transaksi gratis tercapai · beli {harga}', { n: d.lisensi.batas, harga: rp(KONFIG.bayar.harga) })
+        : T('{terpakai} dari {n} transaksi gratis · beli {harga}', { terpakai: d.lisensi.terpakai, n: d.lisensi.batas, harga: rp(KONFIG.bayar.harga) })) : ''}
     </section>
 
     <h2 class="judul-bagian">${T('Keuangan')}</h2>

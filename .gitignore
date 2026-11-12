@@ -12,3 +12,6 @@ bot/*.json
 # Dibuat otomatis saat deploy (.github/changelog.js, workflows/deploy.yml)
 web/changelog.json
 web/versi.txt
+
+# Kunci rahasia lisensi versi penuh - jangan pernah di-commit
+*.pem

@@ -13,6 +13,10 @@
  *   SPREADSHEET_ID  — opsional, mode lama: satu spreadsheet yang dibuka dengan akun pemilik
  *                     (paling tidak salah satu dari SA_KEY / SPREADSHEET_ID harus diisi)
  *   WEBAPP_URL      — opsional, kalau URL web app tidak terdeteksi otomatis
+ *   LISENSI_KUNCI   — opsional, kunci rahasia (PEM) untuk membuat kode aktivasi versi penuh; kosong = batas
+ *                     transaksi gratis tidak berlaku di bot (lihat docs/PEMILIK.md → Versi penuh & pembayaran)
+ *   ADMIN_TELEGRAM  — ID Telegram pemilik (boleh beberapa, pisahkan koma) yang boleh memakai /lunas
+ *   URL_APLIKASI    — opsional, alamat aplikasi web untuk link aktivasi (bawaan: GitHub Pages repo ini)
  * Indeks tautan disimpan otomatis sebagai tg_<id Telegram> = ID spreadsheet.
  *
  * Setelah deploy sebagai web app, jalankan pasangWebhook() sekali dari editor.
@@ -210,6 +214,8 @@ function prosesPesan_(m) {
   const teks = (m.text || m.caption || '').trim();
 
   // Penautan akun: /start <ID spreadsheet>_<KODE> (tombol di aplikasi), /hubungkan …, atau KODE saja (mode lama).
+  if (/^\/lunas(?:@\w+)?(?:\s|$)/i.test(teks)) return prosesLunas_(m, teks); // khusus pemilik, tanpa buku
+
   const tautan = teks.match(/^\/(?:start|hubungkan)(?:@\w+)?\s+(?:([A-Za-z0-9_-]{20,})_)?([A-Z0-9]{6})$/i);
   if (tautan) return hubungkan_(m, tautan[1] || properti_('SPREADSHEET_ID'), tautan[2].toUpperCase());
 
@@ -365,6 +371,7 @@ function jalankanPerintah_(d, chatId, x, terakhir, pengguna, balasan, tambahan, 
   };
   switch (x.aksi) {
     case 'catat': {
+      if (kuotaPenuh_(d)) return kirim_(chatId, PESAN_BATAS_GRATIS);
       const t = siapkanTransaksi_(d, x, pengguna);
       const id = tambahTransaksi_(t, pengguna.email);
       d.transaksi.push(Object.assign({ id, oleh: pengguna.email, dibuat: sekarangIso_() }, t, { tanggal: t.tanggal }));
@@ -790,6 +797,7 @@ function prosesFoto_(m, pengguna, d, jTunggu, jFile) {
   d.transaksi = olahJawabanTransaksi_(ekstra.jawaban ? ekstra.jawaban[0] : UrlFetchApp.fetchAll([mintaTransaksi_()])[0]);
   const hargaLama = olahHarga_(ekstra.jawaban ? ekstra.jawaban[1] : null, d.transaksi);
   waktu_('transaksi siap');
+  if (kuotaPenuh_(d)) return ubahPesan_(chatId, tunggu.message_id, PESAN_BATAS_GRATIS);
 
   // Keterangan foto bisa menyebut dompet ("pakai gopay") atau catatan tambahan.
   const ket = (m.caption || '').trim();
@@ -1332,6 +1340,56 @@ function cocokKategori_(daftar, nama, catatan) {
     if (k) return k;
   }
   return null;
+}
+
+// ======================================================================
+// Versi penuh: batas transaksi gratis & kode aktivasi (sama dengan web/assets/db.js)
+// ======================================================================
+
+/** Harus sama dengan KONFIG.bayar.batasGratis di web/assets/config.js. */
+const BATAS_GRATIS = 450;
+const URL_APLIKASI = 'https://shiroesyn202601-ship-it.github.io/dompet-keluarga/';
+const PESAN_BATAS_GRATIS = '🔒 Batas ' + BATAS_GRATIS + ' transaksi gratis untuk buku ini sudah tercapai, jadi transaksi baru belum bisa dicatat.\n\n'
+  + 'Beli versi penuh (sekali bayar) di aplikasi Dompet Keluarga: ⚙️ → <b>Versi penuh</b>. Data lama tetap aman dan bisa dilihat.';
+
+/**
+ * Kode aktivasi = tanda tangan RSA-SHA256 atas "DK1:<ID spreadsheet>" (base64url tanpa '='). PKCS#1 v1.5
+ * selalu menghasilkan tanda tangan yang sama, jadi bot cukup membuat ulang lalu membandingkan; aplikasi web
+ * memeriksanya dengan kunci publik di config.js. Kunci boleh ditempel dengan atau tanpa baris baru.
+ */
+function tandaTanganLisensi_(idSheet) {
+  const kunci = String(properti_('LISENSI_KUNCI') || '');
+  const isi = kunci.replace(/-----[^-]+-----/g, '').replace(/\\n|\s/g, '');
+  if (!isi) return '';
+  const pem = '-----BEGIN PRIVATE KEY-----\n' + isi.match(/.{1,64}/g).join('\n') + '\n-----END PRIVATE KEY-----\n';
+  return Utilities.base64EncodeWebSafe(Utilities.computeRsaSha256Signature('DK1:' + idSheet, pem)).replace(/=+$/, '');
+}
+
+/** true = buku ini sudah mencapai batas gratis dan belum versi penuh. Tanpa LISENSI_KUNCI batas tidak berlaku. */
+function kuotaPenuh_(d) {
+  if (!properti_('LISENSI_KUNCI') || modeLama_() || d.transaksi.length < BATAS_GRATIS) return false;
+  return String(d.pengaturan.LISENSI || '') !== tandaTanganLisensi_(idSpreadsheet_());
+}
+
+/**
+ * /lunas <kode buku> — dikirim pemilik setelah transfer pembeli dicek. Kode buku (ID spreadsheet) ada di pesan
+ * WhatsApp dari tombol "Kirim bukti" di aplikasi; boleh juga menempel seluruh pesannya setelah /lunas.
+ * Balasannya: pesan siap diteruskan ke pembeli berisi link aktivasi.
+ */
+function prosesLunas_(m, teks) {
+  const chatId = m.chat.id;
+  const admin = String(properti_('ADMIN_TELEGRAM') || '').split(/[\s,]+/).filter(Boolean);
+  if (admin.indexOf(String(m.from.id)) < 0) {
+    return kirim_(chatId, 'Perintah ini khusus pemilik aplikasi.\n\nID Telegram Anda: <code>' + m.from.id + '</code>');
+  }
+  if (!properti_('LISENSI_KUNCI')) return kirim_(chatId, '⚠️ Script Property <b>LISENSI_KUNCI</b> belum diisi, jadi kode aktivasi belum bisa dibuat.');
+  const calon = teks.replace(/^\/lunas(?:@\w+)?/i, '').match(/[\w-]{25,}/g) || [];
+  const id = calon[calon.length - 1];
+  if (!id) return kirim_(chatId, 'Format: <code>/lunas KODE_BUKU</code>\nKode buku ada di pesan WhatsApp dari pembeli (baris yang diawali /lunas).');
+  const link = (properti_('URL_APLIKASI') || URL_APLIKASI) + '#aktivasi=' + id + '.' + tandaTanganLisensi_(id);
+  kirim_(chatId, '✅ Link aktivasi untuk buku <code>' + html_(id) + '</code> sudah dibuat. Salin pesan di bawah ini lalu kirim ke pembeli lewat WhatsApp.');
+  return kirim_(chatId, html_('Terima kasih sudah membeli Dompet Keluarga versi penuh! 🎉\n\n'
+    + 'Ketuk link ini di HP yang sudah masuk ke Dompet Keluarga, dan versi penuh langsung aktif untuk seluruh keluarga:\n\n' + link));
 }
 
 /** Ditambah lewat Sheets API (RAW: teks tidak pernah dianggap rumus), sama seperti aplikasi web. */

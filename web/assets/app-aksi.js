@@ -135,6 +135,16 @@ const AKSI = {
   },
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
+  'versi-penuh': () => bukaFormBayar(),
+  'salin-rekening': async () => {
+    const no = String((KONFIG.bayar || {}).rekening || '').replace(/\s/g, '');
+    try { await navigator.clipboard.writeText(no); toast(T('Nomor rekening disalin ✔')); } catch (e) { toast(no); }
+  },
+  'aktifkan-lisensi': el => {
+    const isian = $('#kode-aktivasi').value.trim();
+    if (!isian) return toast(T('Tempel link atau kode aktivasinya dulu.'), true);
+    prosesAktivasi(isian, el);
+  },
   'ajak-ai-lanjut': () => teruskanTanpaAi(),
   'ajak-ai-tolak': () => { tulisHp('dk_ajak_ai', 'tolak'); toast(T('Oke. AI tetap bisa diaktifkan kapan saja di ⚙️ → Fitur AI.')); teruskanTanpaAi(); },
   'telegram': () => bukaFormTelegram(),
@@ -675,6 +685,7 @@ const AKSI = {
   'atur-anggaran': () => bukaFormAnggaran(),
   'rincian-anggaran': () => bukaRincianAnggaran(),
   'cepat-struk': () => {
+    if (terkunciBayar()) return bukaFormBayar(); // jangan sampai struk dibaca dulu lalu ditolak saat disimpan
     // Belum ada kunci Gemini: tawarkan AI dulu (struk terbaca jauh lebih lengkap); "Lanjut tanpa AI" → kamera.
     if (ajakAiDulu(AKSI['cepat-struk'])) return;
     // Langsung buka kamera (masih dalam ketukan pengguna supaya tidak diblokir browser);
@@ -1000,7 +1011,7 @@ const AKSI = {
  */
 const AKSI_TANPA_SEGARKAN = new Set([
   'masuk', 'lanjut-sesi', 'demo-mulai', 'demo-masuk', 'pilih-db', 'pin', 'pin-hapus', 'buka-bio', 'lupa-pin', 'simpan-kunci',
-  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'bagikan-tahunan', 'pratinjau-bagikan', 'pratinjau-simpan', 'cetak-laporan','salin-link', 'pasang-aplikasi', 'suara', 'cepat-suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
+  'foto-struk', 'cepat-struk', 'lampiran-pilih', 'bagikan-laporan', 'bagikan-tahunan', 'pratinjau-bagikan', 'pratinjau-simpan', 'cetak-laporan','salin-link', 'salin-rekening', 'pasang-aplikasi', 'suara', 'cepat-suara', 'contoh-suara', 'ketuk-catat', 'tugas-jadi-trx', 'pakai-saran-anggaran', 'isi-saran-anggaran', 'buang-banyak', 'kilas-maju', 'kilas-mundur', 'kilas-tutup', 'kilas-bagikan', 'kilas-putar', 'ringkas-tanpa-ai', 'suara-catatan', 'ringkas-koreksi', 'ringkas-ulang', 'cek-undangan', 'kompas', 'lokasi-gps',
   'ajak-ai-lanjut', 'ajak-ai-tolak', // meneruskan ke kamera / mikrofon
   'ajak-keluarga', 'bagikan-wa-undangan', // menu berbagi HP
 ]);

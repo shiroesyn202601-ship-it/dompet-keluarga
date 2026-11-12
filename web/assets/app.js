@@ -9,6 +9,7 @@ const S = {
   filterTipe: 'Semua',
   cari: '',
   gabung: '', // ID spreadsheet dari link undangan (#gabung=...)
+  aktivasi: '', // kode versi penuh dari link aktivasi (#aktivasi=<ID buku>.<kode>), diproses setelah data dimuat
   tahun: new Date().getFullYear(), // tahun yang dilihat di Laporan
   lapKategori: 'bulan',            // Laporan → pengeluaran per kategori: 'bulan' | 'tahun'
   setup: { pilih: ['Tunai'], saldo: {}, lain: [], email: '' }, // isian layar setup pertama kali
@@ -97,6 +98,12 @@ async function api(fungsi, ...args) {
     return await SERVER[fungsi](...args);
   } catch (e) {
     if (e instanceof GOOGLE.PerluMasuk) perluMasukLagi();
+    if (e.perluBayar && S.data) {
+      // Batas transaksi gratis tercapai (lihat SERVER.pastikanKuota_). Data di HP bisa saja belum tahu, jadi ditandai di sini.
+      const batas = KONFIG.bayar.batasGratis;
+      S.data.lisensi = Object.assign({ batas, terpakai: batas, aktif: false }, S.data.lisensi, { terkunci: true });
+      bukaFormBayar();
+    }
     throw e;
   }
 }
@@ -292,6 +299,11 @@ function pesanError(e) {
 // ---------- Muat & render ----------
 
 async function mulai() {
+  const akt = location.hash.match(/aktivasi=([\w-]{20,}\.[\w-]{100,})/);
+  if (akt) {
+    S.aktivasi = akt[1];
+    history.replaceState(null, '', location.pathname + location.search);
+  }
   const m = location.hash.match(/gabung=([\w-]{20,})/);
   if (m) {
     S.gabung = m[1];
@@ -350,6 +362,7 @@ async function muat() {
       kirimCatatanTertunda();
       cadangkanNanti();
       cekTur();
+      if (S.aktivasi) prosesAktivasi();
       if (typeof bersihkanTabunganTantangan === 'function') setTimeout(bersihkanTabunganTantangan, 3000);
     }
   } catch (e) {
@@ -473,6 +486,7 @@ function bannerStatus() {
     catatanTertunda().length && { isi: T('📝 {n} catatan menunggu dikirim', { n: catatanTertunda().length }) },
     S.data && !S.data.perluSetup && S.bulan && ['beranda', 'riwayat'].includes(S.tab) && S.bulan !== periodeSekarang()
       && { isi: `${T('📅 Menampilkan {periode}, bukan periode sekarang.', { periode: esc(namaBulan(S.bulan)) })} <button type="button" data-aksi="bulan-ini">${T('Ke periode sekarang')}</button>` },
+    barisLisensi(),
     DEMO.aktif() && { kelas: 'demo', isi: `${T('👀 Mode coba · data contoh, hanya di HP ini')} <button type="button" data-aksi="demo-masuk">${T('Pakai sungguhan')}</button>` },
     tawaranPasang(),
   ].filter(Boolean);
@@ -481,6 +495,18 @@ function bannerStatus() {
   const ke = statusKe % baris.length, b = baris[ke];
   const gilir = baris.length > 1 ? `<button type="button" class="status-gilir" data-aksi="status-berikut" aria-label="${T('Pesan berikutnya ({ke} dari {n})', { ke: ke + 1, n: baris.length })}">${ke + 1}/${baris.length} ›</button>` : '';
   return `<div class="status-bar ${b.kelas || ''}"><span class="isi-status">${b.isi}</span>${gilir}</div>` + segar;
+}
+
+/** Batas transaksi gratis tercapai dan buku ini belum versi penuh (S.data.lisensi diisi SERVER.getData). */
+const terkunciBayar = () => !!(S.data && S.data.lisensi && S.data.lisensi.terkunci && !DEMO.aktif());
+/** Baris status: pencatatan terkunci, atau sisa transaksi gratis tinggal sedikit (≤ 50). */
+function barisLisensi() {
+  const l = S.data && S.data.lisensi;
+  if (!l || l.aktif || DEMO.aktif() || S.data.perluSetup || l.batas - l.terpakai > 50) return null;
+  const tombol = `<button type="button" data-aksi="versi-penuh">${T('Beli versi penuh')}</button>`;
+  return l.terkunci
+    ? { kelas: 'gagal', isi: `${T('🔒 Batas {n} transaksi gratis tercapai. Data tetap bisa dilihat.', { n: l.batas })} ${tombol}` }
+    : { isi: `${T('⏳ Sisa {n} transaksi gratis.', { n: l.batas - l.terpakai })} ${tombol}` };
 }
 
 /**
