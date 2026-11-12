@@ -171,6 +171,10 @@ Gratis sampai **450 baris di sheet Transaksi** per buku keuangan. Setelah itu pe
 3. Bot membalas dengan pesan siap kirim berisi **link aktivasi**. Teruskan pesan itu ke pembeli.
 4. Pembeli mengetuk linknya, dan versi penuh langsung aktif. Kalau link tidak terbuka di aplikasi, kode juga bisa ditempel di **⚙️ → Versi penuh → Sudah punya kode aktivasi?**
 
+**Link vs kode aktivasi:** keduanya sama. Kode aktivasi adalah bagian link setelah `#aktivasi=` (`<kode buku>.<tanda tangan>`), dan kolom di aplikasi menerima seluruh link maupun kodenya saja.
+
+**Mencabut lisensi** (transfer palsu, pengembalian dana): kirim `/batal <kode buku>` ke bot. Di bot pencabutan langsung berlaku (disimpan di Script Property `LISENSI_DICABUT`). Untuk aplikasi, tambahkan kode buku itu ke `bayar.dicabut` di `config.js` lalu push; buku itu dianggap belum lunas walaupun kodenya asli, dan link lamanya tidak bisa dipakai lagi. Urungkan dengan `/pulihkan <kode buku>` (lalu hapus juga dari `config.js`); `/lunas` untuk buku yang dicabut otomatis memulihkannya. Untuk mengembalikan buku sendiri ke versi gratis, cukup hapus baris `LISENSI` di sheet Pengaturan.
+
 **Cara kerja kodenya:** kode aktivasi adalah tanda tangan RSA-SHA256 atas `DK1:<ID spreadsheet>`, dibuat bot dengan kunci rahasia. Aplikasi memeriksanya dengan kunci publik di `config.js` lalu menyimpannya di sheet Pengaturan (kunci `LISENSI`). Kode untuk satu buku tidak berlaku di buku lain, dan tidak bisa dibuat tanpa kunci rahasia.
 
 **Setup (sekali saja):**

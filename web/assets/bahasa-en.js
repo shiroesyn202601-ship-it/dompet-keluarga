@@ -1923,6 +1923,7 @@ Object.assign(KAMUS, {
   "⏳ Sisa {n} transaksi gratis.": "⏳ {n} free transactions left.",
   "Batas {n} transaksi gratis sudah tercapai. Beli versi penuh untuk mencatat lagi.": "You’ve reached the {n} free transactions. Buy the full version to keep recording.",
   "Kode aktivasi tidak dikenali. Salin seluruh link atau kode dari pesan penjual.": "Activation code not recognized. Copy the whole link or code from the seller’s message.",
+  "Lisensi buku ini sudah dicabut. Hubungi penjual lewat WhatsApp.": "This book’s license has been revoked. Contact the seller via WhatsApp.",
   "Kode aktivasi tidak valid. Pastikan disalin lengkap.": "Invalid activation code. Make sure it was copied in full.",
   "Kode ini untuk buku keuangan yang tidak bisa dibuka dari akun ini. Masuk dengan akun Google yang dipakai untuk buku itu.": "This code is for a finance book this account can’t open. Sign in with the Google account used for that book.",
 });

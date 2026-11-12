@@ -1916,9 +1916,11 @@ const SERVER = (() => {
     return Uint8Array.from(bin, c => c.charCodeAt(0));
   }
 
+  const dicabut_ = idBuku => (BAYAR.dicabut || []).includes(idBuku);
+
   async function lisensiSah_(idBuku, kode) {
     kode = teks_(kode);
-    if (!kode || !idBuku || !BAYAR.kunciPublik || !(window.crypto && crypto.subtle)) return false;
+    if (!kode || !idBuku || dicabut_(idBuku) || !BAYAR.kunciPublik || !(window.crypto && crypto.subtle)) return false;
     try {
       if (!kunciPublik_) {
         kunciPublik_ = crypto.subtle.importKey('spki', base64Biner_(BAYAR.kunciPublik), { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
@@ -1953,6 +1955,7 @@ const SERVER = (() => {
     const m = teks_(isian).match(/([\w-]{20,})\.([\w-]{100,})/);
     if (!m) throw new Error(T('Kode aktivasi tidak dikenali. Salin seluruh link atau kode dari pesan penjual.'));
     const [, idBuku, kode] = m;
+    if (dicabut_(idBuku)) throw new Error(T('Lisensi buku ini sudah dicabut. Hubungi penjual lewat WhatsApp.'));
     if (!(await lisensiSah_(idBuku, kode))) throw new Error(T('Kode aktivasi tidak valid. Pastikan disalin lengkap.'));
     let set;
     try {

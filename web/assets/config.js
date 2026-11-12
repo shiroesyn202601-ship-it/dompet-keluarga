@@ -20,6 +20,9 @@ const KONFIG = {
     rekening: '087873369841', // nomor rekening / nomor e-wallet
     atasNama: '',      // opsional; kosong = baris "a.n." tidak ditampilkan
     wa: '6287873369841', // nomor WhatsApp untuk kirim bukti transfer, format 628…
+    // Kode buku (ID spreadsheet) yang lisensinya dicabut (/batal di bot). Buku ini dianggap belum lunas
+    // walaupun kode aktivasinya asli. Contoh: dicabut: ['1AbC…', '1XyZ…'],
+    dicabut: [],
     kunciPublik: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqTwaIZPUI4b0DwwOGoB1BT0GuwUioTlzEZWQrgntruoppFer08vMtBKROx+ByTzVyya88V3CPPS67ych6DLyexxp9raRNErWO4MduxajAX9uFSWFeduxFLsE8EPGn+Mj90Nzry+5ArpWbKSnsmwi16OKTXB+RZmWfUl8V3ceP518uY6TPDWedZ5LnyujBWyoPXe2HtDbGP4Cf0fKiNneleiMzhrtyCzSC7Pz+TCy21WBsZCzSWke8zLLe/AeBB/qLNaWglL3a4G3Uwh8Jy8WMO0SkHtiWGSbwmzPAzaDtndfa31Ju1Z9Y2PDcDGyrh8FVdyBw2ql4K9vh98m+ctWqQIDAQAB',
   },
 };

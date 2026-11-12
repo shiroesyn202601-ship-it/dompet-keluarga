@@ -214,7 +214,10 @@ function prosesPesan_(m) {
   const teks = (m.text || m.caption || '').trim();
 
   // Penautan akun: /start <ID spreadsheet>_<KODE> (tombol di aplikasi), /hubungkan …, atau KODE saja (mode lama).
-  if (/^\/lunas(?:@\w+)?(?:\s|$)/i.test(teks)) return prosesLunas_(m, teks); // khusus pemilik, tanpa buku
+  // Pemilik boleh menempel seluruh pesan WhatsApp pembeli: baris "/lunas …" di tengah pesan juga dikenali.
+  const lisensi = teks.match(/^\/(lunas|batal|pulihkan)(?:@\w+)?(?:\s|$)/i)
+    || (adminTelegram_(m.from.id) && teks.match(/^\/(lunas)(?:@\w+)?\s/im));
+  if (lisensi) return prosesLisensi_(m, lisensi[1].toLowerCase(), teks); // khusus pemilik, tanpa buku
 
   const tautan = teks.match(/^\/(?:start|hubungkan)(?:@\w+)?\s+(?:([A-Za-z0-9_-]{20,})_)?([A-Z0-9]{6})$/i);
   if (tautan) return hubungkan_(m, tautan[1] || properti_('SPREADSHEET_ID'), tautan[2].toUpperCase());
@@ -1365,31 +1368,69 @@ function tandaTanganLisensi_(idSheet) {
   return Utilities.base64EncodeWebSafe(Utilities.computeRsaSha256Signature('DK1:' + idSheet, pem)).replace(/=+$/, '');
 }
 
-/** true = buku ini sudah mencapai batas gratis dan belum versi penuh. Tanpa LISENSI_KUNCI batas tidak berlaku. */
+/** true = buku ini sudah mencapai batas gratis dan belum versi penuh (atau lisensinya dicabut). Tanpa LISENSI_KUNCI batas tidak berlaku. */
 function kuotaPenuh_(d) {
   if (!properti_('LISENSI_KUNCI') || modeLama_() || d.transaksi.length < BATAS_GRATIS) return false;
-  return String(d.pengaturan.LISENSI || '') !== tandaTanganLisensi_(idSpreadsheet_());
+  const id = idSpreadsheet_();
+  return daftarDicabut_().indexOf(id) >= 0 || String(d.pengaturan.LISENSI || '') !== tandaTanganLisensi_(id);
+}
+
+/** ID buku yang lisensinya dicabut (/batal), disimpan di Script Property LISENSI_DICABUT (dipisah koma). */
+function daftarDicabut_() {
+  return String(properti_('LISENSI_DICABUT') || '').split(/[\s,]+/).filter(Boolean);
+}
+
+function simpanDicabut_(daftar) {
+  const nilai = daftar.filter((x, i) => x && daftar.indexOf(x) === i).join(',');
+  PropertiesService.getScriptProperties().setProperty('LISENSI_DICABUT', nilai);
+  if (isiProperti_) isiProperti_.LISENSI_DICABUT = nilai;
 }
 
 /**
- * /lunas <kode buku> — dikirim pemilik setelah transfer pembeli dicek. Kode buku (ID spreadsheet) ada di pesan
- * WhatsApp dari tombol "Kirim bukti" di aplikasi; boleh juga menempel seluruh pesannya setelah /lunas.
- * Balasannya: pesan siap diteruskan ke pembeli berisi link aktivasi.
+ * Perintah pemilik (ADMIN_TELEGRAM), dengan kode buku = ID spreadsheet dari pesan WhatsApp pembeli
+ * (boleh menempel seluruh pesannya setelah perintah):
+ *   /lunas <kode buku>    — membuat link aktivasi untuk diteruskan ke pembeli (sekaligus membatalkan /batal);
+ *   /batal <kode buku>    — mencabut lisensi: bot langsung berhenti mencatat transaksi baru untuk buku itu,
+ *                           aplikasi menyusul setelah ID-nya ditambahkan ke KONFIG.bayar.dicabut di config.js;
+ *   /pulihkan <kode buku> — mengurungkan /batal.
  */
-function prosesLunas_(m, teks) {
+function adminTelegram_(idTelegram) {
+  return String(properti_('ADMIN_TELEGRAM') || '').split(/[\s,]+/).filter(Boolean).indexOf(String(idTelegram)) >= 0;
+}
+
+function prosesLisensi_(m, perintah, teks) {
   const chatId = m.chat.id;
-  const admin = String(properti_('ADMIN_TELEGRAM') || '').split(/[\s,]+/).filter(Boolean);
-  if (admin.indexOf(String(m.from.id)) < 0) {
+  if (!adminTelegram_(m.from.id)) {
     return kirim_(chatId, 'Perintah ini khusus pemilik aplikasi.\n\nID Telegram Anda: <code>' + m.from.id + '</code>');
   }
-  if (!properti_('LISENSI_KUNCI')) return kirim_(chatId, '⚠️ Script Property <b>LISENSI_KUNCI</b> belum diisi, jadi kode aktivasi belum bisa dibuat.');
-  const calon = teks.replace(/^\/lunas(?:@\w+)?/i, '').match(/[\w-]{25,}/g) || [];
+  if (!properti_('LISENSI_KUNCI')) return kirim_(chatId, '⚠️ Script Property <b>LISENSI_KUNCI</b> belum diisi, jadi lisensi belum bisa diatur.');
+  // Kode buku = token panjang terakhir sesudah perintahnya (pesan WA tempelan: baris "/lunas <kode>").
+  const sesudah = teks.slice(teks.search(new RegExp('^\\/' + perintah, 'im')) + perintah.length + 1);
+  const calon = sesudah.match(/[\w-]{25,}/g) || [];
   const id = calon[calon.length - 1];
-  if (!id) return kirim_(chatId, 'Format: <code>/lunas KODE_BUKU</code>\nKode buku ada di pesan WhatsApp dari pembeli (baris yang diawali /lunas).');
+  if (!id) return kirim_(chatId, 'Format: <code>/' + perintah + ' KODE_BUKU</code>\nKode buku ada di pesan WhatsApp dari pembeli (baris yang diawali /lunas).');
+  const dicabut = daftarDicabut_();
+  const kode = '<code>' + html_(id) + '</code>';
+  const catatanApp = 'di <code>web/assets/config.js</code> → <code>bayar.dicabut</code>, lalu push';
+
+  if (perintah === 'batal') {
+    simpanDicabut_(dicabut.concat([id]));
+    return kirim_(chatId, '🚫 Lisensi buku ' + kode + ' dicabut.\n\n'
+      + '• Bot: langsung berlaku. Buku ini tidak bisa mencatat transaksi baru lewat bot kalau sudah lewat ' + BATAS_GRATIS + ' transaksi.\n'
+      + '• Aplikasi: tambahkan ID ini ' + catatanApp + '. Setelah itu aplikasi pembeli ikut terkunci lagi.\n\n'
+      + 'Salah cabut? Kirim <code>/pulihkan ' + html_(id) + '</code>.');
+  }
+  const tadinyaDicabut = dicabut.indexOf(id) >= 0;
+  if (tadinyaDicabut) simpanDicabut_(dicabut.filter(x => x !== id));
+  const pengingat = tadinyaDicabut ? '\n\n⚠️ Buku ini tadinya dicabut. Kalau ID-nya sudah ada ' + catatanApp.replace('lalu push', '') + ', hapus dari sana lalu push.' : '';
+  if (perintah === 'pulihkan') {
+    return kirim_(chatId, (tadinyaDicabut ? '✅ Lisensi buku ' + kode + ' dipulihkan. Link aktivasi lamanya berlaku lagi.' : 'ℹ️ Buku ' + kode + ' memang tidak sedang dicabut.') + pengingat);
+  }
   const link = (properti_('URL_APLIKASI') || URL_APLIKASI) + '#aktivasi=' + id + '.' + tandaTanganLisensi_(id);
-  kirim_(chatId, '✅ Link aktivasi untuk buku <code>' + html_(id) + '</code> sudah dibuat. Salin pesan di bawah ini lalu kirim ke pembeli lewat WhatsApp.');
+  kirim_(chatId, '✅ Link aktivasi untuk buku ' + kode + ' sudah dibuat. Salin pesan di bawah ini lalu kirim ke pembeli lewat WhatsApp.' + pengingat);
   return kirim_(chatId, html_('Terima kasih sudah membeli Dompet Keluarga versi penuh! 🎉\n\n'
-    + 'Ketuk link ini di HP yang sudah masuk ke Dompet Keluarga, dan versi penuh langsung aktif untuk seluruh keluarga:\n\n' + link));
+    + 'Ketuk link ini di HP yang sudah masuk ke Dompet Keluarga, dan versi penuh langsung aktif untuk seluruh keluarga:\n\n' + link
+    + '\n\nKalau link tidak terbuka di aplikasi: buka Dompet Keluarga → ⚙️ → Versi penuh → "Sudah punya kode aktivasi?", tempel seluruh link di atas, lalu ketuk Aktifkan.'));
 }
 
 /** Ditambah lewat Sheets API (RAW: teks tidak pernah dianggap rumus), sama seperti aplikasi web. */
