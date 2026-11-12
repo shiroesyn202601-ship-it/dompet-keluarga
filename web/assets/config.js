@@ -10,7 +10,7 @@ const KONFIG = {
   // Nama bot tanpa @, dan email service account bot. Kosong = bot khusus pemilik (SPREADSHEET_ID).
   botTelegram: 'catkeukuBot',
   emailBot: 'dompet-bot@dompet-keluarga-513306.iam.gserviceaccount.com',
-  // Versi penuh (lihat docs/PEMILIK.md → Versi penuh & pembayaran). Selama rekening atau wa masih kosong,
+  // Versi penuh (lihat docs/PEMILIK.md → Versi penuh & pembayaran). Selama rekening atau botTelegram masih kosong,
   // batas tidak berlaku sama sekali. Kunci publik bukan rahasia: hanya bisa MEMERIKSA kode aktivasi,
   // membuatnya butuh kunci rahasia yang disimpan di bot (Script Property LISENSI_KUNCI).
   bayar: {
@@ -19,7 +19,7 @@ const KONFIG = {
     bank: 'DANA',      // nama bank / e-wallet, mis. 'BCA', 'DANA'
     rekening: '087873369841', // nomor rekening / nomor e-wallet
     atasNama: '',      // opsional; kosong = baris "a.n." tidak ditampilkan
-    wa: '6287873369841', // nomor WhatsApp untuk kirim bukti transfer, format 628…
+    // Bukti transfer dikirim pembeli ke bot Telegram (KONFIG.botTelegram), lalu diteruskan ke ADMIN_TELEGRAM.
     // URL web app bot (berakhiran /exec, dari Apps Script → Deploy → Manage deployments). Diisi = /batal di bot
     // ikut berlaku di aplikasi: buku versi penuh menanyakan statusnya ke bot sekali sehari. Kosong = tidak dicek.
     urlBot: 'https://script.google.com/macros/s/AKfycbwLzTahKW5P2N6GsIwfm_zxRQKOJHMqR4oAizkZ5lupwgHogtI_66cF01NoahJ3wW3H/exec',

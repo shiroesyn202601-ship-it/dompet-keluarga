@@ -1906,8 +1906,8 @@ const SERVER = (() => {
   // keluarga di buku itu dan di semua perangkat. Bot memeriksa kode yang sama (lihat lisensiSah_ di bot/Kode.gs).
 
   const BAYAR = KONFIG.bayar || {};
-  /** Batas hanya berlaku kalau pemilik sudah mengisi rekening & WhatsApp di config.js. */
-  const pakaiBatas_ = () => !!(BAYAR.rekening && BAYAR.wa && BAYAR.kunciPublik && BAYAR.batasGratis > 0);
+  /** Batas hanya berlaku kalau rekening & bot Telegram (tempat kirim bukti transfer) sudah diisi di config.js. */
+  const pakaiBatas_ = () => !!(BAYAR.rekening && KONFIG.botTelegram && BAYAR.kunciPublik && BAYAR.batasGratis > 0);
   let kunciPublik_ = null;
 
   function base64Biner_(s) {
@@ -1980,7 +1980,7 @@ const SERVER = (() => {
     const m = teks_(isian).match(/([\w-]{20,})\.([\w-]{100,})/);
     if (!m) throw new Error(T('Kode aktivasi tidak dikenali. Salin seluruh link atau kode dari pesan penjual.'));
     const [, idBuku, kode] = m;
-    if (dicabut_(idBuku) || await cekDicabut_(idBuku)) throw new Error(T('Lisensi buku ini sudah dicabut. Hubungi penjual lewat WhatsApp.'));
+    if (dicabut_(idBuku) || await cekDicabut_(idBuku)) throw new Error(T('Lisensi buku ini sudah dicabut. Hubungi penjual.'));
     if (!(await lisensiSah_(idBuku, kode))) throw new Error(T('Kode aktivasi tidak valid. Pastikan disalin lengkap.'));
     let set;
     try {

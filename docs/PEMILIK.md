@@ -165,11 +165,12 @@ Catatan keamanan: `CLASPRC_JSON` berisi izin login clasp ke akun Google pemilik 
 
 Gratis sampai **450 baris di sheet Transaksi** per buku keuangan. Setelah itu pencatatan transaksi baru dikunci, baik di aplikasi maupun di bot Telegram, sampai buku itu dibeli versi penuhnya (**Rp30.000, sekali bayar**). Data lama tetap bisa dilihat, diubah, dihapus, dan diunduh. Lisensi berlaku per buku (per spreadsheet), jadi seluruh anggota keluarga di buku itu ikut terbuka di semua perangkat.
 
-**Alur jual (manual):**
-1. Pembeli membuka **⚙️ → Versi penuh** (atau tombol di baris status saat sisa ≤ 50), mentransfer ke rekeningmu, lalu mengetuk **Kirim bukti lewat WhatsApp**. Pesan WA-nya sudah berisi email, nama buku, dan baris `/lunas <kode buku>`.
-2. Kamu cek mutasi rekening. Kalau dananya sudah masuk, salin baris `/lunas …` itu dan kirim ke bot Telegram.
-3. Bot membalas dengan pesan siap kirim berisi **link aktivasi**. Teruskan pesan itu ke pembeli.
+**Alur jual (lewat bot Telegram, tanpa WhatsApp):**
+1. Pembeli membuka **⚙️ → Versi penuh** (atau tombol di baris status saat sisa ≤ 50), mentransfer ke rekeningmu, lalu mengetuk **Kirim bukti lewat Telegram**. Bot terbuka dengan kode buku terbawa (`/start bayar_<kode buku>`), dan pembeli mengirim foto bukti transfer.
+2. Bot meneruskan foto itu ke semua akun `ADMIN_TELEGRAM` beserta nama Telegram pembeli, kode buku, dan tombol **✅ Lunas / ❌ Tolak**. Status tiap pembeli disimpan di Script Property `byr_<chat id>`.
+3. Kamu cek mutasi rekening, lalu tekan **✅ Lunas**. Bot langsung mengirim link aktivasi ke pembeli. **❌ Tolak** mengirim pesan ke pembeli supaya mengirim ulang.
 4. Pembeli mengetuk linknya, dan versi penuh langsung aktif. Kalau link tidak terbuka di aplikasi, kode juga bisa ditempel di **⚙️ → Versi penuh → Sudah punya kode aktivasi?**
+5. Cara manual tetap ada: `/lunas <kode buku>` membuat link untuk dikirim sendiri.
 
 **Link vs kode aktivasi:** keduanya sama. Kode aktivasi adalah bagian link setelah `#aktivasi=` (`<kode buku>.<tanda tangan>`), dan kolom di aplikasi menerima seluruh link maupun kodenya saja.
 
@@ -178,7 +179,7 @@ Gratis sampai **450 baris di sheet Transaksi** per buku keuangan. Setelah itu pe
 **Cara kerja kodenya:** kode aktivasi adalah tanda tangan RSA-SHA256 atas `DK1:<ID spreadsheet>`, dibuat bot dengan kunci rahasia. Aplikasi memeriksanya dengan kunci publik di `config.js` lalu menyimpannya di sheet Pengaturan (kunci `LISENSI`). Kode untuk satu buku tidak berlaku di buku lain, dan tidak bisa dibuat tanpa kunci rahasia.
 
 **Setup (sekali saja):**
-1. Isi `bayar` di [web/assets/config.js](../web/assets/config.js): `bank`, `rekening`, `atasNama`, `wa` (format `628…`). Selama `rekening` atau `wa` masih kosong, batas **tidak berlaku sama sekali**.
+1. Isi `bayar` di [web/assets/config.js](../web/assets/config.js): `bank`, `rekening`, `atasNama` (opsional), dan pastikan `botTelegram` terisi. Selama `rekening` atau `botTelegram` masih kosong, batas **tidak berlaku sama sekali**.
 2. Di Apps Script bot, buka **Project Settings → Script Properties**, lalu tambahkan:
    - `LISENSI_KUNCI` = seluruh isi file kunci rahasia (`kunci-lisensi-RAHASIA.pem`, termasuk baris `BEGIN`/`END`; boleh ditempel jadi satu baris). **Jangan pernah commit file ini** dan simpan cadangannya di tempat aman. Kalau hilang, kode aktivasi baru tidak bisa dibuat. Kalau bocor, buat pasangan kunci baru (kunci publik baru di `config.js`), dan semua kode lama jadi tidak berlaku.
    - `ADMIN_TELEGRAM` = ID Telegram-mu. Cara tahu ID-nya: kirim `/lunas` ke bot sebelum diisi, dan bot membalas dengan ID-mu.

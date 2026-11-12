@@ -223,12 +223,17 @@ function prosesPesan_(m) {
   const teks = (m.text || m.caption || '').trim();
 
   // Penautan akun: /start <ID spreadsheet>_<KODE> (tombol di aplikasi), /hubungkan …, atau KODE saja (mode lama).
-  // Pemilik boleh menempel seluruh pesan WhatsApp pembeli: baris "/lunas …" di tengah pesan juga dikenali.
+  // Pemilik boleh menempel pesan berisi baris "/lunas …" di tengahnya: baris itu juga dikenali.
   if (/^\/urlbot(?:@\w+)?$/i.test(teks) && adminTelegram_(m.from.id)) {
     const url = properti_('WEBAPP_URL') || ScriptApp.getService().getUrl();
     return kirim_(chatId, url ? 'URL web app bot (isi ke <code>bayar.urlBot</code> di web/assets/config.js):\n\n<code>' + html_(url) + '</code>'
       : '⚠️ Bot belum di-deploy sebagai web app (Deploy → New deployment → Web app).');
   }
+  // Pembelian versi penuh: tombol di aplikasi membuka /start bayar_<ID buku>, lalu pembeli mengirim foto bukti transfer.
+  const bayar = teks.match(/^\/start(?:@\w+)?\s+bayar_([\w-]{20,})$/i);
+  if (bayar) return mulaiBayar_(m, bayar[1]);
+  const tunggu = bayarTertunda_(m.chat.id);
+  if (tunggu && tunggu.tahap === 'foto' && !/^\//.test(teks)) return terimaBukti_(m, tunggu);
   const lisensi = teks.match(/^\/(lunas|batal|pulihkan)(?:@\w+)?(?:\s|$)/i)
     || (adminTelegram_(m.from.id) && teks.match(/^\/(lunas)(?:@\w+)?\s/im));
   if (lisensi) return prosesLisensi_(m, lisensi[1].toLowerCase(), teks); // khusus pemilik, tanpa buku
@@ -999,6 +1004,8 @@ function prosesSuara_(m, suara, pengguna, d, jFile) {
 function prosesTombol_(q) {
   const chatId = q.message.chat.id;
   const msgId = q.message.message_id;
+  const keputusan = String(q.data || '').match(/^(lns|tlk):(-?\d+)$/);
+  if (keputusan) return putuskanBayar_(q, keputusan[1], keputusan[2]); // admin memeriksa bukti transfer
   const buka = bukaUntuk_(q.from.id, null);
   if (!buka) return tg_('answerCallbackQuery', { callback_query_id: q.id, text: 'Akun belum terhubung.' });
   const d = buka.d;
@@ -1401,7 +1408,7 @@ function simpanDicabut_(daftar) {
 }
 
 /**
- * Perintah pemilik (ADMIN_TELEGRAM), dengan kode buku = ID spreadsheet dari pesan WhatsApp pembeli
+ * Perintah pemilik (ADMIN_TELEGRAM), dengan kode buku = ID spreadsheet (terlihat di bukti transfer yang diteruskan bot)
  * (boleh menempel seluruh pesannya setelah perintah):
  *   /lunas <kode buku>    — membuat link aktivasi untuk diteruskan ke pembeli (sekaligus membatalkan /batal);
  *   /batal <kode buku>    — mencabut lisensi: bot langsung berhenti mencatat transaksi baru untuk buku itu,
@@ -1422,7 +1429,7 @@ function prosesLisensi_(m, perintah, teks) {
   const sesudah = teks.slice(teks.search(new RegExp('^\\/' + perintah, 'im')) + perintah.length + 1);
   const calon = sesudah.match(/[\w-]{25,}/g) || [];
   const id = calon[calon.length - 1];
-  if (!id) return kirim_(chatId, 'Format: <code>/' + perintah + ' KODE_BUKU</code>\nKode buku ada di pesan WhatsApp dari pembeli (baris yang diawali /lunas).');
+  if (!id) return kirim_(chatId, 'Format: <code>/' + perintah + ' KODE_BUKU</code>\nKode buku (ID spreadsheet) ada di bukti transfer yang diteruskan bot, baris "Buku:".');
   const dicabut = daftarDicabut_();
   const kode = '<code>' + html_(id) + '</code>';
   const catatanApp = 'di <code>web/assets/config.js</code> → <code>bayar.dicabut</code>, lalu push';
@@ -1441,11 +1448,94 @@ function prosesLisensi_(m, perintah, teks) {
   if (perintah === 'pulihkan') {
     return kirim_(chatId, (tadinyaDicabut ? '✅ Lisensi buku ' + kode + ' dipulihkan. Link aktivasi lamanya berlaku lagi.' : 'ℹ️ Buku ' + kode + ' memang tidak sedang dicabut.') + pengingat);
   }
+  kirim_(chatId, '✅ Link aktivasi untuk buku ' + kode + ' sudah dibuat. Salin pesan di bawah ini lalu kirim ke pembeli.' + pengingat);
+  return kirim_(chatId, pesanAktivasi_(id));
+}
+
+/** Pesan untuk pembeli berisi link aktivasi (siap dikirim / diteruskan). */
+function pesanAktivasi_(id) {
   const link = (properti_('URL_APLIKASI') || URL_APLIKASI) + '#aktivasi=' + id + '.' + tandaTanganLisensi_(id);
-  kirim_(chatId, '✅ Link aktivasi untuk buku ' + kode + ' sudah dibuat. Salin pesan di bawah ini lalu kirim ke pembeli lewat WhatsApp.' + pengingat);
-  return kirim_(chatId, html_('Terima kasih sudah membeli Dompet Keluarga versi penuh! 🎉\n\n'
+  return html_('Terima kasih sudah membeli Dompet Keluarga versi penuh! 🎉\n\n'
     + 'Ketuk link ini di HP yang sudah masuk ke Dompet Keluarga, dan versi penuh langsung aktif untuk seluruh keluarga:\n\n' + link
-    + '\n\nKalau link tidak terbuka di aplikasi: buka Dompet Keluarga → ⚙️ → Versi penuh → "Sudah punya kode aktivasi?", tempel seluruh link di atas, lalu ketuk Aktifkan.'));
+    + '\n\nKalau link tidak terbuka di aplikasi: buka Dompet Keluarga → ⚙️ → Versi penuh → "Sudah punya kode aktivasi?", tempel seluruh link di atas, lalu ketuk Aktifkan.');
+}
+
+// ---------- Pembelian lewat bot: pembeli kirim bukti transfer, pemilik menekan ✅ Lunas / ❌ Tolak ----------
+// Status per chat pembeli disimpan di Script Property byr_<chat id> = { id (buku), tahap: 'foto' | 'cek', nama }.
+
+function bayarTertunda_(chatId) {
+  try { return JSON.parse(properti_('byr_' + chatId) || 'null'); } catch (e) { return null; }
+}
+
+function simpanBayar_(chatId, isi) {
+  const p = PropertiesService.getScriptProperties();
+  if (isi) p.setProperty('byr_' + chatId, JSON.stringify(isi));
+  else p.deleteProperty('byr_' + chatId);
+  if (isiProperti_) {
+    if (isi) isiProperti_['byr_' + chatId] = JSON.stringify(isi);
+    else delete isiProperti_['byr_' + chatId];
+  }
+}
+
+function daftarAdmin_() {
+  return String(properti_('ADMIN_TELEGRAM') || '').split(/[\s,]+/).filter(Boolean);
+}
+
+function mulaiBayar_(m, idBuku) {
+  const chatId = m.chat.id;
+  if (!daftarAdmin_().length || !properti_('LISENSI_KUNCI')) {
+    return kirim_(chatId, '⚠️ Pembayaran lewat bot belum disiapkan penjual. Coba lagi nanti.');
+  }
+  if (daftarDicabut_().indexOf(idBuku) >= 0) return kirim_(chatId, '⚠️ Lisensi buku ini pernah dicabut. Hubungi penjual.');
+  const nama = [m.from.first_name, m.from.last_name].filter(Boolean).join(' ') + (m.from.username ? ' (@' + m.from.username + ')' : '');
+  simpanBayar_(chatId, { id: idBuku, tahap: 'foto', nama });
+  kirim_(chatId, [
+    '⭐ <b>Beli Dompet Keluarga versi penuh</b>',
+    '',
+    'Sudah transfer? Kirim <b>foto / screenshot bukti transfer</b> ke chat ini.',
+    'Setelah dicek, link aktivasi dikirim ke sini.',
+  ].join('\n'));
+}
+
+/** Foto bukti diteruskan ke semua admin beserta tombol keputusan. */
+function terimaBukti_(m, tunggu) {
+  const chatId = m.chat.id;
+  const foto = m.photo ? m.photo[m.photo.length - 1].file_id : m.document && /^image\//.test(m.document.mime_type || '') ? m.document.file_id : '';
+  if (!foto) return kirim_(chatId, '📸 Kirim <b>foto atau screenshot</b> bukti transfernya ya, bukan teks.');
+  const keterangan = '💰 <b>Bukti transfer versi penuh</b>\nDari: ' + html_(tunggu.nama || String(chatId))
+    + '\nBuku: <code>' + html_(tunggu.id) + '</code>' + (m.caption ? '\nPesan: ' + html_(m.caption.slice(0, 300)) : '')
+    + '\n\nCek mutasi rekening, lalu pilih:';
+  const tombol = [[{ text: '✅ Lunas', callback_data: 'lns:' + chatId }, { text: '❌ Tolak', callback_data: 'tlk:' + chatId }]];
+  const metode = m.photo ? 'sendPhoto' : 'sendDocument';
+  let terkirim = 0;
+  daftarAdmin_().forEach(a => {
+    const r = tg_(metode, { chat_id: a, [m.photo ? 'photo' : 'document']: foto, caption: keterangan, parse_mode: 'HTML', reply_markup: { inline_keyboard: tombol } });
+    if (r.ok) terkirim++;
+  });
+  if (!terkirim) return kirim_(chatId, '⚠️ Bukti belum bisa diteruskan ke penjual. Coba kirim ulang sebentar lagi.');
+  simpanBayar_(chatId, Object.assign({}, tunggu, { tahap: 'cek' }));
+  kirim_(chatId, '✅ Bukti transfer diterima dan sedang dicek. Link aktivasi akan dikirim ke chat ini setelah pembayaran dikonfirmasi.');
+}
+
+/** aksi 'lns' (lunas) / 'tlk' (tolak) untuk pembeli dengan chat id `idPembeli`. */
+function putuskanBayar_(q, aksi, idPembeli) {
+  const ubah = teks => tg_('editMessageCaption', { // keputusan ditulis di keterangan foto, tombolnya hilang
+    chat_id: q.message.chat.id, message_id: q.message.message_id, caption: teks, parse_mode: 'HTML',
+  });
+  if (!adminTelegram_(q.from.id)) return tg_('answerCallbackQuery', { callback_query_id: q.id, text: 'Khusus pemilik aplikasi.' });
+  tg_('answerCallbackQuery', { callback_query_id: q.id });
+  const tunggu = bayarTertunda_(idPembeli);
+  const asal = String(q.message.caption || '').split('\n\n')[0];
+  if (!tunggu) return ubah(html_(asal) + '\n\nℹ️ Permintaan ini sudah diproses sebelumnya.');
+  simpanBayar_(idPembeli, null);
+  if (aksi === 'tlk') {
+    kirim_(idPembeli, '❌ Maaf, pembayaranmu belum bisa dikonfirmasi. Pastikan nominal dan tujuan transfernya benar, lalu ketuk lagi tombol <b>Kirim bukti lewat Telegram</b> di aplikasi (⚙️ → Versi penuh).');
+    return ubah(html_(asal) + '\n\n❌ <b>Ditolak</b> oleh ' + html_(q.from.first_name || 'admin') + '.');
+  }
+  const dicabut = daftarDicabut_();
+  if (dicabut.indexOf(tunggu.id) >= 0) simpanDicabut_(dicabut.filter(x => x !== tunggu.id));
+  const r = kirim_(idPembeli, pesanAktivasi_(tunggu.id));
+  ubah(html_(asal) + (r && r.ok ? '\n\n✅ <b>Lunas.</b> Link aktivasi sudah dikirim ke pembeli.' : '\n\n⚠️ Lunas, tapi link gagal dikirim ke pembeli. Kirim manual: /lunas ' + html_(tunggu.id)));
 }
 
 /** Ditambah lewat Sheets API (RAW: teks tidak pernah dianggap rumus), sama seperti aplikasi web. */

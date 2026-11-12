@@ -1675,8 +1675,8 @@ function bukaFormGemini(ajak) {
 // ---------- Versi penuh (pembayaran) ----------
 
 /**
- * Layar beli versi penuh: transfer manual ke rekening pemilik, bukti dikirim lewat WhatsApp, lalu pemilik
- * membalas dengan link aktivasi (dibuat bot lewat /lunas, lihat docs/PEMILIK.md → Versi penuh & pembayaran).
+ * Layar beli versi penuh: transfer manual ke rekening pemilik, bukti dikirim ke bot Telegram, lalu pemilik
+ * menekan ✅ Lunas dan bot mengirim link aktivasi ke pembeli (lihat docs/PEMILIK.md → Versi penuh & pembayaran).
  */
 function bukaFormBayar() {
   const b = KONFIG.bayar || {};
@@ -1687,8 +1687,8 @@ function bukaFormBayar() {
       <p style="margin-top:0">${T('✅ <b>Versi penuh aktif</b> untuk buku ini, tanpa batas transaksi untuk seluruh keluarga, termasuk lewat bot Telegram. Terima kasih sudah mendukung Dompet Keluarga!')}</p>
       <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tutup-sheet">${T('Tutup')}</button></div>`);
   }
-  const pesanWa = ['Halo, saya sudah transfer ' + rp(b.harga) + ' untuk Dompet Keluarga versi penuh.',
-    'Email: ' + (S.data.user || '-'), 'Buku: ' + (S.data.namaBuku || 'Keluarga'), '', '/lunas ' + S.data.spreadsheetId].join('\n');
+  // Membuka bot dengan kode buku terbawa (/start bayar_<ID>); bukti transfer dikirim ke bot, bukan ke penjual langsung.
+  const linkBot = 'https://t.me/' + encodeURIComponent(KONFIG.botTelegram) + '?start=bayar_' + encodeURIComponent(S.data.spreadsheetId);
   bukaSheet(T('Beli versi penuh'), `
     <p style="margin-top:0">${l.terkunci
       ? T('Versi gratis berisi hingga <b>{n} transaksi</b>, dan batas itu sudah tercapai. Semua data tetap aman dan tetap bisa dilihat, diubah, dan diunduh.', { n: l.batas })
@@ -1702,10 +1702,10 @@ function bukaFormBayar() {
           <button type="button" class="tombol-teks" data-aksi="salin-rekening">${T('Salin')}</button>
         </div>
       </li>
-      <li>${T('Kirim bukti transfer lewat WhatsApp. Pesannya sudah terisi, tinggal lampirkan foto bukti.')}
-        <a class="btn btn-utama" style="display:block;margin:8px 0;text-align:center;text-decoration:none;color:var(--on-primary)" href="https://wa.me/${esc(String(b.wa).replace(/\D/g, ''))}?text=${encodeURIComponent(pesanWa)}" target="_blank" rel="noopener">${T('Kirim bukti lewat WhatsApp')}</a>
+      <li>${T('Ketuk tombol di bawah untuk membuka bot Telegram, ketuk <b>Start / Mulai</b>, lalu kirim foto atau screenshot bukti transfer.')}
+        <a class="btn btn-utama" style="display:block;margin:8px 0;text-align:center;text-decoration:none;color:var(--on-primary)" href="${esc(linkBot)}" target="_blank" rel="noopener">${T('Kirim bukti lewat Telegram')}</a>
       </li>
-      <li>${T('Setelah transfer dicek, Anda menerima <b>link aktivasi</b>. Ketuk linknya di HP yang sudah masuk ke Dompet Keluarga, dan versi penuh langsung aktif untuk seluruh keluarga.')}</li>
+      <li>${T('Setelah transfer dicek, bot mengirim <b>link aktivasi</b> ke Telegram Anda. Ketuk linknya di HP yang sudah masuk ke Dompet Keluarga, dan versi penuh langsung aktif untuk seluruh keluarga.')}</li>
     </ol>
     <details class="tabel-data">
       <summary>${T('Sudah punya kode aktivasi?')}</summary>
