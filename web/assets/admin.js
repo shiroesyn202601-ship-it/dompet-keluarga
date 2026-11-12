@@ -18,7 +18,7 @@
   function tokenSaya() {
     if (typeof GOOGLE.token === 'function') return GOOGLE.token();
     try {
-      const s = JSON.parse(localStorage.getItem('dk_sesi'));
+      const s = JSON.parse(localStorage.getItem(window.KUNCI_SESI || 'dk_sesi'));
       return s && s.token && Date.now() < s.kadaluarsa ? s.token : null;
     } catch (e) { return null; }
   }
@@ -46,7 +46,7 @@
         <p>Masuk dengan <b>akun Google pemilik bot</b> (akun yang dipakai di Google Apps Script).</p>
         <button class="utama" id="masuk">Masuk dengan Google</button>
       </div>`;
-    $('#masuk').onclick = () => masuk(false);
+    $('#masuk').onclick = () => masuk(true); // selalu tampilkan pilihan akun
   }
 
   async function masuk(ganti) {

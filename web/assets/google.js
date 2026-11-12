@@ -12,7 +12,7 @@ const GOOGLE = (() => {
     'https://www.googleapis.com/auth/drive.appdata', // menyimpan alamat spreadsheet milik akun ini
   ];
   const SCOPE = ['openid', 'email'].concat(IZIN).join(' ');
-  const SIMPAN = 'dk_sesi';
+  const SIMPAN = window.KUNCI_SESI || 'dk_sesi'; // admin.html memakai kunci sendiri (lihat admin-awal.js)
 
   class PerluMasuk extends Error {}
 
