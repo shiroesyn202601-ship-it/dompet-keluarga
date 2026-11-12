@@ -538,7 +538,7 @@ function tampilMasuk() {
   const email = GOOGLE.email();
   $('#view').innerHTML = `
     <div class="sambut">
-      <img class="logo" src="ikon/logo.svg" alt="">
+      <img class="logo" id="logo-masuk" src="ikon/logo.svg" alt="" draggable="false" style="touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent">
       <h1>Dompet Keluarga</h1>
       <p class="tagline-masuk">${T('Uang keluarga akur, sampai gajian berikutnya.')}</p>
       <ul class="keunggulan">
@@ -560,6 +560,27 @@ function tampilMasuk() {
       <a class="tombol-teks" href="privasi.html">${T('Kebijakan privasi')}</a>
       <span class="pilih-kecil pilih-bahasa-masuk">${pilihBahasa()}</span>
     </div>`;
+  pintuAdmin($('#logo-masuk'));
+}
+
+/**
+ * Pintu tersembunyi ke halaman admin lisensi (admin.html): ketuk logo di layar masuk 10× dalam kurang dari 1 detik.
+ * Hanya penyembunyi; yang benar-benar menjaga adalah login akun pemilik bot di halaman admin itu sendiri.
+ * Dihitung saat jari menyentuh (pointerdown), bukan saat dilepas, supaya ketukan cepat tidak ada yang terlewat.
+ */
+const KETUK_ADMIN = 10, JEDA_ADMIN_MS = 1000;
+function pintuAdmin(el) {
+  if (!el) return;
+  let ketukan = [];
+  el.addEventListener('pointerdown', () => {
+    const kini = performance.now();
+    ketukan = ketukan.filter(t => kini - t < JEDA_ADMIN_MS).concat([kini]);
+    if (ketukan.length >= KETUK_ADMIN) {
+      ketukan = [];
+      location.href = 'admin.html';
+    }
+  });
+  el.addEventListener('contextmenu', e => e.preventDefault()); // tekan lama di HP tidak memunculkan menu gambar
 }
 
 /** Kerangka abu-abu berdenyut selama data pertama dimuat (sama dengan isi awal index.html). */
