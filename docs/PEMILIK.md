@@ -165,12 +165,11 @@ Catatan keamanan: `CLASPRC_JSON` berisi izin login clasp ke akun Google pemilik 
 
 Gratis sampai **450 baris di sheet Transaksi** per buku keuangan. Setelah itu pencatatan transaksi baru dikunci, baik di aplikasi maupun di bot Telegram, sampai buku itu dibeli versi penuhnya (**Rp30.000, sekali bayar**). Data lama tetap bisa dilihat, diubah, dihapus, dan diunduh. Lisensi berlaku per buku (per spreadsheet), jadi seluruh anggota keluarga di buku itu ikut terbuka di semua perangkat.
 
-**Alur jual (lewat bot Telegram, tanpa WhatsApp):**
-1. Pembeli membuka **⚙️ → Versi penuh** (atau tombol di baris status saat sisa ≤ 50), mentransfer ke rekeningmu, lalu mengetuk **Kirim bukti lewat Telegram**. Bot terbuka dengan kode buku terbawa (`/start bayar_<kode buku>`), dan pembeli mengirim foto bukti transfer.
-2. Bot meneruskan foto itu ke semua akun `ADMIN_TELEGRAM` beserta nama Telegram pembeli, kode buku, dan tombol **✅ Lunas / ❌ Tolak**. Status tiap pembeli disimpan di Script Property `byr_<chat id>`.
-3. Kamu cek mutasi rekening, lalu tekan **✅ Lunas**. Bot langsung mengirim link aktivasi ke pembeli. **❌ Tolak** mengirim pesan ke pembeli supaya mengirim ulang.
-4. Pembeli mengetuk linknya, dan versi penuh langsung aktif. Kalau link tidak terbuka di aplikasi, kode juga bisa ditempel di **⚙️ → Versi penuh → Sudah punya kode aktivasi?**
-5. Cara manual tetap ada: `/lunas <kode buku>` membuat link untuk dikirim sendiri.
+**Alur jual (halaman admin):**
+1. Pembeli membuka **⚙️ → Versi penuh** (atau tombol di baris status saat sisa ≤ 50), mentransfer ke rekeningmu, memilih foto bukti transfer, lalu mengetuk **Kirim bukti**. Aplikasi mengirim foto + kode buku + tanda login Google pembeli ke web app bot (`POST ?api=1`, aksi `minta`); bot memastikan akun itu memang bisa membuka spreadsheet tersebut, menyimpan foto di Drive akun pemilik bot, dan mencatat permintaannya di Script Property `req_<ID spreadsheet>`. Kalau `ADMIN_TELEGRAM` diisi, bot juga mengirim pemberitahuan Telegram.
+2. Kamu buka **[admin.html](https://shiroesyn202601-ship-it.github.io/dompet-keluarga/admin.html)** dan masuk dengan **akun Google pemilik bot** (atau email di Script Property `ADMIN_EMAIL`, pisahkan koma). Di sana ada daftar permintaan (Menunggu / Aktif / Nonaktif / Ditolak), tombol **Lihat bukti transfer**, dan tombol **Aktifkan / Tolak / Nonaktifkan**.
+3. **Aktifkan**: aplikasi pembeli menanyakan statusnya ke bot (tiap menit selama menunggu, lihat `tanyaBot_` di db.js), menerima kode aktivasi, lalu menyimpannya sendiri ke sheet Pengaturan. Pembeli tidak perlu mengetuk link apa pun. **Nonaktifkan** = dicabut (sama dengan `/batal`), berlaku di aplikasi paling lambat 6 jam. **Tolak** = pembeli diminta mengirim ulang bukti.
+4. Cara lama tetap ada: `/lunas <kode buku>` di bot membuat link aktivasi untuk dikirim sendiri.
 
 **Link vs kode aktivasi:** keduanya sama. Kode aktivasi adalah bagian link setelah `#aktivasi=` (`<kode buku>.<tanda tangan>`), dan kolom di aplikasi menerima seluruh link maupun kodenya saja.
 

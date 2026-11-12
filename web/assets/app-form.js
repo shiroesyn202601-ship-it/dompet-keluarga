@@ -1675,9 +1675,11 @@ function bukaFormGemini(ajak) {
 // ---------- Versi penuh (pembayaran) ----------
 
 /**
- * Layar beli versi penuh: transfer manual ke rekening pemilik, bukti dikirim ke bot Telegram, lalu pemilik
- * menekan ✅ Lunas dan bot mengirim link aktivasi ke pembeli (lihat docs/PEMILIK.md → Versi penuh & pembayaran).
+ * Layar beli versi penuh: transfer manual ke rekening pemilik, foto bukti diunggah dari sini, lalu pemilik menekan
+ * Aktifkan di halaman admin (web/admin.html) dan versi penuh terpasang sendiri saat aplikasi dimuat
+ * (lihat docs/PEMILIK.md → Versi penuh & pembayaran).
  */
+let buktiBayar = null; // data URL JPEG bukti transfer yang dipilih, belum dikirim
 function bukaFormBayar() {
   const b = KONFIG.bayar || {};
   const l = S.data && S.data.lisensi;
@@ -1687,9 +1689,13 @@ function bukaFormBayar() {
       <p style="margin-top:0">${T('✅ <b>Versi penuh aktif</b> untuk buku ini, tanpa batas transaksi untuk seluruh keluarga, termasuk lewat bot Telegram. Terima kasih sudah mendukung Dompet Keluarga!')}</p>
       <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="tutup-sheet">${T('Tutup')}</button></div>`);
   }
-  // Membuka bot dengan kode buku terbawa (/start bayar_<ID>); bukti transfer dikirim ke bot, bukan ke penjual langsung.
-  const linkBot = 'https://t.me/' + encodeURIComponent(KONFIG.botTelegram) + '?start=bayar_' + encodeURIComponent(S.data.spreadsheetId);
-  bukaSheet(T('Beli versi penuh'), `
+  buktiBayar = null;
+  const menunggu = l.permintaan === 'menunggu';
+  const kabar = menunggu
+    ? `<p class="kotak-wajib-ai">${T('⏳ <b>Bukti transfer sudah terkirim.</b> Tunggu konfirmasi penjual; versi penuh aktif sendiri saat aplikasi dibuka lagi, tanpa perlu apa-apa.')}</p>`
+    : l.permintaan === 'ditolak' ? `<p class="kotak-wajib-ai">${T('❌ Bukti transfer sebelumnya <b>ditolak</b> penjual. Pastikan nominal dan tujuan transfernya benar, lalu kirim ulang.')}</p>`
+    : l.permintaan === 'nonaktif' ? `<p class="kotak-wajib-ai">${T('⚠️ Versi penuh buku ini <b>dinonaktifkan</b> penjual. Kirim bukti transfer kalau ingin mengaktifkannya lagi.')}</p>` : '';
+  bukaSheet(T('Beli versi penuh'), `${kabar}
     <p style="margin-top:0">${l.terkunci
       ? T('Versi gratis berisi hingga <b>{n} transaksi</b>, dan batas itu sudah tercapai. Semua data tetap aman dan tetap bisa dilihat, diubah, dan diunduh.', { n: l.batas })
       : T('Versi gratis berisi hingga <b>{n} transaksi</b>. Sudah terpakai {terpakai}.', { n: l.batas, terpakai: l.terpakai })}</p>
@@ -1702,10 +1708,14 @@ function bukaFormBayar() {
           <button type="button" class="tombol-teks" data-aksi="salin-rekening">${T('Salin')}</button>
         </div>
       </li>
-      <li>${T('Ketuk tombol di bawah untuk membuka bot Telegram, ketuk <b>Start / Mulai</b>, lalu kirim foto atau screenshot bukti transfer.')}
-        <a class="btn btn-utama" style="display:block;margin:8px 0;text-align:center;text-decoration:none;color:var(--on-primary)" href="${esc(linkBot)}" target="_blank" rel="noopener">${T('Kirim bukti lewat Telegram')}</a>
+      <li>${T('Pilih foto atau screenshot bukti transfer, lalu ketuk <b>Kirim bukti</b>.')}
+        <label class="btn btn-kedua" style="display:block;margin:8px 0;text-align:center;cursor:pointer">
+          <input type="file" id="bukti-bayar" accept="image/*" hidden>${menunggu ? T('📷 Ganti foto bukti') : T('📷 Pilih foto bukti transfer')}
+        </label>
+        <img id="pratinjau-bukti" alt="" hidden style="display:block;max-width:100%;max-height:240px;margin:0 auto 8px;border-radius:12px">
+        <button type="button" class="btn btn-utama" style="display:block;width:100%" data-aksi="kirim-bukti" id="tombol-kirim-bukti" disabled>${T('Kirim bukti')}</button>
       </li>
-      <li>${T('Setelah transfer dicek, bot mengirim <b>link aktivasi</b> ke Telegram Anda. Ketuk linknya di HP yang sudah masuk ke Dompet Keluarga, dan versi penuh langsung aktif untuk seluruh keluarga.')}</li>
+      <li>${T('Penjual mengecek transfernya. Setelah dikonfirmasi, versi penuh <b>aktif sendiri</b> untuk seluruh keluarga saat aplikasi dibuka lagi.')}</li>
     </ol>
     <details class="tabel-data">
       <summary>${T('Sudah punya kode aktivasi?')}</summary>
@@ -1715,6 +1725,45 @@ function bukaFormBayar() {
       </div>
       <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="aktifkan-lisensi">${T('Aktifkan')}</button></div>
     </details>`);
+  $('#bukti-bayar').addEventListener('change', async e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const g = await kecilkanGambar(file);
+      buktiBayar = 'data:image/jpeg;base64,' + g.lampiran;
+      const img = $('#pratinjau-bukti');
+      img.src = buktiBayar;
+      img.hidden = false;
+      $('#tombol-kirim-bukti').disabled = false;
+    } catch (err) {
+      toast(pesanError(err), true);
+    }
+  });
+}
+
+/** Mengirim bukti transfer yang dipilih di layar Beli versi penuh. */
+async function kirimBuktiBayar(tombol) {
+  if (!buktiBayar) return toast(T('Pilih foto bukti transfernya dulu.'), true);
+  tombol.disabled = true;
+  loading(true);
+  try {
+    const status = await api('mintaAktivasi', buktiBayar);
+    if (status === 'aktif') {
+      await muat();
+      tutupSheet();
+      return toast(T('Versi penuh aktif. Terima kasih! 🎉'));
+    }
+    S.data.lisensi.permintaan = 'menunggu';
+    tulisLokal('data', S.data);
+    bukaFormBayar();
+    render();
+    toast(T('Bukti terkirim ✔ Versi penuh aktif sendiri setelah dikonfirmasi penjual.'));
+  } catch (e) {
+    tombol.disabled = false;
+    if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
+  } finally {
+    loading(false);
+  }
 }
 
 /** Link aktivasi diketuk (#aktivasi=…): dipasang di buku yang sesuai, lalu data dimuat ulang. */

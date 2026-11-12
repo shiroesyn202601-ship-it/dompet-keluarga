@@ -503,6 +503,9 @@ const terkunciBayar = () => !!(S.data && S.data.lisensi && S.data.lisensi.terkun
 function barisLisensi() {
   const l = S.data && S.data.lisensi;
   if (!l || l.aktif || DEMO.aktif() || S.data.perluSetup || l.batas - l.terpakai > 50) return null;
+  if (l.permintaan === 'menunggu') {
+    return { isi: `${T('⏳ Bukti transfer sedang dicek penjual. Versi penuh aktif sendiri setelah dikonfirmasi.')} <button type="button" data-aksi="versi-penuh">${T('Lihat')}</button>` };
+  }
   const tombol = `<button type="button" data-aksi="versi-penuh">${T('Beli versi penuh')}</button>`;
   return l.terkunci
     ? { kelas: 'gagal', isi: `${T('🔒 Batas {n} transaksi gratis tercapai. Data tetap bisa dilihat.', { n: l.batas })} ${tombol}` }

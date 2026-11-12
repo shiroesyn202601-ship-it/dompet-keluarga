@@ -165,6 +165,17 @@ function cekWebhook() {
 // ======================================================================
 
 function doPost(e) {
+  // ?api=1: permintaan aktivasi dari aplikasi & halaman admin (web/admin.html), bukan dari Telegram.
+  if (e && e.parameter && e.parameter.api) {
+    let hasil;
+    try {
+      hasil = apiLisensi_(JSON.parse(e.postData.contents));
+    } catch (err) {
+      console.warn('api lisensi: ' + err.message);
+      hasil = { galat: err.message };
+    }
+    return ContentService.createTextOutput(JSON.stringify(hasil)).setMimeType(ContentService.MimeType.JSON);
+  }
   const rahasia = PropertiesService.getScriptProperties().getProperty('WEBHOOK_SECRET');
   if (rahasia && e && e.parameter && e.parameter.rahasia === rahasia && e.postData) {
     try {
@@ -178,13 +189,19 @@ function doPost(e) {
 }
 
 /**
- * ?lisensi=<ID spreadsheet> → {"dicabut": true|false}, dipakai aplikasi web untuk buku versi penuh (lihat cekDicabut_
- * di web/assets/db.js), supaya /batal langsung berlaku tanpa mengubah config.js. Hanya menjawab ya/tidak, tidak membuka data apa pun.
+ * ?lisensi=<ID spreadsheet> → { dicabut, status, kode }, dipakai aplikasi web (tanyaBot_ di web/assets/db.js):
+ * dicabut = lisensi dinonaktifkan pemilik; status = permintaan aktivasi ('menunggu' | 'aktif' | 'ditolak' | 'nonaktif' | '');
+ * kode = kode aktivasi kalau status 'aktif', supaya versi penuh terpasang sendiri tanpa link. Tidak membuka data apa pun.
  */
 function doGet(e) {
   const id = e && e.parameter && String(e.parameter.lisensi || '');
   if (id) {
-    const isi = /^[\w-]{20,100}$/.test(id) ? { dicabut: daftarDicabut_().indexOf(id) >= 0 } : { galat: 'ID tidak valid' };
+    let isi = { galat: 'ID tidak valid' };
+    if (/^[\w-]{20,100}$/.test(id)) {
+      const dicabut = daftarDicabut_().indexOf(id) >= 0;
+      const status = (permintaan_(id) || {}).status || '';
+      isi = { dicabut, status, kode: status === 'aktif' && !dicabut && properti_('LISENSI_KUNCI') ? tandaTanganLisensi_(id) : '' };
+    }
     return ContentService.createTextOutput(JSON.stringify(isi)).setMimeType(ContentService.MimeType.JSON);
   }
   return HtmlService.createHtmlOutput('Bot Dompet Keluarga aktif.');
@@ -1536,6 +1553,135 @@ function putuskanBayar_(q, aksi, idPembeli) {
   if (dicabut.indexOf(tunggu.id) >= 0) simpanDicabut_(dicabut.filter(x => x !== tunggu.id));
   const r = kirim_(idPembeli, pesanAktivasi_(tunggu.id));
   ubah(html_(asal) + (r && r.ok ? '\n\n✅ <b>Lunas.</b> Link aktivasi sudah dikirim ke pembeli.' : '\n\n⚠️ Lunas, tapi link gagal dikirim ke pembeli. Kirim manual: /lunas ' + html_(tunggu.id)));
+}
+
+// ---------- Permintaan aktivasi lewat aplikasi + halaman admin (web/admin.html) ----------
+// Pembeli mengunggah bukti transfer dari aplikasi; pemilik membuka admin.html, melihat buktinya, lalu menekan
+// Aktifkan / Nonaktifkan / Tolak. Status per buku: Script Property req_<ID spreadsheet> =
+// { email, buku, t, status: 'menunggu' | 'aktif' | 'ditolak' | 'nonaktif', foto (ID file di Drive pemilik), diubah }.
+// Foto bukti disimpan di Drive akun pemilik bot. Admin = ADMIN_EMAIL (pisahkan koma), bawaan: email pemilik bot.
+
+/** Client ID OAuth aplikasi web (sama dengan KONFIG.clientId di web/assets/config.js; bukan rahasia). */
+const CLIENT_ID_APLIKASI = '669221737081-jerp2njdv8dqibrvndei3sefolm4b1d5.apps.googleusercontent.com';
+
+function permintaan_(id) {
+  try { return JSON.parse(properti_('req_' + id) || 'null'); } catch (e) { return null; }
+}
+
+function simpanPermintaan_(id, isi) {
+  const nilai = JSON.stringify(isi);
+  PropertiesService.getScriptProperties().setProperty('req_' + id, nilai);
+  if (isiProperti_) isiProperti_['req_' + id] = nilai;
+}
+
+/** Token Google dari aplikasi → { email }. Hanya token yang dibuat untuk aplikasi ini (client ID sama) yang diterima. */
+function akunGoogle_(token) {
+  if (!token) throw new Error('Silakan masuk dengan akun Google dulu.');
+  const res = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+  const j = res.getResponseCode() === 200 ? JSON.parse(res.getContentText()) : {};
+  if (!j.email || (j.aud !== CLIENT_ID_APLIKASI && j.azp !== CLIENT_ID_APLIKASI)) throw new Error('Sesi login sudah habis. Muat ulang halaman lalu masuk lagi.');
+  return { email: String(j.email).toLowerCase() };
+}
+
+/** Email pemilik bot (akun yang men-deploy), dari Drive "about" dengan token bot sendiri; disimpan sehari. */
+function emailPemilik_() {
+  const cache = CacheService.getScriptCache();
+  const ada = cache.get('email_pemilik');
+  if (ada) return ada;
+  const res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)', {
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true,
+  });
+  const email = res.getResponseCode() === 200 ? String(JSON.parse(res.getContentText()).user.emailAddress || '').toLowerCase() : '';
+  if (email) cache.put('email_pemilik', email, 21600);
+  return email;
+}
+
+function adminWeb_(email) {
+  const daftar = String(properti_('ADMIN_EMAIL') || emailPemilik_()).toLowerCase().split(/[\s,]+/).filter(Boolean);
+  return daftar.indexOf(email) >= 0;
+}
+
+function apiLisensi_(b) {
+  const akun = akunGoogle_(b && b.token);
+  if (b.aksi === 'minta') return mintaAktivasi_(akun, b);
+  if (!adminWeb_(akun.email)) throw new Error('Akun ' + akun.email + ' bukan admin. Masuk dengan akun Google pemilik bot.');
+  if (b.aksi === 'daftar') return { daftar: daftarPermintaan_(), admin: akun.email };
+  if (b.aksi === 'foto') return { foto: fotoBukti_(String(b.id || '')) };
+  if (b.aksi === 'atur') return aturLisensi_(String(b.id || ''), String(b.status || ''));
+  throw new Error('Aksi tidak dikenal.');
+}
+
+/** Pembeli mengirim bukti transfer untuk buku `b.id`. Akun pengirim harus bisa membuka spreadsheet itu. */
+function mintaAktivasi_(akun, b) {
+  const id = String(b.id || '');
+  if (!/^[\w-]{20,100}$/.test(id)) throw new Error('Kode buku tidak valid.');
+  if (!properti_('LISENSI_KUNCI')) throw new Error('Pembayaran belum disiapkan penjual. Coba lagi nanti.');
+  const lama = permintaan_(id);
+  if (lama && lama.status === 'aktif' && daftarDicabut_().indexOf(id) < 0) return { status: 'aktif' };
+  const foto = String(b.foto || '').match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+  if (!foto) throw new Error('Lampirkan foto bukti transfer.');
+  if (foto[2].length > 4e6) throw new Error('Fotonya terlalu besar. Pilih foto lain.');
+  const cek = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?fields=id,name', {
+    headers: { Authorization: 'Bearer ' + b.token }, muteHttpExceptions: true,
+  });
+  if (cek.getResponseCode() !== 200) throw new Error('Buku keuangan ini tidak bisa dibuka dari akun Anda.');
+  const nama = String(JSON.parse(cek.getContentText()).name || '').replace(/^Dompet Keluarga\s*-?\s*/, '') || 'Keluarga';
+
+  const mime = 'image/' + foto[1];
+  const batas = 'dk' + Utilities.getUuid().replace(/-/g, '');
+  const meta = JSON.stringify({ name: 'Bukti transfer - ' + akun.email + ' - ' + nama, mimeType: mime });
+  const unggah = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'post', contentType: 'multipart/related; boundary=' + batas, muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: Utilities.newBlob('--' + batas + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta
+      + '\r\n--' + batas + '\r\nContent-Type: ' + mime + '\r\n\r\n').getBytes()
+      .concat(Utilities.base64Decode(foto[2]), Utilities.newBlob('\r\n--' + batas + '--').getBytes()),
+  });
+  if (unggah.getResponseCode() !== 200) throw new Error('Foto belum bisa disimpan. Coba lagi sebentar lagi.');
+  if (lama && lama.foto) {
+    UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + lama.foto, {
+      method: 'delete', headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true,
+    });
+  }
+  const sekarang = sekarangIso_();
+  simpanPermintaan_(id, { email: akun.email, buku: nama.slice(0, 60), t: sekarang, status: 'menunggu', foto: JSON.parse(unggah.getContentText()).id, diubah: sekarang });
+  daftarAdmin_().forEach(a => kirim_(a, '🔔 <b>Permintaan aktivasi baru</b>\n' + html_(akun.email) + ' · buku ' + html_(nama)
+    + '\n\nBuka halaman admin: ' + html_((properti_('URL_APLIKASI') || URL_APLIKASI) + 'admin.html')));
+  return { status: 'menunggu' };
+}
+
+function daftarPermintaan_() {
+  const semua = PropertiesService.getScriptProperties().getProperties();
+  const dicabut = daftarDicabut_();
+  return Object.keys(semua).filter(k => /^req_/.test(k)).map(k => {
+    let r = {};
+    try { r = JSON.parse(semua[k]); } catch (e) { /* lewati */ }
+    const id = k.slice(4);
+    return { id, email: r.email || '', buku: r.buku || '', t: r.t || '', diubah: r.diubah || '', ada_foto: !!r.foto,
+      status: r.status === 'aktif' && dicabut.indexOf(id) >= 0 ? 'nonaktif' : r.status || 'menunggu' };
+  }).sort((a, b) => String(b.t).localeCompare(String(a.t)));
+}
+
+function fotoBukti_(id) {
+  const r = permintaan_(id);
+  if (!r || !r.foto) throw new Error('Foto bukti tidak ada.');
+  const res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + r.foto + '?alt=media', {
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() !== 200) throw new Error('Foto bukti tidak bisa dibuka (mungkin sudah dihapus dari Drive).');
+  const blob = res.getBlob();
+  return 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes());
+}
+
+/** status: 'aktif' (lisensi terpasang sendiri di aplikasi pembeli), 'nonaktif' (dicabut), 'ditolak'. */
+function aturLisensi_(id, status) {
+  if (['aktif', 'nonaktif', 'ditolak'].indexOf(status) < 0) throw new Error('Status tidak dikenal.');
+  const r = permintaan_(id);
+  if (!r) throw new Error('Permintaan tidak ditemukan.');
+  const dicabut = daftarDicabut_().filter(x => x !== id);
+  simpanDicabut_(status === 'nonaktif' ? dicabut.concat([id]) : dicabut);
+  simpanPermintaan_(id, Object.assign(r, { status, diubah: sekarangIso_() }));
+  return { ok: true, status };
 }
 
 /** Ditambah lewat Sheets API (RAW: teks tidak pernah dianggap rumus), sama seperti aplikasi web. */

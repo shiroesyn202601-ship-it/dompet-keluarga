@@ -1933,35 +1933,81 @@ const SERVER = (() => {
   }
 
   /**
-   * Sudah dicabut pemilik lewat /batal di bot? Ditanyakan ke web app bot (KONFIG.bayar.urlBot) paling sering
-   * sekali sehari per buku; jawabannya disimpan di HP. Gagal tersambung → pakai jawaban terakhir (awalnya: tidak dicabut),
+   * Status lisensi buku ini di bot (KONFIG.bayar.urlBot): { dicabut, status, kode } (lihat doGet di bot/Kode.gs).
+   * Jawaban disimpan di HP dan baru ditanyakan lagi setelah `umur` ms. Gagal tersambung → jawaban terakhir (bisa null),
    * supaya pembeli sah tidak terkunci hanya karena sinyal jelek.
    */
-  async function cekDicabut_(idBuku) {
-    if (!BAYAR.urlBot) return false;
-    const kunci = 'dk_cabut_' + idBuku;
+  const kunciBot_ = idBuku => 'dk_lis_' + idBuku;
+  async function tanyaBot_(idBuku, umur) {
+    if (!BAYAR.urlBot) return null;
     let simpan = null;
-    try { simpan = JSON.parse(localStorage.getItem(kunci)); } catch (e) { /* abaikan */ }
-    if (simpan && Date.now() - simpan.t < 864e5) return !!simpan.d;
+    try { simpan = JSON.parse(localStorage.getItem(kunciBot_(idBuku))); } catch (e) { /* abaikan */ }
+    if (simpan && Date.now() - simpan.t < umur) return simpan.j;
     try {
       const henti = new AbortController();
-      const jeda = setTimeout(() => henti.abort(), 5000);
+      const jeda = setTimeout(() => henti.abort(), 6000);
       const r = await fetch(BAYAR.urlBot + '?lisensi=' + encodeURIComponent(idBuku), { signal: henti.signal });
       clearTimeout(jeda);
       const j = await r.json();
       if (typeof j.dicabut !== 'boolean') throw new Error('jawaban tidak dikenal');
-      try { localStorage.setItem(kunci, JSON.stringify({ t: Date.now(), d: j.dicabut })); } catch (e) { /* abaikan */ }
-      return j.dicabut;
+      try { localStorage.setItem(kunciBot_(idBuku), JSON.stringify({ t: Date.now(), j })); } catch (e) { /* abaikan */ }
+      return j;
     } catch (e) {
-      return !!(simpan && simpan.d);
+      return simpan ? simpan.j : null;
     }
   }
+  const cekDicabut_ = async idBuku => !!((await tanyaBot_(idBuku, 6 * 36e5)) || {}).dicabut;
 
-  /** { batas, terpakai, aktif (versi penuh), terkunci }, atau null kalau batas tidak berlaku. */
+  /** HP ini sudah mengirim bukti transfer untuk buku ini dan masih menunggu jawaban penjual. */
+  const kunciMinta_ = idBuku => 'dk_minta_' + idBuku;
+  const sedangMinta_ = idBuku => { try { return !!localStorage.getItem(kunciMinta_(idBuku)); } catch (e) { return false; } };
+
+  /**
+   * { batas, terpakai, aktif (versi penuh), terkunci, permintaan ('menunggu' | 'ditolak' | …) }, atau null kalau batas tidak berlaku.
+   * Lisensi yang sudah tersimpan dicek pencabutannya tiap 6 jam. Belum berlisensi tapi sedang menunggu konfirmasi
+   * (atau kuota hampir habis): bot ditanya, dan kalau penjual sudah menekan Aktifkan, kodenya langsung disimpan ke buku ini.
+   */
   async function statusLisensi_(idBuku, terpakai, set) {
     if (!pakaiBatas_()) return null;
-    const aktif = await lisensiSah_(idBuku, pengaturan_(set).LISENSI) && !(await cekDicabut_(idBuku));
-    return { batas: BAYAR.batasGratis, terpakai, aktif, terkunci: !aktif && terpakai >= BAYAR.batasGratis };
+    let aktif = await lisensiSah_(idBuku, pengaturan_(set).LISENSI);
+    let permintaan = '';
+    if (aktif) {
+      if (await cekDicabut_(idBuku)) { aktif = false; permintaan = 'nonaktif'; }
+    } else if (BAYAR.urlBot && (sedangMinta_(idBuku) || terpakai >= BAYAR.batasGratis - 50)) {
+      const j = await tanyaBot_(idBuku, sedangMinta_(idBuku) ? 60e3 : 36e5);
+      if (j) {
+        permintaan = j.status || '';
+        if (j.kode && !j.dicabut && await lisensiSah_(idBuku, j.kode)) {
+          await simpanPengaturan_(idBuku, set, 'LISENSI', j.kode);
+          aktif = true;
+        }
+        if (j.status !== 'menunggu') { try { localStorage.removeItem(kunciMinta_(idBuku)); } catch (e) { /* abaikan */ } }
+      }
+    }
+    return { batas: BAYAR.batasGratis, terpakai, aktif, terkunci: !aktif && terpakai >= BAYAR.batasGratis, permintaan };
+  }
+
+  /** Pembeli mengirim foto bukti transfer (data URL JPEG) untuk buku yang sedang dibuka; dicek penjual di admin.html. */
+  async function mintaAktivasi(foto) {
+    const id = await db_();
+    const token = GOOGLE.token();
+    if (!token) throw new GOOGLE.PerluMasuk(T('Sesi login sudah habis. Silakan masuk lagi.'));
+    let j;
+    try {
+      // text/plain: permintaan "sederhana", jadi browser tidak perlu izin CORS tambahan dari Apps Script.
+      const r = await fetch(BAYAR.urlBot + '?api=1', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ aksi: 'minta', token, id, foto }) });
+      j = await r.json();
+    } catch (e) {
+      const err = new Error(T('Tidak bisa terhubung ke penjual. Periksa koneksi internet lalu coba lagi.'));
+      err.jaringan = true;
+      throw err;
+    }
+    if (j.galat) throw new Error(j.galat);
+    try {
+      localStorage.removeItem(kunciBot_(id));
+      if (j.status === 'menunggu') localStorage.setItem(kunciMinta_(id), String(Date.now()));
+    } catch (e) { /* abaikan */ }
+    return j.status;
   }
 
   /** Dipanggil sebelum transaksi baru ditulis. ids / set opsional (kalau sudah dibaca pemanggil). */
@@ -2392,7 +2438,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, aturCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, simpanAvatar, aktifkanLisensi, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, simpanAvatar, aktifkanLisensi, mintaAktivasi, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };

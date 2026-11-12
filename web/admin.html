@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self';
+      script-src 'self' https://accounts.google.com https://apis.google.com https://www.gstatic.com;
+      style-src 'self' 'unsafe-inline' https://accounts.google.com https://www.gstatic.com;
+      img-src 'self' data: blob: https:;
+      connect-src 'self' https://*.googleapis.com https://accounts.google.com https://script.google.com https://script.googleusercontent.com;
+      frame-src https://accounts.google.com;">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>Admin Lisensi</title>
+    <link rel="icon" href="ikon/favicon-32.png">
+    <style>
+      :root { --bg: #f4f5f8; --card: #fff; --text: #14161c; --muted: #6b7180; --line: #e3e5ea; --primary: #0f7c84; --on-primary: #fff;
+        --ok: #1a8f4c; --ok-bg: #e3f6eb; --warn: #9a6400; --warn-bg: #fdf1d8; --bad: #b42318; --bad-bg: #fde7e5; color-scheme: light; }
+      @media (prefers-color-scheme: dark) {
+        :root { --bg: #0b0c10; --card: #171920; --text: #eceef3; --muted: #9aa0ad; --line: #2a2d36; --primary: #3bb6bf; --on-primary: #06292c;
+          --ok: #5fd394; --ok-bg: #12301f; --warn: #f2c063; --warn-bg: #33270e; --bad: #ff8a80; --bad-bg: #3a1614; color-scheme: dark; }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      main { max-width: 760px; margin: 0 auto; padding: 16px 16px 48px; }
+      h1 { font-size: 22px; margin: 8px 0 4px; }
+      .sub { color: var(--muted); margin: 0 0 16px; font-size: 13.5px; }
+      .kepala { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      button { font: inherit; border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
+      button:disabled { opacity: .55; cursor: default; }
+      .utama { background: var(--primary); color: var(--on-primary); }
+      .kedua { background: var(--line); color: var(--text); }
+      .bahaya { background: var(--bad-bg); color: var(--bad); }
+      .teks { background: none; color: var(--primary); padding: 6px 8px; }
+      .tab { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 14px; padding-bottom: 2px; }
+      .tab button { background: var(--card); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; padding: 8px 14px; }
+      .tab button.aktif { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+      .kartu { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px; }
+      .baris1 { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+      .baris1 b { font-size: 16px; word-break: break-word; }
+      .ket { color: var(--muted); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
+      .chip { font-size: 12px; font-weight: 800; border-radius: 99px; padding: 3px 10px; white-space: nowrap; }
+      .chip.menunggu { background: var(--warn-bg); color: var(--warn); }
+      .chip.aktif { background: var(--ok-bg); color: var(--ok); }
+      .chip.ditolak, .chip.nonaktif { background: var(--bad-bg); color: var(--bad); }
+      .aksi { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+      .bukti { display: block; max-width: 100%; max-height: 420px; margin-top: 12px; border-radius: 12px; border: 1px solid var(--line); cursor: zoom-in; }
+      .kosong, .pesan { text-align: center; color: var(--muted); padding: 32px 8px; }
+      .galat { background: var(--bad-bg); color: var(--bad); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+      #besar { position: fixed; inset: 0; background: rgba(0, 0, 0, .85); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 9; }
+      #besar img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+      #besar[hidden] { display: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="kepala">
+        <div>
+          <h1>Admin Lisensi</h1>
+          <p class="sub" id="akun">Dompet Keluarga · permintaan aktivasi versi penuh</p>
+        </div>
+        <div id="tombol-atas"></div>
+      </div>
+      <div id="isi"><p class="pesan">Memuat…</p></div>
+    </main>
+    <div id="besar" hidden><img alt="Bukti transfer"></div>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="assets/bahasa.js"></script>
+    <script src="assets/config.js"></script>
+    <script src="assets/google.js"></script>
+    <script src="assets/admin.js"></script>
+  </body>
+</html>

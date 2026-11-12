@@ -136,6 +136,7 @@ const AKSI = {
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
   'versi-penuh': () => bukaFormBayar(),
+  'kirim-bukti': el => kirimBuktiBayar(el),
   'salin-rekening': async () => {
     const no = String((KONFIG.bayar || {}).rekening || '').replace(/\s/g, '');
     try { await navigator.clipboard.writeText(no); toast(T('Nomor rekening disalin ✔')); } catch (e) { toast(no); }

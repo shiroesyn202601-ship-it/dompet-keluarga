@@ -252,5 +252,7 @@ const GOOGLE = (() => {
     });
   }
 
-  return { masuk, keluar, sudahMasuk, segarkanKalauPerlu, email: () => sesi && sesi.email, api, multipart, pilihSpreadsheet, PerluMasuk };
+  // token(): dikirim ke bot (permintaan aktivasi & halaman admin) supaya bot bisa memastikan akun pengirimnya.
+  return { masuk, keluar, sudahMasuk, segarkanKalauPerlu, email: () => sesi && sesi.email, token: () => (sudahMasuk() ? sesi.token : null),
+    api, multipart, pilihSpreadsheet, PerluMasuk };
 })();
