@@ -137,6 +137,7 @@ const AKSI = {
   'gemini': () => bukaFormGemini(),
   'versi-penuh': () => bukaFormBayar(),
   'kirim-bukti': el => kirimBuktiBayar(el),
+  'segarkan-lisensi': el => segarkanStatusLisensi(el),
   'salin-rekening': async () => {
     const no = String((KONFIG.bayar || {}).rekening || '').replace(/\s/g, '');
     try { await navigator.clipboard.writeText(no); toast(T('Nomor rekening disalin ✔')); } catch (e) { toast(no); }
@@ -918,6 +919,7 @@ const AKSI = {
     el.disabled = true;
     try {
       await GOOGLE.masuk(!!el.dataset.akunLain);
+      SERVER.lupakanStatusLisensi(); // status versi penuh dicek ulang saat itu juga
       await muatDariAwal();
     } catch (e) {
       toast(pesanError(e), true);

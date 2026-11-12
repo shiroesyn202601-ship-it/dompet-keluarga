@@ -8,81 +8,172 @@
       img-src 'self' data: blob: https:;
       connect-src 'self' https://*.googleapis.com https://accounts.google.com https://script.google.com https://script.googleusercontent.com;
       frame-src https://accounts.google.com;">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="robots" content="noindex">
+    <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0c0e12" media="(prefers-color-scheme: dark)">
     <title>Admin Lisensi</title>
     <link rel="icon" href="ikon/favicon-32.png">
     <style>
-      :root { --bg: #f4f5f8; --card: #fff; --text: #14161c; --muted: #6b7180; --line: #e3e5ea; --primary: #0f7c84; --on-primary: #fff;
-        --ok: #1a8f4c; --ok-bg: #e3f6eb; --warn: #9a6400; --warn-bg: #fdf1d8; --bad: #b42318; --bad-bg: #fde7e5; color-scheme: light; }
+      :root {
+        --bg: #f4f6f8; --card: #ffffff; --card-2: #f0f2f5; --text: #14171d; --muted: #667085; --line: #e4e7ec;
+        --primary: #0f7c84; --primary-2: #e2f3f4; --on-primary: #ffffff;
+        --ok: #14804a; --ok-bg: #e3f5eb; --warn: #9a5b00; --warn-bg: #fdf1dc; --bad: #c0362c; --bad-bg: #fdeceb; --info: #4b5563; --info-bg: #eef0f3;
+        --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .06); --radius: 16px; color-scheme: light;
+      }
       @media (prefers-color-scheme: dark) {
-        :root { --bg: #0b0c10; --card: #171920; --text: #eceef3; --muted: #9aa0ad; --line: #2a2d36; --primary: #3bb6bf; --on-primary: #06292c;
-          --ok: #5fd394; --ok-bg: #12301f; --warn: #f2c063; --warn-bg: #33270e; --bad: #ff8a80; --bad-bg: #3a1614; color-scheme: dark; }
+        :root {
+          --bg: #0c0e12; --card: #161920; --card-2: #1e222b; --text: #eceef2; --muted: #98a2b3; --line: #272b35;
+          --primary: #3fb8c0; --primary-2: #123437; --on-primary: #05262a;
+          --ok: #5ad08f; --ok-bg: #11301f; --warn: #f3bf5c; --warn-bg: #33260c; --bad: #ff8b80; --bad-bg: #3b1715; --info: #c3c8d1; --info-bg: #23272f;
+          --shadow: 0 1px 2px rgba(0, 0, 0, .3); color-scheme: dark;
+        }
       }
       * { box-sizing: border-box; }
-      body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-      main { max-width: 760px; margin: 0 auto; padding: 16px 16px 48px; }
-      h1 { font-size: 22px; margin: 8px 0 4px; }
-      .sub { color: var(--muted); margin: 0 0 16px; font-size: 13.5px; }
-      .kepala { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-      button { font: inherit; border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 700; cursor: pointer; }
+      html, body { margin: 0; background: var(--bg); color: var(--text); }
+      body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; -webkit-font-smoothing: antialiased; }
+      button, input, textarea { font: inherit; color: inherit; }
+      button { border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 700; cursor: pointer; background: none; }
       button:disabled { opacity: .55; cursor: default; }
-      .utama { background: var(--primary); color: var(--on-primary); }
-      .kedua { background: var(--line); color: var(--text); }
-      .bahaya { background: var(--bad-bg); color: var(--bad); }
-      .teks { background: none; color: var(--primary); padding: 6px 8px; }
-      .tab { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 14px; padding-bottom: 2px; }
-      .tab button { background: var(--card); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; padding: 8px 14px; }
-      .tab button.aktif { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
-      .kartu { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px; }
-      .baris1 { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
-      .baris1 b { font-size: 16px; word-break: break-word; }
-      .ket { color: var(--muted); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
-      .chip { font-size: 12px; font-weight: 800; border-radius: 99px; padding: 3px 10px; white-space: nowrap; }
-      .chip.menunggu { background: var(--warn-bg); color: var(--warn); }
-      .chip.aktif { background: var(--ok-bg); color: var(--ok); }
-      .chip.ditolak, .chip.nonaktif { background: var(--bad-bg); color: var(--bad); }
-      .aksi { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-      .bukti { display: block; max-width: 100%; max-height: 420px; margin-top: 12px; border-radius: 12px; border: 1px solid var(--line); cursor: zoom-in; }
-      .kosong, .pesan { text-align: center; color: var(--muted); padding: 32px 8px; }
-      .galat { background: var(--bad-bg); color: var(--bad); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
-      #besar { position: fixed; inset: 0; background: rgba(0, 0, 0, .85); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 9; }
-      #besar img { max-width: 100%; max-height: 100%; border-radius: 8px; }
-      #besar[hidden] { display: none; }
-      #dialog { position: fixed; inset: 0; background: rgba(8, 10, 14, .55); backdrop-filter: blur(3px); display: flex; align-items: center;
-        justify-content: center; padding: 16px; z-index: 10; animation: muncul .15s ease-out; }
-      #dialog[hidden] { display: none; }
-      .kotak-dialog { background: var(--card); border: 1px solid var(--line); border-radius: 20px; width: 100%; max-width: 400px; padding: 22px 20px 18px;
-        box-shadow: 0 24px 60px rgba(0, 0, 0, .35); animation: naik .18s ease-out; }
-      .ikon-dialog { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 12px; }
-      .ikon-dialog.aktif { background: var(--ok-bg); } .ikon-dialog.nonaktif, .ikon-dialog.ditolak { background: var(--bad-bg); }
-      .kotak-dialog h2 { font-size: 18px; margin: 0 0 6px; }
-      .kotak-dialog p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
-      .ringkas { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 16px; font-size: 14px; }
-      .ringkas b { display: block; overflow-wrap: anywhere; } .ringkas span { color: var(--muted); font-size: 13px; }
+      a { color: var(--primary); }
+      .btn-utama { background: var(--primary); color: var(--on-primary); }
+      .btn-kedua { background: var(--card-2); }
+      .btn-hijau { background: var(--ok); color: #fff; }
+      .btn-merah { background: var(--bad); color: #fff; }
+      .btn-lembut-merah { background: var(--bad-bg); color: var(--bad); }
+      @media (prefers-color-scheme: dark) { .btn-hijau, .btn-merah { color: #0c0e12; } }
+
+      /* Bilah atas */
+      .bilah { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--line); }
+      .bilah-isi { max-width: 1080px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; }
+      .merek { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+      .merek img { width: 36px; height: 36px; }
+      .merek small { display: block; color: var(--muted); font-size: 12px; line-height: 1.2; }
+      .merek b { display: block; font-size: 17px; line-height: 1.2; }
+      .akun { display: flex; align-items: center; gap: 6px; }
+      .chip-akun { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 99px;
+        padding: 4px 12px 4px 4px; font-size: 13px; max-width: 260px; }
+      .chip-akun span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .inisial { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); color: var(--on-primary); display: grid; place-items: center;
+        font-weight: 800; font-size: 13px; flex: none; }
+      .ikon-btn { width: 38px; height: 38px; padding: 0; border-radius: 12px; display: grid; place-items: center; font-size: 17px; color: var(--muted); }
+      .ikon-btn:hover { background: var(--card-2); color: var(--text); }
+      @media (max-width: 640px) { .chip-akun { display: none; } }
+
+      main { max-width: 1080px; margin: 0 auto; padding: 18px 16px 64px; }
+
+      /* Ringkasan */
+      .ringkasan { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 18px; }
+      .tile { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow);
+        text-align: left; display: block; width: 100%; }
+      button.tile:hover { border-color: var(--primary); }
+      .tile.dipilih { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-2); }
+      .tile small { color: var(--muted); font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+      .tile b { display: block; font-size: 24px; margin-top: 2px; letter-spacing: -.02em; }
+      .titik { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+      @media (max-width: 760px) {
+        .ringkasan { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .tile { padding: 9px 10px; border-radius: 13px; } .tile small { font-size: 11px; gap: 4px; } .tile b { font-size: 19px; }
+        .tile.uang { grid-column: span 4; display: flex; justify-content: space-between; align-items: center; } .tile.uang b { margin: 0; font-size: 16px; }
+      }
+      @media (max-width: 380px) { .tile small .titik { display: none; } }
+
+      /* Alat */
+      .alat { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+      .segmen { display: flex; background: var(--card-2); border-radius: 12px; padding: 3px; overflow-x: auto; max-width: 100%; }
+      .segmen button { padding: 7px 12px; border-radius: 9px; font-size: 13.5px; color: var(--muted); white-space: nowrap; }
+      .segmen button.aktif { background: var(--card); color: var(--text); box-shadow: var(--shadow); }
+      .segmen .n { font-weight: 600; opacity: .7; margin-left: 3px; }
+      .cari { flex: 1; min-width: 200px; position: relative; }
+      .cari input { width: 100%; padding: 10px 12px 10px 36px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); outline: none; }
+      .cari input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-2); }
+      .cari span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; pointer-events: none; }
+
+      /* Kartu pengajuan */
+      .daftar { display: grid; grid-template-columns: 1fr; gap: 12px; }
+      @media (min-width: 900px) { .daftar { grid-template-columns: 1fr 1fr; } }
+      .kartu { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px;
+        display: grid; grid-template-columns: 104px 1fr; gap: 14px; }
+      .bukti { width: 104px; height: 132px; border-radius: 12px; background: var(--card-2); border: 1px dashed var(--line); display: grid; place-items: center;
+        color: var(--muted); font-size: 12.5px; text-align: center; padding: 6px; cursor: pointer; overflow: hidden; }
+      .bukti img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+      .bukti.ada { border-style: solid; padding: 0; cursor: zoom-in; }
+      .bukti.kosong { cursor: default; }
+      .isi { min-width: 0; display: flex; flex-direction: column; }
+      .atas { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+      .email { font-weight: 800; font-size: 15.5px; overflow-wrap: anywhere; }
+      .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+      .kode { margin-top: 8px; display: flex; align-items: center; gap: 6px; font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: var(--muted); background: var(--card-2); border-radius: 8px; padding: 5px 8px; min-width: 0; }
+      .kode span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+      .kode button { padding: 2px 6px; font-size: 12px; color: var(--primary); }
+      .status { font-size: 12px; font-weight: 800; border-radius: 99px; padding: 3px 10px; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+      .status.menunggu { background: var(--warn-bg); color: var(--warn); }
+      .status.aktif { background: var(--ok-bg); color: var(--ok); }
+      .status.ditolak { background: var(--bad-bg); color: var(--bad); }
+      .status.nonaktif { background: var(--info-bg); color: var(--info); }
+      .alasan { margin-top: 8px; font-size: 13px; background: var(--bad-bg); color: var(--bad); border-radius: 10px; padding: 7px 10px; }
+      .aksi { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 12px; }
+      .aksi button { padding: 9px 14px; font-size: 14px; }
+      @media (max-width: 420px) { .kartu { grid-template-columns: 84px 1fr; gap: 12px; } .bukti { width: 84px; height: 108px; } }
+
+      /* Kerangka saat memuat */
+      .kerangka { height: 160px; background: linear-gradient(90deg, var(--card) 25%, var(--card-2) 50%, var(--card) 75%); background-size: 200% 100%;
+        animation: kilau 1.2s infinite; border: 1px solid var(--line); border-radius: var(--radius); }
+      @keyframes kilau { to { background-position: -200% 0; } }
+
+      .kosong-besar { text-align: center; color: var(--muted); padding: 48px 16px; background: var(--card); border: 1px dashed var(--line); border-radius: var(--radius); }
+      .kosong-besar b { display: block; color: var(--text); font-size: 16px; margin: 8px 0 2px; }
+      .galat { background: var(--bad-bg); color: var(--bad); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 14px; }
+
+      /* Masuk */
+      .masuk { max-width: 400px; margin: 10vh auto 0; background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 28px 24px;
+        text-align: center; box-shadow: var(--shadow); }
+      .masuk img { width: 64px; height: 64px; }
+      .masuk h1 { font-size: 22px; margin: 10px 0 6px; }
+      .masuk p { color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+      .masuk button { width: 100%; padding: 13px; }
+
+      /* Dialog, foto besar, kabar */
+      .lapis { position: fixed; inset: 0; z-index: 20; background: rgba(8, 10, 14, .55); backdrop-filter: blur(3px); display: flex; align-items: center;
+        justify-content: center; padding: 16px; animation: muncul .15s ease-out; }
+      .lapis[hidden] { display: none; }
+      .dialog { background: var(--card); border: 1px solid var(--line); border-radius: 20px; width: 100%; max-width: 440px; max-height: calc(100vh - 32px);
+        overflow: auto; padding: 22px 20px 18px; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); animation: naik .18s ease-out; }
+      .dialog .ikon { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; font-size: 22px; margin-bottom: 12px; }
+      .dialog h2 { font-size: 18px; margin: 0 0 6px; }
+      .dialog > p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+      .siapa { background: var(--card-2); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; font-size: 14px; }
+      .siapa b { display: block; overflow-wrap: anywhere; } .siapa span { color: var(--muted); font-size: 13px; }
+      .pilihan { display: grid; gap: 6px; margin-bottom: 12px; }
+      .pilihan label { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; font-size: 14px; }
+      .pilihan label:has(input:checked) { border-color: var(--bad); background: var(--bad-bg); }
+      .pilihan input { margin-top: 3px; accent-color: var(--bad); }
+      .dialog textarea { width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 10px 12px; resize: vertical; min-height: 70px; outline: none; }
+      .dialog textarea:focus { border-color: var(--primary); }
+      .pratinjau { font-size: 13px; color: var(--muted); margin: 10px 0 14px; }
+      .pratinjau div { margin-top: 4px; background: var(--card-2); color: var(--text); border-radius: 10px; padding: 8px 10px; }
       .tombol-dialog { display: flex; gap: 8px; justify-content: flex-end; }
-      .tombol-dialog button { min-width: 96px; }
-      .ok-hijau { background: var(--ok); color: #fff; } .ok-merah { background: var(--bad); color: #fff; }
-      @media (prefers-color-scheme: dark) { .ok-hijau, .ok-merah { color: #0b0c10; } }
-      #kabar { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px;
-        border-radius: 12px; font-weight: 700; font-size: 14px; z-index: 11; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); max-width: calc(100% - 32px); }
+      .tombol-dialog button { min-width: 100px; }
+      #foto-besar { background: rgba(0, 0, 0, .88); cursor: zoom-out; }
+      #foto-besar img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+      #kabar { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 30; background: var(--text); color: var(--bg); padding: 11px 18px;
+        border-radius: 12px; font-weight: 700; font-size: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); max-width: calc(100% - 32px); }
       #kabar[hidden] { display: none; }
       @keyframes muncul { from { opacity: 0; } } @keyframes naik { from { transform: translateY(12px); opacity: 0; } }
     </style>
   </head>
   <body>
-    <main>
-      <div class="kepala">
-        <div>
-          <h1>Admin Lisensi</h1>
-          <p class="sub" id="akun">Dompet Keluarga · permintaan aktivasi versi penuh</p>
-        </div>
-        <div id="tombol-atas"></div>
+    <header class="bilah" id="bilah" hidden>
+      <div class="bilah-isi">
+        <div class="merek"><img src="ikon/logo.svg" alt=""><div><small>Dompet Keluarga</small><b>Admin Lisensi</b></div></div>
+        <div class="akun" id="akun"></div>
       </div>
-      <div id="isi"><p class="pesan">Memuat…</p></div>
-    </main>
-    <div id="besar" hidden><img alt="Bukti transfer"></div>
-    <div id="dialog" hidden role="dialog" aria-modal="true" aria-labelledby="judul-dialog"></div>
+    </header>
+    <main id="isi"></main>
+    <div class="lapis" id="dialog" hidden role="dialog" aria-modal="true"></div>
+    <div class="lapis" id="foto-besar" hidden><img alt="Bukti transfer"></div>
     <div id="kabar" hidden role="status"></div>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="assets/admin-awal.js"></script>

@@ -2256,3 +2256,9 @@ body.samar #view .harga-ubah, body.samar .barang-harga b { filter: blur(7px); }
 .papan-kosong span .ik { width: 48px; height: 48px; stroke-width: 1.5; }
 .aksi-catatan .btn-arsip-catatan { flex: none; padding: 13px 14px; }
 @media (max-width: 459px) { .label-arsip { display: none; } } /* HP: cukup ikon supaya Hapus & Simpan tetap muat */
+
+/* Pencatatan dikunci (versi penuh dinonaktifkan / kuota gratis habis): tombol + tampil nonaktif,
+   tapi tetap bisa diketuk untuk membuka layar Versi penuh (lihat terkunciBayar di app.js). */
+body.catat-terkunci .bottomnav .fab { background: color-mix(in srgb, var(--text) 28%, var(--card)); color: var(--card); box-shadow: none; }
+body.catat-terkunci .bottomnav .fab::after { content: '🔒'; position: absolute; right: -4px; top: -4px; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--card); box-shadow: 0 1px 4px rgba(0, 0, 0, .25); display: grid; place-items: center; font-size: 12px; line-height: 1; }

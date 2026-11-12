@@ -1691,12 +1691,21 @@ function bukaFormBayar() {
   }
   buktiBayar = null;
   const menunggu = l.permintaan === 'menunggu';
-  const kabar = menunggu
-    ? `<p class="kotak-wajib-ai">${T('⏳ <b>Bukti transfer sudah terkirim.</b> Tunggu konfirmasi penjual; versi penuh aktif sendiri saat aplikasi dibuka lagi, tanpa perlu apa-apa.')}</p>`
-    : l.permintaan === 'ditolak' ? `<p class="kotak-wajib-ai">${T('❌ Bukti transfer sebelumnya <b>ditolak</b> penjual. Pastikan nominal dan tujuan transfernya benar, lalu kirim ulang.')}</p>`
-    : l.permintaan === 'nonaktif' ? `<p class="kotak-wajib-ai">${T('⚠️ Versi penuh buku ini <b>dinonaktifkan</b> penjual. Kirim bukti transfer kalau ingin mengaktifkannya lagi.')}</p>` : '';
+  // Kotak status aktivasi + tombol Perbarui status (menanyakan bot saat itu juga, lihat SERVER.segarkanLisensi).
+  const status = menunggu
+    ? { ikon: '⏳', judul: T('Menunggu konfirmasi penjual'), isi: T('Bukti transfer sudah terkirim. Versi penuh aktif sendiri setelah dikonfirmasi, tanpa perlu apa-apa.') }
+    : l.permintaan === 'ditolak' ? { ikon: '❌', judul: T('Bukti transfer ditolak'),
+      isi: (l.alasan ? T('Alasan: <b>{alasan}</b>', { alasan: esc(l.alasan) }) + '<br>' : '') + T('Perbaiki lalu kirim ulang bukti transfernya di bawah.') }
+    : l.permintaan === 'nonaktif' ? { ikon: '⚠️', judul: T('Versi penuh dinonaktifkan penjual'), isi: T('Kirim bukti transfer kalau ingin mengaktifkannya lagi.') }
+    : { ikon: '🔓', judul: T('Belum mengajukan aktivasi'), isi: T('Sudah transfer dan mengirim bukti dari HP lain? Ketuk Perbarui status.') };
+  const kabar = `
+    <div class="kotak-wajib-ai" style="display:flex;gap:12px;align-items:flex-start">
+      <span style="font-size:22px;line-height:1">${status.ikon}</span>
+      <span style="flex:1"><b>${status.judul}</b><br><small>${status.isi}</small></span>
+      <button type="button" class="tombol-teks" style="white-space:nowrap;padding:4px 0" data-aksi="segarkan-lisensi">${T('🔄 Perbarui status')}</button>
+    </div>`;
   bukaSheet(T('Beli versi penuh'), `${kabar}
-    <p style="margin-top:0">${l.terkunci
+    <p style="margin-top:0">${l.terpakai >= l.batas
       ? T('Versi gratis berisi hingga <b>{n} transaksi</b>, dan batas itu sudah tercapai. Semua data tetap aman dan tetap bisa dilihat, diubah, dan diunduh.', { n: l.batas })
       : T('Versi gratis berisi hingga <b>{n} transaksi</b>. Sudah terpakai {terpakai}.', { n: l.batas, terpakai: l.terpakai })}</p>
     <p>${T('Versi penuh: <b>{harga}</b>, sekali bayar untuk selamanya. Tanpa batas transaksi untuk seluruh keluarga di buku ini, termasuk lewat bot Telegram.', { harga: rp(b.harga) })}</p>
@@ -1739,6 +1748,32 @@ function bukaFormBayar() {
       toast(pesanError(err), true);
     }
   });
+}
+
+/** Tombol Perbarui status: tanya penjual sekarang, lalu tampilkan hasilnya (atau langsung aktif). */
+async function segarkanStatusLisensi(tombol) {
+  tombol.disabled = true;
+  loading(true);
+  try {
+    const l = await api('segarkanLisensi');
+    if (!l) return;
+    const sebelum = S.data.lisensi || {};
+    S.data.lisensi = l;
+    tulisLokal('data', S.data);
+    if (l.aktif) {
+      tutupSheet();
+      await muat();
+      return toast(T('Versi penuh aktif. Terima kasih! 🎉'));
+    }
+    bukaFormBayar();
+    render();
+    toast(l.permintaan === sebelum.permintaan && l.alasan === sebelum.alasan ? T('Status sudah yang terbaru') : T('Status diperbarui'));
+  } catch (e) {
+    tombol.disabled = false;
+    if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
+  } finally {
+    loading(false);
+  }
 }
 
 /** Mengirim bukti transfer yang dipilih di layar Beli versi penuh. */

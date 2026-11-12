@@ -1956,27 +1956,30 @@ const SERVER = (() => {
       return simpan ? simpan.j : null;
     }
   }
-  const cekDicabut_ = async idBuku => !!((await tanyaBot_(idBuku, 6 * 36e5)) || {}).dicabut;
+  // Lisensi yang tersimpan dicek pencabutannya paling lambat tiap 10 menit (langsung saat login / Perbarui status).
+  const cekDicabut_ = async idBuku => !!((await tanyaBot_(idBuku, 10 * 6e4)) || {}).dicabut;
 
   /** HP ini sudah mengirim bukti transfer untuk buku ini dan masih menunggu jawaban penjual. */
   const kunciMinta_ = idBuku => 'dk_minta_' + idBuku;
   const sedangMinta_ = idBuku => { try { return !!localStorage.getItem(kunciMinta_(idBuku)); } catch (e) { return false; } };
 
   /**
-   * { batas, terpakai, aktif (versi penuh), terkunci, permintaan ('menunggu' | 'ditolak' | …) }, atau null kalau batas tidak berlaku.
-   * Lisensi yang sudah tersimpan dicek pencabutannya tiap 6 jam. Belum berlisensi tapi sedang menunggu konfirmasi
+   * { batas, terpakai, aktif (versi penuh), terkunci, permintaan ('menunggu' | 'ditolak' | …), alasan (penolakan) }, atau null kalau batas tidak berlaku.
+   * Lisensi yang sudah tersimpan dicek pencabutannya tiap 10 menit; dinonaktifkan penjual = pencatatan baru dikunci, berapa pun kuotanya. Belum berlisensi tapi sedang menunggu konfirmasi
    * (atau kuota hampir habis): bot ditanya, dan kalau penjual sudah menekan Aktifkan, kodenya langsung disimpan ke buku ini.
    */
-  async function statusLisensi_(idBuku, terpakai, set) {
+  async function statusLisensi_(idBuku, terpakai, set, paksa) {
     if (!pakaiBatas_()) return null;
     let aktif = await lisensiSah_(idBuku, pengaturan_(set).LISENSI);
-    let permintaan = '';
+    let permintaan = '', alasan = '';
     if (aktif) {
+      if (paksa) { try { localStorage.removeItem(kunciBot_(idBuku)); } catch (e) { /* abaikan */ } }
       if (await cekDicabut_(idBuku)) { aktif = false; permintaan = 'nonaktif'; }
-    } else if (BAYAR.urlBot && (sedangMinta_(idBuku) || terpakai >= BAYAR.batasGratis - 50)) {
-      const j = await tanyaBot_(idBuku, sedangMinta_(idBuku) ? 60e3 : 36e5);
+    } else if (BAYAR.urlBot && (paksa || sedangMinta_(idBuku) || terpakai >= BAYAR.batasGratis - 50)) {
+      const j = await tanyaBot_(idBuku, paksa ? 0 : sedangMinta_(idBuku) ? 60e3 : 36e5);
       if (j) {
         permintaan = j.status || '';
+        alasan = j.status === 'ditolak' ? String(j.alasan || '') : '';
         if (j.kode && !j.dicabut && await lisensiSah_(idBuku, j.kode)) {
           await simpanPengaturan_(idBuku, set, 'LISENSI', j.kode);
           aktif = true;
@@ -1984,7 +1987,19 @@ const SERVER = (() => {
         if (j.status !== 'menunggu') { try { localStorage.removeItem(kunciMinta_(idBuku)); } catch (e) { /* abaikan */ } }
       }
     }
-    return { batas: BAYAR.batasGratis, terpakai, aktif, terkunci: !aktif && terpakai >= BAYAR.batasGratis, permintaan };
+    return { batas: BAYAR.batasGratis, terpakai, aktif, terkunci: !aktif && (terpakai >= BAYAR.batasGratis || permintaan === 'nonaktif'), permintaan, alasan };
+  }
+
+  /** Login baru: status lisensi semua buku ditanyakan ulang ke bot (tidak memakai jawaban tersimpan). */
+  function lupakanStatusLisensi() {
+    try { Object.keys(localStorage).filter(k => /^dk_lis_/.test(k)).forEach(k => localStorage.removeItem(k)); } catch (e) { /* abaikan */ }
+  }
+
+  /** Tombol "Perbarui status" di layar Versi penuh: tanya bot sekarang juga (tanpa cache). Hasil: status lisensi terbaru. */
+  async function segarkanLisensi() {
+    const id = await db_();
+    const [ids, [set]] = await Promise.all([daftarId_(id), bacaTabel_(id, ['pengaturan'])]);
+    return statusLisensi_(id, ids.filter(Boolean).length, set, true);
   }
 
   /** Pembeli mengirim foto bukti transfer (data URL JPEG) untuk buku yang sedang dibuka; dicek penjual di admin.html. */
@@ -2016,7 +2031,8 @@ const SERVER = (() => {
     const [daftar, rows] = await Promise.all([ids || daftarId_(id), set || bacaTabel_(id, ['pengaturan']).then(x => x[0])]);
     const s = await statusLisensi_(id, daftar.filter(Boolean).length, rows);
     if (!s.terkunci) return;
-    const e = new Error(T('Batas {n} transaksi gratis sudah tercapai. Beli versi penuh untuk mencatat lagi.', { n: s.batas }));
+    const e = new Error(s.permintaan === 'nonaktif' ? T('Versi penuh buku ini dinonaktifkan penjual. Aktifkan lagi di ⚙️ → Versi penuh untuk mencatat.')
+      : T('Batas {n} transaksi gratis sudah tercapai. Beli versi penuh untuk mencatat lagi.', { n: s.batas }));
     e.perluBayar = true; // app.js membuka layar pembayaran
     throw e;
   }
@@ -2438,7 +2454,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, aturCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, simpanAvatar, aktifkanLisensi, mintaAktivasi, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, simpanAvatar, aktifkanLisensi, mintaAktivasi, segarkanLisensi, lupakanStatusLisensi, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };

@@ -503,6 +503,9 @@ const terkunciBayar = () => !!(S.data && S.data.lisensi && S.data.lisensi.terkun
 function barisLisensi() {
   const l = S.data && S.data.lisensi;
   if (!l || l.aktif || DEMO.aktif() || S.data.perluSetup || l.batas - l.terpakai > 50) return null;
+  if (l.permintaan === 'ditolak') {
+    return { kelas: 'gagal', isi: `${T('❌ Bukti transfer ditolak penjual. Ketuk Lihat untuk alasannya.')} <button type="button" data-aksi="versi-penuh">${T('Lihat')}</button>` };
+  }
   if (l.permintaan === 'menunggu') {
     return { isi: `${T('⏳ Bukti transfer sedang dicek penjual. Versi penuh aktif sendiri setelah dikonfirmasi.')} <button type="button" data-aksi="versi-penuh">${T('Lihat')}</button>` };
   }
@@ -564,11 +567,11 @@ function tampilMasuk() {
 }
 
 /**
- * Pintu tersembunyi ke halaman admin lisensi (admin.html): ketuk logo di layar masuk 10× dalam kurang dari 1 detik.
+ * Pintu tersembunyi ke halaman admin lisensi (admin.html): ketuk logo di layar masuk 5× dalam kurang dari 1 detik.
  * Hanya penyembunyi; yang benar-benar menjaga adalah login akun pemilik bot di halaman admin itu sendiri.
  * Dihitung saat jari menyentuh (pointerdown), bukan saat dilepas, supaya ketukan cepat tidak ada yang terlewat.
  */
-const KETUK_ADMIN = 10, JEDA_ADMIN_MS = 1000;
+const KETUK_ADMIN = 5, JEDA_ADMIN_MS = 1000;
 function pintuAdmin(el) {
   if (!el) return;
   let ketukan = [];
@@ -730,6 +733,7 @@ function render() {
   if (S.tab === 'catatan-edit') simpanDraftCatatan();
   $('#view').innerHTML = bannerStatus() + view();
   document.body.dataset.tab = S.tab; // tata letak per halaman di layar lebar (styles.css → Tampilan web)
+  document.body.classList.toggle('catat-terkunci', terkunciBayar()); // tombol + tampil nonaktif (lihat styles.css)
   kelompokkanBagian();
   document.querySelectorAll('#nav [data-tab]').forEach(b => b.classList.toggle('aktif', b.dataset.tab === S.tab));
   aturGeserNav();

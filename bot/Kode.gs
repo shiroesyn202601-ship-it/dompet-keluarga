@@ -199,8 +199,9 @@ function doGet(e) {
     let isi = { galat: 'ID tidak valid' };
     if (/^[\w-]{20,100}$/.test(id)) {
       const dicabut = daftarDicabut_().indexOf(id) >= 0;
-      const status = statusPengajuan_(id);
-      isi = { dicabut, status, kode: status === 'aktif' && !dicabut && properti_('LISENSI_KUNCI') ? tandaTanganLisensi_(id) : '' };
+      const aju = statusPengajuan_(id);
+      const status = aju.status;
+      isi = { dicabut, status, alasan: aju.alasan, kode: status === 'aktif' && !dicabut && properti_('LISENSI_KUNCI') ? tandaTanganLisensi_(id) : '' };
     }
     return ContentService.createTextOutput(JSON.stringify(isi)).setMimeType(ContentService.MimeType.JSON);
   }
@@ -410,7 +411,7 @@ function jalankanPerintah_(d, chatId, x, terakhir, pengguna, balasan, tambahan, 
   };
   switch (x.aksi) {
     case 'catat': {
-      if (kuotaPenuh_(d)) return kirim_(chatId, PESAN_BATAS_GRATIS);
+      if (kuotaPenuh_(d)) return kirim_(chatId, pesanKunci_());
       const t = siapkanTransaksi_(d, x, pengguna);
       const id = tambahTransaksi_(t, pengguna.email);
       d.transaksi.push(Object.assign({ id, oleh: pengguna.email, dibuat: sekarangIso_() }, t, { tanggal: t.tanggal }));
@@ -836,7 +837,7 @@ function prosesFoto_(m, pengguna, d, jTunggu, jFile) {
   d.transaksi = olahJawabanTransaksi_(ekstra.jawaban ? ekstra.jawaban[0] : UrlFetchApp.fetchAll([mintaTransaksi_()])[0]);
   const hargaLama = olahHarga_(ekstra.jawaban ? ekstra.jawaban[1] : null, d.transaksi);
   waktu_('transaksi siap');
-  if (kuotaPenuh_(d)) return ubahPesan_(chatId, tunggu.message_id, PESAN_BATAS_GRATIS);
+  if (kuotaPenuh_(d)) return ubahPesan_(chatId, tunggu.message_id, pesanKunci_());
 
   // Keterangan foto bisa menyebut dompet ("pakai gopay") atau catatan tambahan.
   const ket = (m.caption || '').trim();
@@ -1406,11 +1407,21 @@ function tandaTanganLisensi_(idSheet) {
   return Utilities.base64EncodeWebSafe(Utilities.computeRsaSha256Signature('DK1:' + idSheet, pem)).replace(/=+$/, '');
 }
 
+/** Pesan saat pencatatan dikunci: dinonaktifkan penjual, atau batas gratis tercapai. */
+function pesanKunci_() {
+  return daftarDicabut_().indexOf(idSpreadsheet_()) >= 0
+    ? '⛔ Versi penuh buku ini dinonaktifkan penjual, jadi transaksi baru belum bisa dicatat.\n\n'
+      + 'Aktifkan lagi di aplikasi Dompet Keluarga: ⚙️ → <b>Versi penuh</b>. Data lama tetap aman dan bisa dilihat.'
+    : PESAN_BATAS_GRATIS;
+}
+
 /** true = buku ini sudah mencapai batas gratis dan belum versi penuh (atau lisensinya dicabut). Tanpa LISENSI_KUNCI batas tidak berlaku. */
 function kuotaPenuh_(d) {
-  if (!properti_('LISENSI_KUNCI') || modeLama_() || d.transaksi.length < BATAS_GRATIS) return false;
+  if (!properti_('LISENSI_KUNCI') || modeLama_()) return false;
   const id = idSpreadsheet_();
-  return daftarDicabut_().indexOf(id) >= 0 || String(d.pengaturan.LISENSI || '') !== tandaTanganLisensi_(id);
+  if (daftarDicabut_().indexOf(id) >= 0) return true; // dinonaktifkan penjual: dikunci berapa pun kuotanya
+  if (d.transaksi.length < BATAS_GRATIS) return false;
+  return String(d.pengaturan.LISENSI || '') !== tandaTanganLisensi_(id);
 }
 
 /** ID buku yang lisensinya dicabut (/batal), disimpan di Script Property LISENSI_DICABUT (dipisah koma). */
@@ -1570,7 +1581,9 @@ const NAMA_FOLDER_UTAMA = 'Dompet keluarga';
 const NAMA_FOLDER_ADMIN = 'Admin';
 const NAMA_SHEET_AJU = 'Pengajuan Aktivasi';
 const TAB_AJU = 'Pengajuan';
-const KOLOM_AJU = ['Dikirim', 'Email', 'Nama Buku', 'Kode Buku', 'Status', 'Bukti Transfer', 'Diubah'];
+const KOLOM_AJU = ['Dikirim', 'Email', 'Nama Buku', 'Kode Buku', 'Status', 'Bukti Transfer', 'Diubah', 'Alasan'];
+/** Versi susunan kolom sheet; naikkan kalau KOLOM_AJU berubah supaya baris judul sheet lama ikut diperbarui. */
+const VERSI_SHEET_AJU = '2';
 const STATUS_AJU = { menunggu: 'Menunggu', aktif: 'Aktif', ditolak: 'Ditolak', nonaktif: 'Nonaktif' };
 
 /** Drive / Sheets REST dengan akun pemilik bot. Gagal → Error dengan .status. */
@@ -1620,7 +1633,15 @@ let idSheetAju_ = '';
 function sheetAju_() {
   if (idSheetAju_) return idSheetAju_;
   let id = properti_('ADMIN_SHEET');
-  if (masihAda_(id)) return (idSheetAju_ = id);
+  if (masihAda_(id)) {
+    if (properti_('ADMIN_SHEET_V') !== VERSI_SHEET_AJU) {
+      apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + range_(TAB_AJU + '!A1') + '?valueInputOption=RAW', {
+        method: 'put', contentType: 'application/json', payload: JSON.stringify({ values: [KOLOM_AJU] }),
+      });
+      simpanProp_('ADMIN_SHEET_V', VERSI_SHEET_AJU);
+    }
+    return (idSheetAju_ = id);
+  }
   return denganKunci_(() => {
     isiProperti_ = null;
     id = properti_('ADMIN_SHEET');
@@ -1639,7 +1660,7 @@ function sheetAju_() {
         { repeatCell: { range: { sheetId: sheet, startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: 'userEnteredFormat.textFormat.bold' } },
         { setDataValidation: { range: { sheetId: sheet, startRowIndex: 1, startColumnIndex: 4, endColumnIndex: 5 }, rule: {
           condition: { type: 'ONE_OF_LIST', values: Object.keys(STATUS_AJU).map(k => ({ userEnteredValue: STATUS_AJU[k] })) }, showCustomUi: true, strict: true } } },
-        kolom(0, 1, 140), kolom(1, 2, 220), kolom(2, 3, 150), kolom(3, 4, 330), kolom(4, 5, 100), kolom(5, 6, 330), kolom(6, 7, 140),
+        kolom(0, 1, 140), kolom(1, 2, 220), kolom(2, 3, 150), kolom(3, 4, 330), kolom(4, 5, 100), kolom(5, 6, 330), kolom(6, 7, 140), kolom(7, 8, 320),
       ] }),
     });
     apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + range_(TAB_AJU + '!A1') + '?valueInputOption=RAW', {
@@ -1668,6 +1689,7 @@ function sheetAju_() {
       });
     }
     simpanProp_('ADMIN_SHEET', id);
+    simpanProp_('ADMIN_SHEET_V', VERSI_SHEET_AJU);
     Object.keys(semua).filter(k => /^req_/.test(k)).forEach(k => PropertiesService.getScriptProperties().deleteProperty(k));
     return (idSheetAju_ = id);
   });
@@ -1678,7 +1700,8 @@ const linkFoto_ = id => (id ? 'https://drive.google.com/file/d/' + id + '/view' 
 const idFoto_ = link => (String(link || '').match(/\/file\/d\/([\w-]+)/) || [])[1] || '';
 
 function barisAju_(id, r) {
-  return [waktuAju_(r.t), r.email || '', r.buku || '', id, STATUS_AJU[r.status] || STATUS_AJU.menunggu, linkFoto_(r.foto), waktuAju_(r.diubah)];
+  return [waktuAju_(r.t), r.email || '', r.buku || '', id, STATUS_AJU[r.status] || STATUS_AJU.menunggu, linkFoto_(r.foto), waktuAju_(r.diubah),
+    r.status === 'ditolak' ? String(r.alasan || '').slice(0, 300) : ''];
 }
 
 /**
@@ -1701,10 +1724,10 @@ function idTabAju_() {
 
 /** Semua baris pengajuan: [{ id, email, buku, t, status (huruf kecil), foto (ID file), diubah, baris (nomor baris sheet) }]. */
 function semuaPengajuan_() {
-  const j = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + '/values/' + range_(TAB_AJU + '!A2:G'));
+  const j = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + '/values/' + range_(TAB_AJU + '!A2:H'));
   return (j.values || []).map((r, i) => ({
     t: String(r[0] || ''), email: String(r[1] || ''), buku: String(r[2] || ''), id: String(r[3] || '').trim(),
-    status: String(r[4] || '').trim().toLowerCase() || 'menunggu', foto: idFoto_(r[5]), diubah: String(r[6] || ''), baris: i + 2,
+    status: String(r[4] || '').trim().toLowerCase() || 'menunggu', foto: idFoto_(r[5]), diubah: String(r[6] || ''), alasan: String(r[7] || ''), baris: i + 2,
   })).filter(r => r.id);
 }
 
@@ -1733,11 +1756,12 @@ function simpanPermintaan_(id, isi) {
 function statusPengajuan_(id) {
   const cache = CacheService.getScriptCache();
   const ada = cache.get('st_' + id);
-  if (ada !== null) return ada === '-' ? '' : ada;
-  let st = '';
-  try { st = (permintaan_(id) || {}).status || ''; } catch (e) { console.warn('Status pengajuan: ' + e.message); return ''; }
-  cache.put('st_' + id, st || '-', 300);
-  return st;
+  if (ada !== null) { try { return JSON.parse(ada); } catch (e) { /* format lama: baca ulang */ } }
+  let r;
+  try { r = permintaan_(id) || {}; } catch (e) { console.warn('Status pengajuan: ' + e.message); return { status: '', alasan: '' }; }
+  const hasil = { status: r.status || '', alasan: r.status === 'ditolak' ? r.alasan || '' : '' };
+  cache.put('st_' + id, JSON.stringify(hasil), 300);
+  return hasil;
 }
 
 /** Token Google dari aplikasi → { email }. Hanya token yang dibuat untuk aplikasi ini (client ID sama) yang diterima. */
@@ -1773,7 +1797,7 @@ function apiLisensi_(b) {
   if (!adminWeb_(akun.email)) throw new Error('Akun ' + akun.email + ' bukan admin. Masuk dengan akun Google pemilik bot.');
   if (b.aksi === 'daftar') return { daftar: daftarPermintaan_(), admin: akun.email, sheet: 'https://docs.google.com/spreadsheets/d/' + sheetAju_() + '/edit' };
   if (b.aksi === 'foto') return { foto: fotoBukti_(String(b.id || '')) };
-  if (b.aksi === 'atur') return aturLisensi_(String(b.id || ''), String(b.status || ''));
+  if (b.aksi === 'atur') return aturLisensi_(String(b.id || ''), String(b.status || ''), String(b.alasan || '').trim());
   throw new Error('Aksi tidak dikenal.');
 }
 
@@ -1816,7 +1840,7 @@ function mintaAktivasi_(akun, b) {
 
 function daftarPermintaan_() {
   const dicabut = daftarDicabut_();
-  return semuaPengajuan_().map(r => ({ id: r.id, email: r.email, buku: r.buku, t: r.t, diubah: r.diubah, ada_foto: !!r.foto,
+  return semuaPengajuan_().map(r => ({ id: r.id, email: r.email, buku: r.buku, t: r.t, diubah: r.diubah, ada_foto: !!r.foto, alasan: r.alasan,
     status: r.status === 'aktif' && dicabut.indexOf(r.id) >= 0 ? 'nonaktif' : r.status,
     link: linkFoto_(r.foto) })).sort((x, y) => String(y.t).localeCompare(String(x.t)));
 }
@@ -1832,14 +1856,18 @@ function fotoBukti_(id) {
   return 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes());
 }
 
-/** status: 'aktif' (lisensi terpasang sendiri di aplikasi pembeli), 'nonaktif' (dicabut), 'ditolak'. */
-function aturLisensi_(id, status) {
+/**
+ * status: 'aktif' (lisensi terpasang sendiri di aplikasi pembeli), 'nonaktif' (dicabut), 'ditolak'.
+ * alasan: wajib untuk 'ditolak'; ditampilkan ke pembeli di layar Versi penuh.
+ */
+function aturLisensi_(id, status, alasan) {
   if (['aktif', 'nonaktif', 'ditolak'].indexOf(status) < 0) throw new Error('Status tidak dikenal.');
+  if (status === 'ditolak' && !alasan) throw new Error('Pilih alasan penolakannya.');
   const r = permintaan_(id);
   if (!r) throw new Error('Permintaan tidak ditemukan.');
   const dicabut = daftarDicabut_().filter(x => x !== id);
   simpanDicabut_(status === 'nonaktif' ? dicabut.concat([id]) : dicabut);
-  simpanPermintaan_(id, Object.assign(r, { status, diubah: sekarangIso_() }));
+  simpanPermintaan_(id, Object.assign(r, { status, alasan: status === 'ditolak' ? alasan.slice(0, 300) : '', diubah: sekarangIso_() }));
   return { ok: true, status };
 }
 
