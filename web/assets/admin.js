@@ -135,19 +135,73 @@
     }
     if (el.dataset.atur) {
       const r = daftar.find(x => x.id === el.dataset.id);
-      const kata = { aktif: 'Aktifkan versi penuh untuk', nonaktif: 'Nonaktifkan versi penuh untuk', ditolak: 'Tolak permintaan dari' }[el.dataset.atur];
-      if (!confirm(kata + ' ' + (r ? r.email + ' (buku ' + r.buku + ')' : 'buku ini') + '?')) return;
+      const status = el.dataset.atur;
+      if (!(await konfirmasi(status, r))) return;
       el.disabled = true;
       try {
-        await api({ aksi: 'atur', id: el.dataset.id, status: el.dataset.atur });
-        if (r) r.status = el.dataset.atur;
+        await api({ aksi: 'atur', id: el.dataset.id, status });
+        if (r) r.status = status;
         galat = '';
+        kabar(PILIHAN[status].selesai);
       } catch (err) {
         galat = err.message;
       }
       render();
     }
   });
+
+  const PILIHAN = {
+    aktif: { ikon: '✅', judul: 'Aktifkan versi penuh?', tombol: 'Aktifkan', kelas: 'ok-hijau', selesai: 'Versi penuh diaktifkan ✔',
+      isi: 'Pastikan transfer Rp' + Number((KONFIG.bayar || {}).harga || 0).toLocaleString('id-ID') + ' sudah masuk. Versi penuh langsung aktif untuk seluruh keluarga di buku ini saat aplikasinya dibuka.' },
+    ditolak: { ikon: '❌', judul: 'Tolak permintaan ini?', tombol: 'Tolak', kelas: 'ok-merah', selesai: 'Permintaan ditolak',
+      isi: 'Pembeli akan melihat bahwa bukti transfernya ditolak dan diminta mengirim ulang.' },
+    nonaktif: { ikon: '⛔', judul: 'Nonaktifkan versi penuh?', tombol: 'Nonaktifkan', kelas: 'ok-merah', selesai: 'Versi penuh dinonaktifkan',
+      isi: 'Buku ini kembali ke versi gratis paling lambat 6 jam lagi. Bisa diaktifkan lagi kapan saja.' },
+  };
+
+  /** Dialog konfirmasi (pengganti confirm()). Hasil: true kalau pemilik menekan tombol utama. */
+  function konfirmasi(status, r) {
+    const p = PILIHAN[status];
+    const kotak = $('#dialog');
+    kotak.innerHTML = `
+      <div class="kotak-dialog">
+        <div class="ikon-dialog ${status}">${p.ikon}</div>
+        <h2 id="judul-dialog">${p.judul}</h2>
+        <p>${p.isi}</p>
+        ${r ? `<div class="ringkas"><b>${esc(r.email)}</b><span>Buku ${esc(r.buku)} · dikirim ${esc(tanggal(r.t))}</span></div>` : ''}
+        <div class="tombol-dialog">
+          <button class="kedua" data-jawab="0">Batal</button>
+          <button class="${p.kelas}" data-jawab="1">${p.tombol}</button>
+        </div>
+      </div>`;
+    kotak.hidden = false;
+    kotak.querySelector('[data-jawab="1"]').focus();
+    return new Promise(ok => {
+      const selesai = jawab => {
+        kotak.hidden = true;
+        kotak.onclick = null;
+        document.removeEventListener('keydown', tombolKeyboard);
+        ok(jawab);
+      };
+      const tombolKeyboard = e => { if (e.key === 'Escape') selesai(false); };
+      document.addEventListener('keydown', tombolKeyboard);
+      kotak.onclick = e => {
+        e.stopPropagation();
+        const b = e.target.closest('[data-jawab]');
+        if (b) selesai(b.dataset.jawab === '1');
+        else if (e.target === kotak) selesai(false); // ketuk di luar kotak = batal
+      };
+    });
+  }
+
+  let jedaKabar = 0;
+  function kabar(teks) {
+    const k = $('#kabar');
+    k.textContent = teks;
+    k.hidden = false;
+    clearTimeout(jedaKabar);
+    jedaKabar = setTimeout(() => { k.hidden = true; }, 2600);
+  }
 
   if (GOOGLE.sudahMasuk()) muat();
   else tampilMasuk(GOOGLE.email() ? 'Sesi login sudah habis. Masuk lagi.' : '');
