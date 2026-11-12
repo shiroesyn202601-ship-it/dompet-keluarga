@@ -22,7 +22,7 @@ const KONFIG = {
     wa: '6287873369841', // nomor WhatsApp untuk kirim bukti transfer, format 628…
     // URL web app bot (berakhiran /exec, dari Apps Script → Deploy → Manage deployments). Diisi = /batal di bot
     // ikut berlaku di aplikasi: buku versi penuh menanyakan statusnya ke bot sekali sehari. Kosong = tidak dicek.
-    urlBot: '',
+    urlBot: 'https://script.google.com/macros/s/AKfycbwLzTahKW5P2N6GsIwfm_zxRQKOJHMqR4oAizkZ5lupwgHogtI_66cF01NoahJ3wW3H/exec',
     // Cadangan manual: kode buku (ID spreadsheet) yang lisensinya dicabut. Buku ini dianggap belum lunas
     // walaupun kode aktivasinya asli. Contoh: dicabut: ['1AbC…', '1XyZ…'],
     dicabut: [],
