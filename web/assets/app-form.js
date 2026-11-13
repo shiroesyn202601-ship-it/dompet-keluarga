@@ -1741,7 +1741,9 @@ function bukaFormBayar() {
     <p style="margin-top:0">${teksMasaGratis(l)}</p>
     <p>${T('Versi penuh: <b>{harga}</b>, sekali bayar untuk selamanya. Tanpa batas transaksi untuk seluruh keluarga di buku ini, termasuk lewat bot Telegram.', { harga: rp(l.harga) })}</p>
     <ol class="panduan" style="padding-left:20px;margin-bottom:16px">
-      <li>${T('Transfer <b>{harga}</b> ke:', { harga: rp(l.harga) })}${rekening}
+      <li>${(l.rekening || []).length > 1
+        ? T('Transfer <b>{harga}</b> <u>sekali saja</u> ke <b>salah satu</b> rekening berikut (pilih yang paling mudah):', { harga: rp(l.harga) })
+        : T('Transfer <b>{harga}</b> ke:', { harga: rp(l.harga) })}${rekening}
       </li>
       <li>${T('Pilih foto atau screenshot bukti transfer, lalu ketuk <b>Kirim bukti</b>.')}
         <label class="btn btn-kedua" style="display:block;margin:8px 0;text-align:center;cursor:pointer">
