@@ -2167,7 +2167,7 @@ function statusPengajuan_(id) {
   let r;
   try { r = permintaan_(id) || {}; } catch (e) { console.warn('Status pengajuan: ' + e.message); return { status: '', alasan: '', galat: true }; }
   const hasil = { status: r.status || '', alasan: r.status === 'ditolak' ? r.alasan || '' : '' };
-  cache.put('st_' + id, JSON.stringify(hasil), 60);
+  cache.put('st_' + id, JSON.stringify(hasil), 20); // singkat: baris yang dihapus / diubah di sheet cepat berlaku
   return hasil;
 }
 

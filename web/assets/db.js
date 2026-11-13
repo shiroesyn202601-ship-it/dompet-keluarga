@@ -2053,8 +2053,10 @@ const SERVER = (() => {
     const hampir = !habis && ((pakaiTrx && j0.batasTransaksi - terpakai <= 50) || (pakaiPer && periodeKe >= j0.batasPeriode));
     const kodeLokal = teks_(pengaturan_(set).LISENSI);
     let aktif = false, permintaan = '', alasan = '';
+    // Masa gratis habis = jawaban bot yang menentukan boleh mencatat atau tidak, jadi hanya dipakai ulang 30 detik
+    // (baris yang dihapus / diubah admin di sheet langsung berlaku). Selain itu cukup ditanya ulang tiap 10 menit.
     const j = BAYAR.urlBot && (paksa || kodeLokal || statusTersimpan_(idBuku) || sedangMinta_(idBuku) || hampir || habis)
-      ? await tanyaBot_(idBuku, paksa ? 0 : sedangMinta_(idBuku) ? 60e3 : 10 * 6e4) : null;
+      ? await tanyaBot_(idBuku, paksa ? 0 : habis ? 30e3 : sedangMinta_(idBuku) ? 60e3 : 10 * 6e4) : null;
     if (j) {
       permintaan = j.status || '';
       alasan = j.status === 'ditolak' ? String(j.alasan || '') : '';
