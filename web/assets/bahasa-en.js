@@ -1944,4 +1944,5 @@ Object.assign(KAMUS, {
   "Status aktivasi": "Activation status",
   "Alasan dari admin": "Reason from the admin",
   "Sudah transfer dan mengirim bukti dari HP lain? Statusnya diperiksa otomatis setiap layar ini dibuka.": "Already transferred and sent proof from another phone? The status is checked automatically every time you open this screen.",
+  "Memeriksa…": "Checking…",
 });

@@ -1719,6 +1719,7 @@ function bukaFormBayar() {
       <div class="sa-kepala">
         <span class="sa-ikon" aria-hidden="true"><svg viewBox="0 0 24 24">${IKON_STATUS[jenis]}</svg></span>
         <span class="sa-judul"><small>${T('Status aktivasi')}</small><b>${status.judul}</b></span>
+        <span class="sa-cek" role="status" aria-live="polite"><i aria-hidden="true"></i>${T('Memeriksa…')}</span>
       </div>
       ${jenis === 'ditolak' && l.alasan ? `<div class="sa-alasan"><small>${T('Alasan dari admin')}</small>${esc(l.alasan)}</div>` : ''}
       <p class="sa-ket">${status.isi}</p>
@@ -1783,8 +1784,12 @@ function bukaFormBayar() {
  */
 async function perbaruiFormBayar() {
   if (DEMO.aktif() || !S.data || !S.data.lisensi) return;
+  // Penanda "Memeriksa…" di kartu status selama data terbaru diambil dari admin.
+  const tanda = nyala => { const k = document.querySelector('#sheet .status-aktivasi'); if (k) k.classList.toggle('memeriksa', nyala); };
+  tanda(true);
   try {
     const l = await SERVER.segarkanLisensi();
+    tanda(false);
     if (!l) return;
     const berubah = JSON.stringify(l) !== JSON.stringify(S.data.lisensi);
     S.data.lisensi = l;
@@ -1794,7 +1799,7 @@ async function perbaruiFormBayar() {
     if ($('#sheet').hidden || !$('#bukti-bayar') || buktiBayar) return;
     if (l.aktif) { tutupSheet(); await muat(); return toast(T('Versi penuh aktif. Terima kasih! 🎉')); }
     bukaFormBayar();
-  } catch (e) { jadwalCekBayar(); /* tetap memakai data terakhir */ }
+  } catch (e) { tanda(false); jadwalCekBayar(); /* tetap memakai data terakhir */ }
 }
 
 /** Selama layar Versi penuh terbuka dan bukti transfer menunggu konfirmasi, status diperiksa ulang tiap 30 detik. */
