@@ -100,8 +100,7 @@ async function api(fungsi, ...args) {
     if (e instanceof GOOGLE.PerluMasuk) perluMasukLagi();
     if (e.perluBayar && S.data) {
       // Batas transaksi gratis tercapai (lihat SERVER.pastikanKuota_). Data di HP bisa saja belum tahu, jadi ditandai di sini.
-      const batas = KONFIG.bayar.batasGratis;
-      S.data.lisensi = Object.assign({ batas, terpakai: batas, aktif: false }, S.data.lisensi, { terkunci: true });
+      S.data.lisensi = Object.assign({ batas: 0, terpakai: 0, aktif: false, harga: 0, rekening: [] }, S.data.lisensi, { terkunci: true, habis: true });
       bukaFormBayar();
     }
     throw e;
@@ -499,10 +498,22 @@ function bannerStatus() {
 
 /** Batas transaksi gratis tercapai dan buku ini belum versi penuh (S.data.lisensi diisi SERVER.getData). */
 const terkunciBayar = () => !!(S.data && S.data.lisensi && S.data.lisensi.terkunci && !DEMO.aktif());
-/** Baris status: pencatatan terkunci, atau sisa transaksi gratis tinggal sedikit (≤ 50). */
+/** Keterangan baris "Versi penuh" di ⚙️ sesuai aturan penjualan (jumlah transaksi / periode gajian / keduanya). */
+function ketVersiPenuh(l) {
+  if (l.aktif) return T('Aktif · tanpa batas transaksi');
+  const beli = T('beli {harga}', { harga: rp(l.harga) });
+  if (l.permintaan === 'nonaktif') return T('Dinonaktifkan penjual · aktifkan lagi');
+  if (l.habis) return T('Masa gratis habis') + ' · ' + beli;
+  const bagian = [l.aturan !== 'periode' ? T('{terpakai} dari {n} transaksi gratis', { terpakai: l.terpakai, n: l.batas }) : '',
+    l.aturan !== 'transaksi' ? T('periode gratis ke-{k} dari {n}', { k: l.periodeKe, n: l.batasPeriode }) : ''].filter(Boolean);
+  return bagian.concat([beli]).join(' · ');
+}
+
+/** Baris status: pencatatan terkunci, masa gratis hampir habis, atau status pengajuan aktivasi. */
 function barisLisensi() {
   const l = S.data && S.data.lisensi;
-  if (!l || l.aktif || DEMO.aktif() || S.data.perluSetup || l.batas - l.terpakai > 50) return null;
+  if (!l || l.aktif || DEMO.aktif() || S.data.perluSetup) return null;
+  if (!l.terkunci && !l.hampir && l.permintaan !== 'ditolak' && l.permintaan !== 'menunggu') return null;
   if (l.permintaan === 'ditolak') {
     return { kelas: 'gagal', isi: `${T('❌ Bukti transfer ditolak penjual. Ketuk Lihat untuk alasannya.')} <button type="button" data-aksi="versi-penuh">${T('Lihat')}</button>` };
   }
@@ -510,9 +521,12 @@ function barisLisensi() {
     return { isi: `${T('⏳ Bukti transfer sedang dicek penjual. Versi penuh aktif sendiri setelah dikonfirmasi.')} <button type="button" data-aksi="versi-penuh">${T('Lihat')}</button>` };
   }
   const tombol = `<button type="button" data-aksi="versi-penuh">${T('Beli versi penuh')}</button>`;
-  return l.terkunci
-    ? { kelas: 'gagal', isi: `${T('🔒 Batas {n} transaksi gratis tercapai. Data tetap bisa dilihat.', { n: l.batas })} ${tombol}` }
-    : { isi: `${T('⏳ Sisa {n} transaksi gratis.', { n: l.batas - l.terpakai })} ${tombol}` };
+  if (l.terkunci) {
+    return { kelas: 'gagal', isi: `${l.permintaan === 'nonaktif' ? T('⛔ Versi penuh dinonaktifkan penjual. Data tetap bisa dilihat.')
+      : T('🔒 Masa gratis sudah habis. Data tetap bisa dilihat.')} ${tombol}` };
+  }
+  const sisaTrx = l.aturan !== 'periode' && l.batas - l.terpakai <= 50;
+  return { isi: `${sisaTrx ? T('⏳ Sisa {n} transaksi gratis.', { n: l.batas - l.terpakai }) : T('⏳ Ini periode gratis terakhir.')} ${tombol}` };
 }
 
 /**

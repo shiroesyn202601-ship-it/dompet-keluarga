@@ -1680,8 +1680,17 @@ function bukaFormGemini(ajak) {
  * (lihat docs/PEMILIK.md → Versi penuh & pembayaran).
  */
 let buktiBayar = null; // data URL JPEG bukti transfer yang dipilih, belum dikirim
+/** Kalimat masa gratis sesuai aturan penjualan (jumlah transaksi / periode gajian / mana yang lebih dulu). */
+function teksMasaGratis(l) {
+  const trx = T('<b>{n} transaksi</b>', { n: l.batas }), per = T('<b>{n} periode gajian</b> pertama', { n: l.batasPeriode });
+  const batas = l.aturan === 'periode' ? per : l.aturan === 'keduanya' ? T('{a} atau {b}, mana yang lebih dulu', { a: trx, b: per }) : trx;
+  if (l.habis) return T('Masa gratis berlaku untuk {batas}, dan sudah habis. Semua data tetap aman dan tetap bisa dilihat, diubah, dan diunduh.', { batas });
+  const posisi = [l.aturan !== 'periode' ? T('{terpakai} transaksi terpakai', { terpakai: l.terpakai }) : '',
+    l.aturan !== 'transaksi' ? T('sekarang periode ke-{k}', { k: l.periodeKe }) : ''].filter(Boolean).join(', ');
+  return T('Masa gratis berlaku untuk {batas}. Saat ini: {posisi}.', { batas, posisi });
+}
+
 function bukaFormBayar() {
-  const b = KONFIG.bayar || {};
   const l = S.data && S.data.lisensi;
   if (!l) return;
   if (l.aktif) {
@@ -1704,18 +1713,24 @@ function bukaFormBayar() {
       <span style="flex:1"><b>${status.judul}</b><br><small>${status.isi}</small></span>
       <button type="button" class="tombol-teks" style="white-space:nowrap;padding:4px 0" data-aksi="segarkan-lisensi">${T('🔄 Perbarui status')}</button>
     </div>`;
-  bukaSheet(T('Beli versi penuh'), `${kabar}
-    <p style="margin-top:0">${l.terpakai >= l.batas
-      ? T('Versi gratis berisi hingga <b>{n} transaksi</b>, dan batas itu sudah tercapai. Semua data tetap aman dan tetap bisa dilihat, diubah, dan diunduh.', { n: l.batas })
-      : T('Versi gratis berisi hingga <b>{n} transaksi</b>. Sudah terpakai {terpakai}.', { n: l.batas, terpakai: l.terpakai })}</p>
-    <p>${T('Versi penuh: <b>{harga}</b>, sekali bayar untuk selamanya. Tanpa batas transaksi untuk seluruh keluarga di buku ini, termasuk lewat bot Telegram.', { harga: rp(b.harga) })}</p>
-    <ol class="panduan" style="padding-left:20px;margin-bottom:16px">
-      <li>${T('Transfer <b>{harga}</b> ke:', { harga: rp(b.harga) })}
+  const rekening = (l.rekening || []).map(r => `
         <div class="baris">
-          <span class="ikon-bulat">${/dana|ovo|gopay|shopee|linkaja/i.test(b.bank) ? '📱' : '🏦'}</span>
-          <span class="isi"><b>${esc(b.bank)} ${esc(b.rekening)}</b>${b.atasNama ? `<small>${T('a.n. {nama}', { nama: esc(b.atasNama) })}</small>` : ''}</span>
-          <button type="button" class="tombol-teks" data-aksi="salin-rekening">${T('Salin')}</button>
-        </div>
+          <span class="ikon-bulat">${/dana|ovo|gopay|shopee|linkaja|jago|flip/i.test(r.bank) ? '📱' : '🏦'}</span>
+          <span class="isi"><b>${esc(r.bank)} ${esc(r.nomor)}</b>${r.atasNama ? `<small>${T('a.n. {nama}', { nama: esc(r.atasNama) })}</small>` : ''}</span>
+          <button type="button" class="tombol-teks" data-aksi="salin-rekening" data-nomor="${esc(r.nomor)}">${T('Salin')}</button>
+        </div>`).join('');
+  const qris = l.qris ? `
+        <div class="kotak-qris" style="text-align:center;margin:10px 0 4px">
+          <small style="display:block;color:var(--muted);margin-bottom:6px">${(l.rekening || []).length ? T('Atau scan QRIS:') : T('Scan QRIS:')}</small>
+          <img id="gambar-qris" alt="QRIS" hidden style="width:220px;max-width:100%;border-radius:12px;background:#fff;padding:8px">
+          <div id="memuat-qris" class="info-kecil">${T('Memuat QRIS…')}</div>
+          <a id="unduh-qris" class="tombol-teks" hidden download="QRIS-Dompet-Keluarga.png" style="display:block">${T('Simpan gambar QRIS')}</a>
+        </div>` : '';
+  bukaSheet(T('Beli versi penuh'), `${kabar}
+    <p style="margin-top:0">${teksMasaGratis(l)}</p>
+    <p>${T('Versi penuh: <b>{harga}</b>, sekali bayar untuk selamanya. Tanpa batas transaksi untuk seluruh keluarga di buku ini, termasuk lewat bot Telegram.', { harga: rp(l.harga) })}</p>
+    <ol class="panduan" style="padding-left:20px;margin-bottom:16px">
+      <li>${T('Transfer <b>{harga}</b> ke:', { harga: rp(l.harga) })}${rekening}${qris}
       </li>
       <li>${T('Pilih foto atau screenshot bukti transfer, lalu ketuk <b>Kirim bukti</b>.')}
         <label class="btn btn-kedua" style="display:block;margin:8px 0;text-align:center;cursor:pointer">
@@ -1734,6 +1749,16 @@ function bukaFormBayar() {
       </div>
       <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="aktifkan-lisensi">${T('Aktifkan')}</button></div>
     </details>`);
+  if (l.qris) {
+    SERVER.ambilQris().then(data => {
+      const img = $('#gambar-qris'), muat = $('#memuat-qris'), unduh = $('#unduh-qris');
+      if (!img) return;
+      if (!data) { muat.textContent = T('QRIS belum bisa dimuat. Pakai rekening di atas, atau coba lagi nanti.'); return; }
+      img.src = unduh.href = data;
+      img.hidden = unduh.hidden = false;
+      muat.hidden = true;
+    }).catch(() => { const muat = $('#memuat-qris'); if (muat) muat.textContent = T('QRIS belum bisa dimuat. Pakai rekening di atas, atau coba lagi nanti.'); });
+  }
   $('#bukti-bayar').addEventListener('change', async e => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;

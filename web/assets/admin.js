@@ -1,12 +1,14 @@
 /**
- * Halaman admin lisensi (web/admin.html): ringkasan, daftar permintaan aktivasi versi penuh beserta foto bukti transfer,
- * pencarian, dan tombol Aktifkan / Tolak (dengan alasan) / Nonaktifkan. Semua data ada di bot (bot/Kode.gs → apiLisensi_,
- * tersimpan di spreadsheet "Pengajuan Aktivasi"); bot hanya melayani akun Google pemilik bot (atau Script Property ADMIN_EMAIL).
+ * Halaman admin lisensi (web/admin.html):
+ *   - Pengajuan: ringkasan per status (sekaligus filter), pencarian, kartu pengajuan + foto bukti transfer,
+ *     tombol Aktifkan / Tolak (dengan alasan) / Nonaktifkan.
+ *   - Pengaturan penjualan: kapan ditagih (jumlah transaksi / periode gajian / mana yang lebih dulu), harga,
+ *     rekening tujuan (boleh lebih dari satu), dan gambar QRIS. Dipakai aplikasi & bot (lihat jual_ di bot/Kode.gs).
+ * Semua data ada di bot (bot/Kode.gs → apiLisensi_); bot hanya melayani akun Google pemilik bot (atau ADMIN_EMAIL).
  * Sengaja tanpa terjemahan: halaman ini khusus pemilik.
  */
 (() => {
   const BOT = (KONFIG.bayar || {}).urlBot;
-  const HARGA = Number((KONFIG.bayar || {}).harga) || 0;
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rupiah = n => 'Rp' + Number(n || 0).toLocaleString('id-ID');
@@ -17,8 +19,8 @@
     ditolak: { label: 'Ditolak', ikon: '❌', warna: 'var(--bad)' },
   };
   /** Alasan penolakan siap pilih; teks inilah yang dilihat pembeli di layar Versi penuh. */
-  const ALASAN = [
-    'Nominal transfer tidak sesuai (harus ' + rupiah(HARGA) + ')',
+  const daftarAlasan = () => [
+    'Nominal transfer tidak sesuai (harus ' + rupiah(jual.harga) + ')',
     'Transfer belum masuk ke rekening penjual',
     'Foto bukti tidak jelas atau terpotong',
     'Nomor tujuan transfer salah',
@@ -32,13 +34,20 @@
     muat: svg('<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/>'),
     akun: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
     keluar: svg('<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5M15 12H4"/>'),
+    atur: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
+    kembali: svg('<path d="M15 18l-6-6 6-6"/>'),
   };
 
   let daftar = [];
   let tab = 'menunggu';
   let cari = '';
   let galat = '';
+  let layar = 'pengajuan'; // 'pengajuan' | 'pengaturan'
   let info = { admin: '', sheet: '' };
+  let jual = { aturan: 'transaksi', batasTransaksi: 450, batasPeriode: 3, harga: Number((KONFIG.bayar || {}).harga) || 0, rekening: [], qris: false };
+  let formJual = null;  // salinan pengaturan yang sedang diubah di layar Pengaturan
+  let qrisBaru = null;  // data URL QRIS yang dipilih, belum diunggah ('' = hapus)
+  let qrisLama = '';    // data URL QRIS tersimpan (dimuat saat layar Pengaturan dibuka)
   const foto = {};      // id buku → data URL bukti ('' = gagal dimuat)
   const memuat = {};    // id buku → sedang dimuat
 
@@ -95,6 +104,7 @@
     $('#bilah').hidden = false;
     $('#akun').innerHTML = `
       <span class="chip-akun" title="${esc(a)}"><span class="inisial">${esc((a[0] || '?').toUpperCase())}</span><span>${esc(a)}</span></span>
+      <button class="ikon-btn ${layar === 'pengaturan' ? 'nyala' : ''}" data-aksi="pengaturan" title="Pengaturan penjualan" aria-label="Pengaturan penjualan">${IKON.atur}</button>
       ${info.sheet ? `<a class="ikon-btn" href="${esc(info.sheet)}" target="_blank" rel="noopener" title="Buka spreadsheet pengajuan" aria-label="Buka spreadsheet pengajuan">${IKON.tabel}</a>` : ''}
       <button class="ikon-btn" data-aksi="muat" title="Muat ulang" aria-label="Muat ulang">${IKON.muat}</button>
       <button class="ikon-btn" data-aksi="ganti" title="Ganti akun" aria-label="Ganti akun">${IKON.akun}</button>
@@ -113,6 +123,7 @@
       const j = await api({ aksi: 'daftar' });
       daftar = j.daftar || [];
       info = { admin: j.admin, sheet: j.sheet };
+      if (j.jual) jual = j.jual;
       galat = '';
       bilah();
       render();
@@ -137,7 +148,7 @@
     gambarUlangBukti(id);
   }
 
-  // ---------- Tampilan ----------
+  // ---------- Tampilan: pengajuan ----------
 
   /** Waktu dari bot ditulis dalam WIB tanpa zona ("2026-11-12 18:33"); yang ditulis halaman ini berformat ISO (UTC). */
   const keWaktu = s => {
@@ -181,22 +192,24 @@
   }
 
   function render() {
-    const jumlah = s => daftar.filter(r => r.status === s).length;
+    bilah();
+    if (layar === 'pengaturan') return renderPengaturan();
+    const jumlah = s => daftar.filter(r => !s || r.status === s).length;
     const q = cari.trim().toLowerCase();
     const tampil = daftar.filter(r => (!tab || r.status === tab) && (!q || [r.email, r.buku, r.id].some(x => String(x).toLowerCase().includes(q))));
-    const tile = (k, label, nilai, warna) => `<button class="tile ${tab === k ? 'dipilih' : ''}" data-aksi="tab" data-tab="${k}">
-      <small><span class="titik" style="background:${warna}"></span>${label}</small><b>${nilai}</b></button>`;
+    // Kotak ringkasan sekaligus filter (tidak ada tab terpisah supaya tidak dobel).
+    const tile = (k, label, warna, sub) => `<button class="tile ${tab === k ? 'dipilih' : ''}" data-aksi="tab" data-tab="${k}" aria-pressed="${tab === k}">
+      <small>${warna ? `<span class="titik" style="background:${warna}"></span>` : ''}${label}</small><b>${jumlah(k)}</b>${sub ? `<em>${sub}</em>` : ''}</button>`;
     $('#isi').innerHTML = `
       ${galat ? `<div class="galat">${esc(galat)}</div>` : ''}
       <section class="ringkasan">
-        ${Object.keys(STATUS).map(k => tile(k, STATUS[k].label, jumlah(k), STATUS[k].warna)).join('')}
-        <div class="tile uang"><small>💰 Perkiraan pendapatan</small><b>${rupiah(jumlah('aktif') * HARGA)}</b></div>
+        ${tile('menunggu', 'Menunggu', STATUS.menunggu.warna)}
+        ${tile('aktif', 'Aktif', STATUS.aktif.warna, '💰 ' + rupiah(jumlah('aktif') * jual.harga))}
+        ${tile('nonaktif', 'Nonaktif', STATUS.nonaktif.warna)}
+        ${tile('ditolak', 'Ditolak', STATUS.ditolak.warna)}
+        ${tile('', 'Semua', '')}
       </section>
-      <div class="alat">
-        <div class="segmen">${[['menunggu', 'Menunggu'], ['aktif', 'Aktif'], ['nonaktif', 'Nonaktif'], ['ditolak', 'Ditolak'], ['', 'Semua']].map(([k, l]) =>
-          `<button class="${tab === k ? 'aktif' : ''}" data-aksi="tab" data-tab="${k}">${l}<span class="n">${k ? jumlah(k) : daftar.length}</span></button>`).join('')}</div>
-        <label class="cari"><span>🔍</span><input id="cari" type="search" placeholder="Cari email, nama buku, atau kode buku" value="${esc(cari)}" autocomplete="off"></label>
-      </div>
+      <label class="cari"><span>🔍</span><input id="kotak-cari" name="cari-pengajuan-admin" type="search" placeholder="Cari email, nama buku, atau kode buku" autocomplete="off" spellcheck="false"></label>
       ${tampil.length ? `<div class="daftar">${tampil.map(r => `
         <article class="kartu" data-id="${esc(r.id)}">
           ${htmlBukti(r)}
@@ -214,26 +227,185 @@
         </article>`).join('')}</div>`
       : `<div class="kosong-besar">${q ? '🔍' : tab === 'menunggu' ? '🎉' : '📭'}<b>${q ? 'Tidak ada yang cocok' : tab === 'menunggu' ? 'Semua sudah diproses' : 'Belum ada'}</b>
           ${q ? 'Coba kata kunci lain.' : tab === 'menunggu' ? 'Tidak ada permintaan yang menunggu konfirmasi.' : 'Belum ada pengajuan dengan status ini.'}</div>`}`;
-    const kotak = $('#cari');
-    kotak.oninput = () => { cari = kotak.value; const pos = kotak.selectionStart; render(); const k = $('#cari'); k.focus(); k.setSelectionRange(pos, pos); };
+    // Nilai diisi lewat JS (bukan atribut value) supaya isian otomatis browser tidak ikut menimpa.
+    const kotak = $('#kotak-cari');
+    kotak.value = cari;
+    kotak.oninput = () => { cari = kotak.value; const pos = kotak.selectionStart; render(); const k = $('#kotak-cari'); k.focus(); k.setSelectionRange(pos, pos); };
     // Bukti yang menunggu langsung dimuat (paling banyak 6), supaya bisa dicek tanpa mengetuk satu per satu.
     if (tab === 'menunggu') tampil.filter(r => r.ada_foto && foto[r.id] === undefined).slice(0, 6).forEach(r => muatFoto(r.id));
   }
 
+  // ---------- Tampilan: pengaturan penjualan ----------
+
+  function bukaPengaturan() {
+    layar = 'pengaturan';
+    formJual = JSON.parse(JSON.stringify(jual));
+    if (!formJual.rekening.length) formJual.rekening.push({ bank: '', nomor: '', atasNama: '' });
+    qrisBaru = null;
+    qrisLama = '';
+    render();
+    if (jual.qris) {
+      api({ aksi: 'lihatQris' }).then(j => { qrisLama = j.qris || ''; if (layar === 'pengaturan') render(); }).catch(e => kabar(e.message));
+    }
+  }
+
+  /** Isian form → formJual (dipanggil sebelum render ulang supaya ketikan tidak hilang). */
+  function bacaForm() {
+    if (layar !== 'pengaturan' || !$('#form-jual')) return;
+    const pilih = document.querySelector('input[name="aturan"]:checked');
+    formJual.aturan = pilih ? pilih.value : formJual.aturan;
+    formJual.batasTransaksi = Number($('#batas-transaksi').value) || 0;
+    formJual.batasPeriode = Number($('#batas-periode').value) || 0;
+    formJual.harga = Number(String($('#harga').value).replace(/\D/g, '')) || 0;
+    formJual.rekening = Array.from(document.querySelectorAll('.rekening-baris')).map(b => ({
+      bank: b.querySelector('[data-f="bank"]').value.trim(), nomor: b.querySelector('[data-f="nomor"]').value.trim(), atasNama: b.querySelector('[data-f="atasNama"]').value.trim(),
+    }));
+  }
+
+  function renderPengaturan() {
+    const f = formJual;
+    const pakaiTrx = f.aturan !== 'periode', pakaiPer = f.aturan !== 'transaksi';
+    const gambarQris = qrisBaru !== null ? qrisBaru : qrisLama;
+    const adaQris = qrisBaru !== null ? !!qrisBaru : jual.qris;
+    $('#isi').innerHTML = `
+      <div class="judul-layar">
+        <button class="ikon-btn" data-aksi="kembali" aria-label="Kembali ke pengajuan">${IKON.kembali}</button>
+        <div><h1>Pengaturan penjualan</h1><p>Berlaku untuk semua pengguna aplikasi & bot Telegram.</p></div>
+      </div>
+      ${galat ? `<div class="galat">${esc(galat)}</div>` : ''}
+      <form id="form-jual" class="form-jual" autocomplete="off">
+        <section class="panel">
+          <h2>Kapan pengguna ditagih</h2>
+          <p class="bantu">Selama masa gratis pengguna bebas mencatat. Setelah lewat, pencatatan transaksi baru dikunci sampai versi penuh dibeli.</p>
+          <div class="opsi-aturan">
+            ${[['transaksi', 'Setelah jumlah transaksi', 'Dihitung dari jumlah baris di sheet Transaksi buku itu.'],
+              ['periode', 'Setelah jumlah periode gajian', 'Dihitung sejak buku dibuat, mengikuti tanggal gajian buku itu.'],
+              ['keduanya', 'Mana yang lebih dulu', 'Dikunci begitu salah satu batas tercapai.']].map(([k, l, ket]) => `
+              <label class="opsi"><input type="radio" name="aturan" value="${k}" ${f.aturan === k ? 'checked' : ''}><span><b>${l}</b><small>${ket}</small></span></label>`).join('')}
+          </div>
+          <div class="dua">
+            <label class="isian ${pakaiTrx ? '' : 'redup'}"><span>Batas transaksi gratis</span>
+              <span class="dengan-satuan"><input id="batas-transaksi" type="number" min="1" max="100000" inputmode="numeric" value="${esc(f.batasTransaksi)}" ${pakaiTrx ? '' : 'disabled'}><em>transaksi</em></span></label>
+            <label class="isian ${pakaiPer ? '' : 'redup'}"><span>Batas periode gratis</span>
+              <span class="dengan-satuan"><input id="batas-periode" type="number" min="1" max="120" inputmode="numeric" value="${esc(f.batasPeriode)}" ${pakaiPer ? '' : 'disabled'}><em>periode gajian</em></span></label>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Harga versi penuh</h2>
+          <p class="bantu">Sekali bayar, berlaku seumur hidup untuk satu buku (seluruh keluarga).</p>
+          <label class="isian"><span>Harga</span><span class="dengan-satuan depan"><em>Rp</em><input id="harga" inputmode="numeric" value="${esc(Number(f.harga || 0).toLocaleString('id-ID'))}"></span></label>
+        </section>
+
+        <section class="panel">
+          <h2>Rekening tujuan transfer</h2>
+          <p class="bantu">Ditampilkan ke pembeli di layar Versi penuh. Bisa bank atau e-wallet, maksimal 5.</p>
+          <div id="daftar-rekening">${f.rekening.map((r, i) => `
+            <div class="rekening-baris">
+              <input data-f="bank" placeholder="Bank / e-wallet (mis. BCA, DANA)" value="${esc(r.bank)}" maxlength="40">
+              <input data-f="nomor" placeholder="Nomor rekening / HP" value="${esc(r.nomor)}" maxlength="40" inputmode="numeric">
+              <input data-f="atasNama" placeholder="Atas nama (opsional)" value="${esc(r.atasNama)}" maxlength="60">
+              <button type="button" class="ikon-btn hapus" data-aksi="hapus-rekening" data-i="${i}" aria-label="Hapus rekening" ${f.rekening.length < 2 ? 'disabled' : ''}>✕</button>
+            </div>`).join('')}</div>
+          ${f.rekening.length < 5 ? '<button type="button" class="btn-kedua" data-aksi="tambah-rekening">+ Tambah rekening</button>' : ''}
+        </section>
+
+        <section class="panel">
+          <h2>QRIS</h2>
+          <p class="bantu">Opsional. Gambar QRIS tampil di layar Versi penuh supaya pembeli bisa langsung scan.</p>
+          <div class="qris">
+            <div class="qris-pratinjau">${gambarQris ? `<img src="${esc(gambarQris)}" alt="QRIS">` : adaQris ? 'Memuat…' : 'Belum ada QRIS'}</div>
+            <div class="qris-aksi">
+              <label class="btn-kedua tombol-file"><input type="file" id="file-qris" accept="image/*" hidden>${adaQris ? 'Ganti gambar QRIS' : 'Unggah gambar QRIS'}</label>
+              ${adaQris ? '<button type="button" class="btn-lembut-merah" data-aksi="hapus-qris">Hapus QRIS</button>' : ''}
+            </div>
+          </div>
+        </section>
+
+        <div class="simpan-bar">
+          <button type="button" class="btn-kedua" data-aksi="kembali">Batal</button>
+          <button type="button" class="btn-utama" data-aksi="simpan-jual">Simpan pengaturan</button>
+        </div>
+      </form>`;
+    $('#form-jual').onchange = e => {
+      if (e.target.name === 'aturan') { bacaForm(); render(); }
+      if (e.target.id === 'harga') { bacaForm(); e.target.value = formJual.harga.toLocaleString('id-ID'); }
+    };
+    $('#file-qris').onchange = async e => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        bacaForm();
+        qrisBaru = await kecilkanQris(file);
+        render();
+      } catch (err) { kabar(err.message); }
+    };
+  }
+
+  /** Gambar QRIS diperkecil (sisi terpanjang ≤ 1000 px) tanpa mengaburkan kotak-kotaknya. */
+  function kecilkanQris(file) {
+    return new Promise((ok, gagal) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onerror = () => { URL.revokeObjectURL(url); gagal(new Error('Gambar tidak bisa dibuka. Pilih file JPG/PNG.')); };
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const skala = Math.min(1, 1000 / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * skala);
+        c.height = Math.round(img.naturalHeight * skala);
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.imageSmoothingEnabled = skala < 1;
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        const png = c.toDataURL('image/png');
+        ok(png.length < 1.5e6 ? png : c.toDataURL('image/jpeg', 0.92));
+      };
+      img.src = url;
+    });
+  }
+
+  async function simpanJual(tombol) {
+    bacaForm();
+    const f = formJual;
+    const rek = f.rekening.filter(r => r.bank || r.nomor || r.atasNama);
+    const salah = f.aturan !== 'periode' && !(f.batasTransaksi >= 1) ? 'Isi batas transaksi gratis (minimal 1).'
+      : f.aturan !== 'transaksi' && !(f.batasPeriode >= 1) ? 'Isi batas periode gratis (minimal 1).'
+      : !(f.harga >= 1000) ? 'Isi harga (minimal Rp1.000).'
+      : rek.some(r => !r.bank || !r.nomor) ? 'Setiap rekening wajib berisi nama bank/e-wallet dan nomornya.'
+      : !rek.length && !(qrisBaru !== null ? qrisBaru : jual.qris) ? 'Isi minimal satu rekening atau unggah QRIS.' : '';
+    if (salah) { galat = salah; render(); window.scrollTo(0, 0); return; }
+    tombol.disabled = true;
+    try {
+      if (qrisBaru !== null) await api({ aksi: 'simpanQris', gambar: qrisBaru });
+      const j = await api({ aksi: 'simpanJual', jual: Object.assign({}, f, { rekening: rek }) });
+      jual = j.jual;
+      galat = '';
+      layar = 'pengajuan';
+      kabar('Pengaturan penjualan disimpan ✔');
+      render();
+    } catch (e) {
+      galat = e.message;
+      tombol.disabled = false;
+      render();
+    }
+  }
+
   // ---------- Dialog ----------
 
-  const PILIHAN = {
+  const pilihan = () => ({
     aktif: { ikon: '✅', latar: 'var(--ok-bg)', judul: 'Aktifkan versi penuh?', tombol: 'Aktifkan', kelas: 'btn-hijau', selesai: 'Versi penuh diaktifkan ✔',
-      isi: 'Pastikan transfer ' + rupiah(HARGA) + ' sudah masuk. Versi penuh langsung aktif untuk seluruh keluarga di buku ini saat aplikasinya dibuka.' },
+      isi: 'Pastikan transfer ' + rupiah(jual.harga) + ' sudah masuk. Versi penuh langsung aktif untuk seluruh keluarga di buku ini saat aplikasinya dibuka.' },
     nonaktif: { ikon: '⛔', latar: 'var(--info-bg)', judul: 'Nonaktifkan versi penuh?', tombol: 'Nonaktifkan', kelas: 'btn-merah', selesai: 'Versi penuh dinonaktifkan',
-      isi: 'Buku ini kembali ke versi gratis saat aplikasinya dibuka lagi. Bisa diaktifkan lagi kapan saja.' },
+      isi: 'Pencatatan transaksi baru di buku ini langsung dikunci saat aplikasinya dibuka lagi. Bisa diaktifkan lagi kapan saja.' },
     ditolak: { ikon: '❌', latar: 'var(--bad-bg)', judul: 'Tolak permintaan ini?', tombol: 'Tolak', kelas: 'btn-merah', selesai: 'Permintaan ditolak',
       isi: 'Pilih alasannya. Alasan ini yang akan dilihat pembeli di aplikasi, lalu mereka bisa mengirim ulang bukti.' },
-  };
+  });
 
   /** Dialog konfirmasi. Hasil: null (batal), atau { alasan } (kosong selain tolak). */
   function konfirmasi(status, r) {
-    const p = PILIHAN[status];
+    const p = pilihan()[status];
     const kotak = $('#dialog');
     const tolak = status === 'ditolak';
     kotak.innerHTML = `
@@ -244,7 +416,7 @@
         ${r ? `<div class="siapa"><b>${esc(r.email)}</b><span>Buku ${esc(r.buku)} · dikirim ${esc(tanggal(r.t))}</span></div>` : ''}
         ${tolak ? `
           <div class="pilihan">
-            ${ALASAN.map((a, i) => `<label><input type="radio" name="alasan" value="${esc(a)}" ${i ? '' : 'checked'}><span>${esc(a)}</span></label>`).join('')}
+            ${daftarAlasan().map((a, i) => `<label><input type="radio" name="alasan" value="${esc(a)}" ${i ? '' : 'checked'}><span>${esc(a)}</span></label>`).join('')}
             <label><input type="radio" name="alasan" value=""><span>Lainnya (tulis sendiri)</span></label>
           </div>
           <textarea id="alasan-lain" maxlength="300" placeholder="Tulis alasannya…" hidden></textarea>
@@ -313,6 +485,12 @@
     if (aksi === 'masuk' || aksi === 'ganti') return masuk();
     if (aksi === 'keluar') { GOOGLE.keluar(); daftar = []; return tampilMasuk(''); }
     if (aksi === 'muat') { el.disabled = true; await muat(); return kabar('Data diperbarui'); }
+    if (aksi === 'pengaturan') { galat = ''; return layar === 'pengaturan' ? (layar = 'pengajuan', render()) : bukaPengaturan(); }
+    if (aksi === 'kembali') { galat = ''; layar = 'pengajuan'; return render(); }
+    if (aksi === 'tambah-rekening') { bacaForm(); formJual.rekening.push({ bank: '', nomor: '', atasNama: '' }); render(); return; }
+    if (aksi === 'hapus-rekening') { bacaForm(); formJual.rekening.splice(Number(el.dataset.i), 1); return render(); }
+    if (aksi === 'hapus-qris') { bacaForm(); qrisBaru = ''; return render(); }
+    if (aksi === 'simpan-jual') return simpanJual(el);
     if (aksi === 'tab') { tab = el.dataset.tab; return render(); }
     if (aksi === 'foto') { delete foto[el.dataset.id]; return muatFoto(el.dataset.id); }
     if (aksi === 'perbesar') {
@@ -334,7 +512,7 @@
         await api({ aksi: 'atur', id: el.dataset.id, status, alasan: jawab.alasan });
         if (r) Object.assign(r, { status, alasan: status === 'ditolak' ? jawab.alasan : '', diubah: new Date().toISOString() });
         galat = '';
-        kabar(PILIHAN[status].selesai);
+        kabar(pilihan()[status].selesai);
       } catch (err) {
         galat = err.message;
       }

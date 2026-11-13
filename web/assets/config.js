@@ -10,8 +10,9 @@ const KONFIG = {
   // Nama bot tanpa @, dan email service account bot. Kosong = bot khusus pemilik (SPREADSHEET_ID).
   botTelegram: 'catkeukuBot',
   emailBot: 'dompet-bot@dompet-keluarga-513306.iam.gserviceaccount.com',
-  // Versi penuh (lihat docs/PEMILIK.md → Versi penuh & pembayaran). Selama rekening atau botTelegram masih kosong,
-  // batas tidak berlaku sama sekali. Kunci publik bukan rahasia: hanya bisa MEMERIKSA kode aktivasi,
+  // Versi penuh (lihat docs/PEMILIK.md → Versi penuh & pembayaran). Kapan ditagih, harga, rekening, dan QRIS diatur
+  // di admin.html → Pengaturan penjualan (disimpan di bot); isian batasGratis/harga/bank/rekening/atasNama di bawah
+  // hanya cadangan selama aplikasi belum pernah mengambil pengaturan dari bot. Kunci publik bukan rahasia: hanya bisa MEMERIKSA kode aktivasi,
   // membuatnya butuh kunci rahasia yang disimpan di bot (Script Property LISENSI_KUNCI).
   bayar: {
     batasGratis: 450,  // jumlah baris di sheet Transaksi sebelum pencatatan baru dikunci

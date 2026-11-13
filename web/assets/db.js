@@ -588,7 +588,7 @@ const SERVER = (() => {
       emas: bacaJson_(pengaturan_(set).EMAS, {}),
       hargaEmas: bacaJson_(pengaturan_(set).HARGA_EMAS, {}),
       bulanan,
-      lisensi: await statusLisensi_(id, d.transaksi.length, set),
+      lisensi: DEMO.aktif() ? null : (await muatJual_(), await statusLisensi_(id, d.transaksi.length, set)),
       transaksi: d.transaksi
         .filter(t => periodeDari_(t.tanggal, mulai) === bulan)
         .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.dibuat.localeCompare(a.dibuat)),
@@ -1906,8 +1906,77 @@ const SERVER = (() => {
   // keluarga di buku itu dan di semua perangkat. Bot memeriksa kode yang sama (lihat lisensiSah_ di bot/Kode.gs).
 
   const BAYAR = KONFIG.bayar || {};
-  /** Batas hanya berlaku kalau rekening & bot Telegram (tempat kirim bukti transfer) sudah diisi di config.js. */
-  const pakaiBatas_ = () => !!(BAYAR.rekening && KONFIG.botTelegram && BAYAR.kunciPublik && BAYAR.batasGratis > 0);
+
+  /**
+   * Pengaturan penjualan dari bot (diatur pemilik di admin.html → Pengaturan penjualan, lihat jual_ di bot/Kode.gs):
+   * { aturan: 'transaksi' | 'periode' | 'keduanya', batasTransaksi, batasPeriode, harga, rekening: [{ bank, nomor, atasNama }], qris }.
+   * Disimpan di HP & diperbarui paling sering sejam sekali; belum pernah termuat → isi config.js sebagai cadangan.
+   */
+  let jualMem_ = null;
+  const KUNCI_JUAL = 'dk_jual';
+  function jualCadangan_() {
+    return { aturan: 'transaksi', batasTransaksi: Number(BAYAR.batasGratis) || 450, batasPeriode: 3, harga: Number(BAYAR.harga) || 0,
+      rekening: BAYAR.rekening ? [{ bank: BAYAR.bank || '', nomor: BAYAR.rekening, atasNama: BAYAR.atasNama || '' }] : [], qris: false };
+  }
+  function jualSah_(j) {
+    return j && ['transaksi', 'periode', 'keduanya'].includes(j.aturan) && Number(j.harga) > 0 && Array.isArray(j.rekening);
+  }
+  function jualTersimpan_() {
+    if (jualMem_) return jualMem_;
+    try {
+      const x = JSON.parse(localStorage.getItem(KUNCI_JUAL));
+      if (x && jualSah_(x.j)) return (jualMem_ = x.j);
+    } catch (e) { /* abaikan */ }
+    return jualCadangan_();
+  }
+  async function muatJual_(paksa) {
+    if (!BAYAR.urlBot) return jualTersimpan_();
+    let simpan = null;
+    try { simpan = JSON.parse(localStorage.getItem(KUNCI_JUAL)); } catch (e) { /* abaikan */ }
+    if (!paksa && simpan && jualSah_(simpan.j) && Date.now() - simpan.t < 36e5) return (jualMem_ = simpan.j);
+    try {
+      const henti = new AbortController();
+      const jeda = setTimeout(() => henti.abort(), 6000);
+      const j = await (await fetch(BAYAR.urlBot + '?jual=1', { signal: henti.signal })).json();
+      clearTimeout(jeda);
+      if (!jualSah_(j)) throw new Error('pengaturan penjualan tidak dikenal');
+      try { localStorage.setItem(KUNCI_JUAL, JSON.stringify({ t: Date.now(), j })); } catch (e) { /* abaikan */ }
+      return (jualMem_ = j);
+    } catch (e) {
+      return jualTersimpan_();
+    }
+  }
+
+  /** Gambar QRIS penjual (data URL, '' kalau tidak ada), dimuat saat layar Versi penuh dibuka. */
+  let qrisMem_ = null;
+  async function ambilQris() {
+    if (qrisMem_ !== null) return qrisMem_;
+    if (!BAYAR.urlBot) return '';
+    const j = await (await fetch(BAYAR.urlBot + '?qris=1')).json();
+    return (qrisMem_ = String(j.qris || ''));
+  }
+
+  /** Batas hanya berlaku kalau bot & kunci publik ada dan penjual punya tempat bayar (rekening / QRIS). */
+  const pakaiBatas_ = () => {
+    const j = jualTersimpan_();
+    return !!(BAYAR.kunciPublik && BAYAR.urlBot && (j.rekening.length || j.qris));
+  };
+
+  /**
+   * Tanggal buku mulai dipakai ('yyyy-mm-dd'), patokan masa gratis berbasis periode. Disimpan sekali di Pengaturan
+   * (MULAI_PAKAI, dibaca juga bot), diambil dari tanggal spreadsheet dibuat di Drive; gagal → hari ini.
+   */
+  async function mulaiPakai_(id, set) {
+    const ada = pengaturan_(set).MULAI_PAKAI;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(ada || '')) return ada;
+    let tgl = tanggalLokal_();
+    try {
+      const d = new Date((await GOOGLE.api(DRIVE + '/files/' + id + '?fields=createdTime')).createdTime);
+      if (!isNaN(d)) tgl = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    } catch (e) { /* pakai hari ini */ }
+    try { await simpanPengaturan_(id, set, 'MULAI_PAKAI', tgl); set.push(['MULAI_PAKAI', tgl]); } catch (e) { /* anggota hanya-lihat */ }
+    return tgl;
+  }
   let kunciPublik_ = null;
 
   function base64Biner_(s) {
@@ -1970,12 +2039,18 @@ const SERVER = (() => {
    */
   async function statusLisensi_(idBuku, terpakai, set, paksa) {
     if (!pakaiBatas_()) return null;
+    const j0 = jualTersimpan_();
+    const k = s => { const [y, m] = periodeDari_(s, mulaiPeriode_(set)).split('-').map(Number); return y * 12 + m; };
+    const periodeKe = Math.max(0, k(tanggalLokal_()) - k(await mulaiPakai_(idBuku, set))) + 1; // periode gajian ke-berapa sejak mulai
+    const pakaiTrx = j0.aturan !== 'periode', pakaiPer = j0.aturan !== 'transaksi';
+    const habis = (pakaiTrx && terpakai >= j0.batasTransaksi) || (pakaiPer && periodeKe > j0.batasPeriode);
+    const hampir = !habis && ((pakaiTrx && j0.batasTransaksi - terpakai <= 50) || (pakaiPer && periodeKe >= j0.batasPeriode));
     let aktif = await lisensiSah_(idBuku, pengaturan_(set).LISENSI);
     let permintaan = '', alasan = '';
     if (aktif) {
       if (paksa) { try { localStorage.removeItem(kunciBot_(idBuku)); } catch (e) { /* abaikan */ } }
       if (await cekDicabut_(idBuku)) { aktif = false; permintaan = 'nonaktif'; }
-    } else if (BAYAR.urlBot && (paksa || sedangMinta_(idBuku) || terpakai >= BAYAR.batasGratis - 50)) {
+    } else if (BAYAR.urlBot && (paksa || sedangMinta_(idBuku) || hampir || habis)) {
       const j = await tanyaBot_(idBuku, paksa ? 0 : sedangMinta_(idBuku) ? 60e3 : 36e5);
       if (j) {
         permintaan = j.status || '';
@@ -1987,7 +2062,11 @@ const SERVER = (() => {
         if (j.status !== 'menunggu') { try { localStorage.removeItem(kunciMinta_(idBuku)); } catch (e) { /* abaikan */ } }
       }
     }
-    return { batas: BAYAR.batasGratis, terpakai, aktif, terkunci: !aktif && (terpakai >= BAYAR.batasGratis || permintaan === 'nonaktif'), permintaan, alasan };
+    return {
+      aturan: j0.aturan, batas: j0.batasTransaksi, terpakai, batasPeriode: j0.batasPeriode, periodeKe, habis, hampir,
+      harga: j0.harga, rekening: j0.rekening, qris: !!j0.qris,
+      aktif, terkunci: !aktif && (habis || permintaan === 'nonaktif'), permintaan, alasan,
+    };
   }
 
   /** Login baru: status lisensi semua buku ditanyakan ulang ke bot (tidak memakai jawaban tersimpan). */
@@ -1998,7 +2077,8 @@ const SERVER = (() => {
   /** Tombol "Perbarui status" di layar Versi penuh: tanya bot sekarang juga (tanpa cache). Hasil: status lisensi terbaru. */
   async function segarkanLisensi() {
     const id = await db_();
-    const [ids, [set]] = await Promise.all([daftarId_(id), bacaTabel_(id, ['pengaturan'])]);
+    qrisMem_ = null;
+    const [ids, [set]] = await Promise.all([daftarId_(id), bacaTabel_(id, ['pengaturan']), muatJual_(true)]);
     return statusLisensi_(id, ids.filter(Boolean).length, set, true);
   }
 
@@ -2027,12 +2107,13 @@ const SERVER = (() => {
 
   /** Dipanggil sebelum transaksi baru ditulis. ids / set opsional (kalau sudah dibaca pemanggil). */
   async function pastikanKuota_(id, ids, set) {
+    await muatJual_();
     if (!pakaiBatas_()) return;
     const [daftar, rows] = await Promise.all([ids || daftarId_(id), set || bacaTabel_(id, ['pengaturan']).then(x => x[0])]);
     const s = await statusLisensi_(id, daftar.filter(Boolean).length, rows);
     if (!s.terkunci) return;
     const e = new Error(s.permintaan === 'nonaktif' ? T('Versi penuh buku ini dinonaktifkan penjual. Aktifkan lagi di ⚙️ → Versi penuh untuk mencatat.')
-      : T('Batas {n} transaksi gratis sudah tercapai. Beli versi penuh untuk mencatat lagi.', { n: s.batas }));
+      : T('Masa gratis buku ini sudah habis. Beli versi penuh untuk mencatat lagi.'));
     e.perluBayar = true; // app.js membuka layar pembayaran
     throw e;
   }
@@ -2454,7 +2535,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, aturCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, simpanAvatar, aktifkanLisensi, mintaAktivasi, segarkanLisensi, lupakanStatusLisensi, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, simpanAvatar, aktifkanLisensi, mintaAktivasi, segarkanLisensi, lupakanStatusLisensi, ambilQris, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };

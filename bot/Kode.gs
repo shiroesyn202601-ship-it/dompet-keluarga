@@ -194,7 +194,12 @@ function doPost(e) {
  * kode = kode aktivasi kalau status 'aktif', supaya versi penuh terpasang sendiri tanpa link. Tidak membuka data apa pun.
  */
 function doGet(e) {
-  const id = e && e.parameter && String(e.parameter.lisensi || '');
+  const p = (e && e.parameter) || {};
+  const json = isi => ContentService.createTextOutput(JSON.stringify(isi)).setMimeType(ContentService.MimeType.JSON);
+  // ?jual=1 → pengaturan penjualan untuk aplikasi (harga, rekening, kapan ditagih); ?qris=1 → gambar QRIS.
+  if (p.jual) return json(jualPublik_());
+  if (p.qris) return json({ qris: gambarQris_() });
+  const id = String(p.lisensi || '');
   if (id) {
     let isi = { galat: 'ID tidak valid' };
     if (/^[\w-]{20,100}$/.test(id)) {
@@ -1388,10 +1393,115 @@ function cocokKategori_(daftar, nama, catatan) {
 // Versi penuh: batas transaksi gratis & kode aktivasi (sama dengan web/assets/db.js)
 // ======================================================================
 
-/** Harus sama dengan KONFIG.bayar.batasGratis di web/assets/config.js. */
-const BATAS_GRATIS = 450;
 const URL_APLIKASI = 'https://shiroesyn202601-ship-it.github.io/dompet-keluarga/';
-const PESAN_BATAS_GRATIS = '🔒 Batas ' + BATAS_GRATIS + ' transaksi gratis untuk buku ini sudah tercapai, jadi transaksi baru belum bisa dicatat.\n\n'
+
+/**
+ * Pengaturan penjualan (diubah pemilik di admin.html → Pengaturan penjualan), Script Property JUAL:
+ *   aturan: 'transaksi' (setelah batasTransaksi baris Transaksi) | 'periode' (setelah batasPeriode periode gajian
+ *           sejak buku mulai dipakai, Pengaturan MULAI_PAKAI) | 'keduanya' (mana yang lebih dulu)
+ *   harga, rekening: [{ bank, nomor, atasNama }], qris: ID file gambar QRIS di folder Admin ('' = tidak ada).
+ * Bawaan di bawah dipakai selama pemilik belum menyimpan pengaturan.
+ */
+const JUAL_BAWAAN = { aturan: 'transaksi', batasTransaksi: 450, batasPeriode: 3, harga: 30000, rekening: [{ bank: 'DANA', nomor: '087873369841', atasNama: '' }], qris: '' };
+
+function jual_() {
+  let isi = {};
+  try { isi = JSON.parse(properti_('JUAL') || '{}') || {}; } catch (e) { /* pakai bawaan */ }
+  return Object.assign({}, JUAL_BAWAAN, isi);
+}
+
+/** Yang boleh diketahui siapa saja (aplikasi): tanpa ID file QRIS. */
+function jualPublik_() {
+  const j = jual_();
+  return { aturan: j.aturan, batasTransaksi: j.batasTransaksi, batasPeriode: j.batasPeriode, harga: j.harga, rekening: j.rekening, qris: !!j.qris };
+}
+
+function simpanJual_(baru) {
+  const b = baru || {};
+  const bulat = (v, min, maks, nama) => {
+    const n = Math.round(Number(v));
+    if (!(n >= min && n <= maks)) throw new Error(nama + ' harus angka ' + min.toLocaleString('id-ID') + '–' + maks.toLocaleString('id-ID') + '.');
+    return n;
+  };
+  if (['transaksi', 'periode', 'keduanya'].indexOf(b.aturan) < 0) throw new Error('Pilih kapan pengguna ditagih.');
+  const lama = jual_();
+  const rekening = (Array.isArray(b.rekening) ? b.rekening : []).slice(0, 5).map(r => ({
+    bank: teks_(r && r.bank).slice(0, 40), nomor: teks_(r && r.nomor).slice(0, 40), atasNama: teks_(r && r.atasNama).slice(0, 60),
+  })).filter(r => r.bank || r.nomor);
+  if (rekening.some(r => !r.bank || !r.nomor)) throw new Error('Setiap rekening wajib berisi nama bank/e-wallet dan nomornya.');
+  if (!rekening.length && !lama.qris) throw new Error('Isi minimal satu rekening atau unggah QRIS.');
+  const hasil = {
+    aturan: b.aturan,
+    batasTransaksi: b.aturan === 'periode' ? lama.batasTransaksi : bulat(b.batasTransaksi, 1, 100000, 'Batas transaksi'),
+    batasPeriode: b.aturan === 'transaksi' ? lama.batasPeriode : bulat(b.batasPeriode, 1, 120, 'Batas periode'),
+    harga: bulat(b.harga, 1000, 100000000, 'Harga'),
+    rekening,
+    qris: lama.qris,
+  };
+  simpanProp_('JUAL', JSON.stringify(hasil));
+  return hasil;
+}
+
+/** gambar: data URL PNG/JPEG QRIS, atau '' untuk menghapus. Disimpan di folder Admin. */
+function simpanQris_(gambar) {
+  const j = jual_();
+  let idBaru = '';
+  if (gambar) {
+    const m = String(gambar).match(/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) throw new Error('Gambar QRIS tidak valid.');
+    if (m[2].length > 4e6) throw new Error('Gambar QRIS terlalu besar.');
+    const mime = 'image/' + m[1];
+    const batas = 'dk' + Utilities.getUuid().replace(/-/g, '');
+    const meta = JSON.stringify({ name: 'QRIS pembayaran', mimeType: mime, parents: [folderAdmin_()] });
+    idBaru = apiPemilik_('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+      method: 'post', contentType: 'multipart/related; boundary=' + batas,
+      payload: Utilities.newBlob('--' + batas + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta
+        + '\r\n--' + batas + '\r\nContent-Type: ' + mime + '\r\n\r\n').getBytes()
+        .concat(Utilities.base64Decode(m[2]), Utilities.newBlob('\r\n--' + batas + '--').getBytes()),
+    }).id;
+  } else if (!j.rekening.length) {
+    throw new Error('QRIS tidak bisa dihapus selama belum ada rekening.');
+  }
+  if (j.qris) { try { apiPemilik_('https://www.googleapis.com/drive/v3/files/' + j.qris, { method: 'delete' }); } catch (e) { /* sudah tidak ada */ } }
+  simpanProp_('JUAL', JSON.stringify(Object.assign(j, { qris: idBaru })));
+  CacheService.getScriptCache().remove('qris');
+  return { qris: !!idBaru };
+}
+
+/** Gambar QRIS sebagai data URL ('' kalau tidak ada); di-cache 6 jam (dibuka banyak pembeli). */
+function gambarQris_() {
+  const j = jual_();
+  if (!j.qris) return '';
+  const cache = CacheService.getScriptCache();
+  const ada = cache.get('qris');
+  if (ada) return ada;
+  const res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + j.qris + '?alt=media', {
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() !== 200) return '';
+  const blob = res.getBlob();
+  const data = 'data:' + (blob.getContentType() || 'image/png') + ';base64,' + Utilities.base64Encode(blob.getBytes());
+  if (data.length < 90000) cache.put('qris', data, 21600); // batas ukuran isi CacheService ±100 KB
+  return data;
+}
+
+/** Berapa periode gajian sudah lewat sejak buku mulai dipakai (0 = masih periode pertama). */
+function periodeLewat_(d) {
+  const mulai = /^\d{4}-\d{2}-\d{2}$/.test(d.pengaturan.MULAI_PAKAI || '') ? d.pengaturan.MULAI_PAKAI
+    : d.transaksi.reduce((a, t) => (t.tanggal && t.tanggal < a ? t.tanggal : a), hariIni_());
+  const k = s => { const [y, m] = periode_(s).split('-').map(Number); return y * 12 + m; };
+  return Math.max(0, k(hariIni_()) - k(mulai));
+}
+
+/** Masa gratis buku ini sudah habis menurut aturan penjualan? */
+function masaGratisHabis_(d) {
+  const j = jual_();
+  const trx = d.transaksi.length >= j.batasTransaksi;
+  const per = periodeLewat_(d) >= j.batasPeriode;
+  return j.aturan === 'transaksi' ? trx : j.aturan === 'periode' ? per : trx || per;
+}
+
+const PESAN_BATAS_GRATIS = '🔒 Masa gratis untuk buku ini sudah habis, jadi transaksi baru belum bisa dicatat.\n\n'
   + 'Beli versi penuh (sekali bayar) di aplikasi Dompet Keluarga: ⚙️ → <b>Versi penuh</b>. Data lama tetap aman dan bisa dilihat.';
 
 /**
@@ -1420,7 +1530,7 @@ function kuotaPenuh_(d) {
   if (!properti_('LISENSI_KUNCI') || modeLama_()) return false;
   const id = idSpreadsheet_();
   if (daftarDicabut_().indexOf(id) >= 0) return true; // dinonaktifkan penjual: dikunci berapa pun kuotanya
-  if (d.transaksi.length < BATAS_GRATIS) return false;
+  if (!masaGratisHabis_(d)) return false;
   return String(d.pengaturan.LISENSI || '') !== tandaTanganLisensi_(id);
 }
 
@@ -1465,7 +1575,7 @@ function prosesLisensi_(m, perintah, teks) {
   if (perintah === 'batal') {
     simpanDicabut_(dicabut.concat([id]));
     return kirim_(chatId, '🚫 Lisensi buku ' + kode + ' dicabut.\n\n'
-      + '• Bot: langsung berlaku. Buku ini tidak bisa mencatat transaksi baru lewat bot kalau sudah lewat ' + BATAS_GRATIS + ' transaksi.\n'
+      + '• Bot: langsung berlaku. Buku ini tidak bisa mencatat transaksi baru lewat bot.\n'
       + '• Aplikasi: ikut terkunci lagi paling lambat sehari (aplikasi menanyakan status ke bot sekali sehari; '
       + 'butuh <code>urlBot</code> terisi di config.js). Kalau belum diisi, tambahkan ID ini ' + catatanApp + '.\n\n'
       + 'Salah cabut? Kirim <code>/pulihkan ' + html_(id) + '</code>.');
@@ -1795,7 +1905,10 @@ function apiLisensi_(b) {
   const akun = akunGoogle_(b && b.token);
   if (b.aksi === 'minta') return mintaAktivasi_(akun, b);
   if (!adminWeb_(akun.email)) throw new Error('Akun ' + akun.email + ' bukan admin. Masuk dengan akun Google pemilik bot.');
-  if (b.aksi === 'daftar') return { daftar: daftarPermintaan_(), admin: akun.email, sheet: 'https://docs.google.com/spreadsheets/d/' + sheetAju_() + '/edit' };
+  if (b.aksi === 'simpanJual') { simpanJual_(b.jual); return { jual: jualPublik_() }; }
+  if (b.aksi === 'simpanQris') return simpanQris_(String(b.gambar || ''));
+  if (b.aksi === 'lihatQris') return { qris: gambarQris_() };
+  if (b.aksi === 'daftar') return { jual: jualPublik_(), daftar: daftarPermintaan_(), admin: akun.email, sheet: 'https://docs.google.com/spreadsheets/d/' + sheetAju_() + '/edit' };
   if (b.aksi === 'foto') return { foto: fotoBukti_(String(b.id || '')) };
   if (b.aksi === 'atur') return aturLisensi_(String(b.id || ''), String(b.status || ''), String(b.alasan || '').trim());
   throw new Error('Aksi tidak dikenal.');
