@@ -1709,9 +1709,9 @@ function bukaFormBayar() {
   };
   const jenis = ['menunggu', 'ditolak', 'nonaktif'].includes(l.permintaan) ? l.permintaan : 'belum';
   const status = {
-    menunggu: { judul: T('Menunggu konfirmasi penjual'), isi: T('Bukti transfer sudah terkirim. Versi penuh aktif sendiri setelah dikonfirmasi, tanpa perlu apa-apa.') },
+    menunggu: { judul: T('Menunggu konfirmasi admin'), isi: T('Bukti transfer sudah terkirim. Versi penuh aktif sendiri setelah dikonfirmasi, tanpa perlu apa-apa.') },
     ditolak: { judul: T('Bukti transfer ditolak'), isi: T('Perbaiki lalu kirim ulang bukti transfernya di bawah.') },
-    nonaktif: { judul: T('Versi penuh dinonaktifkan penjual'), isi: T('Kirim bukti transfer kalau ingin mengaktifkannya lagi.') },
+    nonaktif: { judul: T('Versi penuh dinonaktifkan admin'), isi: T('Kirim bukti transfer kalau ingin mengaktifkannya lagi.') },
     belum: { judul: T('Belum mengajukan aktivasi'), isi: T('Sudah transfer dan mengirim bukti dari HP lain? Statusnya diperiksa otomatis setiap layar ini dibuka.') },
   }[jenis];
   const kabar = `
@@ -1720,7 +1720,7 @@ function bukaFormBayar() {
         <span class="sa-ikon" aria-hidden="true"><svg viewBox="0 0 24 24">${IKON_STATUS[jenis]}</svg></span>
         <span class="sa-judul"><small>${T('Status aktivasi')}</small><b>${status.judul}</b></span>
       </div>
-      ${jenis === 'ditolak' && l.alasan ? `<div class="sa-alasan"><small>${T('Alasan dari penjual')}</small>${esc(l.alasan)}</div>` : ''}
+      ${jenis === 'ditolak' && l.alasan ? `<div class="sa-alasan"><small>${T('Alasan dari admin')}</small>${esc(l.alasan)}</div>` : ''}
       <p class="sa-ket">${status.isi}</p>
     </section>`;
   // Setiap rekening boleh punya satu QRIS, ditampilkan tepat di bawah rekeningnya.
@@ -1749,7 +1749,7 @@ function bukaFormBayar() {
         <img id="pratinjau-bukti" alt="" hidden style="display:block;max-width:100%;max-height:240px;margin:0 auto 8px;border-radius:12px">
         <button type="button" class="btn btn-utama" style="display:block;width:100%" data-aksi="kirim-bukti" id="tombol-kirim-bukti" disabled>${T('Kirim bukti')}</button>
       </li>
-      <li>${T('Penjual mengecek transfernya. Setelah dikonfirmasi, versi penuh <b>aktif sendiri</b> untuk seluruh keluarga saat aplikasi dibuka lagi.')}</li>
+      <li>${T('Admin mengecek transfernya. Setelah dikonfirmasi, versi penuh <b>aktif sendiri</b> untuk seluruh keluarga saat aplikasi dibuka lagi.')}</li>
     </ol>`);
   jadwalCekBayar();
   document.querySelectorAll('.kotak-qris[data-rek]').forEach(kotak => {
@@ -1807,7 +1807,7 @@ function jadwalCekBayar() {
 }
 
 /**
- * Foto / screenshot bukti transfer diperkecil sebelum dikirim, supaya penyimpanan penjual tidak cepat penuh, tapi nominal,
+ * Foto / screenshot bukti transfer diperkecil sebelum dikirim, supaya penyimpanan admin tidak cepat penuh, tapi nominal,
  * nama, dan tanggalnya tetap terbaca: sisi terpanjang ±1600 px (screenshot HP tetap tajam), WebP (JPEG kalau browser
  * tidak bisa), mutu diturunkan bertahap sampai ±200 KB. Hasil: data URL.
  */
@@ -1859,7 +1859,7 @@ async function kirimBuktiBayar(tombol) {
     tulisLokal('data', S.data);
     bukaFormBayar();
     render();
-    toast(T('Bukti terkirim ✔ Versi penuh aktif sendiri setelah dikonfirmasi penjual.'));
+    toast(T('Bukti terkirim ✔ Versi penuh aktif sendiri setelah dikonfirmasi admin.'));
   } catch (e) {
     tombol.disabled = false;
     if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);

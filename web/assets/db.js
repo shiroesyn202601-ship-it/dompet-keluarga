@@ -1901,7 +1901,7 @@ const SERVER = (() => {
 
   // ---------- Versi penuh: batas transaksi gratis & kode aktivasi ----------
   //
-  // Sumber kebenaran: spreadsheet "Pengajuan Aktivasi" milik penjual, dibaca lewat bot (?lisensi=<ID buku>).
+  // Sumber kebenaran: spreadsheet "Pengajuan Aktivasi" milik admin, dibaca lewat bot (?lisensi=<ID buku>).
   // Aktif di sheet = versi penuh; Nonaktif = dikunci; tidak ada di sheet = belum versi penuh (bebas selama masa gratis).
   // Kode aktivasi (tanda tangan RSA atas "DK1:<ID spreadsheet>") yang tersimpan di sheet Pengaturan buku (kunci LISENSI)
   // hanya cadangan saat bot belum pernah bisa dihubungi dari HP ini; dihapus sendiri begitu bot bilang tidak aktif.
@@ -1958,7 +1958,7 @@ const SERVER = (() => {
     return (qrisMem_[i] = String(j.qris || ''));
   }
 
-  /** Batas hanya berlaku kalau bot & kunci publik ada dan penjual punya tempat bayar (rekening / QRIS). */
+  /** Batas hanya berlaku kalau bot & kunci publik ada dan admin punya tempat bayar (rekening / QRIS). */
   const pakaiBatas_ = () => {
     const j = jualTersimpan_();
     return !!(BAYAR.kunciPublik && BAYAR.urlBot && (j.rekening.length || j.qris));
@@ -2027,18 +2027,18 @@ const SERVER = (() => {
       return simpan ? simpan.j : null;
     }
   }
-  /** Status terakhir dari bot yang tersimpan di HP ini ('' kalau belum pernah / tidak ada di sheet penjual). */
+  /** Status terakhir dari bot yang tersimpan di HP ini ('' kalau belum pernah / tidak ada di sheet admin). */
   function statusTersimpan_(idBuku) {
     try { return String(((JSON.parse(localStorage.getItem(kunciBot_(idBuku))) || {}).j || {}).status || ''); } catch (e) { return ''; }
   }
 
-  /** HP ini sudah mengirim bukti transfer untuk buku ini dan masih menunggu jawaban penjual. */
+  /** HP ini sudah mengirim bukti transfer untuk buku ini dan masih menunggu jawaban admin. */
   const kunciMinta_ = idBuku => 'dk_minta_' + idBuku;
   const sedangMinta_ = idBuku => { try { return !!localStorage.getItem(kunciMinta_(idBuku)); } catch (e) { return false; } };
 
   /**
    * { batas, terpakai, aktif (versi penuh), terkunci, permintaan ('menunggu' | 'ditolak' | …), alasan (penolakan) }, atau null kalau batas tidak berlaku.
-   * Status diambil dari spreadsheet penjual lewat bot (jawaban disimpan 10 menit; langsung saat login / layar Versi penuh dibuka, 1 menit
+   * Status diambil dari spreadsheet admin lewat bot (jawaban disimpan 10 menit; langsung saat login / layar Versi penuh dibuka, 1 menit
    * saat menunggu konfirmasi). Bot ditanya kalau statusnya pernah ada, ada kode tersimpan, sedang menunggu, atau masa gratis
    * hampir / sudah habis; selain itu buku dianggap belum versi penuh dan bebas mencatat selama masa gratis.
    * Nonaktif = pencatatan baru dikunci berapa pun kuotanya.
@@ -2060,7 +2060,7 @@ const SERVER = (() => {
       alasan = j.status === 'ditolak' ? String(j.alasan || '') : '';
       aktif = j.status === 'aktif';
       if (j.status !== 'menunggu') { try { localStorage.removeItem(kunciMinta_(idBuku)); } catch (e) { /* abaikan */ } }
-      // Kode cadangan di buku diselaraskan dengan sheet penjual: dipasang saat Aktif, dihapus kalau tidak.
+      // Kode cadangan di buku diselaraskan dengan sheet admin: dipasang saat Aktif, dihapus kalau tidak.
       try {
         if (aktif && j.kode && j.kode !== kodeLokal && await lisensiSah_(idBuku, j.kode)) await simpanPengaturan_(idBuku, set, 'LISENSI', j.kode);
         else if (!aktif && kodeLokal) await simpanPengaturan_(idBuku, set, 'LISENSI', '');
@@ -2089,7 +2089,7 @@ const SERVER = (() => {
     return statusLisensi_(id, ids.filter(Boolean).length, set, true);
   }
 
-  /** Pembeli mengirim foto bukti transfer (data URL JPEG) untuk buku yang sedang dibuka; dicek penjual di admin.html. */
+  /** Pembeli mengirim foto bukti transfer (data URL JPEG) untuk buku yang sedang dibuka; dicek admin di admin.html. */
   async function mintaAktivasi(foto) {
     const id = await db_();
     const token = GOOGLE.token();
@@ -2100,7 +2100,7 @@ const SERVER = (() => {
       const r = await fetch(BAYAR.urlBot + '?api=1', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ aksi: 'minta', token, id, foto }) });
       j = await r.json();
     } catch (e) {
-      const err = new Error(T('Tidak bisa terhubung ke penjual. Periksa koneksi internet lalu coba lagi.'));
+      const err = new Error(T('Tidak bisa terhubung ke admin. Periksa koneksi internet lalu coba lagi.'));
       err.jaringan = true;
       throw err;
     }
@@ -2119,7 +2119,7 @@ const SERVER = (() => {
     const [daftar, rows] = await Promise.all([ids || daftarId_(id), set || bacaTabel_(id, ['pengaturan']).then(x => x[0])]);
     const s = await statusLisensi_(id, daftar.filter(Boolean).length, rows);
     if (!s.terkunci) return;
-    const e = new Error(s.permintaan === 'nonaktif' ? T('Versi penuh buku ini dinonaktifkan penjual. Aktifkan lagi di ⚙️ → Versi penuh untuk mencatat.')
+    const e = new Error(s.permintaan === 'nonaktif' ? T('Versi penuh buku ini dinonaktifkan admin. Aktifkan lagi di ⚙️ → Versi penuh untuk mencatat.')
       : T('Masa gratis buku ini sudah habis. Beli versi penuh untuk mencatat lagi.'));
     e.perluBayar = true; // app.js membuka layar pembayaran
     throw e;

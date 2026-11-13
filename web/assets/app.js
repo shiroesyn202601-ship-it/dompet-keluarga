@@ -297,7 +297,7 @@ function pesanError(e) {
 // ---------- Muat & render ----------
 
 async function mulai() {
-  // Link aktivasi lama (#aktivasi=…) tidak dipakai lagi: status versi penuh diambil dari spreadsheet penjual.
+  // Link aktivasi lama (#aktivasi=…) tidak dipakai lagi: status versi penuh diambil dari spreadsheet admin.
   if (/aktivasi=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
   const m = location.hash.match(/gabung=([\w-]{20,})/);
   if (m) {
@@ -496,7 +496,7 @@ const terkunciBayar = () => !!(S.data && S.data.lisensi && S.data.lisensi.terkun
 function ketVersiPenuh(l) {
   if (l.aktif) return T('Aktif · tanpa batas transaksi');
   const beli = T('beli {harga}', { harga: rp(l.harga) });
-  if (l.permintaan === 'nonaktif') return T('Dinonaktifkan penjual · aktifkan lagi');
+  if (l.permintaan === 'nonaktif') return T('Dinonaktifkan admin · aktifkan lagi');
   if (l.habis) return T('Masa gratis habis') + ' · ' + beli;
   const bagian = [l.aturan !== 'periode' ? T('{terpakai} dari {n} transaksi gratis', { terpakai: l.terpakai, n: l.batas }) : '',
     l.aturan !== 'transaksi' ? T('periode gratis ke-{k} dari {n}', { k: l.periodeKe, n: l.batasPeriode }) : ''].filter(Boolean);
@@ -504,7 +504,7 @@ function ketVersiPenuh(l) {
 }
 
 /**
- * Menu ⚙️ → Versi penuh ditampilkan? Diatur penjual (admin.html → Pengaturan penjualan): selalu, atau hanya setelah
+ * Menu ⚙️ → Versi penuh ditampilkan? Diatur admin (admin.html → Pengaturan penjualan): selalu, atau hanya setelah
  * masa gratis habis. Buku yang sudah aktif / dikunci / pernah mengajukan aktivasi tetap melihatnya.
  */
 function tampilVersiPenuh(l) {

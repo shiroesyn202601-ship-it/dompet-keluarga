@@ -21,7 +21,7 @@
   /** Alasan penolakan siap pilih; teks inilah yang dilihat pembeli di layar Versi penuh. */
   const daftarAlasan = () => [
     'Nominal transfer tidak sesuai (harus ' + rupiah(jual.harga) + ')',
-    'Transfer belum masuk ke rekening penjual',
+    'Transfer belum masuk ke rekening admin',
     'Foto bukti tidak jelas atau terpotong',
     'Nomor tujuan transfer salah',
     'Bukti transfer sudah pernah dipakai untuk buku lain',

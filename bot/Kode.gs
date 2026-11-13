@@ -1532,10 +1532,10 @@ function tandaTanganLisensi_(idSheet) {
   return Utilities.base64EncodeWebSafe(Utilities.computeRsaSha256Signature('DK1:' + idSheet, pem)).replace(/=+$/, '');
 }
 
-/** Pesan saat pencatatan dikunci: dinonaktifkan penjual, atau batas gratis tercapai. */
+/** Pesan saat pencatatan dikunci: dinonaktifkan admin, atau batas gratis tercapai. */
 function pesanKunci_() {
   return statusPengajuan_(idSpreadsheet_()).status === 'nonaktif'
-    ? '⛔ Versi penuh buku ini dinonaktifkan penjual, jadi transaksi baru belum bisa dicatat.\n\n'
+    ? '⛔ Versi penuh buku ini dinonaktifkan admin, jadi transaksi baru belum bisa dicatat.\n\n'
       + 'Aktifkan lagi di aplikasi Dompet Keluarga: ⚙️ → <b>Versi penuh</b>. Data lama tetap aman dan bisa dilihat.'
     : PESAN_BATAS_GRATIS;
 }
@@ -1646,9 +1646,9 @@ function daftarAdmin_() {
 function mulaiBayar_(m, idBuku) {
   const chatId = m.chat.id;
   if (!daftarAdmin_().length || !properti_('LISENSI_KUNCI')) {
-    return kirim_(chatId, '⚠️ Pembayaran lewat bot belum disiapkan penjual. Coba lagi nanti.');
+    return kirim_(chatId, '⚠️ Pembayaran lewat bot belum disiapkan admin. Coba lagi nanti.');
   }
-  if (statusPengajuan_(idBuku).status === 'nonaktif') return kirim_(chatId, '⚠️ Versi penuh buku ini dinonaktifkan penjual. Hubungi penjual.');
+  if (statusPengajuan_(idBuku).status === 'nonaktif') return kirim_(chatId, '⚠️ Versi penuh buku ini dinonaktifkan admin. Hubungi admin.');
   const nama = [m.from.first_name, m.from.last_name].filter(Boolean).join(' ') + (m.from.username ? ' (@' + m.from.username + ')' : '');
   simpanBayar_(chatId, { id: idBuku, tahap: 'foto', nama });
   kirim_(chatId, [
@@ -1674,7 +1674,7 @@ function terimaBukti_(m, tunggu) {
     const r = tg_(metode, { chat_id: a, [m.photo ? 'photo' : 'document']: foto, caption: keterangan, parse_mode: 'HTML', reply_markup: { inline_keyboard: tombol } });
     if (r.ok) terkirim++;
   });
-  if (!terkirim) return kirim_(chatId, '⚠️ Bukti belum bisa diteruskan ke penjual. Coba kirim ulang sebentar lagi.');
+  if (!terkirim) return kirim_(chatId, '⚠️ Bukti belum bisa diteruskan ke admin. Coba kirim ulang sebentar lagi.');
   simpanBayar_(chatId, Object.assign({}, tunggu, { tahap: 'cek' }));
   kirim_(chatId, '✅ Bukti transfer diterima dan sedang dicek. Link aktivasi akan dikirim ke chat ini setelah pembayaran dikonfirmasi.');
 }
@@ -2061,7 +2061,7 @@ function apiLisensi_(b) {
 function mintaAktivasi_(akun, b) {
   const id = String(b.id || '');
   if (!/^[\w-]{20,100}$/.test(id)) throw new Error('Kode buku tidak valid.');
-  if (!properti_('LISENSI_KUNCI')) throw new Error('Pembayaran belum disiapkan penjual. Coba lagi nanti.');
+  if (!properti_('LISENSI_KUNCI')) throw new Error('Pembayaran belum disiapkan admin. Coba lagi nanti.');
   const lama = permintaan_(id);
   if (lama && lama.status === 'aktif') return { status: 'aktif' };
   const foto = String(b.foto || '').match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
