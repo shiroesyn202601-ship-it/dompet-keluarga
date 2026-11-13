@@ -288,8 +288,7 @@
       .mode-web .rekening-isian .hapus { grid-column: 5; grid-row: 1; }
       .mode-web .rekening-baris .qris { grid-column: 4; grid-row: 1; gap: 10px; }
       .mode-web .qris-pratinjau { width: 52px; height: 52px; border-radius: 10px; font-size: 10.5px; }
-      .mode-web .qris-aksi { flex-direction: row; flex-wrap: wrap; }
-      .mode-web .qris-aksi .btn { padding: 7px 11px; }
+
       .rekening-baris { border: 1px solid var(--line); border-radius: 18px; padding: 12px; display: grid; gap: 10px; background: var(--card); }
       .rekening-isian { display: grid; grid-template-columns: 1fr 40px; gap: 8px; }
       .rekening-isian input { grid-column: 1; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 10px 12px; outline: none; }
@@ -299,7 +298,20 @@
       .qris-pratinjau { width: 96px; height: 96px; border-radius: 14px; border: 1px dashed var(--line); background: var(--card-2); display: grid; place-items: center;
         color: var(--muted); font-size: 12px; text-align: center; overflow: hidden; flex: none; }
       .qris-pratinjau img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
-      .qris-aksi { display: flex; flex-direction: column; gap: 8px; }
+      button.qris-pratinjau { cursor: zoom-in; border-style: solid; padding: 0; transition: transform .12s, box-shadow .12s; }
+      button.qris-pratinjau:hover { transform: scale(1.04); box-shadow: 0 0 0 3px var(--primary-soft); }
+      .qris-ket { color: var(--muted); font-size: 12px; }
+      /* QRIS kosong: kotaknya sendiri tombol unggah */
+      .qris-kosong { cursor: pointer; align-content: center; gap: 2px; font-weight: 700; color: var(--primary); transition: background .12s, border-color .12s; }
+      .qris-kosong svg.ik { width: 20px; height: 20px; }
+      .qris-kosong:hover { border-color: var(--primary); background: var(--primary-soft); }
+      .mode-web .qris-kosong span { display: none; }
+      .dialog-qris { max-width: 400px; }
+      .qris-besar { background: #fff; border-radius: 18px; padding: 14px; display: grid; place-items: center; min-height: 240px; margin-bottom: 10px; }
+      .qris-besar img { max-width: 100%; max-height: min(52vh, 420px); width: auto; height: auto; display: block; }
+      .qris-besar { min-height: 200px; }
+      .qris-info { text-align: center; color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+      .dialog-qris .tombol-dialog .btn { flex: 1; }
       .tombol-file { cursor: pointer; }
       .simpan-bar { position: sticky; bottom: 12px; z-index: 6; display: flex; justify-content: flex-end; gap: 8px; padding: 10px; margin-top: 4px;
         background: color-mix(in srgb, var(--card) 90%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);

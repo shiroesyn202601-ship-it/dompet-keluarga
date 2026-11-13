@@ -404,8 +404,8 @@
       api({ aksi: 'lihatQris', rek: i }).then(j => {
         qrisTersimpan[i] = j.qris || '';
         // Gambar dipasang langsung (tanpa render ulang) supaya ketikan yang sedang berlangsung tidak terganggu.
-        const kotak = document.querySelector('.qris-pratinjau[data-asal="' + i + '"]');
-        if (kotak && layar === 'pengaturan') kotak.innerHTML = j.qris ? '<img src="' + esc(j.qris) + '" alt="QRIS">' : 'Gagal dimuat';
+        if (layar !== 'pengaturan') return;
+        document.querySelectorAll('[data-asal="' + i + '"]').forEach(kotak => { kotak.innerHTML = j.qris ? '<img src="' + esc(j.qris) + '" alt="QRIS">' : 'Gagal dimuat'; });
       }).catch(e => { if (!e.sesi) kabar(e.message); });
     });
   }
@@ -484,11 +484,11 @@
                 <button type="button" class="ikon-btn hapus" data-aksi="hapus-rekening" data-i="${i}" aria-label="Hapus rekening" title="Hapus rekening" ${f.rekening.length < 2 ? 'disabled' : ''}>${IKON.sampah}</button>
               </div>
               <div class="qris">
-                <div class="qris-pratinjau" ${r.baru === null && r.qris ? `data-asal="${r.asal}"` : ''}>${g ? `<img src="${esc(g)}" alt="QRIS">` : ada ? '<span class="putar" style="color:var(--muted)"></span>' : 'Tanpa QRIS'}</div>
-                <div class="qris-aksi">
-                  <label class="btn kecil btn-kedua tombol-file"><input type="file" class="file-qris" data-i="${i}" accept="image/*" hidden>${IKON.unggah.replace('class="ik"', 'class="ik" style="width:16px;height:16px"')}${ada ? 'Ganti QRIS' : 'Unggah QRIS'}</label>
-                  ${ada ? `<button type="button" class="btn kecil btn-lembut-merah" data-aksi="hapus-qris" data-i="${i}">Hapus QRIS</button>` : ''}
-                </div>
+                ${ada ? `<button type="button" class="qris-pratinjau" data-aksi="buka-qris" data-i="${i}" ${r.baru === null && r.qris ? `data-asal="${r.asal}"` : ''}
+                    title="Lihat, ganti, atau hapus QRIS" aria-label="Lihat, ganti, atau hapus QRIS ${esc(r.bank)}">${g ? `<img src="${esc(g)}" alt="">` : '<span class="putar" style="color:var(--muted)"></span>'}</button>
+                  <span class="qris-ket">${r.baru ? 'QRIS baru · belum disimpan' : 'Ketuk untuk ubah'}</span>`
+                  : `<label class="qris-pratinjau qris-kosong" title="Unggah QRIS"><input type="file" class="file-qris" data-i="${i}" accept="image/*" hidden>${IKON.unggah}<span>Unggah</span></label>
+                  <span class="qris-ket">Belum ada QRIS</span>`}
               </div>
             </div>`; }).join('')}</div>
           ${f.rekening.length < 5 ? `<button type="button" class="btn btn-garis" style="margin-top:12px" data-aksi="tambah-rekening">${IKON.tambah}Tambah rekening</button>` : ''}
@@ -503,19 +503,55 @@
       if (e.target.name === 'aturan' || e.target.id === 'selalu-tampil') { bacaForm(); render(); }
       if (e.target.id === 'harga') { bacaForm(); e.target.value = formJual.harga.toLocaleString('id-ID'); }
     };
-    document.querySelectorAll('.file-qris').forEach(inp => {
-      inp.onchange = async e => {
-        e.stopPropagation();
-        const file = e.target.files && e.target.files[0];
-        if (!file) return;
-        try {
-          const gambar = await kecilkanQris(file);
-          bacaForm();
-          formJual.rekening[Number(inp.dataset.i)].baru = gambar;
-          render();
-        } catch (err) { kabar(err.message); }
-      };
-    });
+    document.querySelectorAll('#form-jual .file-qris').forEach(inp => pasangFileQris(inp));
+  }
+
+  /** Input file QRIS: gambar diperkecil lalu dipasang di rekening ke-i (tersimpan saat Simpan pengaturan ditekan). */
+  function pasangFileQris(inp, sesudah) {
+    inp.onchange = async e => {
+      e.stopPropagation();
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        const gambar = await kecilkanQris(file);
+        if (sesudah) sesudah();
+        bacaForm();
+        formJual.rekening[Number(inp.dataset.i)].baru = gambar;
+        render();
+      } catch (err) { kabar(err.message); }
+    };
+  }
+
+  /** Overlay QRIS: gambar besar + tombol Ganti & Hapus. */
+  function bukaQris(i) {
+    bacaForm();
+    const r = formJual.rekening[i];
+    const g = gambarQris(r);
+    const kotak = bukaLapis(`
+      <div class="dialog dialog-qris">
+        <div class="kepala-dialog"><h2>QRIS ${esc(r.bank || 'rekening')}</h2><button class="ikon-btn" data-tutup aria-label="Tutup">${IKON.silang}</button></div>
+        <div class="qris-besar" ${r.baru === null && r.qris ? `data-asal="${r.asal}"` : ''}>${g ? `<img src="${esc(g)}" alt="QRIS ${esc(r.bank)}">` : '<span class="putar" style="color:var(--muted)"></span>'}</div>
+        ${r.nomor ? `<p class="qris-info">${esc(r.bank)} · ${esc(r.nomor)}${r.atasNama ? ' · a.n. ' + esc(r.atasNama) : ''}</p>` : ''}
+        <div class="tombol-dialog">
+          <button type="button" class="btn btn-lembut-merah" data-qris-hapus>${IKON.sampah}Hapus QRIS</button>
+          <label class="btn btn-utama tombol-file"><input type="file" class="file-qris" data-i="${i}" accept="image/*" hidden>${IKON.unggah}Ganti QRIS</label>
+        </div>
+        <p class="bantu" style="text-align:center;margin-top:10px">Perubahan tersimpan setelah menekan <b>Simpan pengaturan</b>.</p>
+      </div>`, true);
+    const tutup = () => { kotak.hidden = true; kotak.onclick = null; document.removeEventListener('keydown', escQris); };
+    const escQris = e => { if (e.key === 'Escape') tutup(); };
+    document.addEventListener('keydown', escQris);
+    pasangFileQris(kotak.querySelector('.file-qris'), tutup);
+    kotak.onclick = e => {
+      e.stopPropagation();
+      if (e.target === kotak || e.target.closest('[data-tutup]')) return tutup();
+      if (e.target.closest('[data-qris-hapus]')) {
+        tutup();
+        formJual.rekening[i].baru = '';
+        render();
+        kabar('QRIS dihapus · tekan Simpan pengaturan');
+      }
+    };
   }
 
   /** Gambar QRIS diperkecil (sisi terpanjang ≤ 1000 px) tanpa mengaburkan kotak-kotaknya. */
@@ -820,7 +856,7 @@
     if (aksi === 'kembali') { galat = ''; layar = 'pengajuan'; formJual = null; return render(); }
     if (aksi === 'tambah-rekening') { bacaForm(); formJual.rekening.push(rekeningKosong()); render(); return; }
     if (aksi === 'hapus-rekening') { bacaForm(); formJual.rekening.splice(Number(el.dataset.i), 1); return render(); }
-    if (aksi === 'hapus-qris') { bacaForm(); formJual.rekening[Number(el.dataset.i)].baru = ''; return render(); }
+    if (aksi === 'buka-qris') return bukaQris(Number(el.dataset.i));
     if (aksi === 'simpan-jual') return simpanJual(el);
     if (aksi === 'tab') { tab = el.dataset.tab; return render(); }
     if (aksi === 'foto') { delete foto[el.dataset.id]; return muatFoto(el.dataset.id); }
