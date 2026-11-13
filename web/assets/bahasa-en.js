@@ -1900,22 +1900,14 @@ Object.assign(KAMUS, {
 
   // Versi penuh (batas transaksi gratis & pembayaran)
   "Nomor rekening disalin ✔": "Account number copied ✔",
-  "Tempel link atau kode aktivasinya dulu.": "Paste the activation link or code first.",
   "Versi penuh": "Full version",
   "✅ <b>Versi penuh aktif</b> untuk buku ini, tanpa batas transaksi untuk seluruh keluarga, termasuk lewat bot Telegram. Terima kasih sudah mendukung Dompet Keluarga!": "✅ <b>The full version is active</b> for this book, with unlimited transactions for the whole family, including through the Telegram bot. Thank you for supporting Dompet Keluarga!",
   "Beli versi penuh": "Buy full version",
   "Versi penuh: <b>{harga}</b>, sekali bayar untuk selamanya. Tanpa batas transaksi untuk seluruh keluarga di buku ini, termasuk lewat bot Telegram.": "Full version: <b>{harga}</b>, pay once, keep it forever. Unlimited transactions for the whole family in this book, including through the Telegram bot.",
   "Transfer <b>{harga}</b> ke:": "Transfer <b>{harga}</b> to:",
   "a.n. {nama}": "account name {nama}",
-  "Sudah punya kode aktivasi?": "Already have an activation code?",
-  "Tempel link atau kode aktivasi": "Paste the activation link or code",
-  "Versi penuh aktif untuk buku keuangan Anda yang lain ✔": "Full version activated for your other finance book ✔",
   "Versi penuh aktif. Terima kasih! 🎉": "Full version activated. Thank you! 🎉",
   "Aktif · tanpa batas transaksi": "Active · unlimited transactions",
-  "Kode aktivasi tidak dikenali. Salin seluruh link atau kode dari pesan penjual.": "Activation code not recognized. Copy the whole link or code from the seller’s message.",
-  "Lisensi buku ini sudah dicabut. Hubungi penjual.": "This book’s license has been revoked. Contact the seller.",
-  "Kode aktivasi tidak valid. Pastikan disalin lengkap.": "Invalid activation code. Make sure it was copied in full.",
-  "Kode ini untuk buku keuangan yang tidak bisa dibuka dari akun ini. Masuk dengan akun Google yang dipakai untuk buku itu.": "This code is for a finance book this account can’t open. Sign in with the Google account used for that book.",
   "Pilih foto atau screenshot bukti transfer, lalu ketuk <b>Kirim bukti</b>.": "Choose a photo or screenshot of the transfer receipt, then tap <b>Send receipt</b>.",
   "📷 Ganti foto bukti": "📷 Change receipt photo",
   "📷 Pilih foto bukti transfer": "📷 Choose transfer receipt photo",
@@ -1954,5 +1946,4 @@ Object.assign(KAMUS, {
   "{a} atau {b}, mana yang lebih dulu": "{a} or {b}, whichever comes first",
   "{terpakai} dari {n} transaksi gratis": "{terpakai} of {n} free transactions",
   "{terpakai} transaksi terpakai": "{terpakai} transactions used",
-  "Buku ini belum diaktifkan penjual. Hubungi penjual.": "The seller has not activated this book yet. Contact the seller.",
 });

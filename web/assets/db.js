@@ -2125,29 +2125,6 @@ const SERVER = (() => {
     throw e;
   }
 
-  /** isian: link aktivasi (…#aktivasi=<ID buku>.<kode>) atau "<ID buku>.<kode>" saja. Hasil: ID buku yang diaktifkan. */
-  async function aktifkanLisensi(isian) {
-    const m = teks_(isian).match(/([\w-]{20,})\.([\w-]{100,})/);
-    if (!m) throw new Error(T('Kode aktivasi tidak dikenali. Salin seluruh link atau kode dari pesan penjual.'));
-    const [, idBuku, kode] = m;
-    if (dicabut_(idBuku)) throw new Error(T('Lisensi buku ini sudah dicabut. Hubungi penjual.'));
-    if (!(await lisensiSah_(idBuku, kode))) throw new Error(T('Kode aktivasi tidak valid. Pastikan disalin lengkap.'));
-    // Kode saja tidak cukup: bukunya harus Aktif di spreadsheet penjual (kalau bot bisa dihubungi).
-    const j = BAYAR.urlBot ? await tanyaBot_(idBuku, 0) : null;
-    if (j && j.status !== 'aktif') {
-      throw new Error(j.status === 'nonaktif' ? T('Lisensi buku ini sudah dicabut. Hubungi penjual.') : T('Buku ini belum diaktifkan penjual. Hubungi penjual.'));
-    }
-    let set;
-    try {
-      [set] = await bacaTabel_(idBuku, ['pengaturan']);
-    } catch (e) {
-      if (e.status === 403 || e.status === 404) throw new Error(T('Kode ini untuk buku keuangan yang tidak bisa dibuka dari akun ini. Masuk dengan akun Google yang dipakai untuk buku itu.'));
-      throw e;
-    }
-    await simpanPengaturan_(idBuku, set, 'LISENSI', kode);
-    return idBuku;
-  }
-
   // ---------- Bot Telegram (sheet Pengaturan, dibaca juga oleh bot di folder bot/) ----------
 
   function bacaJson_(teks, cadangan) {
@@ -2547,7 +2524,7 @@ const SERVER = (() => {
     getData, buatDatabase, hubungkanDatabase, lupakanDatabase, bagikanKe, daftarAnggota, keluarkanAnggota, buatBuku, lupakanBuku, hapusBuku, tambahBuku,
     simpanTransaksi, hapusTransaksi, kembalikanTransaksi, ubahBanyak, hapusBanyak, kembalikanBanyak, simpanAnggaranLabel, simpanKategori, hapusKategori, simpanAnggaran, simpanDompet, hapusDompet,
     simpanRutin, hapusRutin, majukanRutin, simpanCatatan, aturCatatan, hapusCatatan, kembalikanCatatan, tanggalBerikut: tanggalBerikut_, catatUtang, catatPatungan,
-    simpanMulaiPeriode, simpanAvatar, aktifkanLisensi, mintaAktivasi, segarkanLisensi, lupakanStatusLisensi, ambilQris, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
+    simpanMulaiPeriode, simpanAvatar, mintaAktivasi, segarkanLisensi, lupakanStatusLisensi, ambilQris, mutasiEmas, simpanHargaEmas, catatGalat, riwayatHarga, cadangkan, aturPengingatTelegram, aturRekapTelegram, periodeDari: periodeDari_, rentangPeriode: rentangPeriode_, cariTransaksi,
     tambahKunciGemini, hapusKunciGemini, bacaStruk, pahamiKalimat, ringkasLaporan, saranBeli, ubahTantangan, ambilLampiran, buatKodeTelegram, putuskanTelegram,
     uji: { keSerial_, dariSerial_, validasiTransaksi_, olahData_, jejak_ },
   };

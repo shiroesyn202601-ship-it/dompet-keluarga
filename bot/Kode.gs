@@ -1570,7 +1570,7 @@ function simpanDicabut_(daftar) {
  * Perintah pemilik (ADMIN_TELEGRAM), dengan kode buku = ID spreadsheet (terlihat di bukti transfer yang diteruskan bot)
  * (boleh menempel seluruh pesannya setelah perintah):
  *   /lunas <kode buku>    — status buku di spreadsheet Pengajuan Aktivasi jadi Aktif (baris dibuat kalau belum ada),
- *                           lalu membuat link aktivasi untuk diteruskan ke pembeli;
+ *                           lalu membuat pesan untuk diteruskan ke pembeli;
  *   /batal <kode buku>    — status jadi Nonaktif: pencatatan baru dikunci (bot ±1 menit, aplikasi ±10 menit);
  *   /pulihkan <kode buku> — status kembali Aktif.
  */
@@ -1612,12 +1612,11 @@ function aktifkanBuku_(id, lama) {
   return { ok: true, status: 'aktif' };
 }
 
-/** Pesan untuk pembeli berisi link aktivasi (siap dikirim / diteruskan). */
-function pesanAktivasi_(id) {
-  const link = (properti_('URL_APLIKASI') || URL_APLIKASI) + '#aktivasi=' + id + '.' + tandaTanganLisensi_(id);
+/** Pesan untuk pembeli setelah versi penuh diaktifkan (siap dikirim / diteruskan). Tanpa kode: status diambil dari spreadsheet. */
+function pesanAktivasi_() {
   return html_('Terima kasih sudah membeli Dompet Keluarga versi penuh! 🎉\n\n'
-    + 'Ketuk link ini di HP yang sudah masuk ke Dompet Keluarga, dan versi penuh langsung aktif untuk seluruh keluarga:\n\n' + link
-    + '\n\nKalau link tidak terbuka di aplikasi: buka Dompet Keluarga → ⚙️ → Versi penuh → "Sudah punya kode aktivasi?", tempel seluruh link di atas, lalu ketuk Aktifkan.');
+    + 'Versi penuh sudah aktif untuk seluruh keluarga di buku itu. Buka aplikasi Dompet Keluarga; kalau belum berubah, '
+    + 'ketuk ⚙️ → Versi penuh → 🔄 Perbarui status.');
 }
 
 // ---------- Pembelian lewat bot: pembeli kirim bukti transfer, pemilik menekan ✅ Lunas / ❌ Tolak ----------
@@ -1694,7 +1693,7 @@ function putuskanBayar_(q, aksi, idPembeli) {
   }
   aktifkanBuku_(tunggu.id, permintaan_(tunggu.id));
   const r = kirim_(idPembeli, pesanAktivasi_(tunggu.id));
-  ubah(html_(asal) + (r && r.ok ? '\n\n✅ <b>Lunas.</b> Link aktivasi sudah dikirim ke pembeli.' : '\n\n⚠️ Lunas, tapi link gagal dikirim ke pembeli. Kirim manual: /lunas ' + html_(tunggu.id)));
+  ubah(html_(asal) + (r && r.ok ? '\n\n✅ <b>Lunas.</b> Pembeli sudah diberi tahu.' : '\n\n⚠️ Lunas, tapi pembeli belum bisa diberi tahu. Kirim manual: /lunas ' + html_(tunggu.id)));
 }
 
 // ---------- Permintaan aktivasi lewat aplikasi + halaman admin (web/admin.html) ----------

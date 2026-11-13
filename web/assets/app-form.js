@@ -1740,15 +1740,7 @@ function bukaFormBayar() {
         <button type="button" class="btn btn-utama" style="display:block;width:100%" data-aksi="kirim-bukti" id="tombol-kirim-bukti" disabled>${T('Kirim bukti')}</button>
       </li>
       <li>${T('Penjual mengecek transfernya. Setelah dikonfirmasi, versi penuh <b>aktif sendiri</b> untuk seluruh keluarga saat aplikasi dibuka lagi.')}</li>
-    </ol>
-    <details class="tabel-data">
-      <summary>${T('Sudah punya kode aktivasi?')}</summary>
-      <div class="grup-form">
-        <label class="label" for="kode-aktivasi">${T('Tempel link atau kode aktivasi')}</label>
-        <textarea class="field" id="kode-aktivasi" rows="3" autocomplete="off" spellcheck="false"></textarea>
-      </div>
-      <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="aktifkan-lisensi">${T('Aktifkan')}</button></div>
-    </details>`);
+    </ol>`);
   document.querySelectorAll('.kotak-qris[data-rek]').forEach(kotak => {
     const gagal = () => { kotak.querySelector('.memuat-qris').textContent = T('QRIS belum bisa dimuat. Pakai rekening di atas, atau coba lagi nanti.'); };
     SERVER.ambilQris(kotak.dataset.rek).then(data => {
@@ -1842,29 +1834,6 @@ async function kirimBuktiBayar(tombol) {
     tombol.disabled = false;
     if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
   } finally {
-    loading(false);
-  }
-}
-
-/** Link aktivasi diketuk (#aktivasi=…): dipasang di buku yang sesuai, lalu data dimuat ulang. */
-async function prosesAktivasi(isian, tombol) {
-  const kode = isian || S.aktivasi;
-  S.aktivasi = '';
-  if (!kode || DEMO.aktif()) return;
-  if (tombol) tombol.disabled = true;
-  loading(true);
-  try {
-    const idBuku = await api('aktifkanLisensi', kode);
-    tutupSheet();
-    if (S.data && idBuku !== S.data.spreadsheetId) toast(T('Versi penuh aktif untuk buku keuangan Anda yang lain ✔'));
-    else {
-      await muat();
-      toast(T('Versi penuh aktif. Terima kasih! 🎉'));
-    }
-  } catch (e) {
-    if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
-  } finally {
-    if (tombol) tombol.disabled = false;
     loading(false);
   }
 }

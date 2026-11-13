@@ -142,11 +142,6 @@ const AKSI = {
     const no = String(el.dataset.nomor || '').replace(/\s/g, '');
     try { await navigator.clipboard.writeText(no); toast(T('Nomor rekening disalin ✔')); } catch (e) { toast(no); }
   },
-  'aktifkan-lisensi': el => {
-    const isian = $('#kode-aktivasi').value.trim();
-    if (!isian) return toast(T('Tempel link atau kode aktivasinya dulu.'), true);
-    prosesAktivasi(isian, el);
-  },
   'ajak-ai-lanjut': () => teruskanTanpaAi(),
   'ajak-ai-tolak': () => { tulisHp('dk_ajak_ai', 'tolak'); toast(T('Oke. AI tetap bisa diaktifkan kapan saja di ⚙️ → Fitur AI.')); teruskanTanpaAi(); },
   'telegram': () => bukaFormTelegram(),

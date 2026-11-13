@@ -9,7 +9,6 @@ const S = {
   filterTipe: 'Semua',
   cari: '',
   gabung: '', // ID spreadsheet dari link undangan (#gabung=...)
-  aktivasi: '', // kode versi penuh dari link aktivasi (#aktivasi=<ID buku>.<kode>), diproses setelah data dimuat
   tahun: new Date().getFullYear(), // tahun yang dilihat di Laporan
   lapKategori: 'bulan',            // Laporan → pengeluaran per kategori: 'bulan' | 'tahun'
   setup: { pilih: ['Tunai'], saldo: {}, lain: [], email: '' }, // isian layar setup pertama kali
@@ -298,11 +297,8 @@ function pesanError(e) {
 // ---------- Muat & render ----------
 
 async function mulai() {
-  const akt = location.hash.match(/aktivasi=([\w-]{20,}\.[\w-]{100,})/);
-  if (akt) {
-    S.aktivasi = akt[1];
-    history.replaceState(null, '', location.pathname + location.search);
-  }
+  // Link aktivasi lama (#aktivasi=…) tidak dipakai lagi: status versi penuh diambil dari spreadsheet penjual.
+  if (/aktivasi=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
   const m = location.hash.match(/gabung=([\w-]{20,})/);
   if (m) {
     S.gabung = m[1];
@@ -361,7 +357,6 @@ async function muat() {
       kirimCatatanTertunda();
       cadangkanNanti();
       cekTur();
-      if (S.aktivasi) prosesAktivasi();
       if (typeof bersihkanTabunganTantangan === 'function') setTimeout(bersihkanTabunganTantangan, 3000);
     }
   } catch (e) {
