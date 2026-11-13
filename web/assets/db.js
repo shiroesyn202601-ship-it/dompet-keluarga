@@ -1901,9 +1901,10 @@ const SERVER = (() => {
 
   // ---------- Versi penuh: batas transaksi gratis & kode aktivasi ----------
   //
-  // Kode aktivasi = tanda tangan RSA (SHA-256) atas "DK1:<ID spreadsheet>", base64url, dibuat bot Telegram
-  // lewat perintah pemilik /lunas. Disimpan di sheet Pengaturan (kunci LISENSI), jadi berlaku untuk seluruh
-  // keluarga di buku itu dan di semua perangkat. Bot memeriksa kode yang sama (lihat lisensiSah_ di bot/Kode.gs).
+  // Sumber kebenaran: spreadsheet "Pengajuan Aktivasi" milik penjual, dibaca lewat bot (?lisensi=<ID buku>).
+  // Aktif di sheet = versi penuh; Nonaktif = dikunci; tidak ada di sheet = belum versi penuh (bebas selama masa gratis).
+  // Kode aktivasi (tanda tangan RSA atas "DK1:<ID spreadsheet>") yang tersimpan di sheet Pengaturan buku (kunci LISENSI)
+  // hanya cadangan saat bot belum pernah bisa dihubungi dari HP ini; dihapus sendiri begitu bot bilang tidak aktif.
 
   const BAYAR = KONFIG.bayar || {};
 
@@ -2002,7 +2003,7 @@ const SERVER = (() => {
   }
 
   /**
-   * Status lisensi buku ini di bot (KONFIG.bayar.urlBot): { dicabut, status, kode } (lihat doGet di bot/Kode.gs).
+   * Status lisensi buku ini di bot (KONFIG.bayar.urlBot): { status, alasan, dicabut, kode } (lihat doGet di bot/Kode.gs).
    * Jawaban disimpan di HP dan baru ditanyakan lagi setelah `umur` ms. Gagal tersambung → jawaban terakhir (bisa null),
    * supaya pembeli sah tidak terkunci hanya karena sinyal jelek.
    */
@@ -2025,8 +2026,10 @@ const SERVER = (() => {
       return simpan ? simpan.j : null;
     }
   }
-  // Lisensi yang tersimpan dicek pencabutannya paling lambat tiap 10 menit (langsung saat login / Perbarui status).
-  const cekDicabut_ = async idBuku => !!((await tanyaBot_(idBuku, 10 * 6e4)) || {}).dicabut;
+  /** Status terakhir dari bot yang tersimpan di HP ini ('' kalau belum pernah / tidak ada di sheet penjual). */
+  function statusTersimpan_(idBuku) {
+    try { return String(((JSON.parse(localStorage.getItem(kunciBot_(idBuku))) || {}).j || {}).status || ''); } catch (e) { return ''; }
+  }
 
   /** HP ini sudah mengirim bukti transfer untuk buku ini dan masih menunggu jawaban penjual. */
   const kunciMinta_ = idBuku => 'dk_minta_' + idBuku;
@@ -2034,8 +2037,10 @@ const SERVER = (() => {
 
   /**
    * { batas, terpakai, aktif (versi penuh), terkunci, permintaan ('menunggu' | 'ditolak' | …), alasan (penolakan) }, atau null kalau batas tidak berlaku.
-   * Lisensi yang sudah tersimpan dicek pencabutannya tiap 10 menit; dinonaktifkan penjual = pencatatan baru dikunci, berapa pun kuotanya. Belum berlisensi tapi sedang menunggu konfirmasi
-   * (atau kuota hampir habis): bot ditanya, dan kalau penjual sudah menekan Aktifkan, kodenya langsung disimpan ke buku ini.
+   * Status diambil dari spreadsheet penjual lewat bot (jawaban disimpan 10 menit; langsung saat login / Perbarui status, 1 menit
+   * saat menunggu konfirmasi). Bot ditanya kalau statusnya pernah ada, ada kode tersimpan, sedang menunggu, atau masa gratis
+   * hampir / sudah habis; selain itu buku dianggap belum versi penuh dan bebas mencatat selama masa gratis.
+   * Nonaktif = pencatatan baru dikunci berapa pun kuotanya.
    */
   async function statusLisensi_(idBuku, terpakai, set, paksa) {
     if (!pakaiBatas_()) return null;
@@ -2045,22 +2050,22 @@ const SERVER = (() => {
     const pakaiTrx = j0.aturan !== 'periode', pakaiPer = j0.aturan !== 'transaksi';
     const habis = (pakaiTrx && terpakai >= j0.batasTransaksi) || (pakaiPer && periodeKe > j0.batasPeriode);
     const hampir = !habis && ((pakaiTrx && j0.batasTransaksi - terpakai <= 50) || (pakaiPer && periodeKe >= j0.batasPeriode));
-    let aktif = await lisensiSah_(idBuku, pengaturan_(set).LISENSI);
-    let permintaan = '', alasan = '';
-    if (aktif) {
-      if (paksa) { try { localStorage.removeItem(kunciBot_(idBuku)); } catch (e) { /* abaikan */ } }
-      if (await cekDicabut_(idBuku)) { aktif = false; permintaan = 'nonaktif'; }
-    } else if (BAYAR.urlBot && (paksa || sedangMinta_(idBuku) || hampir || habis)) {
-      const j = await tanyaBot_(idBuku, paksa ? 0 : sedangMinta_(idBuku) ? 60e3 : 36e5);
-      if (j) {
-        permintaan = j.status || '';
-        alasan = j.status === 'ditolak' ? String(j.alasan || '') : '';
-        if (j.kode && !j.dicabut && await lisensiSah_(idBuku, j.kode)) {
-          await simpanPengaturan_(idBuku, set, 'LISENSI', j.kode);
-          aktif = true;
-        }
-        if (j.status !== 'menunggu') { try { localStorage.removeItem(kunciMinta_(idBuku)); } catch (e) { /* abaikan */ } }
-      }
+    const kodeLokal = teks_(pengaturan_(set).LISENSI);
+    let aktif = false, permintaan = '', alasan = '';
+    const j = BAYAR.urlBot && (paksa || kodeLokal || statusTersimpan_(idBuku) || sedangMinta_(idBuku) || hampir || habis)
+      ? await tanyaBot_(idBuku, paksa ? 0 : sedangMinta_(idBuku) ? 60e3 : 10 * 6e4) : null;
+    if (j) {
+      permintaan = j.status || '';
+      alasan = j.status === 'ditolak' ? String(j.alasan || '') : '';
+      aktif = j.status === 'aktif';
+      if (j.status !== 'menunggu') { try { localStorage.removeItem(kunciMinta_(idBuku)); } catch (e) { /* abaikan */ } }
+      // Kode cadangan di buku diselaraskan dengan sheet penjual: dipasang saat Aktif, dihapus kalau tidak.
+      try {
+        if (aktif && j.kode && j.kode !== kodeLokal && await lisensiSah_(idBuku, j.kode)) await simpanPengaturan_(idBuku, set, 'LISENSI', j.kode);
+        else if (!aktif && kodeLokal) await simpanPengaturan_(idBuku, set, 'LISENSI', '');
+      } catch (e) { /* tidak punya izin menulis: tidak apa-apa */ }
+    } else if (kodeLokal) {
+      aktif = await lisensiSah_(idBuku, kodeLokal); // bot belum pernah terjangkau dari HP ini
     }
     return {
       aturan: j0.aturan, batas: j0.batasTransaksi, terpakai, batasPeriode: j0.batasPeriode, periodeKe, habis, hampir,
@@ -2123,8 +2128,13 @@ const SERVER = (() => {
     const m = teks_(isian).match(/([\w-]{20,})\.([\w-]{100,})/);
     if (!m) throw new Error(T('Kode aktivasi tidak dikenali. Salin seluruh link atau kode dari pesan penjual.'));
     const [, idBuku, kode] = m;
-    if (dicabut_(idBuku) || await cekDicabut_(idBuku)) throw new Error(T('Lisensi buku ini sudah dicabut. Hubungi penjual.'));
+    if (dicabut_(idBuku)) throw new Error(T('Lisensi buku ini sudah dicabut. Hubungi penjual.'));
     if (!(await lisensiSah_(idBuku, kode))) throw new Error(T('Kode aktivasi tidak valid. Pastikan disalin lengkap.'));
+    // Kode saja tidak cukup: bukunya harus Aktif di spreadsheet penjual (kalau bot bisa dihubungi).
+    const j = BAYAR.urlBot ? await tanyaBot_(idBuku, 0) : null;
+    if (j && j.status !== 'aktif') {
+      throw new Error(j.status === 'nonaktif' ? T('Lisensi buku ini sudah dicabut. Hubungi penjual.') : T('Buku ini belum diaktifkan penjual. Hubungi penjual.'));
+    }
     let set;
     try {
       [set] = await bacaTabel_(idBuku, ['pengaturan']);

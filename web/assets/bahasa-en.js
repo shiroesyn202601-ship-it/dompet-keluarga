@@ -1962,4 +1962,5 @@ Object.assign(KAMUS, {
   "⏳ Ini periode gratis terakhir.": "⏳ This is your last free pay period.",
   "⛔ Versi penuh dinonaktifkan penjual. Data tetap bisa dilihat.": "⛔ The seller deactivated the full version. Your data can still be viewed.",
   "🔒 Masa gratis sudah habis. Data tetap bisa dilihat.": "🔒 The free period has ended. Your data can still be viewed.",
+  "Buku ini belum diaktifkan penjual. Hubungi penjual.": "The seller has not activated this book yet. Contact the seller.",
 });

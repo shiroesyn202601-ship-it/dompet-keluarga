@@ -189,9 +189,10 @@ function doPost(e) {
 }
 
 /**
- * ?lisensi=<ID spreadsheet> → { dicabut, status, kode }, dipakai aplikasi web (tanyaBot_ di web/assets/db.js):
- * dicabut = lisensi dinonaktifkan pemilik; status = permintaan aktivasi ('menunggu' | 'aktif' | 'ditolak' | 'nonaktif' | '');
- * kode = kode aktivasi kalau status 'aktif', supaya versi penuh terpasang sendiri tanpa link. Tidak membuka data apa pun.
+ * ?lisensi=<ID spreadsheet> → { status, alasan, dicabut, kode }, dipakai aplikasi web (tanyaBot_ di web/assets/db.js).
+ * Spreadsheet "Pengajuan Aktivasi" adalah satu-satunya sumber kebenaran: status = isi kolom Status baris buku itu
+ * ('menunggu' | 'aktif' | 'ditolak' | 'nonaktif'), atau '' kalau bukunya tidak ada di sheet (= belum versi penuh).
+ * dicabut = bukan 'aktif' (untuk aplikasi versi lama); kode = kode aktivasi kalau 'aktif'. Tidak membuka data apa pun.
  */
 function doGet(e) {
   const p = (e && e.parameter) || {};
@@ -203,10 +204,12 @@ function doGet(e) {
   if (id) {
     let isi = { galat: 'ID tidak valid' };
     if (/^[\w-]{20,100}$/.test(id)) {
-      const dicabut = daftarDicabut_().indexOf(id) >= 0;
       const aju = statusPengajuan_(id);
-      const status = aju.status;
-      isi = { dicabut, status, alasan: aju.alasan, kode: status === 'aktif' && !dicabut && properti_('LISENSI_KUNCI') ? tandaTanganLisensi_(id) : '' };
+      if (aju.galat) isi = { galat: 'Status belum bisa dibaca. Coba lagi nanti.' }; // aplikasi memakai jawaban terakhirnya
+      else {
+        const aktif = aju.status === 'aktif';
+        isi = { status: aju.status, alasan: aju.alasan, dicabut: !aktif, kode: aktif && properti_('LISENSI_KUNCI') ? tandaTanganLisensi_(id) : '' };
+      }
     }
     return ContentService.createTextOutput(JSON.stringify(isi)).setMimeType(ContentService.MimeType.JSON);
   }
@@ -1519,22 +1522,28 @@ function tandaTanganLisensi_(idSheet) {
 
 /** Pesan saat pencatatan dikunci: dinonaktifkan penjual, atau batas gratis tercapai. */
 function pesanKunci_() {
-  return daftarDicabut_().indexOf(idSpreadsheet_()) >= 0
+  return statusPengajuan_(idSpreadsheet_()).status === 'nonaktif'
     ? '⛔ Versi penuh buku ini dinonaktifkan penjual, jadi transaksi baru belum bisa dicatat.\n\n'
       + 'Aktifkan lagi di aplikasi Dompet Keluarga: ⚙️ → <b>Versi penuh</b>. Data lama tetap aman dan bisa dilihat.'
     : PESAN_BATAS_GRATIS;
 }
 
-/** true = buku ini sudah mencapai batas gratis dan belum versi penuh (atau lisensinya dicabut). Tanpa LISENSI_KUNCI batas tidak berlaku. */
+/**
+ * true = pencatatan baru dikunci. Sumber kebenaran: spreadsheet Pengajuan Aktivasi. Aktif → bebas; Nonaktif → dikunci
+ * berapa pun kuotanya; tidak ada di sheet (atau Menunggu/Ditolak) → bebas selama masa gratis. Sheet tidak terbaca →
+ * kode aktivasi terakhir di sheet Pengaturan buku dipakai sebagai cadangan. Tanpa LISENSI_KUNCI batas tidak berlaku.
+ */
 function kuotaPenuh_(d) {
   if (!properti_('LISENSI_KUNCI') || modeLama_()) return false;
   const id = idSpreadsheet_();
-  if (daftarDicabut_().indexOf(id) >= 0) return true; // dinonaktifkan penjual: dikunci berapa pun kuotanya
+  const aju = statusPengajuan_(id);
+  if (aju.status === 'aktif') return false;
+  if (aju.status === 'nonaktif') return true;
   if (!masaGratisHabis_(d)) return false;
-  return String(d.pengaturan.LISENSI || '') !== tandaTanganLisensi_(id);
+  return !aju.galat || String(d.pengaturan.LISENSI || '') !== tandaTanganLisensi_(id);
 }
 
-/** ID buku yang lisensinya dicabut (/batal), disimpan di Script Property LISENSI_DICABUT (dipisah koma). */
+/** Daftar lama (Script Property LISENSI_DICABUT) dari sebelum spreadsheet jadi sumber kebenaran; dipindah sekali oleh pindahkanDicabut_. */
 function daftarDicabut_() {
   return String(properti_('LISENSI_DICABUT') || '').split(/[\s,]+/).filter(Boolean);
 }
@@ -1548,10 +1557,10 @@ function simpanDicabut_(daftar) {
 /**
  * Perintah pemilik (ADMIN_TELEGRAM), dengan kode buku = ID spreadsheet (terlihat di bukti transfer yang diteruskan bot)
  * (boleh menempel seluruh pesannya setelah perintah):
- *   /lunas <kode buku>    — membuat link aktivasi untuk diteruskan ke pembeli (sekaligus membatalkan /batal);
- *   /batal <kode buku>    — mencabut lisensi: bot langsung berhenti mencatat transaksi baru untuk buku itu,
- *                           aplikasi menyusul setelah ID-nya ditambahkan ke KONFIG.bayar.dicabut di config.js;
- *   /pulihkan <kode buku> — mengurungkan /batal.
+ *   /lunas <kode buku>    — status buku di spreadsheet Pengajuan Aktivasi jadi Aktif (baris dibuat kalau belum ada),
+ *                           lalu membuat link aktivasi untuk diteruskan ke pembeli;
+ *   /batal <kode buku>    — status jadi Nonaktif: pencatatan baru dikunci (bot ±1 menit, aplikasi ±10 menit);
+ *   /pulihkan <kode buku> — status kembali Aktif.
  */
 function adminTelegram_(idTelegram) {
   return String(properti_('ADMIN_TELEGRAM') || '').split(/[\s,]+/).filter(Boolean).indexOf(String(idTelegram)) >= 0;
@@ -1568,26 +1577,27 @@ function prosesLisensi_(m, perintah, teks) {
   const calon = sesudah.match(/[\w-]{25,}/g) || [];
   const id = calon[calon.length - 1];
   if (!id) return kirim_(chatId, 'Format: <code>/' + perintah + ' KODE_BUKU</code>\nKode buku (ID spreadsheet) ada di bukti transfer yang diteruskan bot, baris "Buku:".');
-  const dicabut = daftarDicabut_();
   const kode = '<code>' + html_(id) + '</code>';
-  const catatanApp = 'di <code>web/assets/config.js</code> → <code>bayar.dicabut</code>, lalu push';
-
+  const lama = permintaan_(id);
   if (perintah === 'batal') {
-    simpanDicabut_(dicabut.concat([id]));
-    return kirim_(chatId, '🚫 Lisensi buku ' + kode + ' dicabut.\n\n'
-      + '• Bot: langsung berlaku. Buku ini tidak bisa mencatat transaksi baru lewat bot.\n'
-      + '• Aplikasi: ikut terkunci lagi paling lambat sehari (aplikasi menanyakan status ke bot sekali sehari; '
-      + 'butuh <code>urlBot</code> terisi di config.js). Kalau belum diisi, tambahkan ID ini ' + catatanApp + '.\n\n'
-      + 'Salah cabut? Kirim <code>/pulihkan ' + html_(id) + '</code>.');
+    if (!lama || lama.status !== 'aktif') return kirim_(chatId, 'ℹ️ Buku ' + kode + ' memang tidak sedang aktif di spreadsheet Pengajuan Aktivasi.');
+    aturLisensi_(id, 'nonaktif', '');
+    return kirim_(chatId, '🚫 Versi penuh buku ' + kode + ' dinonaktifkan. Pencatatan baru dikunci (bot ±1 menit, aplikasi ±10 menit).\n\n'
+      + 'Salah? Kirim <code>/pulihkan ' + html_(id) + '</code>.');
   }
-  const tadinyaDicabut = dicabut.indexOf(id) >= 0;
-  if (tadinyaDicabut) simpanDicabut_(dicabut.filter(x => x !== id));
-  const pengingat = tadinyaDicabut ? '\n\n⚠️ Buku ini tadinya dicabut. Kalau ID-nya sudah ada ' + catatanApp.replace('lalu push', '') + ', hapus dari sana lalu push.' : '';
-  if (perintah === 'pulihkan') {
-    return kirim_(chatId, (tadinyaDicabut ? '✅ Lisensi buku ' + kode + ' dipulihkan. Link aktivasi lamanya berlaku lagi.' : 'ℹ️ Buku ' + kode + ' memang tidak sedang dicabut.') + pengingat);
-  }
-  kirim_(chatId, '✅ Link aktivasi untuk buku ' + kode + ' sudah dibuat. Salin pesan di bawah ini lalu kirim ke pembeli.' + pengingat);
+  if (perintah === 'pulihkan' && (!lama || lama.status !== 'nonaktif')) return kirim_(chatId, 'ℹ️ Buku ' + kode + ' memang tidak sedang dinonaktifkan.');
+  aktifkanBuku_(id, lama);
+  if (perintah === 'pulihkan') return kirim_(chatId, '✅ Versi penuh buku ' + kode + ' aktif lagi.');
+  kirim_(chatId, '✅ Buku ' + kode + ' sudah Aktif di spreadsheet. Salin pesan di bawah ini lalu kirim ke pembeli.');
   return kirim_(chatId, pesanAktivasi_(id));
+}
+
+/** Status buku jadi Aktif di spreadsheet (baris baru kalau belum ada, mis. dari /lunas atau tombol Lunas di Telegram). */
+function aktifkanBuku_(id, lama) {
+  const sekarang = sekarangIso_();
+  if (lama) return aturLisensi_(id, 'aktif', '');
+  simpanPermintaan_(id, { email: '', buku: '', t: sekarang, status: 'aktif', foto: '', diubah: sekarang });
+  return { ok: true, status: 'aktif' };
 }
 
 /** Pesan untuk pembeli berisi link aktivasi (siap dikirim / diteruskan). */
@@ -1624,7 +1634,7 @@ function mulaiBayar_(m, idBuku) {
   if (!daftarAdmin_().length || !properti_('LISENSI_KUNCI')) {
     return kirim_(chatId, '⚠️ Pembayaran lewat bot belum disiapkan penjual. Coba lagi nanti.');
   }
-  if (daftarDicabut_().indexOf(idBuku) >= 0) return kirim_(chatId, '⚠️ Lisensi buku ini pernah dicabut. Hubungi penjual.');
+  if (statusPengajuan_(idBuku).status === 'nonaktif') return kirim_(chatId, '⚠️ Versi penuh buku ini dinonaktifkan penjual. Hubungi penjual.');
   const nama = [m.from.first_name, m.from.last_name].filter(Boolean).join(' ') + (m.from.username ? ' (@' + m.from.username + ')' : '');
   simpanBayar_(chatId, { id: idBuku, tahap: 'foto', nama });
   kirim_(chatId, [
@@ -1670,8 +1680,7 @@ function putuskanBayar_(q, aksi, idPembeli) {
     kirim_(idPembeli, '❌ Maaf, pembayaranmu belum bisa dikonfirmasi. Pastikan nominal dan tujuan transfernya benar, lalu ketuk lagi tombol <b>Kirim bukti lewat Telegram</b> di aplikasi (⚙️ → Versi penuh).');
     return ubah(html_(asal) + '\n\n❌ <b>Ditolak</b> oleh ' + html_(q.from.first_name || 'admin') + '.');
   }
-  const dicabut = daftarDicabut_();
-  if (dicabut.indexOf(tunggu.id) >= 0) simpanDicabut_(dicabut.filter(x => x !== tunggu.id));
+  aktifkanBuku_(tunggu.id, permintaan_(tunggu.id));
   const r = kirim_(idPembeli, pesanAktivasi_(tunggu.id));
   ubah(html_(asal) + (r && r.ok ? '\n\n✅ <b>Lunas.</b> Link aktivasi sudah dikirim ke pembeli.' : '\n\n⚠️ Lunas, tapi link gagal dikirim ke pembeli. Kirim manual: /lunas ' + html_(tunggu.id)));
 }
@@ -1834,11 +1843,34 @@ function idTabAju_() {
 
 /** Semua baris pengajuan: [{ id, email, buku, t, status (huruf kecil), foto (ID file), diubah, baris (nomor baris sheet) }]. */
 function semuaPengajuan_() {
+  pindahkanDicabut_();
   const j = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + '/values/' + range_(TAB_AJU + '!A2:H'));
   return (j.values || []).map((r, i) => ({
     t: String(r[0] || ''), email: String(r[1] || ''), buku: String(r[2] || ''), id: String(r[3] || '').trim(),
     status: String(r[4] || '').trim().toLowerCase() || 'menunggu', foto: idFoto_(r[5]), diubah: String(r[6] || ''), alasan: String(r[7] || ''), baris: i + 2,
   })).filter(r => r.id);
+}
+
+/**
+ * Sekali saja: buku di daftar lama LISENSI_DICABUT yang di sheet masih "Aktif" ditulis jadi "Nonaktif", lalu daftar
+ * itu dikosongkan. Sejak itu hanya kolom Status di spreadsheet yang menentukan.
+ */
+function pindahkanDicabut_() {
+  const lama = daftarDicabut_();
+  if (!lama.length) return;
+  simpanDicabut_([]); // dikosongkan dulu supaya pemanggilan di bawah tidak masuk ke sini lagi
+  const j = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + '/values/' + range_(TAB_AJU + '!A2:H'));
+  const sheetId = idTabAju_();
+  const ubah = (j.values || []).map((r, i) => ({ r, baris: i + 2 }))
+    .filter(x => lama.indexOf(String(x.r[3] || '').trim()) >= 0 && String(x.r[4] || '').trim().toLowerCase() === 'aktif');
+  if (!ubah.length) return;
+  apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + ':batchUpdate', {
+    method: 'post', contentType: 'application/json',
+    payload: JSON.stringify({ requests: ubah.map(x => ({ updateCells: {
+      rows: [{ values: [{ userEnteredValue: { stringValue: STATUS_AJU.nonaktif } }] }], fields: 'userEnteredValue',
+      start: { sheetId, rowIndex: x.baris - 1, columnIndex: 4 } } })) }),
+  });
+  ubah.forEach(x => CacheService.getScriptCache().remove('st_' + String(x.r[3]).trim()));
 }
 
 function permintaan_(id) {
@@ -1862,15 +1894,19 @@ function simpanPermintaan_(id, isi) {
   CacheService.getScriptCache().remove('st_' + id);
 }
 
-/** Status satu buku untuk doGet (dipanggil aplikasi berkali-kali), di-cache 5 menit supaya ringan. */
+/**
+ * Status satu buku untuk doGet & bot: { status, alasan }, status '' = tidak ada di spreadsheet. Di-cache 1 menit supaya
+ * ringan (perubahan langsung di sheet, termasuk menghapus baris, terbaca paling lambat semenit). Sheet tidak terbaca →
+ * { galat: true } (tidak di-cache).
+ */
 function statusPengajuan_(id) {
   const cache = CacheService.getScriptCache();
   const ada = cache.get('st_' + id);
   if (ada !== null) { try { return JSON.parse(ada); } catch (e) { /* format lama: baca ulang */ } }
   let r;
-  try { r = permintaan_(id) || {}; } catch (e) { console.warn('Status pengajuan: ' + e.message); return { status: '', alasan: '' }; }
+  try { r = permintaan_(id) || {}; } catch (e) { console.warn('Status pengajuan: ' + e.message); return { status: '', alasan: '', galat: true }; }
   const hasil = { status: r.status || '', alasan: r.status === 'ditolak' ? r.alasan || '' : '' };
-  cache.put('st_' + id, JSON.stringify(hasil), 300);
+  cache.put('st_' + id, JSON.stringify(hasil), 60);
   return hasil;
 }
 
@@ -1920,7 +1956,7 @@ function mintaAktivasi_(akun, b) {
   if (!/^[\w-]{20,100}$/.test(id)) throw new Error('Kode buku tidak valid.');
   if (!properti_('LISENSI_KUNCI')) throw new Error('Pembayaran belum disiapkan penjual. Coba lagi nanti.');
   const lama = permintaan_(id);
-  if (lama && lama.status === 'aktif' && daftarDicabut_().indexOf(id) < 0) return { status: 'aktif' };
+  if (lama && lama.status === 'aktif') return { status: 'aktif' };
   const foto = String(b.foto || '').match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
   if (!foto) throw new Error('Lampirkan foto bukti transfer.');
   if (foto[2].length > 4e6) throw new Error('Fotonya terlalu besar. Pilih foto lain.');
@@ -1952,10 +1988,8 @@ function mintaAktivasi_(akun, b) {
 }
 
 function daftarPermintaan_() {
-  const dicabut = daftarDicabut_();
   return semuaPengajuan_().map(r => ({ id: r.id, email: r.email, buku: r.buku, t: r.t, diubah: r.diubah, ada_foto: !!r.foto, alasan: r.alasan,
-    status: r.status === 'aktif' && dicabut.indexOf(r.id) >= 0 ? 'nonaktif' : r.status,
-    link: linkFoto_(r.foto) })).sort((x, y) => String(y.t).localeCompare(String(x.t)));
+    status: r.status, link: linkFoto_(r.foto) })).sort((x, y) => String(y.t).localeCompare(String(x.t)));
 }
 
 function fotoBukti_(id) {
@@ -1970,7 +2004,7 @@ function fotoBukti_(id) {
 }
 
 /**
- * status: 'aktif' (lisensi terpasang sendiri di aplikasi pembeli), 'nonaktif' (dicabut), 'ditolak'.
+ * status: 'aktif' (versi penuh terbuka di aplikasi pembeli), 'nonaktif' (dikunci), 'ditolak'. Hanya ditulis ke spreadsheet.
  * alasan: wajib untuk 'ditolak'; ditampilkan ke pembeli di layar Versi penuh.
  */
 function aturLisensi_(id, status, alasan) {
@@ -1978,8 +2012,6 @@ function aturLisensi_(id, status, alasan) {
   if (status === 'ditolak' && !alasan) throw new Error('Pilih alasan penolakannya.');
   const r = permintaan_(id);
   if (!r) throw new Error('Permintaan tidak ditemukan.');
-  const dicabut = daftarDicabut_().filter(x => x !== id);
-  simpanDicabut_(status === 'nonaktif' ? dicabut.concat([id]) : dicabut);
   simpanPermintaan_(id, Object.assign(r, { status, alasan: status === 'ditolak' ? alasan.slice(0, 300) : '', diubah: sekarangIso_() }));
   return { ok: true, status };
 }
