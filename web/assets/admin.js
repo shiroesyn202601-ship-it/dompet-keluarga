@@ -471,14 +471,16 @@
 
         <section class="panel lebar">
           ${kepalaPanel(IKON.bank, 'Rekening tujuan & QRIS', 'Ditampilkan ke pembeli di layar Versi penuh. Bisa bank atau e-wallet, maksimal 5. Setiap rekening boleh punya satu QRIS (opsional).')}
-          <div class="rekening-daftar">${f.rekening.map((r, i) => {
+          <div class="rekening-daftar">
+            <div class="rekening-judul" aria-hidden="true"><span>Bank / e-wallet</span><span>Nomor rekening / HP</span><span>Atas nama</span><span>QRIS</span><span></span></div>
+            ${f.rekening.map((r, i) => {
             const g = gambarQris(r), ada = punyaQris(r);
             return `
             <div class="rekening-baris">
               <div class="rekening-isian">
-                <input data-f="bank" placeholder="Bank / e-wallet (mis. BCA, DANA)" value="${esc(r.bank)}" maxlength="40">
-                <input data-f="nomor" placeholder="Nomor rekening / HP" value="${esc(r.nomor)}" maxlength="40" inputmode="numeric">
-                <input data-f="atasNama" placeholder="Atas nama (opsional)" value="${esc(r.atasNama)}" maxlength="60">
+                <input data-f="bank" name="rek-bank-${i}" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" aria-label="Bank / e-wallet" placeholder="Bank / e-wallet (mis. BCA, DANA)" value="${esc(r.bank)}" maxlength="40">
+                <input data-f="nomor" name="rek-nomor-${i}" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" aria-label="Nomor rekening / HP" placeholder="Nomor rekening / HP" value="${esc(r.nomor)}" maxlength="40" inputmode="numeric">
+                <input data-f="atasNama" name="rek-atas-nama-${i}" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" aria-label="Atas nama" placeholder="Atas nama (opsional)" value="${esc(r.atasNama && r.atasNama !== 'null' ? r.atasNama : '')}" maxlength="60">
                 <button type="button" class="ikon-btn hapus" data-aksi="hapus-rekening" data-i="${i}" aria-label="Hapus rekening" title="Hapus rekening" ${f.rekening.length < 2 ? 'disabled' : ''}>${IKON.sampah}</button>
               </div>
               <div class="qris">

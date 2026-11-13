@@ -276,7 +276,20 @@
       .saklar input:checked + i::after { transform: translateX(20px); }
       .saklar input:focus-visible + i { box-shadow: 0 0 0 3px var(--primary-soft); }
       .rekening-daftar { display: grid; gap: 10px; }
-      .mode-web .rekening-daftar { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+      .rekening-judul { display: none; }
+      /* Mode web: satu baris per rekening, seperti tabel */
+      .mode-web .rekening-daftar { gap: 0; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+      .mode-web .rekening-judul, .mode-web .rekening-baris { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(170px, 1.2fr) minmax(170px, 1.2fr) 300px 44px;
+        gap: 10px; align-items: center; padding: 10px 14px; }
+      .mode-web .rekening-judul { background: var(--card-2); color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+      .mode-web .rekening-baris { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
+      .mode-web .rekening-isian { display: contents; }
+      .mode-web .rekening-isian input { grid-column: auto; }
+      .mode-web .rekening-isian .hapus { grid-column: 5; grid-row: 1; }
+      .mode-web .rekening-baris .qris { grid-column: 4; grid-row: 1; gap: 10px; }
+      .mode-web .qris-pratinjau { width: 52px; height: 52px; border-radius: 10px; font-size: 10.5px; }
+      .mode-web .qris-aksi { flex-direction: row; flex-wrap: wrap; }
+      .mode-web .qris-aksi .btn { padding: 7px 11px; }
       .rekening-baris { border: 1px solid var(--line); border-radius: 18px; padding: 12px; display: grid; gap: 10px; background: var(--card); }
       .rekening-isian { display: grid; grid-template-columns: 1fr 40px; gap: 8px; }
       .rekening-isian input { grid-column: 1; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 10px 12px; outline: none; }
