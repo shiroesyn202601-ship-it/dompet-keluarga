@@ -2262,3 +2262,26 @@ body.samar #view .harga-ubah, body.samar .barang-harga b { filter: blur(7px); }
 body.catat-terkunci .bottomnav .fab { background: color-mix(in srgb, var(--text) 28%, var(--card)); color: var(--card); box-shadow: none; }
 body.catat-terkunci .bottomnav .fab::after { content: '🔒'; position: absolute; right: -4px; top: -4px; width: 22px; height: 22px; border-radius: 50%;
   background: var(--card); box-shadow: 0 1px 4px rgba(0, 0, 0, .25); display: grid; place-items: center; font-size: 12px; line-height: 1; }
+
+/* Kartu status aktivasi di layar Beli versi penuh (lihat bukaFormBayar). Warna mengikuti status. */
+.status-aktivasi { --sa: var(--primary); margin: 0 0 16px; padding: 14px; border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--sa) 8%, var(--card)); border: 1px solid color-mix(in srgb, var(--sa) 22%, transparent); }
+.status-aktivasi.menunggu { --sa: var(--waspada); }
+.status-aktivasi.ditolak, .status-aktivasi.nonaktif { --sa: var(--keluar); }
+.sa-kepala { display: flex; align-items: center; gap: 12px; }
+.sa-ikon { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--sa) 16%, var(--card)); color: var(--sa); }
+.sa-ikon svg, .sa-segarkan svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sa-judul { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.sa-judul small { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.sa-judul b { font-size: 15px; line-height: 1.3; color: var(--text); }
+.sa-segarkan { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--card); color: var(--primary); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.sa-segarkan svg { width: 16px; height: 16px; }
+.sa-segarkan:disabled { opacity: .7; cursor: default; }
+.sa-segarkan:disabled svg { animation: sa-putar .9s linear infinite; }
+@keyframes sa-putar { to { transform: rotate(360deg); } }
+.sa-alasan { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--card); border-left: 3px solid var(--sa);
+  font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.45; }
+.sa-alasan small { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
+.sa-ket { margin: 10px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted); }

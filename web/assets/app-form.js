@@ -1700,19 +1700,32 @@ function bukaFormBayar() {
   }
   buktiBayar = null;
   const menunggu = l.permintaan === 'menunggu';
-  // Kotak status aktivasi + tombol Perbarui status (menanyakan bot saat itu juga, lihat SERVER.segarkanLisensi).
-  const status = menunggu
-    ? { ikon: '⏳', judul: T('Menunggu konfirmasi penjual'), isi: T('Bukti transfer sudah terkirim. Versi penuh aktif sendiri setelah dikonfirmasi, tanpa perlu apa-apa.') }
-    : l.permintaan === 'ditolak' ? { ikon: '❌', judul: T('Bukti transfer ditolak'),
-      isi: (l.alasan ? T('Alasan: <b>{alasan}</b>', { alasan: esc(l.alasan) }) + '<br>' : '') + T('Perbaiki lalu kirim ulang bukti transfernya di bawah.') }
-    : l.permintaan === 'nonaktif' ? { ikon: '⚠️', judul: T('Versi penuh dinonaktifkan penjual'), isi: T('Kirim bukti transfer kalau ingin mengaktifkannya lagi.') }
-    : { ikon: '🔓', judul: T('Belum mengajukan aktivasi'), isi: T('Sudah transfer dan mengirim bukti dari HP lain? Ketuk Perbarui status.') };
+  // Kartu status aktivasi + tombol Perbarui (menanyakan bot saat itu juga, lihat SERVER.segarkanLisensi).
+  const IKON_STATUS = {
+    menunggu: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    ditolak: '<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/>',
+    nonaktif: '<path d="M12 3 2.5 20h19z"/><path d="M12 10v4M12 17h.01"/>',
+    belum: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>',
+  };
+  const jenis = ['menunggu', 'ditolak', 'nonaktif'].includes(l.permintaan) ? l.permintaan : 'belum';
+  const status = {
+    menunggu: { judul: T('Menunggu konfirmasi penjual'), isi: T('Bukti transfer sudah terkirim. Versi penuh aktif sendiri setelah dikonfirmasi, tanpa perlu apa-apa.') },
+    ditolak: { judul: T('Bukti transfer ditolak'), isi: T('Perbaiki lalu kirim ulang bukti transfernya di bawah.') },
+    nonaktif: { judul: T('Versi penuh dinonaktifkan penjual'), isi: T('Kirim bukti transfer kalau ingin mengaktifkannya lagi.') },
+    belum: { judul: T('Belum mengajukan aktivasi'), isi: T('Sudah transfer dan mengirim bukti dari HP lain? Ketuk Perbarui status.') },
+  }[jenis];
   const kabar = `
-    <div class="kotak-wajib-ai" style="display:flex;gap:12px;align-items:flex-start">
-      <span style="font-size:22px;line-height:1">${status.ikon}</span>
-      <span style="flex:1"><b>${status.judul}</b><br><small>${status.isi}</small></span>
-      <button type="button" class="tombol-teks" style="white-space:nowrap;padding:4px 0" data-aksi="segarkan-lisensi">${T('🔄 Perbarui status')}</button>
-    </div>`;
+    <section class="status-aktivasi ${jenis}" role="status">
+      <div class="sa-kepala">
+        <span class="sa-ikon" aria-hidden="true"><svg viewBox="0 0 24 24">${IKON_STATUS[jenis]}</svg></span>
+        <span class="sa-judul"><small>${T('Status aktivasi')}</small><b>${status.judul}</b></span>
+        <button type="button" class="sa-segarkan" data-aksi="segarkan-lisensi" aria-label="${T('Perbarui status')}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.7-4.3M4 4v4h4M4 13a8 8 0 0 0 14.7 4.3M20 20v-4h-4"/></svg>${T('Perbarui')}
+        </button>
+      </div>
+      ${jenis === 'ditolak' && l.alasan ? `<div class="sa-alasan"><small>${T('Alasan dari penjual')}</small>${esc(l.alasan)}</div>` : ''}
+      <p class="sa-ket">${status.isi}</p>
+    </section>`;
   // Setiap rekening boleh punya satu QRIS, ditampilkan tepat di bawah rekeningnya.
   const rekening = (l.rekening || []).map((r, i) => `
         <div class="baris">
