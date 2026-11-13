@@ -1923,9 +1923,6 @@ Object.assign(KAMUS, {
   "Versi penuh dinonaktifkan penjual": "Full version deactivated by the seller",
   "Kirim bukti transfer kalau ingin mengaktifkannya lagi.": "Send a transfer receipt if you want to turn it back on.",
   "Belum mengajukan aktivasi": "No activation request yet",
-  "Sudah transfer dan mengirim bukti dari HP lain? Ketuk Perbarui status.": "Already transferred and sent the receipt from another phone? Tap Refresh status.",
-  "Status sudah yang terbaru": "Status is already up to date",
-  "Status diperbarui": "Status refreshed",
   "Versi penuh buku ini dinonaktifkan penjual. Aktifkan lagi di ⚙️ → Versi penuh untuk mencatat.": "The seller deactivated the full version for this book. Turn it back on in ⚙️ → Full version to keep recording.",
   "<b>{n} periode gajian</b> pertama": "the first <b>{n} pay periods</b>",
   "<b>{n} transaksi</b>": "<b>{n} transactions</b>",
@@ -1946,6 +1943,5 @@ Object.assign(KAMUS, {
   "{terpakai} transaksi terpakai": "{terpakai} transactions used",
   "Status aktivasi": "Activation status",
   "Alasan dari penjual": "Reason from the seller",
-  "Perbarui": "Refresh",
-  "Perbarui status": "Refresh status",
+  "Sudah transfer dan mengirim bukti dari HP lain? Statusnya diperiksa otomatis setiap layar ini dibuka.": "Already transferred and sent proof from another phone? The status is checked automatically every time you open this screen.",
 });

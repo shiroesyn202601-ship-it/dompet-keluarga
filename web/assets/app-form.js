@@ -1700,7 +1700,7 @@ function bukaFormBayar() {
   }
   buktiBayar = null;
   const menunggu = l.permintaan === 'menunggu';
-  // Kartu status aktivasi + tombol Perbarui (menanyakan bot saat itu juga, lihat SERVER.segarkanLisensi).
+  // Kartu status aktivasi. Status diperiksa sendiri tiap layar ini dibuka, dan tiap 30 detik selama menunggu (lihat perbaruiFormBayar).
   const IKON_STATUS = {
     menunggu: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     ditolak: '<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/>',
@@ -1712,16 +1712,13 @@ function bukaFormBayar() {
     menunggu: { judul: T('Menunggu konfirmasi penjual'), isi: T('Bukti transfer sudah terkirim. Versi penuh aktif sendiri setelah dikonfirmasi, tanpa perlu apa-apa.') },
     ditolak: { judul: T('Bukti transfer ditolak'), isi: T('Perbaiki lalu kirim ulang bukti transfernya di bawah.') },
     nonaktif: { judul: T('Versi penuh dinonaktifkan penjual'), isi: T('Kirim bukti transfer kalau ingin mengaktifkannya lagi.') },
-    belum: { judul: T('Belum mengajukan aktivasi'), isi: T('Sudah transfer dan mengirim bukti dari HP lain? Ketuk Perbarui status.') },
+    belum: { judul: T('Belum mengajukan aktivasi'), isi: T('Sudah transfer dan mengirim bukti dari HP lain? Statusnya diperiksa otomatis setiap layar ini dibuka.') },
   }[jenis];
   const kabar = `
     <section class="status-aktivasi ${jenis}" role="status">
       <div class="sa-kepala">
         <span class="sa-ikon" aria-hidden="true"><svg viewBox="0 0 24 24">${IKON_STATUS[jenis]}</svg></span>
         <span class="sa-judul"><small>${T('Status aktivasi')}</small><b>${status.judul}</b></span>
-        <button type="button" class="sa-segarkan" data-aksi="segarkan-lisensi" aria-label="${T('Perbarui status')}">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.7-4.3M4 4v4h4M4 13a8 8 0 0 0 14.7 4.3M20 20v-4h-4"/></svg>${T('Perbarui')}
-        </button>
       </div>
       ${jenis === 'ditolak' && l.alasan ? `<div class="sa-alasan"><small>${T('Alasan dari penjual')}</small>${esc(l.alasan)}</div>` : ''}
       <p class="sa-ket">${status.isi}</p>
@@ -1754,6 +1751,7 @@ function bukaFormBayar() {
       </li>
       <li>${T('Penjual mengecek transfernya. Setelah dikonfirmasi, versi penuh <b>aktif sendiri</b> untuk seluruh keluarga saat aplikasi dibuka lagi.')}</li>
     </ol>`);
+  jadwalCekBayar();
   document.querySelectorAll('.kotak-qris[data-rek]').forEach(kotak => {
     const gagal = () => { kotak.querySelector('.memuat-qris').textContent = T('QRIS belum bisa dimuat. Pakai rekening di atas, atau coba lagi nanti.'); };
     SERVER.ambilQris(kotak.dataset.rek).then(data => {
@@ -1780,32 +1778,6 @@ function bukaFormBayar() {
   });
 }
 
-/** Tombol Perbarui status: tanya penjual sekarang, lalu tampilkan hasilnya (atau langsung aktif). */
-async function segarkanStatusLisensi(tombol) {
-  tombol.disabled = true;
-  loading(true);
-  try {
-    const l = await api('segarkanLisensi');
-    if (!l) return;
-    const sebelum = S.data.lisensi || {};
-    S.data.lisensi = l;
-    tulisLokal('data', S.data);
-    if (l.aktif) {
-      tutupSheet();
-      await muat();
-      return toast(T('Versi penuh aktif. Terima kasih! 🎉'));
-    }
-    bukaFormBayar();
-    render();
-    toast(l.permintaan === sebelum.permintaan && l.alasan === sebelum.alasan ? T('Status sudah yang terbaru') : T('Status diperbarui'));
-  } catch (e) {
-    tombol.disabled = false;
-    if (!(e instanceof GOOGLE.PerluMasuk)) toast(pesanError(e), true);
-  } finally {
-    loading(false);
-  }
-}
-
 /**
  * Layar Versi penuh baru dibuka: harga, rekening, QRIS, dan status diambil ulang dari bot di belakang layar, lalu
  * layarnya digambar ulang kalau ada yang berubah (kecuali pembeli sudah memilih foto bukti).
@@ -1818,12 +1790,21 @@ async function perbaruiFormBayar() {
     const berubah = JSON.stringify(l) !== JSON.stringify(S.data.lisensi);
     S.data.lisensi = l;
     tulisLokal('data', S.data);
-    if (!berubah) return;
+    if (!berubah) return jadwalCekBayar();
     render();
     if ($('#sheet').hidden || !$('#bukti-bayar') || buktiBayar) return;
     if (l.aktif) { tutupSheet(); await muat(); return toast(T('Versi penuh aktif. Terima kasih! 🎉')); }
     bukaFormBayar();
-  } catch (e) { /* tetap memakai data terakhir */ }
+  } catch (e) { jadwalCekBayar(); /* tetap memakai data terakhir */ }
+}
+
+/** Selama layar Versi penuh terbuka dan bukti transfer menunggu konfirmasi, status diperiksa ulang tiap 30 detik. */
+let jedaCekBayar = null;
+function jadwalCekBayar() {
+  clearTimeout(jedaCekBayar);
+  jedaCekBayar = setTimeout(() => {
+    if (!$('#sheet').hidden && $('#bukti-bayar') && S.data && S.data.lisensi && S.data.lisensi.permintaan === 'menunggu') perbaruiFormBayar();
+  }, 30000);
 }
 
 /** Mengirim bukti transfer yang dipilih di layar Beli versi penuh. */

@@ -137,7 +137,6 @@ const AKSI = {
   'gemini': () => bukaFormGemini(),
   'versi-penuh': () => { bukaFormBayar(); perbaruiFormBayar(); },
   'kirim-bukti': el => kirimBuktiBayar(el),
-  'segarkan-lisensi': el => segarkanStatusLisensi(el),
   'salin-rekening': async el => {
     const no = String(el.dataset.nomor || '').replace(/\s/g, '');
     try { await navigator.clipboard.writeText(no); toast(T('Nomor rekening disalin ✔')); } catch (e) { toast(no); }

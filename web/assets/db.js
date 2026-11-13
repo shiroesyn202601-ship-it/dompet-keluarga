@@ -2038,7 +2038,7 @@ const SERVER = (() => {
 
   /**
    * { batas, terpakai, aktif (versi penuh), terkunci, permintaan ('menunggu' | 'ditolak' | …), alasan (penolakan) }, atau null kalau batas tidak berlaku.
-   * Status diambil dari spreadsheet penjual lewat bot (jawaban disimpan 10 menit; langsung saat login / Perbarui status, 1 menit
+   * Status diambil dari spreadsheet penjual lewat bot (jawaban disimpan 10 menit; langsung saat login / layar Versi penuh dibuka, 1 menit
    * saat menunggu konfirmasi). Bot ditanya kalau statusnya pernah ada, ada kode tersimpan, sedang menunggu, atau masa gratis
    * hampir / sudah habis; selain itu buku dianggap belum versi penuh dan bebas mencatat selama masa gratis.
    * Nonaktif = pencatatan baru dikunci berapa pun kuotanya.
@@ -2081,7 +2081,7 @@ const SERVER = (() => {
     try { Object.keys(localStorage).filter(k => /^dk_lis_/.test(k)).forEach(k => localStorage.removeItem(k)); } catch (e) { /* abaikan */ }
   }
 
-  /** Tombol "Perbarui status" di layar Versi penuh: tanya bot sekarang juga (tanpa cache). Hasil: status lisensi terbaru. */
+  /** Layar Versi penuh dibuka (dan tiap 30 detik selama menunggu): tanya bot sekarang juga (tanpa cache). Hasil: status lisensi terbaru. */
   async function segarkanLisensi() {
     const id = await db_();
     qrisMem_ = {};

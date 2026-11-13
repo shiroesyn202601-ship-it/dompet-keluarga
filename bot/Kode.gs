@@ -1616,7 +1616,7 @@ function aktifkanBuku_(id, lama) {
 function pesanAktivasi_() {
   return html_('Terima kasih sudah membeli Dompet Keluarga versi penuh! 🎉\n\n'
     + 'Versi penuh sudah aktif untuk seluruh keluarga di buku itu. Buka aplikasi Dompet Keluarga; kalau belum berubah, '
-    + 'ketuk ⚙️ → Versi penuh → 🔄 Perbarui status.');
+    + 'buka ⚙️ → Versi penuh.');
 }
 
 // ---------- Pembelian lewat bot: pembeli kirim bukti transfer, pemilik menekan ✅ Lunas / ❌ Tolak ----------
