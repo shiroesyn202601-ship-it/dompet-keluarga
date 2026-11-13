@@ -1573,9 +1573,12 @@ Object.assign(AKSI, {
 // dibaca dengan AnalyserNode. Gagal / tidak didukung → batang tetap memakai animasi CSS biasa.
 // Di sebagian HP mikrofon tidak bisa dipakai dua kali sekaligus (pengenal galat 'audio-capture'):
 // meter dimatikan permanen di HP itu (dk_meter_mati), supaya pencatatan suara tetap jalan.
+// Di Android/iPhone meter tidak pernah dipakai: pengenal suara Google menolak merekam ("cannot record now as Chrome
+// is recording") tanpa galat 'audio-capture', jadi bentrokannya tidak bisa dideteksi dan pencatatan suara gagal terus.
+const HP_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || !!(navigator.userAgentData && navigator.userAgentData.mobile);
 let meterSesi = 0, meter = null;
 function mulaiMeterSuara() {
-  if (meter || bacaHp('dk_meter_mati')) return;
+  if (meter || HP_MOBILE || bacaHp('dk_meter_mati')) return;
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return;
   if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
