@@ -26,21 +26,29 @@
          ====================================================================== */
       :root {
         --bg: #f4f5f8; --card: #ffffff; --card-2: #f1f2f6; --text: #0c111d; --muted: #667085; --line: #e8eaef;
-        --primary: #0e7c86; --primary-soft: #e2f4f5; --on-primary: #ffffff;
+        --primary: #0e7c86; --primary-soft: #e2f4f5; --on-primary: #ffffff; --on-status: #ffffff;
         --ok: #079455; --ok-bg: #e3f6ec; --warn: #b54708; --warn-bg: #fef0e1; --bad: #d63c2f; --bad-bg: #fdeceb; --info: #475467; --info-bg: #eef0f3;
         --hero-1: #062a2e; --hero-2: #0b4f55;
         --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 4px 16px rgba(16, 24, 40, .05); --shadow-up: 0 10px 30px rgba(16, 24, 40, .14);
         --radius: 22px; --radius-sm: 14px; --nav-h: 66px; --samping: 248px;
         color-scheme: light;
       }
+      /* Tema gelap: mengikuti perangkat, kecuali dipilih sendiri lewat tombol ☀/☾ (data-theme di <html>, lihat admin-awal.js). */
       @media (prefers-color-scheme: dark) {
-        :root {
+        :root:not([data-theme="light"]) {
           --bg: #0b0c10; --card: #15171d; --card-2: #1d2028; --text: #f2f4f7; --muted: #98a2b3; --line: #252833;
-          --primary: #4cc9d1; --primary-soft: #0f2e31; --on-primary: #04211f;
+          --primary: #4cc9d1; --primary-soft: #0f2e31; --on-primary: #04211f; --on-status: #0b0c10;
           --ok: #3ccb8b; --ok-bg: #0f2a1e; --warn: #ffb35c; --warn-bg: #33240f; --bad: #ff8a7a; --bad-bg: #3b1715; --info: #c3c8d1; --info-bg: #23272f;
           --hero-1: #082b2e; --hero-2: #0e4c52; --shadow: none; --shadow-up: 0 10px 30px rgba(0, 0, 0, .5);
           color-scheme: dark;
         }
+      }
+      :root[data-theme="dark"] {
+          --bg: #0b0c10; --card: #15171d; --card-2: #1d2028; --text: #f2f4f7; --muted: #98a2b3; --line: #252833;
+          --primary: #4cc9d1; --primary-soft: #0f2e31; --on-primary: #04211f; --on-status: #0b0c10;
+          --ok: #3ccb8b; --ok-bg: #0f2a1e; --warn: #ffb35c; --warn-bg: #33240f; --bad: #ff8a7a; --bad-bg: #3b1715; --info: #c3c8d1; --info-bg: #23272f;
+          --hero-1: #082b2e; --hero-2: #0e4c52; --shadow: none; --shadow-up: 0 10px 30px rgba(0, 0, 0, .5);
+          color-scheme: dark;
       }
       * { box-sizing: border-box; }
       html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -61,11 +69,10 @@
       .btn:disabled { opacity: .6; }
       .btn-utama { background: var(--primary); color: var(--on-primary); }
       .btn-kedua { background: var(--card-2); color: var(--text); }
-      .btn-hijau { background: var(--ok); color: #fff; }
-      .btn-merah { background: var(--bad); color: #fff; }
+      .btn-hijau { background: var(--ok); color: var(--on-status); }
+      .btn-merah { background: var(--bad); color: var(--on-status); }
       .btn-lembut-merah { background: var(--bad-bg); color: var(--bad); }
       .btn-garis { border: 1px solid var(--line); background: var(--card); }
-      @media (prefers-color-scheme: dark) { .btn-hijau, .btn-merah { color: #0b0c10; } }
       .btn.kecil { padding: 8px 13px; font-size: 13.5px; border-radius: 12px; }
       .ikon-btn { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; color: var(--text); background: var(--card);
         border: 1px solid var(--line); flex: none; }
@@ -123,10 +130,14 @@
       .nav-item .teks { flex: 1; }
       .samping .bawah { margin-top: auto; display: grid; gap: 10px; }
       .lencana { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: var(--warn); color: #fff; font-size: 11.5px; font-weight: 800;
-        display: inline-grid; place-items: center; line-height: 1; }
-      @media (prefers-color-scheme: dark) { .lencana { color: #0b0c10; } }
+        display: inline-grid; place-items: center; line-height: 1; color: var(--on-status); }
 
       /* Pemilih tampilan Web / Mobile */
+      .baris-tampilan { display: flex; gap: 8px; align-items: stretch; }
+      .baris-tampilan .pilih-mode { flex: 1; }
+      .tombol-tema { width: auto; height: auto; min-width: 44px; border-radius: 14px; background: var(--card-2); border: 0; color: var(--text); }
+      .tombol-tema:hover { background: var(--line); }
+      @media (max-width: 760px) { .mode-web .samping .baris-tampilan { flex-direction: column; } .mode-web .samping .tombol-tema { min-height: 40px; } }
       .pilih-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--card-2); border-radius: 14px; }
       .pilih-mode button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 6px; border-radius: 11px; font-size: 13px; font-weight: 700; color: var(--muted); }
       .pilih-mode button svg.ik { width: 18px; height: 18px; }

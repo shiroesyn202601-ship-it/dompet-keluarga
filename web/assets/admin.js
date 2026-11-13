@@ -41,6 +41,8 @@
     ganti: ik('<path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/>'),
     web: ik('<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'),
     hp: ik('<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/>'),
+    matahari: ik('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+    bulan: ik('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
     cari: ik('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
     jam: ik('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
     cek: ik('<path d="M20 6 9 17l-5-5"/>'),
@@ -90,11 +92,28 @@
     if (simpan) { try { localStorage.setItem(KUNCI_TAMPILAN, m); } catch (e) { /* abaikan */ } }
   }
   pasangTampilan(tampilan);
-  const pilihMode = () => `
+  // ---------- Tema terang / gelap ----------
+
+  const KUNCI_TEMA = 'dk_admin_tema';
+  const temaGelap = () => (document.documentElement.dataset.theme
+    ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
+  function gantiTema() {
+    const baru = temaGelap() ? 'light' : 'dark';
+    document.documentElement.dataset.theme = baru;
+    try { localStorage.setItem(KUNCI_TEMA, baru); } catch (e) { /* abaikan */ }
+    return baru;
+  }
+  const tombolTema = () => {
+    const g = temaGelap();
+    return `<button type="button" class="ikon-btn tombol-tema" data-aksi="tema" title="${g ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'}"
+      aria-label="${g ? 'Ganti ke mode terang' : 'Ganti ke mode gelap'}">${g ? IKON.matahari : IKON.bulan}</button>`;
+  };
+
+  const pilihMode = () => `<div class="baris-tampilan">
     <div class="pilih-mode" role="group" aria-label="Tampilan">
       <button type="button" class="${tampilan === 'web' ? 'aktif' : ''}" data-aksi="mode" data-mode="web" aria-pressed="${tampilan === 'web'}">${IKON.web}<span class="teks">Web</span></button>
       <button type="button" class="${tampilan !== 'web' ? 'aktif' : ''}" data-aksi="mode" data-mode="mobile" aria-pressed="${tampilan !== 'web'}">${IKON.hp}<span class="teks">Mobile</span></button>
-    </div>`;
+    </div>${tombolTema()}</div>`;
 
   // ---------- Penanda memuat ----------
 
@@ -189,6 +208,7 @@
     const l = $('#layar-masuk');
     l.hidden = false;
     l.innerHTML = `
+      <div style="position:fixed;top:14px;right:14px">${tombolTema().replace('tombol-tema', '')}</div>
       <div class="kotak-masuk">
         <div class="hero">
           <img src="ikon/logo.svg" alt="">
@@ -242,6 +262,7 @@
       <div class="kepala-kanan">
         <button class="ikon-btn" data-aksi="mode" data-mode="${tampilan === 'web' ? 'mobile' : 'web'}" title="Ganti ke tampilan ${tampilan === 'web' ? 'Mobile' : 'Web'}"
           aria-label="Ganti ke tampilan ${tampilan === 'web' ? 'Mobile' : 'Web'}">${tampilan === 'web' ? IKON.hp : IKON.web}</button>
+        ${tombolTema().replace('tombol-tema', '')}
         <button class="ikon-btn ${!dimuat ? 'memuat' : ''}" data-aksi="muat" title="Muat ulang" aria-label="Muat ulang">${IKON.muat}</button>
       </div>`;
     // Navigasi bawah (mode mobile)
@@ -729,7 +750,7 @@
     // Tombol di dalam lembar ditangani pendengar klik utama (data-aksi); lembar ditutup setelahnya.
     kotak.onclick = e => {
       if (e.target === kotak || e.target.closest('[data-tutup]')) { e.stopPropagation(); tutup(); return; }
-      if (e.target.closest('[data-aksi], a')) setTimeout(() => { if (!e.target.closest('[data-aksi="mode"]')) tutup(); else bukaAkun(); }, 0);
+      if (e.target.closest('[data-aksi], a')) setTimeout(() => { if (!e.target.closest('[data-aksi="mode"], [data-aksi="tema"]')) tutup(); else bukaAkun(); }, 0);
     };
   }
 
@@ -833,6 +854,13 @@
       return kabar('Tampilan ' + (tampilan === 'web' ? 'Web' : 'Mobile'));
     }
     if (aksi === 'akun') return bukaAkun();
+    if (aksi === 'tema') {
+      const baru = gantiTema();
+      if (layar === 'pengaturan') bacaForm();
+      if (info.admin) render();
+      else tampilMasuk('');
+      return kabar(baru === 'dark' ? 'Mode gelap' : 'Mode terang');
+    }
     // Token hampir / baru saja habis: diperpanjang diam-diam saat halaman diketuk (seperti di aplikasi).
     const segar = GOOGLE.segarkanKalauPerlu && GOOGLE.segarkanKalauPerlu();
     if (segar) { const ok = await segar; if (ok && sesiHabis) { sesiHabis = false; galat = ''; } }
