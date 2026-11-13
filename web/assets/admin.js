@@ -1,9 +1,11 @@
 /**
- * Halaman admin lisensi (web/admin.html):
- *   - Pengajuan: ringkasan per status (sekaligus filter), pencarian, kartu pengajuan + foto bukti transfer,
- *     tombol Aktifkan / Tolak (dengan alasan) / Nonaktifkan.
- *   - Pengaturan penjualan: kapan ditagih (jumlah transaksi / periode gajian / mana yang lebih dulu), harga,
- *     rekening tujuan (boleh lebih dari satu, masing-masing boleh punya satu QRIS). Dipakai aplikasi & bot (lihat jual_ di bot/Kode.gs).
+ * Halaman admin lisensi (web/admin.html), bergaya sama dengan aplikasi Dompet Keluarga.
+ *   - Dua tampilan yang bisa dipilih: Web (sidebar + isi lebar) dan Mobile (satu kolom + navigasi pil di bawah).
+ *     Pilihan disimpan di HP / komputer ini (localStorage 'dk_admin_tampilan'); bawaan mengikuti lebar layar.
+ *   - Pengajuan: kartu hero pendapatan, ringkasan per status (sekaligus filter), pencarian, kartu pengajuan + foto bukti,
+ *     tombol Aktifkan / Tolak (dengan alasan) / Nonaktifkan, dan riwayat transaksi per buku.
+ *   - Pengaturan penjualan: kapan ditagih, menu Versi penuh, harga, rekening tujuan (masing-masing boleh punya satu QRIS).
+ *   - Setiap permintaan ke bot menampilkan garis progres di atas layar; tombol yang sedang bekerja menampilkan putaran + teks.
  * Semua data ada di bot (bot/Kode.gs → apiLisensi_); bot hanya melayani akun Google pemilik bot (atau ADMIN_EMAIL).
  * Sengaja tanpa terjemahan: halaman ini khusus pemilik.
  */
@@ -13,10 +15,10 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rupiah = n => 'Rp' + Number(n || 0).toLocaleString('id-ID');
   const STATUS = {
-    menunggu: { label: 'Menunggu', ikon: '⏳', warna: 'var(--warn)' },
-    aktif: { label: 'Aktif', ikon: '✅', warna: 'var(--ok)' },
-    nonaktif: { label: 'Nonaktif', ikon: '⛔', warna: 'var(--info)' },
-    ditolak: { label: 'Ditolak', ikon: '❌', warna: 'var(--bad)' },
+    menunggu: { label: 'Menunggu', warna: 'var(--warn)' },
+    aktif: { label: 'Aktif', warna: 'var(--ok)' },
+    nonaktif: { label: 'Nonaktif', warna: 'var(--info)' },
+    ditolak: { label: 'Ditolak', warna: 'var(--bad)' },
   };
   /** Alasan penolakan siap pilih; teks inilah yang dilihat pembeli di layar Versi penuh. */
   const daftarAlasan = () => [
@@ -27,16 +29,37 @@
     'Bukti transfer sudah pernah dipakai untuk buku lain',
   ];
 
-  /** Ikon garis sederhana (warna mengikuti teks). */
-  const svg = d => '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+  /** Ikon garis (gaya sama dengan aplikasi: svg.ik). */
+  const ik = d => '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>';
   const IKON = {
-    tabel: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>'),
-    muat: svg('<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/>'),
-    akun: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
-    keluar: svg('<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5M15 12H4"/>'),
-    atur: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'),
-    kembali: svg('<path d="M15 18l-6-6 6-6"/>'),
+    kotakMasuk: ik('<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>'),
+    atur: ik('<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>'),
+    akun: ik('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+    tabel: ik('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>'),
+    muat: ik('<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/>'),
+    keluar: ik('<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5M15 12H4"/>'),
+    ganti: ik('<path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/>'),
+    web: ik('<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'),
+    hp: ik('<rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M11 18h2"/>'),
+    cari: ik('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
+    jam: ik('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    cek: ik('<path d="M20 6 9 17l-5-5"/>'),
+    silang: ik('<path d="M18 6 6 18M6 6l12 12"/>'),
+    larang: ik('<circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/>'),
+    semua: ik('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>'),
+    gambar: ik('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>'),
+    riwayat: ik('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'),
+    kalender: ik('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'),
+    mata: ik('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+    label: ik('<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z"/><circle cx="7" cy="7" r="1.5"/>'),
+    bank: ik('<path d="M3 21h18M5 21V10M19 21V10M9 21V10M15 21V10M12 3 2 8h20z"/>'),
+    kembali: ik('<path d="M15 18l-6-6 6-6"/>'),
+    tambah: ik('<path d="M12 5v14M5 12h14"/>'),
+    sampah: ik('<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>'),
+    unggah: ik('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>'),
+    salin: ik('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>'),
   };
+  const IKON_STATUS = { menunggu: IKON.jam, aktif: IKON.cek, nonaktif: IKON.larang, ditolak: IKON.silang, '': IKON.semua };
 
   let daftar = [];
   let tab = 'menunggu';
@@ -46,6 +69,7 @@
   const PESAN_SESI = 'Sesi login sudah habis. Masuk lagi untuk melanjutkan; layar ini tetap seperti semula.';
   let layar = 'pengajuan'; // 'pengajuan' | 'pengaturan'
   let info = { admin: '', sheet: '' };
+  let dimuat = false;   // daftar sudah pernah dimuat (sebelum itu tampil kerangka)
   let jual = { aturan: 'transaksi', batasTransaksi: 450, batasPeriode: 3, harga: Number((KONFIG.bayar || {}).harga) || 0, rekening: [], selaluTampil: true };
   // Salinan pengaturan yang sedang diubah. Tiap rekening: { bank, nomor, atasNama, qris (punya QRIS tersimpan),
   // asal (nomor urut rekening tersimpan, -1 = baru), baru (data URL QRIS yang dipilih, '' = dihapus, null = tidak diubah) }.
@@ -53,6 +77,45 @@
   let qrisTersimpan = {}; // nomor urut rekening tersimpan → data URL QRIS-nya (dimuat saat layar Pengaturan dibuka)
   const foto = {};      // id buku → data URL bukti ('' = gagal dimuat)
   const memuat = {};    // id buku → sedang dimuat
+
+  // ---------- Tampilan Web / Mobile ----------
+
+  const KUNCI_TAMPILAN = 'dk_admin_tampilan';
+  const tampilanBawaan = () => (window.innerWidth >= 900 ? 'web' : 'mobile');
+  let tampilan = (() => { try { return localStorage.getItem(KUNCI_TAMPILAN) || ''; } catch (e) { return ''; } })() || tampilanBawaan();
+  function pasangTampilan(m, simpan) {
+    tampilan = m;
+    document.body.classList.toggle('mode-web', m === 'web');
+    document.body.classList.toggle('mode-mobile', m !== 'web');
+    if (simpan) { try { localStorage.setItem(KUNCI_TAMPILAN, m); } catch (e) { /* abaikan */ } }
+  }
+  pasangTampilan(tampilan);
+  const pilihMode = () => `
+    <div class="pilih-mode" role="group" aria-label="Tampilan">
+      <button type="button" class="${tampilan === 'web' ? 'aktif' : ''}" data-aksi="mode" data-mode="web" aria-pressed="${tampilan === 'web'}">${IKON.web}<span class="teks">Web</span></button>
+      <button type="button" class="${tampilan !== 'web' ? 'aktif' : ''}" data-aksi="mode" data-mode="mobile" aria-pressed="${tampilan !== 'web'}">${IKON.hp}<span class="teks">Mobile</span></button>
+    </div>`;
+
+  // ---------- Penanda memuat ----------
+
+  let permintaanJalan = 0;
+  const tandaSibuk = n => { permintaanJalan = Math.max(0, permintaanJalan + n); document.body.classList.toggle('sibuk', permintaanJalan > 0); };
+  /** Tombol sedang bekerja: putaran + teks (mis. "Mengaktifkan…"). Hasil: fungsi untuk mengembalikannya. */
+  function sibuk(tombol, teks) {
+    if (!tombol) return () => {};
+    const asli = tombol.innerHTML;
+    tombol.disabled = true;
+    tombol.setAttribute('aria-busy', 'true');
+    if (tombol.classList.contains('ikon-btn')) tombol.classList.add('memuat');
+    else tombol.innerHTML = '<span class="putar" aria-hidden="true"></span>' + esc(teks || 'Memuat…');
+    return () => {
+      if (!tombol.isConnected) return;
+      tombol.disabled = false;
+      tombol.removeAttribute('aria-busy');
+      tombol.classList.remove('memuat');
+      tombol.innerHTML = asli;
+    };
+  }
 
   // ---------- Komunikasi dengan bot ----------
 
@@ -69,11 +132,14 @@
     const token = tokenSaya();
     if (!token) throw tandaiSesiHabis();
     let j;
+    tandaSibuk(1);
     try {
       const r = await fetch(BOT + '?api=1', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ token }, isi)) });
       j = await r.json();
     } catch (e) {
       throw new Error('Tidak bisa terhubung ke bot. Periksa koneksi internet.');
+    } finally {
+      tandaSibuk(-1);
     }
     if (j.galat) throw /sesi login/i.test(j.galat) ? tandaiSesiHabis() : new Error(j.galat);
     return j;
@@ -96,13 +162,13 @@
   function kotakGalat() {
     if (!galat) return '';
     return sesiHabis
-      ? `<div class="galat galat-sesi"><span>${esc(galat)}</span><button type="button" class="btn-utama" data-aksi="masuk-lagi">Masuk lagi</button></div>`
+      ? `<div class="galat galat-sesi"><span>${esc(galat)}</span><button type="button" class="btn btn-utama kecil" data-aksi="masuk-lagi">Masuk lagi</button></div>`
       : `<div class="galat">${esc(galat)}</div>`;
   }
 
   /** Masuk lagi dengan akun yang sama (tanpa pilihan akun), lalu data dimuat ulang tanpa meninggalkan layar ini. */
   async function masukLagi(tombol) {
-    tombol.disabled = true;
+    const pulih = sibuk(tombol, 'Masuk…');
     try {
       await GOOGLE.masuk(false);
       sesiHabis = false;
@@ -111,7 +177,7 @@
       await muat();
       kabar('Berhasil masuk lagi ✔');
     } catch (e) {
-      tombol.disabled = false;
+      pulih();
       kabar(e.message);
     }
   }
@@ -119,53 +185,84 @@
   // ---------- Masuk ----------
 
   function tampilMasuk(pesan) {
-    $('#bilah').hidden = true;
-    $('#isi').innerHTML = `
-      <div class="masuk">
-        <img src="ikon/logo.svg" alt="">
-        <h1>Admin Lisensi</h1>
-        <p>Kelola permintaan aktivasi versi penuh Dompet Keluarga. Masuk dengan <b>akun Google pemilik bot</b>.</p>
-        ${pesan ? `<div class="galat" style="text-align:left">${esc(pesan)}</div>` : ''}
-        <button class="btn-utama" data-aksi="masuk">Masuk dengan Google</button>
+    $('#app').hidden = true;
+    const l = $('#layar-masuk');
+    l.hidden = false;
+    l.innerHTML = `
+      <div class="kotak-masuk">
+        <div class="hero">
+          <img src="ikon/logo.svg" alt="">
+          <h1>Admin Lisensi</h1>
+          <p>Kelola aktivasi versi penuh Dompet Keluarga</p>
+        </div>
+        <div class="badan">
+          ${pesan ? `<div class="galat" style="margin:0">${esc(pesan)}</div>` : ''}
+          <button class="btn btn-utama" data-aksi="masuk">Masuk dengan Google</button>
+          <small style="color:var(--muted);text-align:center">Gunakan <b>akun Google pemilik bot</b> (atau email di ADMIN_EMAIL).</small>
+        </div>
       </div>`;
   }
 
-  async function masuk() {
+  async function masuk(tombol) {
+    const pulih = sibuk(tombol, 'Membuka Google…');
     try {
       await GOOGLE.masuk(true); // selalu tampilkan pilihan akun
       await muat();
     } catch (e) {
+      pulih();
       tampilMasuk(e.message);
     }
   }
 
-  function bilah() {
-    const a = info.admin || '';
-    $('#bilah').hidden = false;
-    $('#akun').innerHTML = `
-      <span class="chip-akun" title="${esc(a)}"><span class="inisial">${esc((a[0] || '?').toUpperCase())}</span><span>${esc(a)}</span></span>
-      <button class="ikon-btn ${layar === 'pengaturan' ? 'nyala' : ''}" data-aksi="pengaturan" title="Pengaturan penjualan" aria-label="Pengaturan penjualan">${IKON.atur}</button>
-      ${info.sheet ? `<a class="ikon-btn" href="${esc(info.sheet)}" target="_blank" rel="noopener" title="Buka spreadsheet pengajuan" aria-label="Buka spreadsheet pengajuan">${IKON.tabel}</a>` : ''}
-      <button class="ikon-btn" data-aksi="muat" title="Muat ulang" aria-label="Muat ulang">${IKON.muat}</button>
-      <button class="ikon-btn" data-aksi="ganti" title="Ganti akun" aria-label="Ganti akun">${IKON.akun}</button>
-      <button class="ikon-btn" data-aksi="keluar" title="Keluar" aria-label="Keluar">${IKON.keluar}</button>`;
+  // ---------- Kerangka: sidebar, kepala, navigasi bawah ----------
+
+  const jumlahMenunggu = () => daftar.filter(r => r.status === 'menunggu').length;
+  const inisial = () => esc(((info.admin || '?')[0] || '?').toUpperCase());
+
+  function kerangka() {
+    $('#layar-masuk').hidden = true;
+    $('#app').hidden = false;
+    const n = jumlahMenunggu();
+    const lencana = n ? `<span class="lencana">${n}</span>` : '';
+    // Sidebar (mode web)
+    $('#samping').innerHTML = `
+      <div class="merek"><img src="ikon/logo.svg" alt=""><div><b>Admin Lisensi</b><small>Dompet Keluarga</small></div></div>
+      <button class="nav-item ${layar === 'pengajuan' ? 'aktif' : ''}" data-aksi="ke" data-layar="pengajuan">${IKON.kotakMasuk}<span class="teks">Pengajuan</span>${lencana}</button>
+      <button class="nav-item ${layar === 'pengaturan' ? 'aktif' : ''}" data-aksi="ke" data-layar="pengaturan">${IKON.atur}<span class="teks">Pengaturan penjualan</span></button>
+      ${info.sheet ? `<a class="nav-item" href="${esc(info.sheet)}" target="_blank" rel="noopener">${IKON.tabel}<span class="teks">Spreadsheet</span></a>` : ''}
+      <div class="bawah">
+        ${pilihMode()}
+        <div class="kartu-akun"><span class="avatar">${inisial()}</span><span class="isi"><b title="${esc(info.admin)}">${esc(info.admin)}</b><small>Admin</small></span>
+          <button class="ikon-btn" data-aksi="akun" title="Akun" aria-label="Akun">${IKON.akun}</button></div>
+      </div>`;
+    // Kepala halaman
+    const judul = layar === 'pengaturan' ? [tampilan === 'web' ? 'Pengaturan penjualan' : 'Pengaturan', 'Penjualan · berlaku untuk aplikasi & bot'] : ['Pengajuan aktivasi', !dimuat ? 'Memuat data…' : n ? n + ' menunggu konfirmasi' : 'Semua sudah diproses'];
+    $('#kepala').innerHTML = `
+      <div class="judul"><img src="ikon/logo.svg" alt=""><div style="min-width:0"><small>${esc(judul[1])}</small><h1>${esc(judul[0])}</h1></div></div>
+      <div class="kepala-kanan">
+        <button class="ikon-btn" data-aksi="mode" data-mode="${tampilan === 'web' ? 'mobile' : 'web'}" title="Ganti ke tampilan ${tampilan === 'web' ? 'Mobile' : 'Web'}"
+          aria-label="Ganti ke tampilan ${tampilan === 'web' ? 'Mobile' : 'Web'}">${tampilan === 'web' ? IKON.hp : IKON.web}</button>
+        <button class="ikon-btn ${!dimuat ? 'memuat' : ''}" data-aksi="muat" title="Muat ulang" aria-label="Muat ulang">${IKON.muat}</button>
+      </div>`;
+    // Navigasi bawah (mode mobile)
+    $('#navbawah').innerHTML = `
+      <button class="${layar === 'pengajuan' ? 'aktif' : ''}" data-aksi="ke" data-layar="pengajuan">${IKON.kotakMasuk}<span>Pengajuan</span>${lencana}</button>
+      <button class="${layar === 'pengaturan' ? 'aktif' : ''}" data-aksi="ke" data-layar="pengaturan">${IKON.atur}<span>Pengaturan</span></button>
+      <button data-aksi="akun">${IKON.akun}<span>Akun</span></button>`;
   }
 
   // ---------- Data ----------
 
   async function muat() {
     if (!BOT) return tampilMasuk('URL bot (bayar.urlBot) belum diisi di web/assets/config.js.');
-    if (!daftar.length) {
-      $('#isi').innerHTML = '<div class="ringkasan">' + '<div class="kerangka" style="height:72px"></div>'.repeat(5) + '</div><div class="daftar">'
-        + '<div class="kerangka"></div>'.repeat(4) + '</div>';
-    }
+    if (!dimuat) { kerangka(); $('#isi').innerHTML = kerangkaMemuat(); }
     try {
       const j = await api({ aksi: 'daftar' });
       daftar = j.daftar || [];
       info = { admin: j.admin, sheet: j.sheet };
       if (j.jual) jual = j.jual;
       galat = '';
-      bilah();
+      dimuat = true;
       render();
     } catch (e) {
       if (e.sesi) return;
@@ -174,6 +271,11 @@
       render();
     }
   }
+
+  const kerangkaMemuat = () => `
+    <div class="kerangka" style="height:190px;margin-bottom:18px"></div>
+    <div class="kerangka" style="height:44px;border-radius:14px;margin-bottom:14px"></div>
+    <div class="daftar">${'<div class="kerangka" style="height:180px"></div>'.repeat(4)}</div>`;
 
   async function muatFoto(id) {
     if (foto[id] || memuat[id]) return;
@@ -212,11 +314,11 @@
   };
 
   function htmlBukti(r) {
-    if (!r.ada_foto) return '<div class="bukti kosong">Tanpa foto</div>';
-    if (foto[r.id]) return `<div class="bukti ada" data-aksi="perbesar" data-id="${esc(r.id)}" title="Perbesar"><img src="${esc(foto[r.id])}" alt="Bukti transfer"></div>`;
-    if (memuat[r.id]) return '<div class="bukti">Memuat…</div>';
-    if (foto[r.id] === '') return `<div class="bukti" data-aksi="foto" data-id="${esc(r.id)}">Gagal memuat<br>Ketuk untuk coba lagi</div>`;
-    return `<div class="bukti" data-aksi="foto" data-id="${esc(r.id)}">🖼<br>Lihat bukti<br>transfer</div>`;
+    if (!r.ada_foto) return `<div class="bukti">${IKON.gambar}Tanpa foto</div>`;
+    if (foto[r.id]) return `<button type="button" class="bukti ada" data-aksi="perbesar" data-id="${esc(r.id)}" title="Perbesar" aria-label="Perbesar bukti transfer"><img src="${esc(foto[r.id])}" alt=""></button>`;
+    if (memuat[r.id]) return '<div class="bukti memuat" role="status" aria-label="Memuat foto"><span class="putar" style="color:var(--muted)"></span></div>';
+    if (foto[r.id] === '') return `<button type="button" class="bukti" data-aksi="foto" data-id="${esc(r.id)}">${IKON.muat}Gagal memuat<br>Coba lagi</button>`;
+    return `<button type="button" class="bukti" data-aksi="foto" data-id="${esc(r.id)}">${IKON.gambar}Lihat bukti</button>`;
   }
 
   function gambarUlangBukti(id) {
@@ -226,50 +328,58 @@
   }
 
   function htmlAksi(r) {
-    const b = (status, kelas, label) => `<button class="${kelas}" data-aksi="atur" data-status="${status}" data-id="${esc(r.id)}">${label}</button>`;
-    if (r.status === 'menunggu') return b('aktif', 'btn-hijau', '✓ Aktifkan') + b('ditolak', 'btn-lembut-merah', '✕ Tolak');
-    if (r.status === 'aktif') return b('nonaktif', 'btn-kedua', '⛔ Nonaktifkan');
-    return b('aktif', 'btn-hijau', '✓ Aktifkan');
+    const b = (status, kelas, ikon, label) => `<button class="btn kecil ${kelas}" data-aksi="atur" data-status="${status}" data-id="${esc(r.id)}">${ikon}${label}</button>`;
+    if (r.status === 'menunggu') return b('aktif', 'btn-hijau', '', 'Aktifkan') + b('ditolak', 'btn-lembut-merah', '', 'Tolak');
+    if (r.status === 'aktif') return b('nonaktif', 'btn-kedua', '', 'Nonaktifkan');
+    return b('aktif', 'btn-hijau', '', 'Aktifkan');
   }
 
   function render() {
-    bilah();
+    kerangka();
     if (layar === 'pengaturan') return renderPengaturan();
     const jumlah = s => daftar.filter(r => !s || r.status === s).length;
-    const pendapatan = daftar.filter(r => r.status === 'aktif').reduce((a, r) => a + (Number(r.harga) || jual.harga), 0);
+    const aktif = daftar.filter(r => r.status === 'aktif');
+    const pendapatan = aktif.reduce((a, r) => a + (Number(r.harga) || jual.harga), 0);
     const q = cari.trim().toLowerCase();
     const tampil = daftar.filter(r => (!tab || r.status === tab) && (!q || [r.email, r.buku, r.id].some(x => String(x).toLowerCase().includes(q))));
-    // Kotak ringkasan sekaligus filter (tidak ada tab terpisah supaya tidak dobel).
-    const tile = (k, label, warna, sub) => `<button class="tile ${tab === k ? 'dipilih' : ''}" data-aksi="tab" data-tab="${k}" aria-pressed="${tab === k}">
-      <small>${warna ? `<span class="titik" style="background:${warna}"></span>` : ''}${label}</small><b>${jumlah(k)}</b>${sub ? `<em>${sub}</em>` : ''}</button>`;
+    // Ringkasan jumlah per status ada di kartu hero; penyaringnya cukup chip di bawahnya (tidak dobel).
     $('#isi').innerHTML = `
       ${kotakGalat()}
-      <section class="ringkasan">
-        ${tile('menunggu', 'Menunggu', STATUS.menunggu.warna)}
-        ${tile('aktif', 'Aktif', STATUS.aktif.warna, '💰 ' + rupiah(pendapatan))}
-        ${tile('nonaktif', 'Nonaktif', STATUS.nonaktif.warna)}
-        ${tile('ditolak', 'Ditolak', STATUS.ditolak.warna)}
-        ${tile('', 'Semua', '')}
+      <section class="hero hero-ringkas">
+        <div class="hero-uang">
+          <small>Pendapatan versi penuh</small>
+          <span class="besar angka">${rupiah(pendapatan)}</span>
+          <span class="chip-hero">${IKON.label} Harga sekarang ${rupiah(jual.harga)}</span>
+        </div>
+        <div class="hero-angka">${['menunggu', 'aktif', 'nonaktif', 'ditolak'].map(k => `
+          <div style="--warna:${STATUS[k].warna}"><span class="titik-hero"></span><small>${STATUS[k].label}</small><b class="angka">${jumlah(k)}</b></div>`).join('')}</div>
       </section>
-      <label class="cari"><span>🔍</span><input id="kotak-cari" name="cari-pengajuan-admin" type="search" placeholder="Cari email, nama buku, atau kode buku" autocomplete="off" spellcheck="false"></label>
-      ${tampil.length ? `<div class="daftar">${tampil.map(r => `
-        <article class="kartu" data-id="${esc(r.id)}">
+      <div class="alat">
+        <div class="chip-filter" role="group" aria-label="Filter status">
+          ${[['', 'Semua'], ['menunggu', 'Menunggu'], ['aktif', 'Aktif'], ['nonaktif', 'Nonaktif'], ['ditolak', 'Ditolak']].map(([k, l]) =>
+            `<button class="chip ${tab === k ? 'aktif' : ''}" data-aksi="tab" data-tab="${k}" aria-pressed="${tab === k}">${l} <i>${jumlah(k)}</i></button>`).join('')}
+        </div>
+        <label class="cari">${IKON.cari}<input id="kotak-cari" name="cari-pengajuan-admin" type="search" placeholder="Cari email, nama buku, atau kode buku" autocomplete="off" spellcheck="false"></label>
+      </div>
+      ${tampil.length ? `<div class="daftar">${tampil.map((r, i) => `
+        <article class="kartu" data-id="${esc(r.id)}" style="animation-delay:${Math.min(i, 8) * 30}ms">
           ${htmlBukti(r)}
           <div class="isi">
             <div class="atas">
-              <div style="min-width:0"><div class="email">${esc(r.email)}</div>
-                <div class="meta">${esc(r.buku)} · <span title="${esc(tanggal(r.t))}">${esc(relatif(r.t))}</span></div></div>
-              <span class="status ${esc(r.status)}">${STATUS[r.status] ? STATUS[r.status].ikon + ' ' + STATUS[r.status].label : esc(r.status)}</span>
+              <div style="min-width:0"><div class="email">${esc(r.email || '(tanpa email)')}</div>
+                <div class="meta">${esc(r.buku || '-')} · <span title="${esc(tanggal(r.t))}">${esc(relatif(r.t))}</span></div></div>
+              <span class="status ${esc(r.status)}">${STATUS[r.status] ? STATUS[r.status].label : esc(r.status)}</span>
             </div>
-            ${r.harga ? `<div class="harga-aju" title="Harga versi penuh saat bukti transfer dikirim">💰 <b>${rupiah(r.harga)}</b> <small>harga saat pengajuan${
+            ${r.harga ? `<div class="harga-aju" title="Harga versi penuh saat bukti transfer dikirim"><b class="angka">${rupiah(r.harga)}</b><small>harga saat pengajuan${
               Number(r.harga) !== Number(jual.harga) ? ' · sekarang ' + rupiah(jual.harga) : ''}</small></div>` : ''}
             <div class="kode" title="Kode buku (ID spreadsheet)"><span>${esc(r.id)}</span><button data-aksi="salin" data-id="${esc(r.id)}">Salin</button></div>
             ${r.status === 'ditolak' && r.alasan ? `<div class="alasan">Alasan: ${esc(r.alasan)}</div>` : ''}
             ${r.diubah && r.diubah !== r.t ? `<div class="meta" style="margin-top:6px">Diubah ${esc(relatif(r.diubah))}</div>` : ''}
-            <div class="aksi">${htmlAksi(r)}<button class="btn-kedua tombol-riwayat" data-aksi="riwayat" data-id="${esc(r.id)}">🕘 Riwayat${r.riwayat ? ' (' + r.riwayat + ')' : ''}</button></div>
+            <div class="aksi">${htmlAksi(r)}<button class="btn kecil btn-garis ke-kanan" data-aksi="riwayat" data-id="${esc(r.id)}">${IKON.riwayat.replace('class="ik"', 'class="ik" style="width:16px;height:16px"')}Riwayat${r.riwayat ? ' (' + r.riwayat + ')' : ''}</button></div>
           </div>
         </article>`).join('')}</div>`
-      : `<div class="kosong-besar">${q ? '🔍' : tab === 'menunggu' ? '🎉' : '📭'}<b>${q ? 'Tidak ada yang cocok' : tab === 'menunggu' ? 'Semua sudah diproses' : 'Belum ada'}</b>
+      : `<div class="kosong-besar"><div class="ik-besar">${q ? IKON.cari : tab === 'menunggu' ? IKON.cek : IKON.kotakMasuk}</div>
+          <b>${q ? 'Tidak ada yang cocok' : tab === 'menunggu' ? 'Semua sudah diproses' : 'Belum ada'}</b>
           ${q ? 'Coba kata kunci lain.' : tab === 'menunggu' ? 'Tidak ada permintaan yang menunggu konfirmasi.' : 'Belum ada pengajuan dengan status ini.'}</div>`}`;
     // Nilai diisi lewat JS (bukan atribut value) supaya isian otomatis browser tidak ikut menimpa.
     const kotak = $('#kotak-cari');
@@ -288,6 +398,7 @@
     if (!formJual.rekening.length) formJual.rekening.push(rekeningKosong());
     qrisTersimpan = {};
     render();
+    window.scrollTo(0, 0);
     jual.rekening.forEach((r, i) => {
       if (!r.qris) return;
       api({ aksi: 'lihatQris', rek: i }).then(j => {
@@ -295,7 +406,7 @@
         // Gambar dipasang langsung (tanpa render ulang) supaya ketikan yang sedang berlangsung tidak terganggu.
         const kotak = document.querySelector('.qris-pratinjau[data-asal="' + i + '"]');
         if (kotak && layar === 'pengaturan') kotak.innerHTML = j.qris ? '<img src="' + esc(j.qris) + '" alt="QRIS">' : 'Gagal dimuat';
-      }).catch(e => kabar(e.message));
+      }).catch(e => { if (!e.sesi) kabar(e.message); });
     });
   }
 
@@ -317,19 +428,17 @@
     }));
   }
 
+  const kepalaPanel = (ikon, judul, bantu) => `<div class="panel-kepala"><span class="ik-bulat">${ikon}</span><div><h2>${judul}</h2>${bantu ? `<p class="bantu">${bantu}</p>` : ''}</div></div>`;
+
   function renderPengaturan() {
+    if (!formJual) { formJual = JSON.parse(JSON.stringify(jual)); formJual.rekening = formJual.rekening.map((r, i) => Object.assign(r, { asal: i, baru: null })); }
     const f = formJual;
     const pakaiTrx = f.aturan !== 'periode', pakaiPer = f.aturan !== 'transaksi';
     $('#isi').innerHTML = `
-      <div class="judul-layar">
-        <button class="ikon-btn" data-aksi="kembali" aria-label="Kembali ke pengajuan">${IKON.kembali}</button>
-        <div><h1>Pengaturan penjualan</h1><p>Berlaku untuk semua pengguna aplikasi & bot Telegram.</p></div>
-      </div>
       ${kotakGalat()}
       <form id="form-jual" class="form-jual" autocomplete="off">
         <section class="panel">
-          <h2>Kapan pengguna ditagih</h2>
-          <p class="bantu">Selama masa gratis pengguna bebas mencatat. Setelah lewat, pencatatan transaksi baru dikunci sampai versi penuh dibeli.</p>
+          ${kepalaPanel(IKON.kalender, 'Kapan pengguna ditagih', 'Selama masa gratis pengguna bebas mencatat. Setelah lewat, pencatatan transaksi baru dikunci sampai versi penuh dibeli.')}
           <div class="opsi-aturan">
             ${[['transaksi', 'Setelah jumlah transaksi', 'Dihitung dari jumlah baris di sheet Transaksi buku itu.'],
               ['periode', 'Setelah jumlah periode gajian', 'Dihitung sejak buku dibuat, mengikuti tanggal gajian buku itu.'],
@@ -344,26 +453,25 @@
           </div>
         </section>
 
-        <section class="panel">
-          <h2>Menu "Versi penuh" di aplikasi</h2>
-          <label class="saklar">
-            <span><b>Selalu tampilkan</b><small>${f.selaluTampil !== false
-              ? 'Aktif: menu ⚙️ → Versi penuh selalu terlihat, termasuk selama masa gratis.'
-              : 'Mati: menu ⚙️ → Versi penuh baru muncul setelah syarat "Kapan pengguna ditagih" terpenuhi (masa gratis habis).'}</small></span>
-            <input type="checkbox" id="selalu-tampil" role="switch" ${f.selaluTampil !== false ? 'checked' : ''}><i aria-hidden="true"></i>
-          </label>
-        </section>
+        <div style="display:grid;gap:14px;align-content:start">
+          <section class="panel">
+            ${kepalaPanel(IKON.label, 'Harga versi penuh', 'Sekali bayar, berlaku seumur hidup untuk satu buku (seluruh keluarga).')}
+            <label class="isian"><span>Harga</span><span class="dengan-satuan depan"><em>Rp</em><input id="harga" inputmode="numeric" value="${esc(Number(f.harga || 0).toLocaleString('id-ID'))}"></span></label>
+          </section>
+          <section class="panel">
+            ${kepalaPanel(IKON.mata, 'Menu "Versi penuh" di aplikasi')}
+            <label class="saklar">
+              <span><b>Selalu tampilkan</b><small>${f.selaluTampil !== false
+                ? 'Aktif: menu ⚙️ → Versi penuh selalu terlihat, termasuk selama masa gratis.'
+                : 'Mati: menu ⚙️ → Versi penuh baru muncul setelah syarat "Kapan pengguna ditagih" terpenuhi (masa gratis habis).'}</small></span>
+              <input type="checkbox" id="selalu-tampil" role="switch" ${f.selaluTampil !== false ? 'checked' : ''}><i aria-hidden="true"></i>
+            </label>
+          </section>
+        </div>
 
-        <section class="panel">
-          <h2>Harga versi penuh</h2>
-          <p class="bantu">Sekali bayar, berlaku seumur hidup untuk satu buku (seluruh keluarga).</p>
-          <label class="isian"><span>Harga</span><span class="dengan-satuan depan"><em>Rp</em><input id="harga" inputmode="numeric" value="${esc(Number(f.harga || 0).toLocaleString('id-ID'))}"></span></label>
-        </section>
-
-        <section class="panel">
-          <h2>Rekening tujuan & QRIS</h2>
-          <p class="bantu">Ditampilkan ke pembeli di layar Versi penuh. Bisa bank atau e-wallet, maksimal 5. Setiap rekening boleh punya satu QRIS (opsional).</p>
-          <div id="daftar-rekening">${f.rekening.map((r, i) => {
+        <section class="panel lebar">
+          ${kepalaPanel(IKON.bank, 'Rekening tujuan & QRIS', 'Ditampilkan ke pembeli di layar Versi penuh. Bisa bank atau e-wallet, maksimal 5. Setiap rekening boleh punya satu QRIS (opsional).')}
+          <div class="rekening-daftar">${f.rekening.map((r, i) => {
             const g = gambarQris(r), ada = punyaQris(r);
             return `
             <div class="rekening-baris">
@@ -371,22 +479,22 @@
                 <input data-f="bank" placeholder="Bank / e-wallet (mis. BCA, DANA)" value="${esc(r.bank)}" maxlength="40">
                 <input data-f="nomor" placeholder="Nomor rekening / HP" value="${esc(r.nomor)}" maxlength="40" inputmode="numeric">
                 <input data-f="atasNama" placeholder="Atas nama (opsional)" value="${esc(r.atasNama)}" maxlength="60">
-                <button type="button" class="ikon-btn hapus" data-aksi="hapus-rekening" data-i="${i}" aria-label="Hapus rekening" ${f.rekening.length < 2 ? 'disabled' : ''}>✕</button>
+                <button type="button" class="ikon-btn hapus" data-aksi="hapus-rekening" data-i="${i}" aria-label="Hapus rekening" title="Hapus rekening" ${f.rekening.length < 2 ? 'disabled' : ''}>${IKON.sampah}</button>
               </div>
               <div class="qris">
-                <div class="qris-pratinjau" ${r.baru === null && r.qris ? `data-asal="${r.asal}"` : ''}>${g ? `<img src="${esc(g)}" alt="QRIS">` : ada ? 'Memuat…' : 'Tanpa QRIS'}</div>
+                <div class="qris-pratinjau" ${r.baru === null && r.qris ? `data-asal="${r.asal}"` : ''}>${g ? `<img src="${esc(g)}" alt="QRIS">` : ada ? '<span class="putar" style="color:var(--muted)"></span>' : 'Tanpa QRIS'}</div>
                 <div class="qris-aksi">
-                  <label class="btn-kedua tombol-file"><input type="file" class="file-qris" data-i="${i}" accept="image/*" hidden>${ada ? 'Ganti QRIS' : 'Unggah QRIS'}</label>
-                  ${ada ? `<button type="button" class="btn-lembut-merah" data-aksi="hapus-qris" data-i="${i}">Hapus QRIS</button>` : ''}
+                  <label class="btn kecil btn-kedua tombol-file"><input type="file" class="file-qris" data-i="${i}" accept="image/*" hidden>${IKON.unggah.replace('class="ik"', 'class="ik" style="width:16px;height:16px"')}${ada ? 'Ganti QRIS' : 'Unggah QRIS'}</label>
+                  ${ada ? `<button type="button" class="btn kecil btn-lembut-merah" data-aksi="hapus-qris" data-i="${i}">Hapus QRIS</button>` : ''}
                 </div>
               </div>
             </div>`; }).join('')}</div>
-          ${f.rekening.length < 5 ? '<button type="button" class="btn-kedua" data-aksi="tambah-rekening">+ Tambah rekening</button>' : ''}
+          ${f.rekening.length < 5 ? `<button type="button" class="btn btn-garis" style="margin-top:12px" data-aksi="tambah-rekening">${IKON.tambah}Tambah rekening</button>` : ''}
         </section>
 
-        <div class="simpan-bar">
-          <button type="button" class="btn-kedua" data-aksi="kembali">Batal</button>
-          <button type="button" class="btn-utama" data-aksi="simpan-jual">Simpan pengaturan</button>
+        <div class="simpan-bar lebar">
+          <button type="button" class="btn btn-kedua" data-aksi="kembali">Batal</button>
+          <button type="button" class="btn btn-utama" data-aksi="simpan-jual">Simpan pengaturan</button>
         </div>
       </form>`;
     $('#form-jual').onchange = e => {
@@ -442,7 +550,7 @@
       : rek.some(r => !r.bank || !r.nomor) ? 'Setiap rekening wajib berisi nama bank/e-wallet dan nomornya.'
       : !rek.length ? 'Isi minimal satu rekening.' : '';
     if (salah) { galat = salah; render(); window.scrollTo(0, 0); return; }
-    tombol.disabled = true;
+    const pulih = sibuk(tombol, 'Menyimpan…');
     try {
       const rekening = rek.map(r => ({ bank: r.bank, nomor: r.nomor, atasNama: r.atasNama,
         qrisAsal: r.baru === null && r.qris ? r.asal : -1, qrisBaru: r.baru || '' }));
@@ -450,38 +558,51 @@
       jual = j.jual;
       galat = '';
       layar = 'pengajuan';
+      formJual = null;
       kabar('Pengaturan penjualan disimpan ✔');
       render();
     } catch (e) {
-      tombol.disabled = false;
+      pulih();
       if (e.sesi) return;
       galat = e.message;
       render();
+      window.scrollTo(0, 0);
     }
   }
 
   // ---------- Dialog ----------
 
   const pilihan = () => ({
-    aktif: { ikon: '✅', latar: 'var(--ok-bg)', judul: 'Aktifkan versi penuh?', tombol: 'Aktifkan', kelas: 'btn-hijau', selesai: 'Versi penuh diaktifkan ✔',
+    aktif: { ikon: IKON.cek, warna: 'var(--ok)', latar: 'var(--ok-bg)', judul: 'Aktifkan versi penuh?', tombol: 'Aktifkan', proses: 'Mengaktifkan…', kelas: 'btn-hijau', selesai: 'Versi penuh diaktifkan ✔',
       isi: 'Pastikan transfer ' + rupiah(jual.harga) + ' sudah masuk. Versi penuh langsung aktif untuk seluruh keluarga di buku ini saat aplikasinya dibuka.' },
-    nonaktif: { ikon: '⛔', latar: 'var(--info-bg)', judul: 'Nonaktifkan versi penuh?', tombol: 'Nonaktifkan', kelas: 'btn-merah', selesai: 'Versi penuh dinonaktifkan',
+    nonaktif: { ikon: IKON.larang, warna: 'var(--info)', latar: 'var(--info-bg)', judul: 'Nonaktifkan versi penuh?', tombol: 'Nonaktifkan', proses: 'Menonaktifkan…', kelas: 'btn-merah', selesai: 'Versi penuh dinonaktifkan',
       isi: 'Pencatatan transaksi baru di buku ini langsung dikunci saat aplikasinya dibuka lagi. Bisa diaktifkan lagi kapan saja.' },
-    ditolak: { ikon: '❌', latar: 'var(--bad-bg)', judul: 'Tolak permintaan ini?', tombol: 'Tolak', kelas: 'btn-merah', selesai: 'Permintaan ditolak',
+    ditolak: { ikon: IKON.silang, warna: 'var(--bad)', latar: 'var(--bad-bg)', judul: 'Tolak permintaan ini?', tombol: 'Tolak', proses: 'Menolak…', kelas: 'btn-merah', selesai: 'Permintaan ditolak',
       isi: 'Pilih alasannya. Alasan ini yang akan dilihat pembeli di aplikasi, lalu mereka bisa mengirim ulang bukti.' },
   });
 
-  /** Dialog konfirmasi. Hasil: null (batal), atau { alasan } (kosong selain tolak). */
-  function konfirmasi(status, r) {
-    const p = pilihan()[status];
+  /** Lapisan dialog; di mode mobile tampil sebagai lembar dari bawah. */
+  function bukaLapis(html, lembar) {
     const kotak = $('#dialog');
+    kotak.classList.toggle('lembar', !!lembar);
+    kotak.innerHTML = html;
+    kotak.hidden = false;
+    return kotak;
+  }
+
+  /**
+   * Dialog konfirmasi. kerjakan(alasan) dijalankan saat tombol utama ditekan; selama itu tombolnya menampilkan putaran,
+   * dan dialog baru tertutup setelah selesai. Hasil: true kalau berhasil, false kalau batal / gagal.
+   */
+  function konfirmasi(status, r, kerjakan) {
+    const p = pilihan()[status];
     const tolak = status === 'ditolak';
-    kotak.innerHTML = `
+    const kotak = bukaLapis(`
       <div class="dialog">
-        <div class="ikon" style="background:${p.latar}">${p.ikon}</div>
+        <div class="ikon" style="background:${p.latar};color:${p.warna}">${p.ikon}</div>
         <h2>${p.judul}</h2>
         <p>${p.isi}</p>
-        ${r ? `<div class="siapa"><b>${esc(r.email)}</b><span>Buku ${esc(r.buku)} · dikirim ${esc(tanggal(r.t))}</span></div>` : ''}
+        ${r ? `<div class="siapa"><b>${esc(r.email)}</b><span>Buku ${esc(r.buku)} · dikirim ${esc(tanggal(r.t))}${r.harga ? ' · ' + rupiah(r.harga) : ''}</span></div>` : ''}
         ${tolak ? `
           <div class="pilihan">
             ${daftarAlasan().map((a, i) => `<label><input type="radio" name="alasan" value="${esc(a)}" ${i ? '' : 'checked'}><span>${esc(a)}</span></label>`).join('')}
@@ -490,11 +611,10 @@
           <textarea id="alasan-lain" maxlength="300" placeholder="Tulis alasannya…" hidden></textarea>
           <div class="pratinjau">Yang dilihat pembeli:<div id="pratinjau-alasan"></div></div>` : ''}
         <div class="tombol-dialog">
-          <button class="btn-kedua" data-jawab="0">Batal</button>
-          <button class="${p.kelas}" data-jawab="1">${p.tombol}</button>
+          <button class="btn btn-kedua" data-jawab="0">Batal</button>
+          <button class="btn ${p.kelas}" data-jawab="1">${p.tombol}</button>
         </div>
-      </div>`;
-    kotak.hidden = false;
+      </div>`, true);
     const alasan = () => {
       if (!tolak) return '';
       const pilih = kotak.querySelector('input[name="alasan"]:checked');
@@ -511,16 +631,18 @@
     kotak.oninput = segarkan;
     kotak.querySelector('[data-jawab="1"]').focus();
     return new Promise(ok => {
-      const selesai = jawab => {
+      let bekerja = false;
+      const selesai = hasil => {
         kotak.hidden = true;
         kotak.onclick = kotak.oninput = null;
         document.removeEventListener('keydown', tombolKeyboard);
-        ok(jawab ? { alasan: alasan().trim() } : null);
+        ok(hasil);
       };
-      const tombolKeyboard = e => { if (e.key === 'Escape') selesai(false); };
+      const tombolKeyboard = e => { if (e.key === 'Escape' && !bekerja) selesai(false); };
       document.addEventListener('keydown', tombolKeyboard);
-      kotak.onclick = e => {
+      kotak.onclick = async e => {
         e.stopPropagation();
+        if (bekerja) return;
         const radio = e.target.closest('input[name="alasan"]');
         if (radio) {
           segarkan();
@@ -528,10 +650,49 @@
           return;
         }
         const b = e.target.closest('[data-jawab]');
-        if (b && !b.disabled) selesai(b.dataset.jawab === '1');
+        if (b && !b.disabled && b.dataset.jawab === '1') {
+          bekerja = true;
+          kotak.querySelector('[data-jawab="0"]').disabled = true;
+          const pulih = sibuk(b, p.proses);
+          try {
+            await kerjakan(alasan().trim());
+            selesai(true);
+          } catch (err) {
+            bekerja = false;
+            pulih();
+            kotak.querySelector('[data-jawab="0"]').disabled = false;
+            if (err.sesi) return selesai(false);
+            kabar(err.message);
+          }
+        } else if (b && !b.disabled) selesai(false);
         else if (e.target === kotak) selesai(false); // ketuk di luar kotak = batal
       };
     });
+  }
+
+  /** Lembar akun (mode mobile; di mode web isinya ada di sidebar). */
+  function bukaAkun() {
+    const kotak = bukaLapis(`
+      <div class="dialog">
+        <div class="kepala-dialog"><h2>Akun</h2><button class="ikon-btn" data-tutup aria-label="Tutup">${IKON.silang}</button></div>
+        <div class="kartu-akun" style="margin-bottom:14px"><span class="avatar">${inisial()}</span><span class="isi"><b>${esc(info.admin)}</b><small>Admin</small></span></div>
+        <div class="menu-akun">
+          <h3>Tampilan</h3>
+          ${pilihMode()}
+          <h3>Lainnya</h3>
+          ${info.sheet ? `<a class="nav-item" href="${esc(info.sheet)}" target="_blank" rel="noopener">${IKON.tabel}<span class="teks">Buka spreadsheet pengajuan</span></a>` : ''}
+          <button class="nav-item" data-aksi="ganti">${IKON.ganti}<span class="teks">Ganti akun Google</span></button>
+          <button class="nav-item bahaya" data-aksi="keluar">${IKON.keluar}<span class="teks">Keluar</span></button>
+        </div>
+      </div>`, true);
+    const tutup = () => { kotak.hidden = true; kotak.onclick = null; document.removeEventListener('keydown', escAkun); };
+    const escAkun = e => { if (e.key === 'Escape') tutup(); };
+    document.addEventListener('keydown', escAkun);
+    // Tombol di dalam lembar ditangani pendengar klik utama (data-aksi); lembar ditutup setelahnya.
+    kotak.onclick = e => {
+      if (e.target === kotak || e.target.closest('[data-tutup]')) { e.stopPropagation(); tutup(); return; }
+      if (e.target.closest('[data-aksi], a')) setTimeout(() => { if (!e.target.closest('[data-aksi="mode"]')) tutup(); else bukaAkun(); }, 0);
+    };
   }
 
   // ---------- Riwayat transaksi satu buku ----------
@@ -555,17 +716,14 @@
   async function lihatFoto(idFile, tombol) {
     const besar = $('#foto-besar'), img = besar.querySelector('img');
     if (!fotoRiwayat[idFile]) {
-      const label = tombol.textContent;
-      tombol.disabled = true;
-      tombol.textContent = 'Memuat foto…';
+      const pulih = sibuk(tombol, 'Memuat foto…');
       try {
         fotoRiwayat[idFile] = (await api({ aksi: 'fotoFile', foto: idFile })).foto;
       } catch (e) {
         if (!e.sesi) kabar(e.message);
         return;
       } finally {
-        tombol.disabled = false;
-        tombol.textContent = label;
+        pulih();
       }
     }
     img.src = fotoRiwayat[idFile];
@@ -573,12 +731,11 @@
   }
 
   async function bukaRiwayat(r) {
-    const kotak = $('#dialog');
     const isi = daftarRiwayat => `
-      <div class="dialog dialog-riwayat" role="dialog" aria-label="Riwayat transaksi">
-        <div class="kepala-riwayat"><h2>Riwayat transaksi</h2><button class="ikon-btn" data-tutup aria-label="Tutup">✕</button></div>
+      <div class="dialog" role="dialog" aria-label="Riwayat transaksi" style="max-width:540px">
+        <div class="kepala-dialog"><h2>Riwayat transaksi</h2><button class="ikon-btn" data-tutup aria-label="Tutup">${IKON.silang}</button></div>
         <div class="siapa"><b>${esc(r.email || '(tanpa email)')}</b><span>Buku ${esc(r.buku || '-')} · ${esc(r.id)}</span></div>
-        ${daftarRiwayat === null ? '<div class="kerangka" style="height:160px"></div>'
+        ${daftarRiwayat === null ? '<div class="kerangka" style="height:84px;margin-bottom:10px"></div>'.repeat(3)
           : !daftarRiwayat.length ? '<p class="kosong-riwayat">Belum ada riwayat untuk buku ini.</p>'
           : `<ol class="linimasa">${daftarRiwayat.map(x => `
             <li style="--warna:${WARNA_PERISTIWA(x.peristiwa)}">
@@ -586,12 +743,11 @@
               <div class="lm-isi">
                 <div class="lm-kepala"><b>${esc(x.peristiwa)}</b><small>${esc(tanggal(x.t))}${x.oleh ? ' · oleh ' + esc(x.oleh) : ''}</small></div>
                 ${rincian(x)}
-                ${kirimBukti(x) && idFoto(x.link) ? `<button type="button" class="lm-bukti" data-foto="${esc(idFoto(x.link))}">🖼 Lihat bukti transfer</button>` : ''}
+                ${kirimBukti(x) && idFoto(x.link) ? `<button type="button" class="lm-bukti" data-foto="${esc(idFoto(x.link))}">${IKON.gambar}Lihat bukti transfer</button>` : ''}
               </div>
             </li>`).join('')}</ol>`}
       </div>`;
-    kotak.innerHTML = isi(null);
-    kotak.hidden = false;
+    const kotak = bukaLapis(isi(null), true);
     const tutup = () => { kotak.hidden = true; kotak.onclick = null; document.removeEventListener('keydown', esc_); };
     const esc_ = e => {
       if (e.key !== 'Escape') return;
@@ -630,15 +786,36 @@
     const el = e.target.closest('[data-aksi]');
     if (!el) return;
     const aksi = el.dataset.aksi;
-    if (aksi === 'masuk' || aksi === 'ganti') return masuk();
+    if (aksi === 'masuk' || aksi === 'ganti') return masuk(aksi === 'masuk' ? el : null);
     if (aksi === 'masuk-lagi') return masukLagi(el);
+    if (aksi === 'mode') {
+      if (layar === 'pengaturan') bacaForm();
+      pasangTampilan(el.dataset.mode, true);
+      if (info.admin) render();
+      return kabar('Tampilan ' + (tampilan === 'web' ? 'Web' : 'Mobile'));
+    }
+    if (aksi === 'akun') return bukaAkun();
     // Token hampir / baru saja habis: diperpanjang diam-diam saat halaman diketuk (seperti di aplikasi).
     const segar = GOOGLE.segarkanKalauPerlu && GOOGLE.segarkanKalauPerlu();
     if (segar) { const ok = await segar; if (ok && sesiHabis) { sesiHabis = false; galat = ''; } }
-    if (aksi === 'keluar') { GOOGLE.keluar(); daftar = []; return tampilMasuk(''); }
-    if (aksi === 'muat') { el.disabled = true; await muat(); if (!sesiHabis) kabar('Data diperbarui'); return; }
-    if (aksi === 'pengaturan') { galat = ''; return layar === 'pengaturan' ? (layar = 'pengajuan', render()) : bukaPengaturan(); }
-    if (aksi === 'kembali') { galat = ''; layar = 'pengajuan'; return render(); }
+    if (aksi === 'keluar') { GOOGLE.keluar(); daftar = []; info = { admin: '', sheet: '' }; dimuat = false; return tampilMasuk(''); }
+    if (aksi === 'muat') {
+      if (layar === 'pengaturan') bacaForm();
+      const pulih = sibuk(el);
+      await muat();
+      pulih();
+      if (!sesiHabis && !galat) kabar('Data diperbarui');
+      return;
+    }
+    if (aksi === 'ke') {
+      galat = '';
+      if (el.dataset.layar === 'pengaturan') return layar === 'pengaturan' ? undefined : bukaPengaturan();
+      layar = 'pengajuan';
+      formJual = null;
+      render();
+      return window.scrollTo(0, 0);
+    }
+    if (aksi === 'kembali') { galat = ''; layar = 'pengajuan'; formJual = null; return render(); }
     if (aksi === 'tambah-rekening') { bacaForm(); formJual.rekening.push(rekeningKosong()); render(); return; }
     if (aksi === 'hapus-rekening') { bacaForm(); formJual.rekening.splice(Number(el.dataset.i), 1); return render(); }
     if (aksi === 'hapus-qris') { bacaForm(); formJual.rekening[Number(el.dataset.i)].baru = ''; return render(); }
@@ -658,18 +835,13 @@
     if (aksi === 'atur') {
       const r = daftar.find(x => x.id === el.dataset.id);
       const status = el.dataset.status;
-      const jawab = await konfirmasi(status, r);
-      if (!jawab) return;
-      el.disabled = true;
-      try {
-        await api({ aksi: 'atur', id: el.dataset.id, status, alasan: jawab.alasan });
-        if (r) Object.assign(r, { status, alasan: status === 'ditolak' ? jawab.alasan : '', diubah: new Date().toISOString(), riwayat: (r.riwayat || 0) + 1 });
-        galat = '';
-        kabar(pilihan()[status].selesai);
-      } catch (err) {
-        if (err.sesi) return;
-        galat = err.message;
-      }
+      const ok = await konfirmasi(status, r, async alasan => {
+        await api({ aksi: 'atur', id: el.dataset.id, status, alasan });
+        if (r) Object.assign(r, { status, alasan: status === 'ditolak' ? alasan : '', diubah: new Date().toISOString(), riwayat: (r.riwayat || 0) + 1 });
+      });
+      if (!ok) return;
+      galat = '';
+      kabar(pilihan()[status].selesai);
       render();
     }
   });
