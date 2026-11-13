@@ -1910,7 +1910,7 @@ const SERVER = (() => {
 
   /**
    * Pengaturan penjualan dari bot (diatur pemilik di admin.html → Pengaturan penjualan, lihat jual_ di bot/Kode.gs):
-   * { aturan: 'transaksi' | 'periode' | 'keduanya', batasTransaksi, batasPeriode, harga, rekening: [{ bank, nomor, atasNama }], qris }.
+   * { aturan: 'transaksi' | 'periode' | 'keduanya', batasTransaksi, batasPeriode, harga, rekening: [{ bank, nomor, atasNama, qris (punya QRIS?) }], qris (ada rekening ber-QRIS) }.
    * Disimpan di HP & diperbarui paling sering sejam sekali; belum pernah termuat → isi config.js sebagai cadangan.
    */
   let jualMem_ = null;
@@ -1948,13 +1948,14 @@ const SERVER = (() => {
     }
   }
 
-  /** Gambar QRIS penjual (data URL, '' kalau tidak ada), dimuat saat layar Versi penuh dibuka. */
-  let qrisMem_ = null;
-  async function ambilQris() {
-    if (qrisMem_ !== null) return qrisMem_;
+  /** Gambar QRIS rekening ke-i (data URL, '' kalau tidak ada), dimuat saat layar Versi penuh dibuka. */
+  let qrisMem_ = {};
+  async function ambilQris(i) {
+    i = Number(i) || 0;
+    if (i in qrisMem_) return qrisMem_[i];
     if (!BAYAR.urlBot) return '';
-    const j = await (await fetch(BAYAR.urlBot + '?qris=1')).json();
-    return (qrisMem_ = String(j.qris || ''));
+    const j = await (await fetch(BAYAR.urlBot + '?qris=1&rek=' + i)).json();
+    return (qrisMem_[i] = String(j.qris || ''));
   }
 
   /** Batas hanya berlaku kalau bot & kunci publik ada dan penjual punya tempat bayar (rekening / QRIS). */
@@ -2068,6 +2069,7 @@ const SERVER = (() => {
       aktif = await lisensiSah_(idBuku, kodeLokal); // bot belum pernah terjangkau dari HP ini
     }
     return {
+      selaluTampil: j0.selaluTampil !== false, // false: menu Versi penuh baru tampil setelah masa gratis habis (lihat tampilVersiPenuh di app.js)
       aturan: j0.aturan, batas: j0.batasTransaksi, terpakai, batasPeriode: j0.batasPeriode, periodeKe, habis, hampir,
       harga: j0.harga, rekening: j0.rekening, qris: !!j0.qris,
       aktif, terkunci: !aktif && (habis || permintaan === 'nonaktif'), permintaan, alasan,
@@ -2082,7 +2084,7 @@ const SERVER = (() => {
   /** Tombol "Perbarui status" di layar Versi penuh: tanya bot sekarang juga (tanpa cache). Hasil: status lisensi terbaru. */
   async function segarkanLisensi() {
     const id = await db_();
-    qrisMem_ = null;
+    qrisMem_ = {};
     const [ids, [set]] = await Promise.all([daftarId_(id), bacaTabel_(id, ['pengaturan']), muatJual_(true)]);
     return statusLisensi_(id, ids.filter(Boolean).length, set, true);
   }

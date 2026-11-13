@@ -509,11 +509,19 @@ function ketVersiPenuh(l) {
   return bagian.concat([beli]).join(' · ');
 }
 
+/**
+ * Menu ⚙️ → Versi penuh ditampilkan? Diatur penjual (admin.html → Pengaturan penjualan): selalu, atau hanya setelah
+ * masa gratis habis. Buku yang sudah aktif / dikunci / pernah mengajukan aktivasi tetap melihatnya.
+ */
+function tampilVersiPenuh(l) {
+  return !!l && (l.selaluTampil !== false || l.habis || l.terkunci || l.aktif || !!l.permintaan);
+}
+
 /** Baris status: pencatatan terkunci, masa gratis hampir habis, atau status pengajuan aktivasi. */
 function barisLisensi() {
   const l = S.data && S.data.lisensi;
   if (!l || l.aktif || DEMO.aktif() || S.data.perluSetup) return null;
-  if (!l.terkunci && !l.hampir && l.permintaan !== 'ditolak' && l.permintaan !== 'menunggu') return null;
+  if (!l.terkunci && !(l.hampir && l.selaluTampil !== false) && l.permintaan !== 'ditolak' && l.permintaan !== 'menunggu') return null;
   if (l.permintaan === 'ditolak') {
     return { kelas: 'gagal', isi: `${T('❌ Bukti transfer ditolak penjual. Ketuk Lihat untuk alasannya.')} <button type="button" data-aksi="versi-penuh">${T('Lihat')}</button>` };
   }

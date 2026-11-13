@@ -3,7 +3,7 @@
  *   - Pengajuan: ringkasan per status (sekaligus filter), pencarian, kartu pengajuan + foto bukti transfer,
  *     tombol Aktifkan / Tolak (dengan alasan) / Nonaktifkan.
  *   - Pengaturan penjualan: kapan ditagih (jumlah transaksi / periode gajian / mana yang lebih dulu), harga,
- *     rekening tujuan (boleh lebih dari satu), dan gambar QRIS. Dipakai aplikasi & bot (lihat jual_ di bot/Kode.gs).
+ *     rekening tujuan (boleh lebih dari satu, masing-masing boleh punya satu QRIS). Dipakai aplikasi & bot (lihat jual_ di bot/Kode.gs).
  * Semua data ada di bot (bot/Kode.gs → apiLisensi_); bot hanya melayani akun Google pemilik bot (atau ADMIN_EMAIL).
  * Sengaja tanpa terjemahan: halaman ini khusus pemilik.
  */
@@ -44,10 +44,11 @@
   let galat = '';
   let layar = 'pengajuan'; // 'pengajuan' | 'pengaturan'
   let info = { admin: '', sheet: '' };
-  let jual = { aturan: 'transaksi', batasTransaksi: 450, batasPeriode: 3, harga: Number((KONFIG.bayar || {}).harga) || 0, rekening: [], qris: false };
-  let formJual = null;  // salinan pengaturan yang sedang diubah di layar Pengaturan
-  let qrisBaru = null;  // data URL QRIS yang dipilih, belum diunggah ('' = hapus)
-  let qrisLama = '';    // data URL QRIS tersimpan (dimuat saat layar Pengaturan dibuka)
+  let jual = { aturan: 'transaksi', batasTransaksi: 450, batasPeriode: 3, harga: Number((KONFIG.bayar || {}).harga) || 0, rekening: [], selaluTampil: true };
+  // Salinan pengaturan yang sedang diubah. Tiap rekening: { bank, nomor, atasNama, qris (punya QRIS tersimpan),
+  // asal (nomor urut rekening tersimpan, -1 = baru), baru (data URL QRIS yang dipilih, '' = dihapus, null = tidak diubah) }.
+  let formJual = null;
+  let qrisTersimpan = {}; // nomor urut rekening tersimpan → data URL QRIS-nya (dimuat saat layar Pengaturan dibuka)
   const foto = {};      // id buku → data URL bukti ('' = gagal dimuat)
   const memuat = {};    // id buku → sedang dimuat
 
@@ -240,14 +241,24 @@
   function bukaPengaturan() {
     layar = 'pengaturan';
     formJual = JSON.parse(JSON.stringify(jual));
-    if (!formJual.rekening.length) formJual.rekening.push({ bank: '', nomor: '', atasNama: '' });
-    qrisBaru = null;
-    qrisLama = '';
+    formJual.rekening = formJual.rekening.map((r, i) => Object.assign(r, { asal: i, baru: null }));
+    if (!formJual.rekening.length) formJual.rekening.push(rekeningKosong());
+    qrisTersimpan = {};
     render();
-    if (jual.qris) {
-      api({ aksi: 'lihatQris' }).then(j => { qrisLama = j.qris || ''; if (layar === 'pengaturan') render(); }).catch(e => kabar(e.message));
-    }
+    jual.rekening.forEach((r, i) => {
+      if (!r.qris) return;
+      api({ aksi: 'lihatQris', rek: i }).then(j => {
+        qrisTersimpan[i] = j.qris || '';
+        // Gambar dipasang langsung (tanpa render ulang) supaya ketikan yang sedang berlangsung tidak terganggu.
+        const kotak = document.querySelector('.qris-pratinjau[data-asal="' + i + '"]');
+        if (kotak && layar === 'pengaturan') kotak.innerHTML = j.qris ? '<img src="' + esc(j.qris) + '" alt="QRIS">' : 'Gagal dimuat';
+      }).catch(e => kabar(e.message));
+    });
   }
+
+  const rekeningKosong = () => ({ bank: '', nomor: '', atasNama: '', qris: false, asal: -1, baru: null });
+  const punyaQris = r => (r.baru !== null ? !!r.baru : r.qris);
+  const gambarQris = r => (r.baru !== null ? r.baru : r.qris ? qrisTersimpan[r.asal] || '' : '');
 
   /** Isian form → formJual (dipanggil sebelum render ulang supaya ketikan tidak hilang). */
   function bacaForm() {
@@ -257,7 +268,8 @@
     formJual.batasTransaksi = Number($('#batas-transaksi').value) || 0;
     formJual.batasPeriode = Number($('#batas-periode').value) || 0;
     formJual.harga = Number(String($('#harga').value).replace(/\D/g, '')) || 0;
-    formJual.rekening = Array.from(document.querySelectorAll('.rekening-baris')).map(b => ({
+    formJual.selaluTampil = $('#selalu-tampil').checked;
+    formJual.rekening = Array.from(document.querySelectorAll('.rekening-baris')).map((b, i) => Object.assign({}, formJual.rekening[i], {
       bank: b.querySelector('[data-f="bank"]').value.trim(), nomor: b.querySelector('[data-f="nomor"]').value.trim(), atasNama: b.querySelector('[data-f="atasNama"]').value.trim(),
     }));
   }
@@ -265,8 +277,6 @@
   function renderPengaturan() {
     const f = formJual;
     const pakaiTrx = f.aturan !== 'periode', pakaiPer = f.aturan !== 'transaksi';
-    const gambarQris = qrisBaru !== null ? qrisBaru : qrisLama;
-    const adaQris = qrisBaru !== null ? !!qrisBaru : jual.qris;
     $('#isi').innerHTML = `
       <div class="judul-layar">
         <button class="ikon-btn" data-aksi="kembali" aria-label="Kembali ke pengajuan">${IKON.kembali}</button>
@@ -292,34 +302,43 @@
         </section>
 
         <section class="panel">
+          <h2>Menu "Versi penuh" di aplikasi</h2>
+          <label class="saklar">
+            <span><b>Selalu tampilkan</b><small>${f.selaluTampil !== false
+              ? 'Aktif: menu ⚙️ → Versi penuh selalu terlihat, termasuk selama masa gratis.'
+              : 'Mati: menu ⚙️ → Versi penuh baru muncul setelah syarat "Kapan pengguna ditagih" terpenuhi (masa gratis habis).'}</small></span>
+            <input type="checkbox" id="selalu-tampil" role="switch" ${f.selaluTampil !== false ? 'checked' : ''}><i aria-hidden="true"></i>
+          </label>
+        </section>
+
+        <section class="panel">
           <h2>Harga versi penuh</h2>
           <p class="bantu">Sekali bayar, berlaku seumur hidup untuk satu buku (seluruh keluarga).</p>
           <label class="isian"><span>Harga</span><span class="dengan-satuan depan"><em>Rp</em><input id="harga" inputmode="numeric" value="${esc(Number(f.harga || 0).toLocaleString('id-ID'))}"></span></label>
         </section>
 
         <section class="panel">
-          <h2>Rekening tujuan transfer</h2>
-          <p class="bantu">Ditampilkan ke pembeli di layar Versi penuh. Bisa bank atau e-wallet, maksimal 5.</p>
-          <div id="daftar-rekening">${f.rekening.map((r, i) => `
+          <h2>Rekening tujuan & QRIS</h2>
+          <p class="bantu">Ditampilkan ke pembeli di layar Versi penuh. Bisa bank atau e-wallet, maksimal 5. Setiap rekening boleh punya satu QRIS (opsional).</p>
+          <div id="daftar-rekening">${f.rekening.map((r, i) => {
+            const g = gambarQris(r), ada = punyaQris(r);
+            return `
             <div class="rekening-baris">
-              <input data-f="bank" placeholder="Bank / e-wallet (mis. BCA, DANA)" value="${esc(r.bank)}" maxlength="40">
-              <input data-f="nomor" placeholder="Nomor rekening / HP" value="${esc(r.nomor)}" maxlength="40" inputmode="numeric">
-              <input data-f="atasNama" placeholder="Atas nama (opsional)" value="${esc(r.atasNama)}" maxlength="60">
-              <button type="button" class="ikon-btn hapus" data-aksi="hapus-rekening" data-i="${i}" aria-label="Hapus rekening" ${f.rekening.length < 2 ? 'disabled' : ''}>✕</button>
-            </div>`).join('')}</div>
+              <div class="rekening-isian">
+                <input data-f="bank" placeholder="Bank / e-wallet (mis. BCA, DANA)" value="${esc(r.bank)}" maxlength="40">
+                <input data-f="nomor" placeholder="Nomor rekening / HP" value="${esc(r.nomor)}" maxlength="40" inputmode="numeric">
+                <input data-f="atasNama" placeholder="Atas nama (opsional)" value="${esc(r.atasNama)}" maxlength="60">
+                <button type="button" class="ikon-btn hapus" data-aksi="hapus-rekening" data-i="${i}" aria-label="Hapus rekening" ${f.rekening.length < 2 ? 'disabled' : ''}>✕</button>
+              </div>
+              <div class="qris">
+                <div class="qris-pratinjau" ${r.baru === null && r.qris ? `data-asal="${r.asal}"` : ''}>${g ? `<img src="${esc(g)}" alt="QRIS">` : ada ? 'Memuat…' : 'Tanpa QRIS'}</div>
+                <div class="qris-aksi">
+                  <label class="btn-kedua tombol-file"><input type="file" class="file-qris" data-i="${i}" accept="image/*" hidden>${ada ? 'Ganti QRIS' : 'Unggah QRIS'}</label>
+                  ${ada ? `<button type="button" class="btn-lembut-merah" data-aksi="hapus-qris" data-i="${i}">Hapus QRIS</button>` : ''}
+                </div>
+              </div>
+            </div>`; }).join('')}</div>
           ${f.rekening.length < 5 ? '<button type="button" class="btn-kedua" data-aksi="tambah-rekening">+ Tambah rekening</button>' : ''}
-        </section>
-
-        <section class="panel">
-          <h2>QRIS</h2>
-          <p class="bantu">Opsional. Gambar QRIS tampil di layar Versi penuh supaya pembeli bisa langsung scan.</p>
-          <div class="qris">
-            <div class="qris-pratinjau">${gambarQris ? `<img src="${esc(gambarQris)}" alt="QRIS">` : adaQris ? 'Memuat…' : 'Belum ada QRIS'}</div>
-            <div class="qris-aksi">
-              <label class="btn-kedua tombol-file"><input type="file" id="file-qris" accept="image/*" hidden>${adaQris ? 'Ganti gambar QRIS' : 'Unggah gambar QRIS'}</label>
-              ${adaQris ? '<button type="button" class="btn-lembut-merah" data-aksi="hapus-qris">Hapus QRIS</button>' : ''}
-            </div>
-          </div>
         </section>
 
         <div class="simpan-bar">
@@ -328,18 +347,22 @@
         </div>
       </form>`;
     $('#form-jual').onchange = e => {
-      if (e.target.name === 'aturan') { bacaForm(); render(); }
+      if (e.target.name === 'aturan' || e.target.id === 'selalu-tampil') { bacaForm(); render(); }
       if (e.target.id === 'harga') { bacaForm(); e.target.value = formJual.harga.toLocaleString('id-ID'); }
     };
-    $('#file-qris').onchange = async e => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-      try {
-        bacaForm();
-        qrisBaru = await kecilkanQris(file);
-        render();
-      } catch (err) { kabar(err.message); }
-    };
+    document.querySelectorAll('.file-qris').forEach(inp => {
+      inp.onchange = async e => {
+        e.stopPropagation();
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        try {
+          const gambar = await kecilkanQris(file);
+          bacaForm();
+          formJual.rekening[Number(inp.dataset.i)].baru = gambar;
+          render();
+        } catch (err) { kabar(err.message); }
+      };
+    });
   }
 
   /** Gambar QRIS diperkecil (sisi terpanjang ≤ 1000 px) tanpa mengaburkan kotak-kotaknya. */
@@ -369,17 +392,18 @@
   async function simpanJual(tombol) {
     bacaForm();
     const f = formJual;
-    const rek = f.rekening.filter(r => r.bank || r.nomor || r.atasNama);
+    const rek = f.rekening.filter(r => r.bank || r.nomor || r.atasNama || punyaQris(r));
     const salah = f.aturan !== 'periode' && !(f.batasTransaksi >= 1) ? 'Isi batas transaksi gratis (minimal 1).'
       : f.aturan !== 'transaksi' && !(f.batasPeriode >= 1) ? 'Isi batas periode gratis (minimal 1).'
       : !(f.harga >= 1000) ? 'Isi harga (minimal Rp1.000).'
       : rek.some(r => !r.bank || !r.nomor) ? 'Setiap rekening wajib berisi nama bank/e-wallet dan nomornya.'
-      : !rek.length && !(qrisBaru !== null ? qrisBaru : jual.qris) ? 'Isi minimal satu rekening atau unggah QRIS.' : '';
+      : !rek.length ? 'Isi minimal satu rekening.' : '';
     if (salah) { galat = salah; render(); window.scrollTo(0, 0); return; }
     tombol.disabled = true;
     try {
-      if (qrisBaru !== null) await api({ aksi: 'simpanQris', gambar: qrisBaru });
-      const j = await api({ aksi: 'simpanJual', jual: Object.assign({}, f, { rekening: rek }) });
+      const rekening = rek.map(r => ({ bank: r.bank, nomor: r.nomor, atasNama: r.atasNama,
+        qrisAsal: r.baru === null && r.qris ? r.asal : -1, qrisBaru: r.baru || '' }));
+      const j = await api({ aksi: 'simpanJual', jual: Object.assign({}, f, { rekening }) });
       jual = j.jual;
       galat = '';
       layar = 'pengajuan';
@@ -487,9 +511,9 @@
     if (aksi === 'muat') { el.disabled = true; await muat(); return kabar('Data diperbarui'); }
     if (aksi === 'pengaturan') { galat = ''; return layar === 'pengaturan' ? (layar = 'pengajuan', render()) : bukaPengaturan(); }
     if (aksi === 'kembali') { galat = ''; layar = 'pengajuan'; return render(); }
-    if (aksi === 'tambah-rekening') { bacaForm(); formJual.rekening.push({ bank: '', nomor: '', atasNama: '' }); render(); return; }
+    if (aksi === 'tambah-rekening') { bacaForm(); formJual.rekening.push(rekeningKosong()); render(); return; }
     if (aksi === 'hapus-rekening') { bacaForm(); formJual.rekening.splice(Number(el.dataset.i), 1); return render(); }
-    if (aksi === 'hapus-qris') { bacaForm(); qrisBaru = ''; return render(); }
+    if (aksi === 'hapus-qris') { bacaForm(); formJual.rekening[Number(el.dataset.i)].baru = ''; return render(); }
     if (aksi === 'simpan-jual') return simpanJual(el);
     if (aksi === 'tab') { tab = el.dataset.tab; return render(); }
     if (aksi === 'foto') { delete foto[el.dataset.id]; return muatFoto(el.dataset.id); }

@@ -2041,7 +2041,7 @@ function viewLainnya() {
     <h2 class="judul-bagian">${T('Profil')}</h2>
     <section class="kartu" style="padding:4px 16px">
       ${baris('ganti-avatar', htmlAvatar(d.user), esc(namaPendek(d.user)), T('Ganti avatar · pilih gambar atau unggah foto sendiri'))}
-      ${d.lisensi && !DEMO.aktif() ? baris('versi-penuh', d.lisensi.aktif ? '⭐' : '🔓', T('Versi penuh'), ketVersiPenuh(d.lisensi)) : ''}
+      ${tampilVersiPenuh(d.lisensi) && !DEMO.aktif() ? baris('versi-penuh', d.lisensi.aktif ? '⭐' : '🔓', T('Versi penuh'), ketVersiPenuh(d.lisensi)) : ''}
     </section>
 
     <h2 class="judul-bagian">${T('Keuangan')}</h2>

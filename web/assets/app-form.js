@@ -1713,24 +1713,24 @@ function bukaFormBayar() {
       <span style="flex:1"><b>${status.judul}</b><br><small>${status.isi}</small></span>
       <button type="button" class="tombol-teks" style="white-space:nowrap;padding:4px 0" data-aksi="segarkan-lisensi">${T('🔄 Perbarui status')}</button>
     </div>`;
-  const rekening = (l.rekening || []).map(r => `
+  // Setiap rekening boleh punya satu QRIS, ditampilkan tepat di bawah rekeningnya.
+  const rekening = (l.rekening || []).map((r, i) => `
         <div class="baris">
           <span class="ikon-bulat">${/dana|ovo|gopay|shopee|linkaja|jago|flip/i.test(r.bank) ? '📱' : '🏦'}</span>
           <span class="isi"><b>${esc(r.bank)} ${esc(r.nomor)}</b>${r.atasNama ? `<small>${T('a.n. {nama}', { nama: esc(r.atasNama) })}</small>` : ''}</span>
           <button type="button" class="tombol-teks" data-aksi="salin-rekening" data-nomor="${esc(r.nomor)}">${T('Salin')}</button>
-        </div>`).join('');
-  const qris = l.qris ? `
-        <div class="kotak-qris" style="text-align:center;margin:10px 0 4px">
-          <small style="display:block;color:var(--muted);margin-bottom:6px">${(l.rekening || []).length ? T('Atau scan QRIS:') : T('Scan QRIS:')}</small>
-          <img id="gambar-qris" alt="QRIS" hidden style="width:220px;max-width:100%;border-radius:12px;background:#fff;padding:8px">
-          <div id="memuat-qris" class="info-kecil">${T('Memuat QRIS…')}</div>
-          <a id="unduh-qris" class="tombol-teks" hidden download="QRIS-Dompet-Keluarga.png" style="display:block">${T('Simpan gambar QRIS')}</a>
-        </div>` : '';
+        </div>${r.qris ? `
+        <div class="kotak-qris" data-rek="${i}" style="text-align:center;margin:4px 0 12px">
+          <small style="display:block;color:var(--muted);margin-bottom:6px">${T('Atau scan QRIS:')}</small>
+          <img class="gambar-qris" alt="QRIS ${esc(r.bank)}" hidden style="width:220px;max-width:100%;border-radius:12px;background:#fff;padding:8px">
+          <div class="memuat-qris info-kecil">${T('Memuat QRIS…')}</div>
+          <a class="unduh-qris tombol-teks" hidden download="QRIS-${esc(r.bank.replace(/[^\w-]+/g, '-'))}.png" style="display:block">${T('Simpan gambar QRIS')}</a>
+        </div>` : ''}`).join('');
   bukaSheet(T('Beli versi penuh'), `${kabar}
     <p style="margin-top:0">${teksMasaGratis(l)}</p>
     <p>${T('Versi penuh: <b>{harga}</b>, sekali bayar untuk selamanya. Tanpa batas transaksi untuk seluruh keluarga di buku ini, termasuk lewat bot Telegram.', { harga: rp(l.harga) })}</p>
     <ol class="panduan" style="padding-left:20px;margin-bottom:16px">
-      <li>${T('Transfer <b>{harga}</b> ke:', { harga: rp(l.harga) })}${rekening}${qris}
+      <li>${T('Transfer <b>{harga}</b> ke:', { harga: rp(l.harga) })}${rekening}
       </li>
       <li>${T('Pilih foto atau screenshot bukti transfer, lalu ketuk <b>Kirim bukti</b>.')}
         <label class="btn btn-kedua" style="display:block;margin:8px 0;text-align:center;cursor:pointer">
@@ -1749,16 +1749,16 @@ function bukaFormBayar() {
       </div>
       <div class="aksi-form"><button type="button" class="btn btn-utama" data-aksi="aktifkan-lisensi">${T('Aktifkan')}</button></div>
     </details>`);
-  if (l.qris) {
-    SERVER.ambilQris().then(data => {
-      const img = $('#gambar-qris'), muat = $('#memuat-qris'), unduh = $('#unduh-qris');
-      if (!img) return;
-      if (!data) { muat.textContent = T('QRIS belum bisa dimuat. Pakai rekening di atas, atau coba lagi nanti.'); return; }
+  document.querySelectorAll('.kotak-qris[data-rek]').forEach(kotak => {
+    const gagal = () => { kotak.querySelector('.memuat-qris').textContent = T('QRIS belum bisa dimuat. Pakai rekening di atas, atau coba lagi nanti.'); };
+    SERVER.ambilQris(kotak.dataset.rek).then(data => {
+      if (!data) return gagal();
+      const img = kotak.querySelector('.gambar-qris'), unduh = kotak.querySelector('.unduh-qris');
       img.src = unduh.href = data;
       img.hidden = unduh.hidden = false;
-      muat.hidden = true;
-    }).catch(() => { const muat = $('#memuat-qris'); if (muat) muat.textContent = T('QRIS belum bisa dimuat. Pakai rekening di atas, atau coba lagi nanti.'); });
-  }
+      kotak.querySelector('.memuat-qris').hidden = true;
+    }).catch(gagal);
+  });
   $('#bukti-bayar').addEventListener('change', async e => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;

@@ -1944,7 +1944,6 @@ Object.assign(KAMUS, {
   "<b>{n} periode gajian</b> pertama": "the first <b>{n} pay periods</b>",
   "<b>{n} transaksi</b>": "<b>{n} transactions</b>",
   "Atau scan QRIS:": "Or scan the QRIS:",
-  "Scan QRIS:": "Scan the QRIS:",
   "Dinonaktifkan penjual · aktifkan lagi": "Deactivated by the seller · turn it back on",
   "Masa gratis berlaku untuk {batas}, dan sudah habis. Semua data tetap aman dan tetap bisa dilihat, diubah, dan diunduh.": "The free period covers {batas}, and it has ended. All your data stays safe and can still be viewed, edited, and downloaded.",
   "Masa gratis berlaku untuk {batas}. Saat ini: {posisi}.": "The free period covers {batas}. Right now: {posisi}.",

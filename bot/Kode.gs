@@ -197,9 +197,9 @@ function doPost(e) {
 function doGet(e) {
   const p = (e && e.parameter) || {};
   const json = isi => ContentService.createTextOutput(JSON.stringify(isi)).setMimeType(ContentService.MimeType.JSON);
-  // ?jual=1 → pengaturan penjualan untuk aplikasi (harga, rekening, kapan ditagih); ?qris=1 → gambar QRIS.
+  // ?jual=1 → pengaturan penjualan untuk aplikasi (harga, rekening, kapan ditagih); ?qris=1&rek=<i> → gambar QRIS rekening ke-i.
   if (p.jual) return json(jualPublik_());
-  if (p.qris) return json({ qris: gambarQris_() });
+  if (p.qris) return json({ qris: gambarQris_(p.rek) });
   const id = String(p.lisensi || '');
   if (id) {
     let isi = { galat: 'ID tidak valid' };
@@ -1405,20 +1405,32 @@ const URL_APLIKASI = 'https://shiroesyn202601-ship-it.github.io/dompet-keluarga/
  *   harga, rekening: [{ bank, nomor, atasNama }], qris: ID file gambar QRIS di folder Admin ('' = tidak ada).
  * Bawaan di bawah dipakai selama pemilik belum menyimpan pengaturan.
  */
-const JUAL_BAWAAN = { aturan: 'transaksi', batasTransaksi: 450, batasPeriode: 3, harga: 30000, rekening: [{ bank: 'DANA', nomor: '087873369841', atasNama: '' }], qris: '' };
+const JUAL_BAWAAN = { aturan: 'transaksi', batasTransaksi: 450, batasPeriode: 3, harga: 30000, rekening: [{ bank: 'DANA', nomor: '087873369841', atasNama: '', qris: '' }],
+  selaluTampil: true }; // false = menu Versi penuh di aplikasi baru muncul setelah masa gratis habis
 
+/** Pengaturan penjualan; tiap rekening boleh punya satu QRIS (qris = ID file gambarnya di folder Admin). */
 function jual_() {
   let isi = {};
   try { isi = JSON.parse(properti_('JUAL') || '{}') || {}; } catch (e) { /* pakai bawaan */ }
-  return Object.assign({}, JUAL_BAWAAN, isi);
+  const j = Object.assign({}, JUAL_BAWAAN, isi);
+  j.rekening = (j.rekening || []).map(r => ({ bank: r.bank || '', nomor: r.nomor || '', atasNama: r.atasNama || '', qris: r.qris || '' }));
+  if (j.qris && j.rekening.length && !j.rekening[0].qris) j.rekening[0].qris = j.qris; // QRIS lama (satu untuk semua) → rekening pertama
+  delete j.qris;
+  return j;
 }
 
-/** Yang boleh diketahui siapa saja (aplikasi): tanpa ID file QRIS. */
+/** Yang boleh diketahui siapa saja (aplikasi): tanpa ID file QRIS (rekening[i].qris = true/false). */
 function jualPublik_() {
   const j = jual_();
-  return { aturan: j.aturan, batasTransaksi: j.batasTransaksi, batasPeriode: j.batasPeriode, harga: j.harga, rekening: j.rekening, qris: !!j.qris };
+  const rekening = j.rekening.map(r => ({ bank: r.bank, nomor: r.nomor, atasNama: r.atasNama, qris: !!r.qris }));
+  return { aturan: j.aturan, batasTransaksi: j.batasTransaksi, batasPeriode: j.batasPeriode, harga: j.harga, rekening, qris: rekening.some(r => r.qris),
+    selaluTampil: j.selaluTampil !== false };
 }
 
+/**
+ * baru.rekening[i] = { bank, nomor, atasNama, qrisAsal (nomor urut rekening lama yang QRIS-nya dipertahankan, -1 = tidak),
+ * qrisBaru (data URL gambar QRIS baru, '' = tidak ada) }. QRIS lama yang tidak dipakai lagi dihapus dari Drive.
+ */
 function simpanJual_(baru) {
   const b = baru || {};
   const bulat = (v, min, maks, nama) => {
@@ -1428,63 +1440,63 @@ function simpanJual_(baru) {
   };
   if (['transaksi', 'periode', 'keduanya'].indexOf(b.aturan) < 0) throw new Error('Pilih kapan pengguna ditagih.');
   const lama = jual_();
-  const rekening = (Array.isArray(b.rekening) ? b.rekening : []).slice(0, 5).map(r => ({
+  const isian = (Array.isArray(b.rekening) ? b.rekening : []).slice(0, 5).map(r => ({
     bank: teks_(r && r.bank).slice(0, 40), nomor: teks_(r && r.nomor).slice(0, 40), atasNama: teks_(r && r.atasNama).slice(0, 60),
-  })).filter(r => r.bank || r.nomor);
-  if (rekening.some(r => !r.bank || !r.nomor)) throw new Error('Setiap rekening wajib berisi nama bank/e-wallet dan nomornya.');
-  if (!rekening.length && !lama.qris) throw new Error('Isi minimal satu rekening atau unggah QRIS.');
+    asal: lama.rekening[Number(r && r.qrisAsal)] ? lama.rekening[Number(r.qrisAsal)].qris : '', gambar: String((r && r.qrisBaru) || ''),
+  })).filter(r => r.bank || r.nomor || r.gambar);
+  if (isian.some(r => !r.bank || !r.nomor)) throw new Error('Setiap rekening wajib berisi nama bank/e-wallet dan nomornya.');
+  if (!isian.length) throw new Error('Isi minimal satu rekening.');
+  const gambar = isian.map(r => r.gambar && gambarQrisSah_(r.gambar)); // diperiksa semua dulu sebelum ada yang diunggah
   const hasil = {
     aturan: b.aturan,
     batasTransaksi: b.aturan === 'periode' ? lama.batasTransaksi : bulat(b.batasTransaksi, 1, 100000, 'Batas transaksi'),
     batasPeriode: b.aturan === 'transaksi' ? lama.batasPeriode : bulat(b.batasPeriode, 1, 120, 'Batas periode'),
     harga: bulat(b.harga, 1000, 100000000, 'Harga'),
-    rekening,
-    qris: lama.qris,
+    selaluTampil: b.selaluTampil !== false,
+    rekening: isian.map((r, i) => ({ bank: r.bank, nomor: r.nomor, atasNama: r.atasNama, qris: gambar[i] ? unggahQris_(gambar[i], r.bank) : r.asal })),
   };
   simpanProp_('JUAL', JSON.stringify(hasil));
+  const dipakai = hasil.rekening.map(r => r.qris);
+  lama.rekening.forEach(r => {
+    if (r.qris && dipakai.indexOf(r.qris) < 0) { try { apiPemilik_('https://www.googleapis.com/drive/v3/files/' + r.qris, { method: 'delete' }); } catch (e) { /* sudah tidak ada */ } }
+  });
   return hasil;
 }
 
-/** gambar: data URL PNG/JPEG QRIS, atau '' untuk menghapus. Disimpan di folder Admin. */
-function simpanQris_(gambar) {
-  const j = jual_();
-  let idBaru = '';
-  if (gambar) {
-    const m = String(gambar).match(/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/);
-    if (!m) throw new Error('Gambar QRIS tidak valid.');
-    if (m[2].length > 4e6) throw new Error('Gambar QRIS terlalu besar.');
-    const mime = 'image/' + m[1];
-    const batas = 'dk' + Utilities.getUuid().replace(/-/g, '');
-    const meta = JSON.stringify({ name: 'QRIS pembayaran', mimeType: mime, parents: [folderAdmin_()] });
-    idBaru = apiPemilik_('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
-      method: 'post', contentType: 'multipart/related; boundary=' + batas,
-      payload: Utilities.newBlob('--' + batas + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta
-        + '\r\n--' + batas + '\r\nContent-Type: ' + mime + '\r\n\r\n').getBytes()
-        .concat(Utilities.base64Decode(m[2]), Utilities.newBlob('\r\n--' + batas + '--').getBytes()),
-    }).id;
-  } else if (!j.rekening.length) {
-    throw new Error('QRIS tidak bisa dihapus selama belum ada rekening.');
-  }
-  if (j.qris) { try { apiPemilik_('https://www.googleapis.com/drive/v3/files/' + j.qris, { method: 'delete' }); } catch (e) { /* sudah tidak ada */ } }
-  simpanProp_('JUAL', JSON.stringify(Object.assign(j, { qris: idBaru })));
-  CacheService.getScriptCache().remove('qris');
-  return { qris: !!idBaru };
+/** Data URL PNG/JPEG/WebP → { mime, isi (base64) }; selain itu galat. */
+function gambarQrisSah_(gambar) {
+  const m = String(gambar).match(/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/);
+  if (!m) throw new Error('Gambar QRIS tidak valid.');
+  if (m[2].length > 4e6) throw new Error('Gambar QRIS terlalu besar.');
+  return { mime: 'image/' + m[1], isi: m[2] };
 }
 
-/** Gambar QRIS sebagai data URL ('' kalau tidak ada); di-cache 6 jam (dibuka banyak pembeli). */
-function gambarQris_() {
-  const j = jual_();
-  if (!j.qris) return '';
+/** Gambar QRIS diunggah ke folder Admin; hasil: ID file. */
+function unggahQris_(g, bank) {
+  const batas = 'dk' + Utilities.getUuid().replace(/-/g, '');
+  const meta = JSON.stringify({ name: 'QRIS ' + (bank || 'pembayaran'), mimeType: g.mime, parents: [folderAdmin_()] });
+  return apiPemilik_('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method: 'post', contentType: 'multipart/related; boundary=' + batas,
+    payload: Utilities.newBlob('--' + batas + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta
+      + '\r\n--' + batas + '\r\nContent-Type: ' + g.mime + '\r\n\r\n').getBytes()
+      .concat(Utilities.base64Decode(g.isi), Utilities.newBlob('\r\n--' + batas + '--').getBytes()),
+  }).id;
+}
+
+/** Gambar QRIS rekening ke-i (0, 1, …) sebagai data URL ('' kalau tidak ada); di-cache 6 jam (dibuka banyak pembeli). */
+function gambarQris_(i) {
+  const r = jual_().rekening[Number(i) || 0];
+  if (!r || !r.qris) return '';
   const cache = CacheService.getScriptCache();
-  const ada = cache.get('qris');
+  const ada = cache.get('qris_' + r.qris);
   if (ada) return ada;
-  const res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + j.qris + '?alt=media', {
+  const res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + r.qris + '?alt=media', {
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true,
   });
   if (res.getResponseCode() !== 200) return '';
   const blob = res.getBlob();
   const data = 'data:' + (blob.getContentType() || 'image/png') + ';base64,' + Utilities.base64Encode(blob.getBytes());
-  if (data.length < 90000) cache.put('qris', data, 21600); // batas ukuran isi CacheService ±100 KB
+  if (data.length < 90000) cache.put('qris_' + r.qris, data, 21600); // batas ukuran isi CacheService ±100 KB
   return data;
 }
 
@@ -1942,8 +1954,7 @@ function apiLisensi_(b) {
   if (b.aksi === 'minta') return mintaAktivasi_(akun, b);
   if (!adminWeb_(akun.email)) throw new Error('Akun ' + akun.email + ' bukan admin. Masuk dengan akun Google pemilik bot.');
   if (b.aksi === 'simpanJual') { simpanJual_(b.jual); return { jual: jualPublik_() }; }
-  if (b.aksi === 'simpanQris') return simpanQris_(String(b.gambar || ''));
-  if (b.aksi === 'lihatQris') return { qris: gambarQris_() };
+  if (b.aksi === 'lihatQris') return { qris: gambarQris_(b.rek) };
   if (b.aksi === 'daftar') return { jual: jualPublik_(), daftar: daftarPermintaan_(), admin: akun.email, sheet: 'https://docs.google.com/spreadsheets/d/' + sheetAju_() + '/edit' };
   if (b.aksi === 'foto') return { foto: fotoBukti_(String(b.id || '')) };
   if (b.aksi === 'atur') return aturLisensi_(String(b.id || ''), String(b.status || ''), String(b.alasan || '').trim());

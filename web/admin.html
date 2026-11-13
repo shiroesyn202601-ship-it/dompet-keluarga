@@ -96,6 +96,14 @@
       .panel h2 { font-size: 16px; margin: 0 0 4px; }
       .bantu { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; }
       .opsi-aturan { display: grid; gap: 8px; margin-bottom: 12px; }
+      .saklar { display: flex; gap: 14px; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; }
+      .saklar b { display: block; font-size: 14.5px; } .saklar small { color: var(--muted); font-size: 12.5px; }
+      .saklar input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+      .saklar i { flex: none; width: 46px; height: 26px; border-radius: 13px; background: var(--line); position: relative; transition: background .15s; }
+      .saklar i::after { content: ''; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .15s; }
+      .saklar input:checked + i { background: var(--primary); }
+      .saklar input:checked + i::after { transform: translateX(20px); }
+      .saklar input:focus-visible + i { box-shadow: 0 0 0 3px var(--primary-2); }
       .opsi { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
       .opsi:has(input:checked) { border-color: var(--primary); background: var(--primary-2); }
       .opsi input { margin-top: 3px; accent-color: var(--primary); }
@@ -109,16 +117,17 @@
       .dengan-satuan input { flex: 1; min-width: 0; border: 0; background: none; padding: 10px 12px; outline: none; font-weight: 700; }
       .dengan-satuan em { font-style: normal; color: var(--muted); font-size: 13px; padding: 0 12px; white-space: nowrap; }
       .dengan-satuan.depan em { padding-right: 0; }
-      .rekening-baris { display: grid; grid-template-columns: 1fr 1.2fr 1.2fr 38px; gap: 8px; margin-bottom: 8px; }
+      .rekening-baris { border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin-bottom: 10px; display: grid; gap: 10px; }
+      .rekening-isian { display: grid; grid-template-columns: 1fr 1.2fr 1.2fr 38px; gap: 8px; }
       .rekening-baris input { min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 10px 12px; outline: none; }
       .rekening-baris input:focus { border-color: var(--primary); }
       .rekening-baris .hapus { color: var(--bad); }
       @media (max-width: 640px) {
-        .rekening-baris { grid-template-columns: 1fr 38px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; }
-        .rekening-baris input { grid-column: 1; } .rekening-baris .hapus { grid-column: 2; grid-row: 1; }
+        .rekening-isian { grid-template-columns: 1fr 38px; }
+        .rekening-isian input { grid-column: 1; } .rekening-isian .hapus { grid-column: 2; grid-row: 1; }
       }
       .qris { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-      .qris-pratinjau { width: 160px; height: 160px; border-radius: 14px; border: 1px dashed var(--line); background: var(--card-2); display: grid; place-items: center;
+      .qris-pratinjau { width: 110px; height: 110px; border-radius: 14px; border: 1px dashed var(--line); background: var(--card-2); display: grid; place-items: center;
         color: var(--muted); font-size: 13px; overflow: hidden; }
       .qris-pratinjau img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
       .qris-aksi { display: flex; flex-direction: column; gap: 8px; }

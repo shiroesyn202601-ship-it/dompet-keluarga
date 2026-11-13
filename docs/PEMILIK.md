@@ -167,8 +167,9 @@ Gratis sampai **450 baris di sheet Transaksi** per buku keuangan. Setelah itu pe
 
 **Pengaturan penjualan (admin.html → ikon ⚙️):** semua diatur dari halaman admin, tanpa mengubah kode:
 - **Kapan ditagih:** setelah *N transaksi* (baris sheet Transaksi), setelah *N periode gajian* sejak buku mulai dipakai, atau *mana yang lebih dulu*. Tanggal mulai dipakai dicatat sekali di sheet Pengaturan buku itu (`MULAI_PAKAI`, dari tanggal spreadsheet dibuat di Drive) dan dipakai aplikasi maupun bot.
-- **Harga** versi penuh, **rekening tujuan** (bank / e-wallet, maksimal 5), dan **gambar QRIS** (disimpan di folder Dompet keluarga › Admin).
-- Disimpan di Script Property `JUAL` bot. Aplikasi mengambilnya lewat `GET ?jual=1` (disimpan di HP, diperbarui paling sering sejam sekali) dan QRIS lewat `GET ?qris=1`. Isian `bayar` di config.js hanya cadangan.
+- **Menu "Versi penuh" di aplikasi:** saklar *Selalu tampilkan*. Aktif = menu ⚙️ → Versi penuh selalu terlihat; mati = baru muncul setelah masa gratis habis (buku yang sudah aktif, dikunci, atau pernah mengajukan tetap melihatnya), dan pengingat "hampir habis" di Beranda tidak ditampilkan.
+- **Harga** versi penuh dan **rekening tujuan** (bank / e-wallet, maksimal 5). Setiap rekening boleh punya **satu QRIS** sendiri (disimpan di folder Dompet keluarga › Admin), tampil tepat di bawah rekeningnya di layar Versi penuh.
+- Disimpan di Script Property `JUAL` bot. Aplikasi mengambilnya lewat `GET ?jual=1` (disimpan di HP, diperbarui paling sering sejam sekali) dan QRIS rekening ke-i lewat `GET ?qris=1&rek=<i>`. Isian `bayar` di config.js hanya cadangan.
 
 **Spreadsheet Pengajuan Aktivasi = satu-satunya sumber kebenaran.** Status versi penuh setiap buku hanya ditentukan kolom **Status** barisnya di spreadsheet itu:
 - **Aktif** → versi penuh. **Nonaktif** → pencatatan baru dikunci berapa pun kuotanya.
