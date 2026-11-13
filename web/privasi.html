@@ -75,6 +75,55 @@
       .catatan-google p { margin: 0 0 8px; } .catatan-google p:last-child { margin: 0; }
       a { color: var(--primary); font-weight: 600; }
 
+      /* Kotak masukan (web/assets/masukan.js) */
+      .kotak-masukan { border-radius: 20px; background: var(--card); border: 1px solid var(--line); padding: 16px; }
+      .mk-masuk { display: grid; justify-items: center; text-align: center; gap: 6px; padding: 10px 4px; }
+      .mk-masuk .mk-ikon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 16px; background: var(--primary-soft); font-size: 22px; margin-bottom: 4px; }
+      .mk-masuk b { font-size: 15.5px; }
+      .mk-masuk p { margin: 0 0 8px; font-size: 13.5px; line-height: 1.55; color: var(--muted); max-width: 46ch; }
+      .mk-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 999px; padding: 12px 22px; font: inherit;
+        font-size: 14.5px; font-weight: 700; background: var(--primary); color: var(--on-primary); cursor: pointer; }
+      .mk-btn:disabled { opacity: .7; cursor: default; }
+      .mk-form .mk-btn { width: 100%; margin-top: 12px; }
+      .mk-akun { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; overflow-wrap: anywhere; }
+      .mk-akun b { color: var(--text); }
+      .mk-jenis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
+      .mk-jenis button { display: flex; align-items: center; gap: 8px; padding: 11px 12px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--card-2);
+        color: var(--text); font: inherit; font-size: 13.5px; font-weight: 700; text-align: left; cursor: pointer; }
+      .mk-jenis button span { font-size: 17px; }
+      .mk-jenis button.aktif { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+      .mk-label { display: block; font-size: 13px; font-weight: 700; margin: 0 0 6px 2px; }
+      .mk-form textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 120px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--line);
+        background: var(--card-2); color: var(--text); font: inherit; font-size: 14.5px; line-height: 1.5; }
+      .mk-form textarea:focus { outline: none; border-color: var(--primary); }
+      .mk-bawah { display: flex; gap: 12px; align-items: flex-start; margin-top: 6px; }
+      .mk-ket { font-size: 12px; color: var(--muted); line-height: 1.45; }
+      .mk-sisa { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+      .mk-sisa.hampir { color: #d6453d; font-weight: 700; }
+      .mk-galat { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, #ef4444 14%, var(--card)); color: var(--text); font-size: 13px; }
+      .mk-terkirim { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, #22c55e 16%, var(--card)); font-size: 13px; font-weight: 600; }
+      .mk-riwayat { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+      .mk-riwayat h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; font-weight: 800; }
+      .mk-kosong { margin: 0; font-size: 13px; color: var(--muted); }
+      .mk-item { padding: 12px 14px; border-radius: 16px; background: var(--card-2); margin-bottom: 10px; }
+      .mk-item:last-child { margin-bottom: 0; }
+      .mk-item-kepala { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .mk-item-kepala time { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+      .mk-lencana { padding: 3px 9px; border-radius: 999px; background: var(--card); font-size: 12px; font-weight: 700; }
+      .mk-isi { margin: 8px 0 0; font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .mk-balasan { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; padding: 10px 12px; border-radius: 14px; background: var(--primary-soft); }
+      .mk-balasan b { display: block; font-size: 12.5px; color: var(--primary); }
+      .mk-balasan p { margin: 2px 0 0; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .mk-balasan time { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); }
+      .mk-emoji { font-size: 26px; line-height: 1; }
+      .mk-tunggu { margin-top: 10px; font-size: 12px; color: var(--muted); font-weight: 600; }
+      .mk-putar { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; display: inline-block; animation: mk-putar .7s linear infinite; }
+      @keyframes mk-putar { to { transform: rotate(360deg); } }
+      .mk-kerangka { height: 70px; border-radius: 16px; margin-bottom: 10px; background: linear-gradient(90deg, var(--card-2), var(--line), var(--card-2));
+        background-size: 200% 100%; animation: mk-kilau 1.2s ease-in-out infinite; }
+      .mk-kerangka:last-child { margin-bottom: 0; }
+      @keyframes mk-kilau { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+      @media (max-width: 420px) { .mk-jenis { grid-template-columns: 1fr; } }
       .kontak { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 20px; background: var(--primary-soft); text-decoration: none; color: var(--text); }
       .kontak i { flex: none; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 14px; background: var(--card); font-style: normal; font-size: 20px; }
       .kontak b { display: block; font-size: 15px; } .kontak small { color: var(--muted); font-size: 12.5px; font-weight: 500; }
@@ -99,7 +148,7 @@
         <p>Dompet Keluarga tidak punya server dan tidak menyimpan data Anda. Semua catatan keuangan ada di Google Spreadsheet
           di Google Drive Anda sendiri, dan hanya Anda serta orang yang Anda undang yang bisa membukanya.
           Fitur tambahan seperti AI dan bot Telegram baru mengirim data ke pihak lain kalau Anda sendiri yang menyalakannya.</p>
-        <span class="tanggal">Diperbarui 10 November 2026</span>
+        <span class="tanggal">Diperbarui 13 November 2026</span>
       </section>
 
       <div class="janji">
@@ -125,6 +174,9 @@
             <p>Sheet <i>Log</i> mencatat siapa mengubah apa, untuk ditampilkan di Aktivitas keluarga. Kalau aplikasi mengalami error,
               keterangan teknisnya (pesan error, halaman, versi aplikasi, jenis perangkat) juga dicatat di sheet ini, paling banyak 5 per sesi,
               untuk membantu memperbaiki masalah. Isinya tidak dikirim ke luar spreadsheet Anda.</p></div></div>
+          <div class="butir"><i aria-hidden="true">💬</i><div><b>Masukan yang Anda kirim<span class="opsional">opsional</span></b>
+            <p>Kalau Anda mengirim laporan masalah, kritik, atau saran lewat bagian Kontak di bawah, email Google, isi pesan, dan waktu kirimnya
+              disimpan di spreadsheet admin Dompet Keluarga supaya bisa dibalas. Anda bisa melihat pesan beserta balasannya di halaman ini.</p></div></div>
           <div class="butir"><i aria-hidden="true">💾</i><div><b>Cadangan otomatis</b>
             <p>Sebulan sekali, salinan lengkap spreadsheet dibuat di folder <i>"Dompet Keluarga › Cadangan"</i> di Google Drive akun yang membukanya.
               3 salinan terakhir disimpan, yang lebih lama dihapus otomatis.</p></div></div>
@@ -252,17 +304,20 @@
         </div>
       </section>
 
-      <section class="bagian">
+      <section class="bagian" id="kontak">
         <h2><span aria-hidden="true">💬</span>Kontak</h2>
-        <a class="kontak" href="https://github.com/shiroesyn202601-ship-it/dompet-keluarga/issues" target="_blank" rel="noopener">
-          <i aria-hidden="true">🐞</i>
-          <span><b>Pertanyaan atau laporan masalah</b><small>Buka halaman Issues di GitHub</small></span>
-          <span class="panah" aria-hidden="true">›</span>
-        </a>
+        <div class="kotak-masukan" id="masukan" aria-live="polite">
+          <div class="mk-kerangka"></div>
+        </div>
       </section>
 
       <p class="kaki">Dompet Keluarga · Uang keluarga akur, sampai gajian berikutnya.</p>
     </div>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="assets/bahasa.js"></script>
+    <script src="assets/config.js"></script>
+    <script src="assets/google.js"></script>
+    <script src="assets/masukan.js"></script>
     <script>
       // Dibuka dari dalam aplikasi: tombol kembali = kembali ke halaman sebelumnya (posisi aplikasi tidak hilang).
       document.getElementById('kembali').addEventListener('click', function (e) {

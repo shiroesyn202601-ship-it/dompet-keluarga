@@ -32,6 +32,7 @@
   /** Ikon garis (gaya sama dengan aplikasi: svg.ik). */
   const ik = d => '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>';
   const IKON = {
+    pesan: ik('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'),
     kotakMasuk: ik('<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>'),
     atur: ik('<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>'),
     akun: ik('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
@@ -69,7 +70,14 @@
   let galat = '';
   let sesiHabis = false; // token login habis / ditolak bot: kotak galat diberi tombol "Masuk lagi"
   const PESAN_SESI = 'Sesi login sudah habis. Masuk lagi untuk melanjutkan; layar ini tetap seperti semula.';
-  let layar = 'pengajuan'; // 'pengajuan' | 'pengaturan'
+  let layar = 'pengajuan'; // 'pengajuan' | 'pengaturan' | 'masukan'
+  // Masukan pengguna (dari halaman Kebijakan Privasi → Kontak). null = belum dimuat.
+  let masukan = null;
+  let emojiMasukan = ['👍', '❤️', '🙏', '😄', '🔧', '✅', '👀', '🎉'];
+  let tabMasukan = 'belum'; // '' | 'belum' | jenis
+  let cariMasukan = '';
+  const ubahBalasan = {}; // id masukan → sedang mengubah balasan yang sudah ada
+  const JENIS_MASUKAN = { masalah: ['🐞', 'Laporan masalah'], kritik: ['🗣️', 'Kritik'], pengembangan: ['🛠️', 'Saran pengembangan'], fitur: ['✨', 'Saran fitur'] };
   let info = { admin: '', sheet: '' };
   let dimuat = false;   // daftar sudah pernah dimuat (sebelum itu tampil kerangka)
   let jual = { aturan: 'transaksi', batasTransaksi: 450, batasPeriode: 3, harga: Number((KONFIG.bayar || {}).harga) || 0, rekening: [], selaluTampil: true };
@@ -237,6 +245,7 @@
   // ---------- Kerangka: sidebar, kepala, navigasi bawah ----------
 
   const jumlahMenunggu = () => daftar.filter(r => r.status === 'menunggu').length;
+  const belumDibalas = () => (masukan || []).filter(m => !m.dibalas).length;
   const inisial = () => esc(((info.admin || '?')[0] || '?').toUpperCase());
 
   function kerangka() {
@@ -244,10 +253,13 @@
     $('#app').hidden = false;
     const n = jumlahMenunggu();
     const lencana = n ? `<span class="lencana">${n}</span>` : '';
+    const nb = belumDibalas();
+    const lencanaMasukan = nb ? `<span class="lencana">${nb}</span>` : '';
     // Sidebar (mode web)
     $('#samping').innerHTML = `
       <div class="merek"><img src="ikon/logo.svg" alt=""><div><b>Admin Lisensi</b><small>Dompet Keluarga</small></div></div>
       <button class="nav-item ${layar === 'pengajuan' ? 'aktif' : ''}" data-aksi="ke" data-layar="pengajuan">${IKON.kotakMasuk}<span class="teks">Pengajuan</span>${lencana}</button>
+      <button class="nav-item ${layar === 'masukan' ? 'aktif' : ''}" data-aksi="ke" data-layar="masukan">${IKON.pesan}<span class="teks">Masukan</span>${lencanaMasukan}</button>
       <button class="nav-item ${layar === 'pengaturan' ? 'aktif' : ''}" data-aksi="ke" data-layar="pengaturan">${IKON.atur}<span class="teks">Pengaturan penjualan</span></button>
       ${info.sheet ? `<a class="nav-item" href="${esc(info.sheet)}" target="_blank" rel="noopener">${IKON.tabel}<span class="teks">Spreadsheet</span></a>` : ''}
       <div class="bawah">
@@ -256,7 +268,8 @@
           <button class="ikon-btn" data-aksi="akun" title="Akun" aria-label="Akun">${IKON.akun}</button></div>
       </div>`;
     // Kepala halaman
-    const judul = layar === 'pengaturan' ? [tampilan === 'web' ? 'Pengaturan penjualan' : 'Pengaturan', 'Penjualan · berlaku untuk aplikasi & bot'] : ['Pengajuan aktivasi', !dimuat ? 'Memuat data…' : n ? n + ' menunggu konfirmasi' : 'Semua sudah diproses'];
+    const judul = layar === 'masukan' ? ['Masukan pengguna', masukan === null ? 'Memuat data…' : nb ? nb + ' belum dibalas' : 'Semua sudah dibalas']
+      : layar === 'pengaturan' ? [tampilan === 'web' ? 'Pengaturan penjualan' : 'Pengaturan', 'Penjualan · berlaku untuk aplikasi & bot'] : ['Pengajuan aktivasi', !dimuat ? 'Memuat data…' : n ? n + ' menunggu konfirmasi' : 'Semua sudah diproses'];
     $('#kepala').innerHTML = `
       <div class="judul"><img src="ikon/logo.svg" alt=""><div style="min-width:0"><small>${esc(judul[1])}</small><h1>${esc(judul[0])}</h1></div></div>
       <div class="kepala-kanan">
@@ -268,6 +281,7 @@
     // Navigasi bawah (mode mobile)
     $('#navbawah').innerHTML = `
       <button class="${layar === 'pengajuan' ? 'aktif' : ''}" data-aksi="ke" data-layar="pengajuan">${IKON.kotakMasuk}<span>Pengajuan</span>${lencana}</button>
+      <button class="${layar === 'masukan' ? 'aktif' : ''}" data-aksi="ke" data-layar="masukan">${IKON.pesan}<span>Masukan</span>${lencanaMasukan}</button>
       <button class="${layar === 'pengaturan' ? 'aktif' : ''}" data-aksi="ke" data-layar="pengaturan">${IKON.atur}<span>Pengaturan</span></button>
       <button data-aksi="akun">${IKON.akun}<span>Akun</span></button>`;
   }
@@ -278,8 +292,10 @@
     if (!BOT) return tampilMasuk('URL bot (bayar.urlBot) belum diisi di web/assets/config.js.');
     if (!dimuat) { kerangka(); $('#isi').innerHTML = kerangkaMemuat(); }
     try {
-      const j = await api({ aksi: 'daftar' });
+      const [j, m] = await Promise.all([api({ aksi: 'daftar' }), api({ aksi: 'daftarMasukan' }).catch(e => (e.sesi ? Promise.reject(e) : { galatMasukan: e.message }))]);
       daftar = j.daftar || [];
+      if (m.galatMasukan) kabar('Masukan belum bisa dimuat: ' + m.galatMasukan);
+      else { masukan = m.masukan || []; if (m.emoji && m.emoji.length) emojiMasukan = m.emoji; }
       info = { admin: j.admin, sheet: j.sheet };
       if (j.jual) jual = j.jual;
       galat = '';
@@ -358,6 +374,7 @@
   function render() {
     kerangka();
     if (layar === 'pengaturan') return renderPengaturan();
+    if (layar === 'masukan') return renderMasukan();
     const jumlah = s => daftar.filter(r => !s || r.status === s).length;
     const aktif = daftar.filter(r => r.status === 'aktif');
     const pendapatan = aktif.reduce((a, r) => a + (Number(r.harga) || jual.harga), 0);
@@ -408,6 +425,87 @@
     kotak.oninput = () => { cari = kotak.value; const pos = kotak.selectionStart; render(); const k = $('#kotak-cari'); k.focus(); k.setSelectionRange(pos, pos); };
     // Bukti yang menunggu langsung dimuat (paling banyak 6), supaya bisa dicek tanpa mengetuk satu per satu.
     if (tab === 'menunggu') tampil.filter(r => r.ada_foto && foto[r.id] === undefined).slice(0, 6).forEach(r => muatFoto(r.id));
+  }
+
+  // ---------- Tampilan: masukan pengguna ----------
+
+  function htmlBalasan(m) {
+    const ubah = ubahBalasan[m.id] || !m.dibalas;
+    if (!ubah) {
+      return `<div class="mk-balasan">
+          ${m.emoji ? `<span class="mk-emoji" role="img" aria-label="Reaksi">${esc(m.emoji)}</span>` : ''}
+          <div class="mk-balasan-isi"><b>Balasan admin</b>${m.balasan ? `<p>${esc(m.balasan)}</p>` : ''}
+            <small>${esc(relatif(m.dibalas))}${m.oleh ? ' · ' + esc(m.oleh) : ''}</small></div>
+          <button type="button" class="btn kecil btn-garis" data-aksi="ubah-balasan" data-id="${esc(m.id)}">Ubah</button>
+        </div>`;
+    }
+    return `<div class="mk-tulis" data-id="${esc(m.id)}">
+        <div class="mk-emoji-pilih" role="group" aria-label="Reaksi emoji">
+          ${emojiMasukan.map(x => `<button type="button" class="${m.emoji === x ? 'aktif' : ''}" data-aksi="pilih-emoji" data-emoji="${esc(x)}" aria-pressed="${m.emoji === x}">${esc(x)}</button>`).join('')}
+        </div>
+        <textarea rows="2" maxlength="2000" placeholder="Tulis balasan (opsional kalau sudah memilih emoji)…" aria-label="Balasan">${esc(m.balasan)}</textarea>
+        <div class="mk-tulis-aksi">
+          ${m.dibalas ? `<button type="button" class="btn kecil btn-lembut-merah" data-aksi="hapus-balasan" data-id="${esc(m.id)}">Hapus balasan</button>
+            <button type="button" class="btn kecil btn-kedua ke-kanan" data-aksi="batal-balasan" data-id="${esc(m.id)}">Batal</button>` : ''}
+          <button type="button" class="btn kecil btn-utama ${m.dibalas ? '' : 'ke-kanan'}" data-aksi="kirim-balasan" data-id="${esc(m.id)}">${IKON.pesan.replace('class="ik"', 'class="ik" style="width:16px;height:16px"')}Kirim balasan</button>
+        </div>
+      </div>`;
+  }
+
+  function renderMasukan() {
+    if (masukan === null) { $('#isi').innerHTML = kotakGalat() + kerangkaMemuat(); return; }
+    const semua = masukan;
+    const jumlah = k => semua.filter(m => (!k ? true : k === 'belum' ? !m.dibalas : m.jenis === k)).length;
+    const q = cariMasukan.trim().toLowerCase();
+    const tampil = semua.filter(m => (!tabMasukan || (tabMasukan === 'belum' ? !m.dibalas : m.jenis === tabMasukan))
+      && (!q || [m.email, m.pesan, m.balasan].some(x => String(x || '').toLowerCase().includes(q))));
+    $('#isi').innerHTML = `
+      ${kotakGalat()}
+      <div class="alat">
+        <div class="chip-filter" role="group" aria-label="Filter masukan">
+          ${[['belum', 'Belum dibalas'], ['', 'Semua']].concat(Object.keys(JENIS_MASUKAN).map(k => [k, JENIS_MASUKAN[k][0] + ' ' + JENIS_MASUKAN[k][1]])).map(([k, l]) =>
+            `<button class="chip ${tabMasukan === k ? 'aktif' : ''}" data-aksi="tab-masukan" data-tab="${k}" aria-pressed="${tabMasukan === k}">${l} <i>${jumlah(k)}</i></button>`).join('')}
+        </div>
+        <label class="cari">${IKON.cari}<input id="cari-masukan" name="cari-masukan-admin" type="search" placeholder="Cari email atau isi pesan" autocomplete="off" spellcheck="false"></label>
+      </div>
+      ${tampil.length ? `<div class="daftar daftar-masukan">${tampil.map((m, i) => `
+        <article class="kartu kartu-masukan ${m.dibalas ? '' : 'baru'}" data-masukan="${esc(m.id)}" style="animation-delay:${Math.min(i, 8) * 30}ms">
+          <div class="atas">
+            <div style="min-width:0"><div class="email">${esc(m.email)}</div>
+              <div class="meta"><span title="${esc(tanggal(m.t))}">${esc(tanggal(m.t))}</span></div></div>
+            <span class="status jenis-${esc(m.jenis)}">${(JENIS_MASUKAN[m.jenis] || JENIS_MASUKAN.pengembangan).join(' ')}</span>
+          </div>
+          <p class="mk-pesan">${esc(m.pesan)}</p>
+          ${htmlBalasan(m)}
+        </article>`).join('')}</div>`
+      : `<div class="kosong-besar"><div class="ik-besar">${q ? IKON.cari : tabMasukan === 'belum' ? IKON.cek : IKON.pesan}</div>
+          <b>${q ? 'Tidak ada yang cocok' : tabMasukan === 'belum' ? 'Semua sudah dibalas' : 'Belum ada masukan'}</b>
+          ${q ? 'Coba kata kunci lain.' : 'Masukan dikirim pengguna dari halaman Kebijakan Privasi → Kontak.'}</div>`}`;
+    const kotak = $('#cari-masukan');
+    kotak.value = cariMasukan;
+    kotak.oninput = () => { cariMasukan = kotak.value; const pos = kotak.selectionStart; render(); const k = $('#cari-masukan'); k.focus(); k.setSelectionRange(pos, pos); };
+  }
+
+  /** Kirim / hapus balasan satu masukan. hapus: emoji & pesan dikosongkan. */
+  async function kirimBalasan(id, tombol, hapus) {
+    const m = (masukan || []).find(x => x.id === id);
+    const tulis = document.querySelector(`.mk-tulis[data-id="${CSS.escape(id)}"]`);
+    if (!m || !tulis) return;
+    const pilih = tulis.querySelector('.mk-emoji-pilih .aktif');
+    const emoji = hapus ? '' : pilih ? pilih.dataset.emoji : '';
+    const balasan = hapus ? '' : tulis.querySelector('textarea').value.trim();
+    if (!hapus && !emoji && !balasan) return kabar('Pilih emoji atau tulis balasan dulu.');
+    const pulih = sibuk(tombol, hapus ? 'Menghapus…' : 'Mengirim…');
+    try {
+      const j = await api({ aksi: 'balasMasukan', id, emoji, balasan });
+      Object.assign(m, j.masukan);
+      delete ubahBalasan[id];
+      kabar(hapus ? 'Balasan dihapus' : 'Balasan terkirim ✔');
+      render();
+    } catch (e) {
+      pulih();
+      if (!e.sesi) kabar(e.message);
+    }
   }
 
   // ---------- Tampilan: pengaturan penjualan ----------
@@ -874,6 +972,7 @@
     if (aksi === 'ke') {
       galat = '';
       if (el.dataset.layar === 'pengaturan') return layar === 'pengaturan' ? undefined : bukaPengaturan();
+      if (el.dataset.layar === 'masukan') { layar = 'masukan'; formJual = null; render(); return window.scrollTo(0, 0); }
       layar = 'pengajuan';
       formJual = null;
       render();
@@ -885,6 +984,18 @@
     if (aksi === 'buka-qris') return bukaQris(Number(el.dataset.i));
     if (aksi === 'simpan-jual') return simpanJual(el);
     if (aksi === 'tab') { tab = el.dataset.tab; return render(); }
+    if (aksi === 'tab-masukan') { tabMasukan = el.dataset.tab; return render(); }
+    if (aksi === 'pilih-emoji') {
+      // Dipilih langsung di DOM (tanpa render ulang) supaya ketikan balasan tidak hilang; ketuk lagi = batal pilih.
+      const nyala = !el.classList.contains('aktif');
+      el.parentElement.querySelectorAll('button').forEach(b => { b.classList.remove('aktif'); b.setAttribute('aria-pressed', 'false'); });
+      if (nyala) { el.classList.add('aktif'); el.setAttribute('aria-pressed', 'true'); }
+      return;
+    }
+    if (aksi === 'ubah-balasan') { ubahBalasan[el.dataset.id] = true; return render(); }
+    if (aksi === 'batal-balasan') { delete ubahBalasan[el.dataset.id]; return render(); }
+    if (aksi === 'kirim-balasan') return kirimBalasan(el.dataset.id, el, false);
+    if (aksi === 'hapus-balasan') return kirimBalasan(el.dataset.id, el, true);
     if (aksi === 'foto') { delete foto[el.dataset.id]; return muatFoto(el.dataset.id); }
     if (aksi === 'perbesar') {
       $('#foto-besar img').src = foto[el.dataset.id];

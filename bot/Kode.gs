@@ -2033,6 +2033,107 @@ function riwayatBuku_(id) {
     .sort((a, b) => (a.t === b.t ? b.i - a.i : a.t < b.t ? 1 : -1)).map(r => { delete r.i; return r; });
 }
 
+// ---- Masukan (tab "Masukan" di spreadsheet Pengajuan Aktivasi) ----
+// Dikirim pengguna dari halaman Kebijakan Privasi → Kontak (harus masuk Google, jadi emailnya pasti).
+// Admin membalas dari admin.html (emoji dan/atau pesan); pengguna melihat balasannya di halaman yang sama.
+const TAB_MASUKAN = 'Masukan';
+const KOLOM_MASUKAN = ['ID', 'Waktu', 'Email', 'Jenis', 'Pesan', 'Emoji', 'Balasan', 'Dibalas', 'Oleh'];
+const JENIS_MASUKAN = { masalah: 'Laporan masalah', kritik: 'Kritik', pengembangan: 'Saran pengembangan', fitur: 'Saran fitur' };
+const EMOJI_MASUKAN = ['👍', '❤️', '🙏', '😄', '🔧', '✅', '👀', '🎉'];
+const MAKS_MASUKAN_HARIAN = 10;
+
+/** sheetId tab Masukan (dibuat sekali beserta judul kolomnya). */
+let tabMasukan_ = null;
+function idTabMasukan_() {
+  if (tabMasukan_ !== null) return tabMasukan_;
+  const id = sheetAju_();
+  const cari = () => ((apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + '?fields=sheets.properties(sheetId,title)').sheets || [])
+    .find(x => x.properties.title === TAB_MASUKAN) || null);
+  const ada = cari();
+  if (ada) return (tabMasukan_ = ada.properties.sheetId);
+  return denganKunci_(() => {
+    const lagi = cari();
+    if (lagi) return (tabMasukan_ = lagi.properties.sheetId);
+    const sid = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + ':batchUpdate', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ requests: [{ addSheet: { properties: { title: TAB_MASUKAN, gridProperties: { frozenRowCount: 1 } } } }] }),
+    }).replies[0].addSheet.properties.sheetId;
+    const lebar = [120, 140, 220, 150, 420, 70, 320, 140, 200];
+    apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + ':batchUpdate', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ requests: [
+        { updateCells: { start: { sheetId: sid, rowIndex: 0, columnIndex: 0 }, fields: 'userEnteredValue,userEnteredFormat.textFormat.bold',
+          rows: [{ values: KOLOM_MASUKAN.map(k => ({ userEnteredValue: { stringValue: k }, userEnteredFormat: { textFormat: { bold: true } } })) }] } },
+      ].concat(lebar.map((px, i) => ({ updateDimensionProperties: { range: { sheetId: sid, dimension: 'COLUMNS', startIndex: i, endIndex: i + 1 }, properties: { pixelSize: px }, fields: 'pixelSize' } }))) }),
+    });
+    return (tabMasukan_ = sid);
+  });
+}
+
+/** Semua masukan: [{ id, t, email, jenis (kunci), pesan, emoji, balasan, dibalas, oleh, baris }], terbaru dulu. */
+function semuaMasukan_() {
+  idTabMasukan_();
+  const label = {};
+  Object.keys(JENIS_MASUKAN).forEach(k => { label[JENIS_MASUKAN[k]] = k; });
+  const j = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + '/values/' + range_(TAB_MASUKAN + '!A2:I'));
+  return (j.values || []).map((r, i) => ({
+    id: String(r[0] || '').trim(), t: String(r[1] || ''), email: String(r[2] || '').trim().toLowerCase(),
+    jenis: label[String(r[3] || '').trim()] || 'pengembangan', pesan: String(r[4] || ''), emoji: String(r[5] || ''),
+    balasan: String(r[6] || ''), dibalas: String(r[7] || ''), oleh: String(r[8] || ''), baris: i + 2,
+  })).filter(r => r.id).reverse();
+}
+
+const publikMasukan_ = r => ({ id: r.id, t: r.t, jenis: r.jenis, pesan: r.pesan, emoji: r.emoji, balasan: r.balasan, dibalas: r.dibalas });
+
+function kirimMasukan_(akun, b) {
+  const jenis = String(b.jenis || '');
+  if (!JENIS_MASUKAN[jenis]) throw new Error('Pilih jenis masukannya.');
+  const pesan = String(b.pesan || '').replace(/\r\n?/g, '\n').trim();
+  if (pesan.length < 5) throw new Error('Tulis pesannya dulu (minimal 5 huruf).');
+  if (pesan.length > 2000) throw new Error('Pesannya terlalu panjang (maksimal 2.000 huruf).');
+  idTabMasukan_(); // dibuat di luar kunci di bawah (kuncinya tidak bisa dipakai bertumpuk)
+  const baru = denganKunci_(() => {
+    const kemarin = Utilities.formatDate(new Date(Date.now() - 864e5), TZ, 'yyyy-MM-dd HH:mm');
+    const milik = semuaMasukan_().filter(r => r.email === akun.email);
+    if (milik.filter(r => r.t > kemarin).length >= MAKS_MASUKAN_HARIAN) throw new Error('Sudah ' + MAKS_MASUKAN_HARIAN + ' pesan dalam 24 jam. Coba lagi besok, ya.');
+    const r = { id: Utilities.getUuid().slice(0, 8), t: waktuAju_(sekarangIso_()), email: akun.email, jenis, pesan, emoji: '', balasan: '', dibalas: '' };
+    apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + ':batchUpdate', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ requests: [{ appendCells: { sheetId: idTabMasukan_(), fields: 'userEnteredValue',
+        rows: [{ values: [r.id, r.t, r.email, JENIS_MASUKAN[jenis], pesan, '', '', '', ''].map(v => ({ userEnteredValue: { stringValue: v } })) }] } }] }),
+    });
+    return r;
+  });
+  try {
+    daftarAdmin_().forEach(a => kirim_(a, '💬 <b>' + html_(JENIS_MASUKAN[jenis]) + '</b> dari ' + html_(akun.email) + '\n\n' + html_(pesan.slice(0, 600))
+      + '\n\nBalas di halaman admin: ' + html_((properti_('URL_APLIKASI') || URL_APLIKASI) + 'admin.html')));
+  } catch (e) { console.warn('Kabar masukan ke admin gagal: ' + e.message); }
+  return { masukan: publikMasukan_(baru) };
+}
+
+function masukanSaya_(akun) {
+  return { email: akun.email, masukan: semuaMasukan_().filter(r => r.email === akun.email).map(publikMasukan_) };
+}
+
+/** Admin membalas: emoji (salah satu EMOJI_MASUKAN atau kosong) dan/atau pesan. Keduanya kosong = balasan dihapus. */
+function balasMasukan_(b, oleh) {
+  const emoji = String(b.emoji || '');
+  if (emoji && EMOJI_MASUKAN.indexOf(emoji) < 0) throw new Error('Emoji tidak dikenal.');
+  const balasan = String(b.balasan || '').replace(/\r\n?/g, '\n').trim().slice(0, 2000);
+  idTabMasukan_();
+  return denganKunci_(() => {
+    const r = semuaMasukan_().find(x => x.id === String(b.id || ''));
+    if (!r) throw new Error('Masukan tidak ditemukan (mungkin baris di spreadsheet sudah dihapus).');
+    const dibalas = emoji || balasan ? waktuAju_(sekarangIso_()) : '';
+    apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + ':batchUpdate', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ requests: [{ updateCells: { start: { sheetId: idTabMasukan_(), rowIndex: r.baris - 1, columnIndex: 5 }, fields: 'userEnteredValue',
+        rows: [{ values: [emoji, balasan, dibalas, dibalas ? oleh : ''].map(v => ({ userEnteredValue: { stringValue: v } })) }] } }] }),
+    });
+    return { masukan: Object.assign(r, { emoji, balasan, dibalas, oleh: dibalas ? oleh : '' }) };
+  });
+}
+
 function permintaan_(id) {
   return semuaPengajuan_().filter(r => r.id === id).pop() || null;
 }
@@ -2099,6 +2200,8 @@ function adminWeb_(email) {
 
 function apiLisensi_(b) {
   const akun = akunGoogle_(b && b.token);
+  if (b.aksi === 'kirimMasukan') return kirimMasukan_(akun, b);
+  if (b.aksi === 'masukanSaya') return masukanSaya_(akun);
   siapkanRiwayat_();
   if (b.aksi === 'minta') return mintaAktivasi_(akun, b);
   if (!adminWeb_(akun.email)) throw new Error('Akun ' + akun.email + ' bukan admin. Masuk dengan akun Google pemilik bot.');
@@ -2109,6 +2212,8 @@ function apiLisensi_(b) {
   if (b.aksi === 'atur') return aturLisensi_(String(b.id || ''), String(b.status || ''), String(b.alasan || '').trim(), akun.email);
   if (b.aksi === 'riwayat') return { riwayat: riwayatBuku_(String(b.id || '')) };
   if (b.aksi === 'fotoFile') return { foto: fotoFile_(String(b.foto || '')) };
+  if (b.aksi === 'daftarMasukan') return { masukan: semuaMasukan_(), emoji: EMOJI_MASUKAN };
+  if (b.aksi === 'balasMasukan') return balasMasukan_(b, akun.email);
   throw new Error('Aksi tidak dikenal.');
 }
 

@@ -202,6 +202,12 @@ Gratis sampai **450 baris di sheet Transaksi** per buku keuangan. Setelah itu pe
 
 **Keterbatasan:** pemeriksaan di aplikasi berjalan di browser pembeli, jadi orang yang paham teknis tetap bisa mengakalinya (DevTools, atau mengetik langsung di Google Sheets). Pemeriksaan di bot berjalan di server dan tidak bisa diakali. Menghapus baris transaksi lama memang mengembalikan kuota, tapi datanya ikut hilang.
 
+## Masukan pengguna
+
+Halaman Kebijakan Privasi (`privasi.html` → Kontak) punya kotak masukan: laporan masalah, kritik, saran pengembangan, atau saran fitur. Pengguna harus masuk dengan Google (memakai sesi aplikasi yang sama, jadi yang sudah masuk di aplikasi tidak perlu masuk lagi). Masukan dikirim ke bot dan disimpan di tab **Masukan** spreadsheet "Pengajuan Aktivasi": ID, Waktu (WIB), Email, Jenis, Pesan, Emoji, Balasan, Dibalas, Oleh. Paling banyak 10 pesan per email dalam 24 jam, maksimal 2.000 huruf.
+
+Setiap masukan baru juga dikabarkan ke `ADMIN_TELEGRAM`. Balas di `admin.html` → **Masukan**: pilih emoji dan/atau tulis pesan, lalu **Kirim balasan** (bisa diubah atau dihapus lagi). Pengguna melihat pesannya beserta balasan admin di halaman yang sama. Menghapus baris di tab Masukan = masukan itu hilang dari halaman admin dan pengguna.
+
 ## Mengembangkan
 - Ubah file di `web/`, lalu commit dan push ke `main`. Deploy berjalan otomatis dalam 1–2 menit (pantau di tab **Actions**).
 - `web/index.html` memasang **Content-Security-Policy**: skrip hanya dari situs ini dan Google. Menambah layanan/CDN baru → tambahkan domainnya di tag itu. Kalau isi `<script>` tema di `<head>` diubah, hitung ulang hash-nya: `node -e "const s=require('fs').readFileSync('web/index.html','utf8');console.log(require('crypto').createHash('sha256').update(s.split('<script>')[1].split('</script>')[0]).digest('base64'))"`, lalu ganti nilai `sha256-…`. Cek otomatisnya: `node .github/cek-csp.js` (juga dijalankan sebelum deploy; kalau hash tidak cocok, deploy dibatalkan).
