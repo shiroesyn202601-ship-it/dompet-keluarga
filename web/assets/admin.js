@@ -506,10 +506,8 @@
               </div>
               <div class="qris">
                 ${ada ? `<button type="button" class="qris-pratinjau" data-aksi="buka-qris" data-i="${i}" ${r.baru === null && r.qris ? `data-asal="${r.asal}"` : ''}
-                    title="Lihat, ganti, atau hapus QRIS" aria-label="Lihat, ganti, atau hapus QRIS ${esc(r.bank)}">${g ? `<img src="${esc(g)}" alt="">` : '<span class="putar" style="color:var(--muted)"></span>'}</button>
-                  <span class="qris-ket">${r.baru ? 'QRIS baru · belum disimpan' : 'Ketuk untuk ubah'}</span>`
-                  : `<label class="qris-pratinjau qris-kosong" title="Unggah QRIS"><input type="file" class="file-qris" data-i="${i}" accept="image/*" hidden>${IKON.unggah}<span>Unggah</span></label>
-                  <span class="qris-ket">Belum ada QRIS</span>`}
+                    title="Lihat, ganti, atau hapus QRIS" aria-label="Lihat, ganti, atau hapus QRIS ${esc(r.bank)}">${g ? `<img src="${esc(g)}" alt="">` : '<span class="putar" style="color:var(--muted)"></span>'}</button>`
+                  : `<label class="qris-pratinjau qris-kosong" title="Unggah QRIS"><input type="file" class="file-qris" data-i="${i}" accept="image/*" hidden>${IKON.unggah}<span>Unggah</span></label>`}
               </div>
             </div>`; }).join('')}</div>
           ${f.rekening.length < 5 ? `<button type="button" class="btn btn-garis" style="margin-top:12px" data-aksi="tambah-rekening">${IKON.tambah}Tambah rekening</button>` : ''}
