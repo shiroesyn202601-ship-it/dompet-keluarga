@@ -236,6 +236,7 @@
     bilah();
     if (layar === 'pengaturan') return renderPengaturan();
     const jumlah = s => daftar.filter(r => !s || r.status === s).length;
+    const pendapatan = daftar.filter(r => r.status === 'aktif').reduce((a, r) => a + (Number(r.harga) || jual.harga), 0);
     const q = cari.trim().toLowerCase();
     const tampil = daftar.filter(r => (!tab || r.status === tab) && (!q || [r.email, r.buku, r.id].some(x => String(x).toLowerCase().includes(q))));
     // Kotak ringkasan sekaligus filter (tidak ada tab terpisah supaya tidak dobel).
@@ -245,7 +246,7 @@
       ${kotakGalat()}
       <section class="ringkasan">
         ${tile('menunggu', 'Menunggu', STATUS.menunggu.warna)}
-        ${tile('aktif', 'Aktif', STATUS.aktif.warna, '💰 ' + rupiah(jumlah('aktif') * jual.harga))}
+        ${tile('aktif', 'Aktif', STATUS.aktif.warna, '💰 ' + rupiah(pendapatan))}
         ${tile('nonaktif', 'Nonaktif', STATUS.nonaktif.warna)}
         ${tile('ditolak', 'Ditolak', STATUS.ditolak.warna)}
         ${tile('', 'Semua', '')}
@@ -260,10 +261,12 @@
                 <div class="meta">${esc(r.buku)} · <span title="${esc(tanggal(r.t))}">${esc(relatif(r.t))}</span></div></div>
               <span class="status ${esc(r.status)}">${STATUS[r.status] ? STATUS[r.status].ikon + ' ' + STATUS[r.status].label : esc(r.status)}</span>
             </div>
+            ${r.harga ? `<div class="harga-aju" title="Harga versi penuh saat bukti transfer dikirim">💰 <b>${rupiah(r.harga)}</b> <small>harga saat pengajuan${
+              Number(r.harga) !== Number(jual.harga) ? ' · sekarang ' + rupiah(jual.harga) : ''}</small></div>` : ''}
             <div class="kode" title="Kode buku (ID spreadsheet)"><span>${esc(r.id)}</span><button data-aksi="salin" data-id="${esc(r.id)}">Salin</button></div>
             ${r.status === 'ditolak' && r.alasan ? `<div class="alasan">Alasan: ${esc(r.alasan)}</div>` : ''}
             ${r.diubah && r.diubah !== r.t ? `<div class="meta" style="margin-top:6px">Diubah ${esc(relatif(r.diubah))}</div>` : ''}
-            <div class="aksi">${htmlAksi(r)}</div>
+            <div class="aksi">${htmlAksi(r)}<button class="btn-kedua tombol-riwayat" data-aksi="riwayat" data-id="${esc(r.id)}">🕘 Riwayat${r.riwayat ? ' (' + r.riwayat + ')' : ''}</button></div>
           </div>
         </article>`).join('')}</div>`
       : `<div class="kosong-besar">${q ? '🔍' : tab === 'menunggu' ? '🎉' : '📭'}<b>${q ? 'Tidak ada yang cocok' : tab === 'menunggu' ? 'Semua sudah diproses' : 'Belum ada'}</b>
@@ -531,6 +534,50 @@
     });
   }
 
+  // ---------- Riwayat transaksi satu buku ----------
+
+  const WARNA_PERISTIWA = p => (/^Diaktifkan/.test(p) ? STATUS.aktif.warna : /^Ditolak/.test(p) ? STATUS.ditolak.warna
+    : /^Dinonaktifkan/.test(p) ? STATUS.nonaktif.warna : /^Bukti/.test(p) ? STATUS.menunggu.warna : 'var(--muted)');
+
+  const rincian = x => {
+    const baris = [x.harga && ['Harga', '<b>' + rupiah(x.harga) + '</b>'], x.aturan && ['Masa gratis', esc(x.aturan)],
+      x.rekening && ['Rekening', esc(x.rekening)], x.alasan && ['Alasan', esc(x.alasan)]].filter(Boolean);
+    return baris.length ? '<dl>' + baris.map(([k, v]) => '<dt>' + k + '</dt><dd>' + v + '</dd>').join('') + '</dl>' : '';
+  };
+
+  async function bukaRiwayat(r) {
+    const kotak = $('#dialog');
+    const isi = daftarRiwayat => `
+      <div class="dialog dialog-riwayat" role="dialog" aria-label="Riwayat transaksi">
+        <div class="kepala-riwayat"><h2>Riwayat transaksi</h2><button class="ikon-btn" data-tutup aria-label="Tutup">✕</button></div>
+        <div class="siapa"><b>${esc(r.email || '(tanpa email)')}</b><span>Buku ${esc(r.buku || '-')} · ${esc(r.id)}</span></div>
+        ${daftarRiwayat === null ? '<div class="kerangka" style="height:160px"></div>'
+          : !daftarRiwayat.length ? '<p class="kosong-riwayat">Belum ada riwayat untuk buku ini.</p>'
+          : `<ol class="linimasa">${daftarRiwayat.map(x => `
+            <li style="--warna:${WARNA_PERISTIWA(x.peristiwa)}">
+              <span class="titik-lm" aria-hidden="true"></span>
+              <div class="lm-isi">
+                <div class="lm-kepala"><b>${esc(x.peristiwa)}</b><small>${esc(tanggal(x.t))}${x.oleh ? ' · oleh ' + esc(x.oleh) : ''}</small></div>
+                ${rincian(x)}
+                ${x.link ? `<a class="lm-bukti" href="${esc(x.link)}" target="_blank" rel="noopener">🖼 Lihat bukti transfer</a>` : ''}
+              </div>
+            </li>`).join('')}</ol>`}
+      </div>`;
+    kotak.innerHTML = isi(null);
+    kotak.hidden = false;
+    const tutup = () => { kotak.hidden = true; kotak.onclick = null; document.removeEventListener('keydown', esc_); };
+    const esc_ = e => { if (e.key === 'Escape') tutup(); };
+    document.addEventListener('keydown', esc_);
+    kotak.onclick = e => { e.stopPropagation(); if (e.target === kotak || e.target.closest('[data-tutup]')) tutup(); };
+    try {
+      const j = await api({ aksi: 'riwayat', id: r.id });
+      if (!kotak.hidden) kotak.innerHTML = isi(j.riwayat || []);
+    } catch (e) {
+      tutup();
+      if (!e.sesi) kabar(e.message);
+    }
+  }
+
   let jedaKabar = 0;
   function kabar(teks) {
     const k = $('#kabar');
@@ -571,6 +618,7 @@
       try { await navigator.clipboard.writeText(el.dataset.id); kabar('Kode buku disalin'); } catch (err) { kabar(el.dataset.id); }
       return;
     }
+    if (aksi === 'riwayat') { const r = daftar.find(x => x.id === el.dataset.id); if (r) bukaRiwayat(r); return; }
     if (aksi === 'atur') {
       const r = daftar.find(x => x.id === el.dataset.id);
       const status = el.dataset.status;
@@ -579,7 +627,7 @@
       el.disabled = true;
       try {
         await api({ aksi: 'atur', id: el.dataset.id, status, alasan: jawab.alasan });
-        if (r) Object.assign(r, { status, alasan: status === 'ditolak' ? jawab.alasan : '', diubah: new Date().toISOString() });
+        if (r) Object.assign(r, { status, alasan: status === 'ditolak' ? jawab.alasan : '', diubah: new Date().toISOString(), riwayat: (r.riwayat || 0) + 1 });
         galat = '';
         kabar(pilihan()[status].selesai);
       } catch (err) {

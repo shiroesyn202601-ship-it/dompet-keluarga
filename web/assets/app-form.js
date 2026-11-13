@@ -1766,8 +1766,7 @@ function bukaFormBayar() {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     try {
-      const g = await kecilkanGambar(file);
-      buktiBayar = 'data:image/jpeg;base64,' + g.lampiran;
+      buktiBayar = await kecilkanBukti(file);
       const img = $('#pratinjau-bukti');
       img.src = buktiBayar;
       img.hidden = false;
@@ -1805,6 +1804,43 @@ function jadwalCekBayar() {
   jedaCekBayar = setTimeout(() => {
     if (!$('#sheet').hidden && $('#bukti-bayar') && S.data && S.data.lisensi && S.data.lisensi.permintaan === 'menunggu') perbaruiFormBayar();
   }, 30000);
+}
+
+/**
+ * Foto / screenshot bukti transfer diperkecil sebelum dikirim, supaya penyimpanan penjual tidak cepat penuh, tapi nominal,
+ * nama, dan tanggalnya tetap terbaca: sisi terpanjang ±1600 px (screenshot HP tetap tajam), WebP (JPEG kalau browser
+ * tidak bisa), mutu diturunkan bertahap sampai ±200 KB. Hasil: data URL.
+ */
+function kecilkanBukti(file) {
+  return new Promise((ok, gagal) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); gagal(new Error(T('Gambar tidak bisa dibuka. Coba foto lain (format JPG/PNG).'))); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const gambar = (sisi, mutu) => {
+        const k = Math.min(1, sisi / Math.max(w, h));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(w * k));
+        c.height = Math.max(1, Math.round(h * k));
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff'; // screenshot PNG transparan tidak berubah hitam
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        const webp = c.toDataURL('image/webp', mutu);
+        return webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/jpeg', mutu);
+      };
+      const BATAS = 200 * 1024 * 4 / 3; // ±200 KB (panjang teks base64)
+      let hasil = '';
+      for (const [sisi, mutu] of [[1600, 0.8], [1600, 0.7], [1400, 0.65], [1200, 0.6], [1000, 0.55]]) {
+        hasil = gambar(sisi, mutu);
+        if (hasil.length <= BATAS) break;
+      }
+      ok(hasil);
+    };
+    img.src = url;
+  });
 }
 
 /** Mengirim bukti transfer yang dipilih di layar Beli versi penuh. */

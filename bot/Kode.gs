@@ -1590,6 +1590,7 @@ function prosesLisensi_(m, perintah, teks) {
   const id = calon[calon.length - 1];
   if (!id) return kirim_(chatId, 'Format: <code>/' + perintah + ' KODE_BUKU</code>\nKode buku (ID spreadsheet) ada di bukti transfer yang diteruskan bot, baris "Buku:".');
   const kode = '<code>' + html_(id) + '</code>';
+  siapkanRiwayat_();
   const lama = permintaan_(id);
   if (perintah === 'batal') {
     if (!lama || lama.status !== 'aktif') return kirim_(chatId, 'ℹ️ Buku ' + kode + ' memang tidak sedang aktif di spreadsheet Pengajuan Aktivasi.');
@@ -1608,7 +1609,9 @@ function prosesLisensi_(m, perintah, teks) {
 function aktifkanBuku_(id, lama) {
   const sekarang = sekarangIso_();
   if (lama) return aturLisensi_(id, 'aktif', '');
-  simpanPermintaan_(id, { email: '', buku: '', t: sekarang, status: 'aktif', foto: '', diubah: sekarang });
+  const baru = { email: '', buku: '', t: sekarang, status: 'aktif', foto: '', diubah: sekarang, harga: jual_().harga };
+  simpanPermintaan_(id, baru);
+  catatRiwayat_(id, baru, PERISTIWA_STATUS.aktif, 'Telegram', '');
   return { ok: true, status: 'aktif' };
 }
 
@@ -1711,9 +1714,9 @@ const NAMA_FOLDER_UTAMA = 'Dompet keluarga';
 const NAMA_FOLDER_ADMIN = 'Admin';
 const NAMA_SHEET_AJU = 'Pengajuan Aktivasi';
 const TAB_AJU = 'Pengajuan';
-const KOLOM_AJU = ['Dikirim', 'Email', 'Nama Buku', 'Kode Buku', 'Status', 'Bukti Transfer', 'Diubah', 'Alasan'];
+const KOLOM_AJU = ['Dikirim', 'Email', 'Nama Buku', 'Kode Buku', 'Status', 'Bukti Transfer', 'Diubah', 'Alasan', 'Harga'];
 /** Versi susunan kolom sheet; naikkan kalau KOLOM_AJU berubah supaya baris judul sheet lama ikut diperbarui. */
-const VERSI_SHEET_AJU = '2';
+const VERSI_SHEET_AJU = '3';
 const STATUS_AJU = { menunggu: 'Menunggu', aktif: 'Aktif', ditolak: 'Ditolak', nonaktif: 'Nonaktif' };
 
 /** Drive / Sheets REST dengan akun pemilik bot. Gagal → Error dengan .status. */
@@ -1790,7 +1793,7 @@ function sheetAju_() {
         { repeatCell: { range: { sheetId: sheet, startRowIndex: 0, endRowIndex: 1 }, cell: { userEnteredFormat: { textFormat: { bold: true } } }, fields: 'userEnteredFormat.textFormat.bold' } },
         { setDataValidation: { range: { sheetId: sheet, startRowIndex: 1, startColumnIndex: 4, endColumnIndex: 5 }, rule: {
           condition: { type: 'ONE_OF_LIST', values: Object.keys(STATUS_AJU).map(k => ({ userEnteredValue: STATUS_AJU[k] })) }, showCustomUi: true, strict: true } } },
-        kolom(0, 1, 140), kolom(1, 2, 220), kolom(2, 3, 150), kolom(3, 4, 330), kolom(4, 5, 100), kolom(5, 6, 330), kolom(6, 7, 140), kolom(7, 8, 320),
+        kolom(0, 1, 140), kolom(1, 2, 220), kolom(2, 3, 150), kolom(3, 4, 330), kolom(4, 5, 100), kolom(5, 6, 330), kolom(6, 7, 140), kolom(7, 8, 320), kolom(8, 9, 100),
       ] }),
     });
     apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + '/values/' + range_(TAB_AJU + '!A1') + '?valueInputOption=RAW', {
@@ -1831,7 +1834,7 @@ const idFoto_ = link => (String(link || '').match(/\/file\/d\/([\w-]+)/) || [])[
 
 function barisAju_(id, r) {
   return [waktuAju_(r.t), r.email || '', r.buku || '', id, STATUS_AJU[r.status] || STATUS_AJU.menunggu, linkFoto_(r.foto), waktuAju_(r.diubah),
-    r.status === 'ditolak' ? String(r.alasan || '').slice(0, 300) : ''];
+    r.status === 'ditolak' ? String(r.alasan || '').slice(0, 300) : '', r.harga ? String(r.harga) : ''];
 }
 
 /**
@@ -1852,13 +1855,14 @@ function idTabAju_() {
   return (tabAju_ = ((s.find(x => x.properties.title === TAB_AJU) || s[0]).properties.sheetId));
 }
 
-/** Semua baris pengajuan: [{ id, email, buku, t, status (huruf kecil), foto (ID file), diubah, baris (nomor baris sheet) }]. */
+/** Semua baris pengajuan: [{ id, email, buku, t, status (huruf kecil), foto (ID file), diubah, alasan, harga (saat pengajuan), baris (nomor baris sheet) }]. */
 function semuaPengajuan_() {
   pindahkanDicabut_();
-  const j = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + '/values/' + range_(TAB_AJU + '!A2:H'));
+  const j = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + '/values/' + range_(TAB_AJU + '!A2:I'));
   return (j.values || []).map((r, i) => ({
     t: String(r[0] || ''), email: String(r[1] || ''), buku: String(r[2] || ''), id: String(r[3] || '').trim(),
-    status: String(r[4] || '').trim().toLowerCase() || 'menunggu', foto: idFoto_(r[5]), diubah: String(r[6] || ''), alasan: String(r[7] || ''), baris: i + 2,
+    status: String(r[4] || '').trim().toLowerCase() || 'menunggu', foto: idFoto_(r[5]), diubah: String(r[6] || ''), alasan: String(r[7] || ''),
+    harga: Number(String(r[8] || '').replace(/\D/g, '')) || 0, baris: i + 2,
   })).filter(r => r.id);
 }
 
@@ -1882,6 +1886,97 @@ function pindahkanDicabut_() {
       start: { sheetId, rowIndex: x.baris - 1, columnIndex: 4 } } })) }),
   });
   ubah.forEach(x => CacheService.getScriptCache().remove('st_' + String(x.r[3]).trim()));
+}
+
+// ---- Riwayat (tab "Riwayat" di spreadsheet Pengajuan Aktivasi) ----
+// Satu baris per kejadian, tidak pernah diubah / dihapus aplikasi: bukti dikirim (ulang), diaktifkan, ditolak, dinonaktifkan.
+// Harga = harga versi penuh saat pembeli mengirim bukti; Aturan & Rekening = pengaturan penjualan saat kejadian itu.
+const TAB_RIWAYAT = 'Riwayat';
+const KOLOM_RIWAYAT = ['Waktu', 'Kode Buku', 'Email', 'Nama Buku', 'Peristiwa', 'Harga', 'Aturan Masa Gratis', 'Rekening Tujuan', 'Bukti Transfer', 'Alasan', 'Oleh'];
+const PERISTIWA_STATUS = { aktif: 'Diaktifkan', nonaktif: 'Dinonaktifkan', ditolak: 'Ditolak' };
+
+/** sheetId tab Riwayat; dibuat (beserta catatan awal dari pengajuan yang sudah ada) kalau belum ada. */
+let tabRiwayat_ = null;
+function idTabRiwayat_() {
+  if (tabRiwayat_ !== null) return tabRiwayat_;
+  const id = sheetAju_();
+  const ada = (apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + '?fields=sheets.properties(sheetId,title)').sheets || [])
+    .find(x => x.properties.title === TAB_RIWAYAT);
+  if (ada) return (tabRiwayat_ = ada.properties.sheetId);
+  return denganKunci_(() => {
+    const sid = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + ':batchUpdate', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ requests: [{ addSheet: { properties: { title: TAB_RIWAYAT, gridProperties: { frozenRowCount: 1 } } } }] }),
+    }).replies[0].addSheet.properties.sheetId;
+    const lebar = [140, 330, 220, 150, 150, 100, 260, 300, 330, 260, 200];
+    // Pengajuan yang sudah ada sebelum riwayat dicatat: satu baris "Status awal" supaya riwayatnya tidak kosong.
+    const awal = semuaPengajuan_().map(r => selRiwayat_([waktuAju_(r.diubah || r.t), r.id, r.email, r.buku,
+      'Status awal: ' + (STATUS_AJU[r.status] || r.status), r.harga ? String(r.harga) : '', '', '', linkFoto_(r.foto), r.alasan || '', '']));
+    apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + ':batchUpdate', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ requests: [
+        { updateCells: { start: { sheetId: sid, rowIndex: 0, columnIndex: 0 }, fields: 'userEnteredValue,userEnteredFormat.textFormat.bold',
+          rows: [{ values: KOLOM_RIWAYAT.map(k => ({ userEnteredValue: { stringValue: k }, userEnteredFormat: { textFormat: { bold: true } } })) }] } },
+      ].concat(lebar.map((px, i) => ({ updateDimensionProperties: { range: { sheetId: sid, dimension: 'COLUMNS', startIndex: i, endIndex: i + 1 }, properties: { pixelSize: px }, fields: 'pixelSize' } })))
+        .concat(awal.length ? [{ appendCells: { sheetId: sid, rows: awal, fields: 'userEnteredValue,textFormatRuns' } }] : []) }),
+    });
+    return (tabRiwayat_ = sid);
+  });
+}
+
+/** Tab Riwayat dipastikan ada SEBELUM pengajuan diubah, supaya catatan awalnya memakai keadaan lama. */
+function siapkanRiwayat_() {
+  try { idTabRiwayat_(); } catch (e) { console.warn('Riwayat belum bisa disiapkan: ' + e.message); }
+}
+
+/** Baris riwayat untuk Sheets batchUpdate: semua teks, kolom Bukti Transfer (indeks 8) diberi hyperlink. */
+function selRiwayat_(nilai) {
+  return { values: nilai.map((v, i) => (i === 8 && v
+    ? { userEnteredValue: { stringValue: String(v) }, textFormatRuns: [{ startIndex: 0, format: { link: { uri: String(v) } } }] }
+    : { userEnteredValue: { stringValue: String(v == null ? '' : v) }, textFormatRuns: [] })) };
+}
+
+function ringkasAturan_(j) {
+  const trx = j.batasTransaksi + ' transaksi', per = j.batasPeriode + ' periode gajian';
+  return j.aturan === 'transaksi' ? 'Gratis ' + trx : j.aturan === 'periode' ? 'Gratis ' + per : 'Gratis ' + trx + ' atau ' + per + ' (mana yang lebih dulu)';
+}
+function ringkasRekening_(j) {
+  return j.rekening.map(r => r.bank + ' ' + r.nomor + (r.atasNama ? ' a.n. ' + r.atasNama : '') + (r.qris ? ' (+QRIS)' : '')).join('; ');
+}
+
+/** Mencatat satu kejadian. Gagal mencatat tidak menggagalkan aksinya (hanya peringatan di log). */
+function catatRiwayat_(id, r, peristiwa, oleh, alasan) {
+  try {
+    const j = jual_();
+    const sid = idTabRiwayat_();
+    const baris = selRiwayat_([waktuAju_(sekarangIso_()), id, r.email || '', r.buku || '', peristiwa, String(r.harga || j.harga),
+      ringkasAturan_(j), ringkasRekening_(j), linkFoto_(r.foto), alasan || '', oleh || '']);
+    apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + ':batchUpdate', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ requests: [{ appendCells: { sheetId: sid, rows: [baris], fields: 'userEnteredValue,textFormatRuns' } }] }),
+    });
+  } catch (e) {
+    console.warn('Riwayat tidak tercatat: ' + e.message);
+  }
+}
+
+/** Semua baris riwayat: [{ t, id, email, buku, peristiwa, harga, aturan, rekening, link, alasan, oleh }]. */
+function semuaRiwayat_() {
+  try {
+    idTabRiwayat_();
+    const j = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + sheetAju_() + '/values/' + range_(TAB_RIWAYAT + '!A2:K'));
+    return (j.values || []).map(r => ({ t: String(r[0] || ''), id: String(r[1] || '').trim(), email: String(r[2] || ''), buku: String(r[3] || ''),
+      peristiwa: String(r[4] || ''), harga: Number(String(r[5] || '').replace(/\D/g, '')) || 0, aturan: String(r[6] || ''), rekening: String(r[7] || ''),
+      link: String(r[8] || ''), alasan: String(r[9] || ''), oleh: String(r[10] || '') })).filter(r => r.id);
+  } catch (e) {
+    console.warn('Riwayat tidak terbaca: ' + e.message);
+    return [];
+  }
+}
+
+/** Riwayat satu buku, terbaru dulu. */
+function riwayatBuku_(id) {
+  return semuaRiwayat_().filter(r => r.id === id).reverse();
 }
 
 function permintaan_(id) {
@@ -1950,13 +2045,15 @@ function adminWeb_(email) {
 
 function apiLisensi_(b) {
   const akun = akunGoogle_(b && b.token);
+  siapkanRiwayat_();
   if (b.aksi === 'minta') return mintaAktivasi_(akun, b);
   if (!adminWeb_(akun.email)) throw new Error('Akun ' + akun.email + ' bukan admin. Masuk dengan akun Google pemilik bot.');
   if (b.aksi === 'simpanJual') { simpanJual_(b.jual); return { jual: jualPublik_() }; }
   if (b.aksi === 'lihatQris') return { qris: gambarQris_(b.rek) };
   if (b.aksi === 'daftar') return { jual: jualPublik_(), daftar: daftarPermintaan_(), admin: akun.email, sheet: 'https://docs.google.com/spreadsheets/d/' + sheetAju_() + '/edit' };
   if (b.aksi === 'foto') return { foto: fotoBukti_(String(b.id || '')) };
-  if (b.aksi === 'atur') return aturLisensi_(String(b.id || ''), String(b.status || ''), String(b.alasan || '').trim());
+  if (b.aksi === 'atur') return aturLisensi_(String(b.id || ''), String(b.status || ''), String(b.alasan || '').trim(), akun.email);
+  if (b.aksi === 'riwayat') return { riwayat: riwayatBuku_(String(b.id || '')) };
   throw new Error('Aksi tidak dikenal.');
 }
 
@@ -1987,19 +2084,21 @@ function mintaAktivasi_(akun, b) {
       .concat(Utilities.base64Decode(foto[2]), Utilities.newBlob('\r\n--' + batas + '--').getBytes()),
   });
   if (unggah.getResponseCode() !== 200) throw new Error('Foto belum bisa disimpan. Coba lagi sebentar lagi.');
-  if (lama && lama.foto) { // foto lama diganti yang baru
-    try { apiPemilik_('https://www.googleapis.com/drive/v3/files/' + lama.foto, { method: 'delete' }); } catch (e) { /* sudah tidak ada */ }
-  }
+  // Foto lama tidak dihapus: tetap bisa dibuka dari tab Riwayat.
   const sekarang = sekarangIso_();
-  simpanPermintaan_(id, { email: akun.email, buku: nama.slice(0, 60), t: sekarang, status: 'menunggu', foto: JSON.parse(unggah.getContentText()).id, diubah: sekarang });
+  const baru = { email: akun.email, buku: nama.slice(0, 60), t: sekarang, status: 'menunggu', foto: JSON.parse(unggah.getContentText()).id, diubah: sekarang, harga: jual_().harga };
+  simpanPermintaan_(id, baru);
+  catatRiwayat_(id, baru, lama ? 'Bukti dikirim ulang' : 'Bukti dikirim', akun.email, '');
   daftarAdmin_().forEach(a => kirim_(a, '🔔 <b>Permintaan aktivasi baru</b>\n' + html_(akun.email) + ' · buku ' + html_(nama)
     + '\n\nBuka halaman admin: ' + html_((properti_('URL_APLIKASI') || URL_APLIKASI) + 'admin.html')));
   return { status: 'menunggu' };
 }
 
 function daftarPermintaan_() {
+  const n = {};
+  semuaRiwayat_().forEach(x => { n[x.id] = (n[x.id] || 0) + 1; });
   return semuaPengajuan_().map(r => ({ id: r.id, email: r.email, buku: r.buku, t: r.t, diubah: r.diubah, ada_foto: !!r.foto, alasan: r.alasan,
-    status: r.status, link: linkFoto_(r.foto) })).sort((x, y) => String(y.t).localeCompare(String(x.t)));
+    status: r.status, link: linkFoto_(r.foto), harga: r.harga, riwayat: n[r.id] || 0 })).sort((x, y) => String(y.t).localeCompare(String(x.t)));
 }
 
 function fotoBukti_(id) {
@@ -2017,12 +2116,13 @@ function fotoBukti_(id) {
  * status: 'aktif' (versi penuh terbuka di aplikasi pembeli), 'nonaktif' (dikunci), 'ditolak'. Hanya ditulis ke spreadsheet.
  * alasan: wajib untuk 'ditolak'; ditampilkan ke pembeli di layar Versi penuh.
  */
-function aturLisensi_(id, status, alasan) {
+function aturLisensi_(id, status, alasan, oleh) {
   if (['aktif', 'nonaktif', 'ditolak'].indexOf(status) < 0) throw new Error('Status tidak dikenal.');
   if (status === 'ditolak' && !alasan) throw new Error('Pilih alasan penolakannya.');
   const r = permintaan_(id);
   if (!r) throw new Error('Permintaan tidak ditemukan.');
   simpanPermintaan_(id, Object.assign(r, { status, alasan: status === 'ditolak' ? alasan.slice(0, 300) : '', diubah: sekarangIso_() }));
+  catatRiwayat_(id, r, PERISTIWA_STATUS[status], oleh || 'Telegram', status === 'ditolak' ? alasan : '');
   return { ok: true, status };
 }
 

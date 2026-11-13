@@ -158,6 +158,21 @@
       .status.aktif { background: var(--ok-bg); color: var(--ok); }
       .status.ditolak { background: var(--bad-bg); color: var(--bad); }
       .status.nonaktif { background: var(--info-bg); color: var(--info); }
+      .harga-aju { margin-top: 8px; font-size: 13px; } .harga-aju b { font-size: 14px; } .harga-aju small { color: var(--muted); }
+      .tombol-riwayat { margin-left: auto; }
+      .dialog-riwayat { max-width: 520px; }
+      .kepala-riwayat { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+      .kepala-riwayat h2 { margin: 0; }
+      .kosong-riwayat { color: var(--muted); font-size: 14px; text-align: center; padding: 20px 0; }
+      .linimasa { list-style: none; margin: 4px 0 0; padding: 0; }
+      .linimasa li { position: relative; display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding-bottom: 16px; }
+      .linimasa li:not(:last-child)::before { content: ''; position: absolute; left: 10px; top: 18px; bottom: 0; width: 2px; background: var(--line); }
+      .titik-lm { width: 14px; height: 14px; margin: 3px 0 0 4px; border-radius: 50%; background: var(--warna); box-shadow: 0 0 0 4px color-mix(in srgb, var(--warna) 20%, var(--card)); }
+      .lm-isi { min-width: 0; }
+      .lm-kepala b { display: block; font-size: 14.5px; } .lm-kepala small { color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+      .lm-isi dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--card-2); font-size: 13px; }
+      .lm-isi dt { color: var(--muted); } .lm-isi dd { margin: 0; overflow-wrap: anywhere; }
+      .lm-bukti { display: inline-block; margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--primary); text-decoration: none; }
       .alasan { margin-top: 8px; font-size: 13px; background: var(--bad-bg); color: var(--bad); border-radius: 10px; padding: 7px 10px; }
       .aksi { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 12px; }
       .aksi button { padding: 9px 14px; font-size: 14px; }
