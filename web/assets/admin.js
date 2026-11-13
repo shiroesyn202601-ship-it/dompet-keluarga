@@ -510,14 +510,15 @@
 
   // ---------- Tampilan: pengaturan penjualan ----------
 
-  function bukaPengaturan() {
+  /** tetap: dipanggil sesudah menyimpan, posisi gulir tidak dipindah ke atas. */
+  function bukaPengaturan(tetap) {
     layar = 'pengaturan';
     formJual = JSON.parse(JSON.stringify(jual));
     formJual.rekening = formJual.rekening.map((r, i) => Object.assign(r, { asal: i, baru: null }));
     if (!formJual.rekening.length) formJual.rekening.push(rekeningKosong());
     qrisTersimpan = {};
     render();
-    window.scrollTo(0, 0);
+    if (!tetap) window.scrollTo(0, 0);
     jual.rekening.forEach((r, i) => {
       if (!r.qris) return;
       api({ aksi: 'lihatQris', rek: i }).then(j => {
@@ -712,10 +713,8 @@
       const j = await api({ aksi: 'simpanJual', jual: Object.assign({}, f, { rekening }) });
       jual = j.jual;
       galat = '';
-      layar = 'pengajuan';
-      formJual = null;
       kabar('Pengaturan penjualan disimpan ✔');
-      render();
+      bukaPengaturan(true); // tetap di layar Pengaturan, isian diisi ulang dari yang tersimpan
     } catch (e) {
       pulih();
       if (e.sesi) return;
