@@ -1690,6 +1690,8 @@ function teksMasaGratis(l) {
   return T('Masa gratis berlaku untuk {batas}. Saat ini: {posisi}.', { batas, posisi });
 }
 
+/** Gambar QRIS yang sudah dimuat di layar Versi penuh (indeks rekening → data URL), untuk tampilan layar penuh. */
+const QRIS_DIMUAT = {};
 function bukaFormBayar() {
   const l = S.data && S.data.lisensi;
   if (!l) return;
@@ -1724,26 +1726,33 @@ function bukaFormBayar() {
       ${jenis === 'ditolak' && l.alasan ? `<div class="sa-alasan"><small>${T('Alasan dari admin')}</small>${esc(l.alasan)}</div>` : ''}
       <p class="sa-ket">${status.isi}</p>
     </section>`;
-  // Setiap rekening boleh punya satu QRIS, ditampilkan tepat di bawah rekeningnya.
+  // Setiap rekening boleh punya satu QRIS, ditampilkan tepat di bawah rekeningnya (ketuk = layar penuh + Simpan gambar).
   const rekening = (l.rekening || []).map((r, i) => `
         <div class="baris">
           <span class="ikon-bulat">${/dana|ovo|gopay|shopee|linkaja|jago|flip/i.test(r.bank) ? '📱' : '🏦'}</span>
-          <span class="isi"><b>${esc(r.bank)} ${esc(r.nomor)}</b>${r.atasNama ? `<small>${T('a.n. {nama}', { nama: esc(r.atasNama) })}</small>` : ''}</span>
-          <button type="button" class="tombol-teks" data-aksi="salin-rekening" data-nomor="${esc(r.nomor)}">${T('Salin')}</button>
+          <span class="isi"><b>${esc(r.bank)}${r.nomor ? ' ' + esc(r.nomor) : ''}</b>${r.atasNama ? `<small>${r.qris
+            ? T('a.n. {nama} · pastikan nama ini yang muncul saat scan QRIS', { nama: esc(r.atasNama) })
+            : T('a.n. {nama}', { nama: esc(r.atasNama) })}</small>` : ''}</span>
+          ${r.nomor ? `<button type="button" class="tombol-teks" data-aksi="salin-rekening" data-nomor="${esc(r.nomor)}">${T('Salin')}</button>` : ''}
         </div>${r.qris ? `
         <div class="kotak-qris" data-rek="${i}" style="text-align:center;margin:4px 0 12px">
-          <small style="display:block;color:var(--muted);margin-bottom:6px">${T('Atau scan QRIS:')}</small>
-          <img class="gambar-qris" alt="QRIS ${esc(r.bank)}" hidden style="width:220px;max-width:100%;border-radius:12px;background:#fff;padding:8px">
+          <small style="display:block;color:var(--muted);margin-bottom:6px">${r.nomor ? T('Atau scan QRIS:') : T('Scan QRIS ini:')}</small>
+          <!-- Ketuk = QRIS layar penuh; tombol Simpan gambar ada di sana. -->
+          <button type="button" class="tombol-qris" data-aksi="lihat-qris" data-rek="${i}" data-nama="QRIS-${esc(r.bank.replace(/[^\w-]+/g, '-'))}.png" hidden
+            aria-label="${T('Perbesar QRIS {bank}', { bank: esc(r.bank) })}"><img class="gambar-qris" alt="QRIS ${esc(r.bank)}"></button>
           <div class="memuat-qris info-kecil">${T('Memuat QRIS…')}</div>
-          <a class="unduh-qris tombol-teks" hidden download="QRIS-${esc(r.bank.replace(/[^\w-]+/g, '-'))}.png" style="display:block">${T('Simpan gambar QRIS')}</a>
         </div>` : ''}`).join('');
   bukaSheet(T('Beli versi penuh'), `${kabar}
     <p style="margin-top:0">${teksMasaGratis(l)}</p>
     <p>${T('Versi penuh: <b>{harga}</b>, sekali bayar untuk selamanya. Tanpa batas transaksi untuk seluruh keluarga di buku ini, termasuk lewat bot Telegram.', { harga: rp(l.harga) })}</p>
     <ol class="panduan" style="padding-left:20px;margin-bottom:16px">
       <li>${(l.rekening || []).length > 1
-        ? T('Transfer <b>{harga}</b> ke <b>salah satu</b> rekening berikut:', { harga: rp(l.harga) })
-        : T('Transfer <b>{harga}</b> ke:', { harga: rp(l.harga) })}${rekening}
+        ? ((l.rekening || []).every(r => r.nomor)
+          ? T('Transfer <b>{harga}</b> ke <b>salah satu</b> rekening berikut:', { harga: rp(l.harga) })
+          : T('Bayar <b>{harga}</b> ke <b>salah satu</b> rekening berikut (transfer atau scan QRIS):', { harga: rp(l.harga) }))
+        : (l.rekening || []).every(r => r.nomor)
+          ? T('Transfer <b>{harga}</b> ke:', { harga: rp(l.harga) })
+          : T('Bayar <b>{harga}</b> dengan scan QRIS:', { harga: rp(l.harga) })}${rekening}
       </li>
       <li>${T('Pilih foto atau screenshot bukti transfer, lalu ketuk <b>Kirim bukti</b>.')}
         <label class="btn btn-kedua" style="display:block;margin:8px 0;text-align:center;cursor:pointer">
@@ -1756,12 +1765,13 @@ function bukaFormBayar() {
     </ol>`);
   jadwalCekBayar();
   document.querySelectorAll('.kotak-qris[data-rek]').forEach(kotak => {
+    delete QRIS_DIMUAT[kotak.dataset.rek];
     const gagal = () => { kotak.querySelector('.memuat-qris').textContent = T('QRIS belum bisa dimuat. Pakai rekening di atas, atau coba lagi nanti.'); };
     SERVER.ambilQris(kotak.dataset.rek).then(data => {
       if (!data) return gagal();
-      const img = kotak.querySelector('.gambar-qris'), unduh = kotak.querySelector('.unduh-qris');
-      img.src = unduh.href = data;
-      img.hidden = unduh.hidden = false;
+      QRIS_DIMUAT[kotak.dataset.rek] = data;
+      kotak.querySelector('.gambar-qris').src = data;
+      kotak.querySelector('.tombol-qris').hidden = false;
       kotak.querySelector('.memuat-qris').hidden = true;
     }).catch(gagal);
   });

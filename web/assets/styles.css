@@ -565,6 +565,14 @@ body.ada-antrian #view { padding-bottom: calc(var(--nav-h) + 120px + env(safe-ar
 .muat-foto { color: #fff; font-weight: 700; font-size: 15px; animation: kedip 1.2s ease-in-out infinite; }
 @keyframes kedip { 50% { opacity: .45; } }
 .lihat-foto img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+.lihat-foto.ada-unduh { grid-template-rows: minmax(0, 1fr) auto; gap: 16px; }
+.unduh-foto { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; min-height: 48px; border: 0; border-radius: 999px;
+  background: #fff; color: #111; font: inherit; font-size: 15px; font-weight: 800; cursor: pointer; }
+.unduh-foto .ik { width: 20px; height: 20px; }
+/* QRIS di layar Versi penuh: ketuk untuk memperbesar. */
+.tombol-qris { display: inline-block; padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 12px; }
+.tombol-qris[hidden] { display: none; }
+.tombol-qris img { display: block; width: 220px; max-width: 100%; border-radius: 12px; background: #fff; padding: 8px; }
 .tutup-foto { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; width: 44px; height: 44px; border: 0;
   border-radius: 50%; background: rgba(255, 255, 255, .18); color: #fff; font-size: 20px; cursor: pointer; }
 /* Kekayaan bersih */

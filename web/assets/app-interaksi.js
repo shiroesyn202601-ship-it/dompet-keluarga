@@ -1306,8 +1306,11 @@ function tutupRingkasanSuara() {
   if (el) el.hidden = true;
 }
 
-/** Foto struk layar penuh (sebelum diunggah ke Drive). Ketuk di mana saja atau tombol kembali untuk menutup. */
-function lihatFoto(src) {
+/**
+ * Foto struk layar penuh (sebelum diunggah ke Drive). Ketuk di mana saja atau tombol kembali untuk menutup.
+ * unduh (opsional) = { nama, label, alt }: tampilkan tombol untuk menyimpan gambarnya (mis. QRIS Versi penuh).
+ */
+function lihatFoto(src, unduh) {
   let el = $('#lihat-foto');
   if (!el) {
     el = document.createElement('div');
@@ -1319,7 +1322,9 @@ function lihatFoto(src) {
     el.dataset.aksi = 'tutup-foto';
     document.body.appendChild(el);
   }
-  el.innerHTML = `<img src="${src}" alt="${T('Foto struk||gambar')}"><button type="button" class="tutup-foto" data-aksi="tutup-foto" aria-label="${T('Tutup')}">✕</button>`;
+  el.innerHTML = `<img src="${src}" alt="${unduh ? esc(unduh.alt || '') : T('Foto struk||gambar')}"><button type="button" class="tutup-foto" data-aksi="tutup-foto" aria-label="${T('Tutup')}">✕</button>`
+    + (unduh ? `<button type="button" class="unduh-foto" data-aksi="unduh-foto" data-nama="${esc(unduh.nama)}"><svg class="ik" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 20h14"/></svg>${esc(unduh.label)}</button>` : '');
+  el.classList.toggle('ada-unduh', !!unduh);
   el.hidden = false;
   setTimeout(() => el.querySelector('.tutup-foto').focus(), 50);
 }
@@ -1382,6 +1387,13 @@ Object.assign(AKSI, {
     else if (F && F.lampiranThumb) lihatFoto(F.lampiranThumb);
   },
   'tutup-foto': () => tutupFoto(),
+  // Klik tautan biasa di dalam lapisan foto akan dicegah (lapisannya ber-data-aksi tutup), jadi unduh lewat tautan sementara.
+  'unduh-foto': el => {
+    const a = document.createElement('a');
+    a.href = $('#lihat-foto img').src;
+    a.download = el.dataset.nama || 'gambar.png';
+    a.click();
+  },
 });
 
 /**

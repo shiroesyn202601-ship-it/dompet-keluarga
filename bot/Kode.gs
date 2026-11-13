@@ -1443,8 +1443,11 @@ function simpanJual_(baru) {
   const isian = (Array.isArray(b.rekening) ? b.rekening : []).slice(0, 5).map(r => ({
     bank: teks_(r && r.bank).slice(0, 40), nomor: teks_(r && r.nomor).slice(0, 40), atasNama: teks_(r && r.atasNama).slice(0, 60),
     asal: lama.rekening[Number(r && r.qrisAsal)] ? lama.rekening[Number(r.qrisAsal)].qris : '', gambar: String((r && r.qrisBaru) || ''),
-  })).filter(r => r.bank || r.nomor || r.gambar);
-  if (isian.some(r => !r.bank || !r.nomor)) throw new Error('Setiap rekening wajib berisi nama bank/e-wallet dan nomornya.');
+  })).filter(r => r.bank || r.nomor || r.atasNama || r.gambar || r.asal);
+  // Rekening ber-QRIS: pembeli cukup scan, jadi nomor boleh kosong, tapi nama pemiliknya wajib (untuk dicocokkan saat bayar).
+  if (isian.some(r => !r.bank)) throw new Error('Setiap rekening wajib berisi nama bank/e-wallet.');
+  if (isian.some(r => (r.gambar || r.asal) && !r.atasNama)) throw new Error('Rekening yang memakai QRIS wajib berisi nama pemilik rekening (atas nama).');
+  if (isian.some(r => !(r.gambar || r.asal) && !r.nomor)) throw new Error('Rekening tanpa QRIS wajib berisi nomor rekening / HP.');
   if (!isian.length) throw new Error('Isi minimal satu rekening.');
   const gambar = isian.map(r => r.gambar && gambarQrisSah_(r.gambar)); // diperiksa semua dulu sebelum ada yang diunggah
   const hasil = {
@@ -1994,7 +1997,7 @@ function ringkasAturan_(j) {
   return j.aturan === 'transaksi' ? 'Gratis ' + trx : j.aturan === 'periode' ? 'Gratis ' + per : 'Gratis ' + trx + ' atau ' + per + ' (mana yang lebih dulu)';
 }
 function ringkasRekening_(j) {
-  return j.rekening.map(r => r.bank + ' ' + r.nomor + (r.atasNama ? ' a.n. ' + r.atasNama : '') + (r.qris ? ' (+QRIS)' : '')).join('; ');
+  return j.rekening.map(r => r.bank + (r.nomor ? ' ' + r.nomor : '') + (r.atasNama ? ' a.n. ' + r.atasNama : '') + (r.qris ? ' (+QRIS)' : '')).join('; ');
 }
 
 /** Mencatat satu kejadian. Gagal mencatat tidak menggagalkan aksinya (hanya peringatan di log). */

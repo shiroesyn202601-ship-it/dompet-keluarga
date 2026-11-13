@@ -136,6 +136,10 @@ const AKSI = {
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
   'versi-penuh': () => { bukaFormBayar(); perbaruiFormBayar(); },
+  'lihat-qris': el => {
+    const data = QRIS_DIMUAT[el.dataset.rek];
+    if (data) lihatFoto(data, { nama: el.dataset.nama, label: T('Simpan gambar QRIS'), alt: el.querySelector('img').alt });
+  },
   'kirim-bukti': el => kirimBuktiBayar(el),
   'salin-rekening': async el => {
     const no = String(el.dataset.nomor || '').replace(/\s/g, '');

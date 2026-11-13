@@ -590,7 +590,7 @@
         </div>
 
         <section class="panel lebar">
-          ${kepalaPanel(IKON.bank, 'Rekening tujuan & QRIS', 'Ditampilkan ke pembeli di layar Versi penuh. Bisa bank atau e-wallet, maksimal 5. Setiap rekening boleh punya satu QRIS (opsional).')}
+          ${kepalaPanel(IKON.bank, 'Rekening tujuan & QRIS', 'Ditampilkan ke pembeli di layar Versi penuh. Bisa bank atau e-wallet, maksimal 5. Setiap rekening boleh punya satu QRIS (opsional); kalau memakai QRIS, nomor boleh kosong tapi atas nama wajib diisi.')}
           <div class="rekening-daftar">
             <div class="rekening-judul" aria-hidden="true"><span>Bank / e-wallet</span><span>Nomor rekening / HP</span><span>Atas nama</span><span>QRIS</span><span></span></div>
             ${f.rekening.map((r, i) => {
@@ -599,8 +599,8 @@
             <div class="rekening-baris">
               <div class="rekening-isian">
                 <input data-f="bank" name="rek-bank-${i}" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" aria-label="Bank / e-wallet" placeholder="Bank / e-wallet (mis. BCA, DANA)" value="${esc(r.bank)}" maxlength="40">
-                <input data-f="nomor" name="rek-nomor-${i}" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" aria-label="Nomor rekening / HP" placeholder="Nomor rekening / HP" value="${esc(r.nomor)}" maxlength="40" inputmode="numeric">
-                <input data-f="atasNama" name="rek-atas-nama-${i}" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" aria-label="Atas nama" placeholder="Atas nama (opsional)" value="${esc(r.atasNama && r.atasNama !== 'null' ? r.atasNama : '')}" maxlength="60">
+                <input data-f="nomor" name="rek-nomor-${i}" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" aria-label="Nomor rekening / HP" placeholder="${ada ? 'Nomor (opsional)' : 'Nomor rekening / HP'}" value="${esc(r.nomor)}" maxlength="40" inputmode="numeric">
+                <input data-f="atasNama" name="rek-atas-nama-${i}" autocomplete="off" data-lpignore="true" data-1p-ignore data-form-type="other" aria-label="Atas nama" placeholder="${ada ? 'Atas nama' : 'Atas nama (opsional)'}" value="${esc(r.atasNama && r.atasNama !== 'null' ? r.atasNama : '')}" maxlength="60">
                 <button type="button" class="ikon-btn hapus" data-aksi="hapus-rekening" data-i="${i}" aria-label="Hapus rekening" title="Hapus rekening" ${f.rekening.length < 2 ? 'disabled' : ''}>${IKON.sampah}</button>
               </div>
               <div class="qris">
@@ -649,7 +649,7 @@
       <div class="dialog dialog-qris">
         <div class="kepala-dialog"><h2>QRIS ${esc(r.bank || 'rekening')}</h2><button class="ikon-btn" data-tutup aria-label="Tutup">${IKON.silang}</button></div>
         <div class="qris-besar" ${r.baru === null && r.qris ? `data-asal="${r.asal}"` : ''}>${g ? `<img src="${esc(g)}" alt="QRIS ${esc(r.bank)}">` : '<span class="putar" style="color:var(--muted)"></span>'}</div>
-        ${r.nomor ? `<p class="qris-info">${esc(r.bank)} · ${esc(r.nomor)}${r.atasNama ? ' · a.n. ' + esc(r.atasNama) : ''}</p>` : ''}
+        ${r.nomor || r.atasNama ? `<p class="qris-info">${[esc(r.bank), esc(r.nomor), r.atasNama ? 'a.n. ' + esc(r.atasNama) : ''].filter(Boolean).join(' · ')}</p>` : ''}
         <div class="tombol-dialog">
           <button type="button" class="btn btn-lembut-merah" data-qris-hapus>${IKON.sampah}Hapus QRIS</button>
           <label class="btn btn-utama tombol-file"><input type="file" class="file-qris" data-i="${i}" accept="image/*" hidden>${IKON.unggah}Ganti QRIS</label>
@@ -703,7 +703,9 @@
     const salah = f.aturan !== 'periode' && !(f.batasTransaksi >= 1) ? 'Isi batas transaksi gratis (minimal 1).'
       : f.aturan !== 'transaksi' && !(f.batasPeriode >= 1) ? 'Isi batas periode gratis (minimal 1).'
       : !(f.harga >= 1000) ? 'Isi harga (minimal Rp1.000).'
-      : rek.some(r => !r.bank || !r.nomor) ? 'Setiap rekening wajib berisi nama bank/e-wallet dan nomornya.'
+      : rek.some(r => !r.bank) ? 'Setiap rekening wajib berisi nama bank/e-wallet.'
+      : rek.some(r => punyaQris(r) && !r.atasNama) ? 'Rekening yang memakai QRIS wajib berisi nama pemilik rekening (atas nama).'
+      : rek.some(r => !punyaQris(r) && !r.nomor) ? 'Rekening tanpa QRIS wajib berisi nomor rekening / HP.'
       : !rek.length ? 'Isi minimal satu rekening.' : '';
     if (salah) { galat = salah; render(); window.scrollTo(0, 0); return; }
     const pulih = sibuk(tombol, 'Menyimpan…');
