@@ -1905,7 +1905,7 @@ Object.assign(KAMUS, {
   "Beli versi penuh": "Buy full version",
   "Versi penuh: <b>{harga}</b>, sekali bayar untuk selamanya. Tanpa batas transaksi untuk seluruh keluarga di buku ini, termasuk lewat bot Telegram.": "Full version: <b>{harga}</b>, pay once, keep it forever. Unlimited transactions for the whole family in this book, including through the Telegram bot.",
   "Transfer <b>{harga}</b> ke:": "Transfer <b>{harga}</b> to:",
-  "Transfer <b>{harga}</b> <u>sekali saja</u> ke <b>salah satu</b> rekening berikut (pilih yang paling mudah):": "Transfer <b>{harga}</b> <u>once</u> to <b>any one</b> of these accounts (whichever is easiest):",
+  "Transfer <b>{harga}</b> ke <b>salah satu</b> rekening berikut (pilih yang paling mudah):": "Transfer <b>{harga}</b> to <b>any one</b> of these accounts (whichever is easiest):",
   "a.n. {nama}": "account name {nama}",
   "Versi penuh aktif. Terima kasih! 🎉": "Full version activated. Thank you! 🎉",
   "Aktif · tanpa batas transaksi": "Active · unlimited transactions",
