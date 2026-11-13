@@ -42,6 +42,8 @@
   let tab = 'menunggu';
   let cari = '';
   let galat = '';
+  let sesiHabis = false; // token login habis / ditolak bot: kotak galat diberi tombol "Masuk lagi"
+  const PESAN_SESI = 'Sesi login sudah habis. Masuk lagi untuk melanjutkan; layar ini tetap seperti semula.';
   let layar = 'pengajuan'; // 'pengajuan' | 'pengaturan'
   let info = { admin: '', sheet: '' };
   let jual = { aturan: 'transaksi', batasTransaksi: 450, batasPeriode: 3, harga: Number((KONFIG.bayar || {}).harga) || 0, rekening: [], selaluTampil: true };
@@ -65,7 +67,7 @@
 
   async function api(isi) {
     const token = tokenSaya();
-    if (!token) { tampilMasuk('Sesi login sudah habis. Masuk lagi.'); throw new Error('Sesi login habis'); }
+    if (!token) throw tandaiSesiHabis();
     let j;
     try {
       const r = await fetch(BOT + '?api=1', { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ token }, isi)) });
@@ -73,8 +75,45 @@
     } catch (e) {
       throw new Error('Tidak bisa terhubung ke bot. Periksa koneksi internet.');
     }
-    if (j.galat) throw new Error(j.galat);
+    if (j.galat) throw /sesi login/i.test(j.galat) ? tandaiSesiHabis() : new Error(j.galat);
     return j;
+  }
+
+  /** Sesi habis: tampilkan kotak "Masuk lagi" di layar yang sedang terbuka (belum pernah masuk → layar masuk). */
+  function tandaiSesiHabis() {
+    if (layar === 'pengaturan') bacaForm(); // isian yang sedang diketik tidak hilang
+    sesiHabis = true;
+    galat = PESAN_SESI;
+    if (info.admin) render();
+    else tampilMasuk(PESAN_SESI);
+    window.scrollTo({ top: 0, behavior: 'smooth' }); // kotak Masuk lagi ada di atas
+    const e = new Error(PESAN_SESI);
+    e.sesi = true;
+    return e;
+  }
+
+  /** Kotak galat; untuk sesi habis diberi tombol Masuk lagi. */
+  function kotakGalat() {
+    if (!galat) return '';
+    return sesiHabis
+      ? `<div class="galat galat-sesi"><span>${esc(galat)}</span><button type="button" class="btn-utama" data-aksi="masuk-lagi">Masuk lagi</button></div>`
+      : `<div class="galat">${esc(galat)}</div>`;
+  }
+
+  /** Masuk lagi dengan akun yang sama (tanpa pilihan akun), lalu data dimuat ulang tanpa meninggalkan layar ini. */
+  async function masukLagi(tombol) {
+    tombol.disabled = true;
+    try {
+      await GOOGLE.masuk(false);
+      sesiHabis = false;
+      galat = '';
+      if (layar === 'pengaturan') bacaForm();
+      await muat();
+      kabar('Berhasil masuk lagi ✔');
+    } catch (e) {
+      tombol.disabled = false;
+      kabar(e.message);
+    }
   }
 
   // ---------- Masuk ----------
@@ -129,7 +168,8 @@
       bilah();
       render();
     } catch (e) {
-      if (/bukan admin|Sesi login/i.test(e.message)) return tampilMasuk(e.message);
+      if (e.sesi) return;
+      if (/bukan admin/i.test(e.message)) return tampilMasuk(e.message);
       galat = e.message;
       render();
     }
@@ -143,7 +183,7 @@
       foto[id] = (await api({ aksi: 'foto', id })).foto;
     } catch (e) {
       foto[id] = '';
-      kabar(e.message);
+      if (!e.sesi) kabar(e.message);
     }
     memuat[id] = false;
     gambarUlangBukti(id);
@@ -202,7 +242,7 @@
     const tile = (k, label, warna, sub) => `<button class="tile ${tab === k ? 'dipilih' : ''}" data-aksi="tab" data-tab="${k}" aria-pressed="${tab === k}">
       <small>${warna ? `<span class="titik" style="background:${warna}"></span>` : ''}${label}</small><b>${jumlah(k)}</b>${sub ? `<em>${sub}</em>` : ''}</button>`;
     $('#isi').innerHTML = `
-      ${galat ? `<div class="galat">${esc(galat)}</div>` : ''}
+      ${kotakGalat()}
       <section class="ringkasan">
         ${tile('menunggu', 'Menunggu', STATUS.menunggu.warna)}
         ${tile('aktif', 'Aktif', STATUS.aktif.warna, '💰 ' + rupiah(jumlah('aktif') * jual.harga))}
@@ -282,7 +322,7 @@
         <button class="ikon-btn" data-aksi="kembali" aria-label="Kembali ke pengajuan">${IKON.kembali}</button>
         <div><h1>Pengaturan penjualan</h1><p>Berlaku untuk semua pengguna aplikasi & bot Telegram.</p></div>
       </div>
-      ${galat ? `<div class="galat">${esc(galat)}</div>` : ''}
+      ${kotakGalat()}
       <form id="form-jual" class="form-jual" autocomplete="off">
         <section class="panel">
           <h2>Kapan pengguna ditagih</h2>
@@ -410,8 +450,9 @@
       kabar('Pengaturan penjualan disimpan ✔');
       render();
     } catch (e) {
-      galat = e.message;
       tombol.disabled = false;
+      if (e.sesi) return;
+      galat = e.message;
       render();
     }
   }
@@ -507,8 +548,12 @@
     if (!el) return;
     const aksi = el.dataset.aksi;
     if (aksi === 'masuk' || aksi === 'ganti') return masuk();
+    if (aksi === 'masuk-lagi') return masukLagi(el);
+    // Token hampir / baru saja habis: diperpanjang diam-diam saat halaman diketuk (seperti di aplikasi).
+    const segar = GOOGLE.segarkanKalauPerlu && GOOGLE.segarkanKalauPerlu();
+    if (segar) { const ok = await segar; if (ok && sesiHabis) { sesiHabis = false; galat = ''; } }
     if (aksi === 'keluar') { GOOGLE.keluar(); daftar = []; return tampilMasuk(''); }
-    if (aksi === 'muat') { el.disabled = true; await muat(); return kabar('Data diperbarui'); }
+    if (aksi === 'muat') { el.disabled = true; await muat(); if (!sesiHabis) kabar('Data diperbarui'); return; }
     if (aksi === 'pengaturan') { galat = ''; return layar === 'pengaturan' ? (layar = 'pengajuan', render()) : bukaPengaturan(); }
     if (aksi === 'kembali') { galat = ''; layar = 'pengajuan'; return render(); }
     if (aksi === 'tambah-rekening') { bacaForm(); formJual.rekening.push(rekeningKosong()); render(); return; }
@@ -538,6 +583,7 @@
         galat = '';
         kabar(pilihan()[status].selesai);
       } catch (err) {
+        if (err.sesi) return;
         galat = err.message;
       }
       render();
