@@ -1902,16 +1902,19 @@ function idTabRiwayat_() {
   const id = sheetAju_();
   const ada = (apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + '?fields=sheets.properties(sheetId,title)').sheets || [])
     .find(x => x.properties.title === TAB_RIWAYAT);
-  if (ada) return (tabRiwayat_ = ada.properties.sheetId);
+  if (ada) {
+    tabRiwayat_ = ada.properties.sheetId;
+    if (properti_('RIWAYAT_V') !== '2') rapikanRiwayatLama_(id, tabRiwayat_);
+    return tabRiwayat_;
+  }
   return denganKunci_(() => {
     const sid = apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + ':batchUpdate', {
       method: 'post', contentType: 'application/json',
       payload: JSON.stringify({ requests: [{ addSheet: { properties: { title: TAB_RIWAYAT, gridProperties: { frozenRowCount: 1 } } } }] }),
     }).replies[0].addSheet.properties.sheetId;
     const lebar = [140, 330, 220, 150, 150, 100, 260, 300, 330, 260, 200];
-    // Pengajuan yang sudah ada sebelum riwayat dicatat: satu baris "Status awal" supaya riwayatnya tidak kosong.
-    const awal = semuaPengajuan_().map(r => selRiwayat_([waktuAju_(r.diubah || r.t), r.id, r.email, r.buku,
-      'Status awal: ' + (STATUS_AJU[r.status] || r.status), r.harga ? String(r.harga) : '', '', '', linkFoto_(r.foto), r.alasan || '', '']));
+    // Pengajuan yang sudah ada sebelum riwayat dicatat: disusun ulang jadi "Bukti dikirim" + keputusannya.
+    const awal = [].concat(...semuaPengajuan_().map(barisAwal_)).map(selRiwayat_);
     apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + id + ':batchUpdate', {
       method: 'post', contentType: 'application/json',
       payload: JSON.stringify({ requests: [
@@ -1920,8 +1923,58 @@ function idTabRiwayat_() {
       ].concat(lebar.map((px, i) => ({ updateDimensionProperties: { range: { sheetId: sid, dimension: 'COLUMNS', startIndex: i, endIndex: i + 1 }, properties: { pixelSize: px }, fields: 'pixelSize' } })))
         .concat(awal.length ? [{ appendCells: { sheetId: sid, rows: awal, fields: 'userEnteredValue,textFormatRuns' } }] : []) }),
     });
+    simpanProp_('RIWAYAT_V', '2');
     return (tabRiwayat_ = sid);
   });
+}
+
+/** Waktu file dibuat di Drive (WIB, "yyyy-MM-dd HH:mm"); '' kalau tidak bisa dibaca. Dipakai untuk waktu kirim bukti lama. */
+function waktuFile_(idFile) {
+  if (!idFile) return '';
+  try {
+    const t = apiPemilik_('https://www.googleapis.com/drive/v3/files/' + idFile + '?fields=createdTime').createdTime;
+    return t ? Utilities.formatDate(new Date(t), TZ, 'yyyy-MM-dd HH:mm') : '';
+  } catch (e) { return ''; }
+}
+
+/** Pengajuan yang tercatat sebelum ada riwayat → baris "Bukti dikirim" (+ keputusannya kalau sudah diputuskan). */
+function barisAwal_(r) {
+  const link = linkFoto_(r.foto), harga = r.harga ? String(r.harga) : '';
+  const baris = [[waktuFile_(r.foto) || waktuAju_(r.t), r.id, r.email, r.buku, 'Bukti dikirim', harga, '', '', link, '', r.email]];
+  if (PERISTIWA_STATUS[r.status]) {
+    baris.push([waktuAju_(r.diubah || r.t), r.id, r.email, r.buku, PERISTIWA_STATUS[r.status], harga, '', '', link, r.status === 'ditolak' ? r.alasan || '' : '', '']);
+  }
+  return baris;
+}
+
+/** Sekali saja: baris "Status awal: …" dari versi sebelumnya dipecah jadi "Bukti dikirim" + keputusannya. */
+function rapikanRiwayatLama_(idSheet, sid) {
+  try {
+    denganKunci_(() => {
+      const nilai = (apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + idSheet + '/values/' + range_(TAB_RIWAYAT + '!A2:K')).values || [])
+        .map(r => KOLOM_RIWAYAT.map((_, i) => String(r[i] || '')));
+      if (nilai.some(r => /^Status awal: /.test(r[4]))) {
+        const label = {};
+        Object.keys(STATUS_AJU).forEach(k => { label[STATUS_AJU[k]] = k; });
+        const baru = [].concat(...nilai.map(r => {
+          const m = r[4].match(/^Status awal: (.+)$/);
+          if (!m) return [r];
+          const st = label[m[1]] || 'menunggu';
+          return barisAwal_({ id: r[1], email: r[2], buku: r[3], harga: r[5], foto: idFoto_(r[8]), t: r[0], diubah: r[0], status: st, alasan: r[9] });
+        }));
+        apiPemilik_('https://sheets.googleapis.com/v4/spreadsheets/' + idSheet + ':batchUpdate', {
+          method: 'post', contentType: 'application/json',
+          payload: JSON.stringify({ requests: [
+            { deleteDimension: { range: { sheetId: sid, dimension: 'ROWS', startIndex: 1, endIndex: 1 + nilai.length } } },
+            { appendCells: { sheetId: sid, rows: baru.map(selRiwayat_), fields: 'userEnteredValue,textFormatRuns' } },
+          ] }),
+        });
+      }
+      simpanProp_('RIWAYAT_V', '2');
+    });
+  } catch (e) {
+    console.warn('Riwayat lama belum bisa dirapikan: ' + e.message);
+  }
 }
 
 /** Tab Riwayat dipastikan ada SEBELUM pengajuan diubah, supaya catatan awalnya memakai keadaan lama. */
@@ -1976,7 +2029,8 @@ function semuaRiwayat_() {
 
 /** Riwayat satu buku, terbaru dulu. */
 function riwayatBuku_(id) {
-  return semuaRiwayat_().filter(r => r.id === id).reverse();
+  return semuaRiwayat_().map((r, i) => Object.assign(r, { i })).filter(r => r.id === id)
+    .sort((a, b) => (a.t === b.t ? b.i - a.i : a.t < b.t ? 1 : -1)).map(r => { delete r.i; return r; });
 }
 
 function permintaan_(id) {
@@ -2054,6 +2108,7 @@ function apiLisensi_(b) {
   if (b.aksi === 'foto') return { foto: fotoBukti_(String(b.id || '')) };
   if (b.aksi === 'atur') return aturLisensi_(String(b.id || ''), String(b.status || ''), String(b.alasan || '').trim(), akun.email);
   if (b.aksi === 'riwayat') return { riwayat: riwayatBuku_(String(b.id || '')) };
+  if (b.aksi === 'fotoFile') return { foto: fotoFile_(String(b.foto || '')) };
   throw new Error('Aksi tidak dikenal.');
 }
 
@@ -2099,6 +2154,20 @@ function daftarPermintaan_() {
   semuaRiwayat_().forEach(x => { n[x.id] = (n[x.id] || 0) + 1; });
   return semuaPengajuan_().map(r => ({ id: r.id, email: r.email, buku: r.buku, t: r.t, diubah: r.diubah, ada_foto: !!r.foto, alasan: r.alasan,
     status: r.status, link: linkFoto_(r.foto), harga: r.harga, riwayat: n[r.id] || 0 })).sort((x, y) => String(y.t).localeCompare(String(x.t)));
+}
+
+/** Foto bukti mana pun di folder Admin (dari riwayat), sebagai data URL. File di luar folder itu ditolak. */
+function fotoFile_(idFile) {
+  if (!/^[\w-]{10,}$/.test(idFile)) throw new Error('Foto tidak valid.');
+  let induk = [];
+  try { induk = apiPemilik_('https://www.googleapis.com/drive/v3/files/' + idFile + '?fields=parents').parents || []; } catch (e) { /* tidak ada */ }
+  if (induk.indexOf(folderAdmin_()) < 0) throw new Error('Foto bukti tidak bisa dibuka (mungkin sudah dihapus dari Drive).');
+  const res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + idFile + '?alt=media', {
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() !== 200) throw new Error('Foto bukti tidak bisa dibuka (mungkin sudah dihapus dari Drive).');
+  const blob = res.getBlob();
+  return 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' + Utilities.base64Encode(blob.getBytes());
 }
 
 function fotoBukti_(id) {

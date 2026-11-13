@@ -545,6 +545,30 @@
     return baris.length ? '<dl>' + baris.map(([k, v]) => '<dt>' + k + '</dt><dd>' + v + '</dd>').join('') + '</dl>' : '';
   };
 
+  const idFoto = link => (String(link || '').match(/\/file\/d\/([\w-]+)/) || [])[1] || '';
+  const fotoRiwayat = {}; // ID file → data URL
+
+  /** Foto bukti dari riwayat dibuka di lightbox (di atas dialog riwayat), tanpa ke Google Drive. */
+  async function lihatFoto(idFile, tombol) {
+    const besar = $('#foto-besar'), img = besar.querySelector('img');
+    if (!fotoRiwayat[idFile]) {
+      const label = tombol.textContent;
+      tombol.disabled = true;
+      tombol.textContent = 'Memuat foto…';
+      try {
+        fotoRiwayat[idFile] = (await api({ aksi: 'fotoFile', foto: idFile })).foto;
+      } catch (e) {
+        if (!e.sesi) kabar(e.message);
+        return;
+      } finally {
+        tombol.disabled = false;
+        tombol.textContent = label;
+      }
+    }
+    img.src = fotoRiwayat[idFile];
+    besar.hidden = false;
+  }
+
   async function bukaRiwayat(r) {
     const kotak = $('#dialog');
     const isi = daftarRiwayat => `
@@ -559,16 +583,25 @@
               <div class="lm-isi">
                 <div class="lm-kepala"><b>${esc(x.peristiwa)}</b><small>${esc(tanggal(x.t))}${x.oleh ? ' · oleh ' + esc(x.oleh) : ''}</small></div>
                 ${rincian(x)}
-                ${x.link ? `<a class="lm-bukti" href="${esc(x.link)}" target="_blank" rel="noopener">🖼 Lihat bukti transfer</a>` : ''}
+                ${idFoto(x.link) ? `<button type="button" class="lm-bukti" data-foto="${esc(idFoto(x.link))}">🖼 Lihat bukti transfer</button>` : ''}
               </div>
             </li>`).join('')}</ol>`}
       </div>`;
     kotak.innerHTML = isi(null);
     kotak.hidden = false;
     const tutup = () => { kotak.hidden = true; kotak.onclick = null; document.removeEventListener('keydown', esc_); };
-    const esc_ = e => { if (e.key === 'Escape') tutup(); };
+    const esc_ = e => {
+      if (e.key !== 'Escape') return;
+      if (!$('#foto-besar').hidden) $('#foto-besar').hidden = true;
+      else tutup();
+    };
     document.addEventListener('keydown', esc_);
-    kotak.onclick = e => { e.stopPropagation(); if (e.target === kotak || e.target.closest('[data-tutup]')) tutup(); };
+    kotak.onclick = e => {
+      e.stopPropagation();
+      const f = e.target.closest('[data-foto]');
+      if (f) return lihatFoto(f.dataset.foto, f);
+      if (e.target === kotak || e.target.closest('[data-tutup]')) tutup();
+    };
     try {
       const j = await api({ aksi: 'riwayat', id: r.id });
       if (!kotak.hidden) kotak.innerHTML = isi(j.riwayat || []);
