@@ -2234,8 +2234,10 @@ body.samar #view .harga-ubah, body.samar .barang-harga b { filter: blur(7px); }
 .btn-arsip-catatan { flex: none; padding-left: 16px; padding-right: 16px; }
 
 /* ---------- Editor format catatan ---------- */
-.alat-format { position: sticky; top: calc(env(safe-area-inset-top) + 4px); z-index: 2; display: flex; align-items: center; gap: 2px;
-  margin: 4px 0 10px; padding: 4px; border-radius: 14px; background: var(--card-2); overflow-x: auto; scrollbar-width: none; }
+/* Menempel tepat di bawah judul form catatan (.kepala-form-catatan, tinggi 64px & ikut menempel) saat digulir. */
+.alat-format { position: sticky; top: 64px; z-index: 2; display: flex; align-items: center; gap: 2px;
+  margin: 4px 0 10px; padding: 4px; border-radius: 14px; background: var(--card-2); overflow-x: auto; scrollbar-width: none;
+  box-shadow: 0 0 0 8px var(--bg); } /* bingkai warna latar: teks yang tergulir tidak mengintip di celah & sudut */
 .alat-format::-webkit-scrollbar { display: none; }
 .alat-format button { flex: none; display: grid; place-items: center; width: 40px; height: 38px; border-radius: 10px; color: var(--muted); }
 .alat-format button .ik { width: 19px; height: 19px; }
