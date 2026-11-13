@@ -1801,6 +1801,26 @@ async function segarkanStatusLisensi(tombol) {
   }
 }
 
+/**
+ * Layar Versi penuh baru dibuka: harga, rekening, QRIS, dan status diambil ulang dari bot di belakang layar, lalu
+ * layarnya digambar ulang kalau ada yang berubah (kecuali pembeli sudah memilih foto bukti).
+ */
+async function perbaruiFormBayar() {
+  if (DEMO.aktif() || !S.data || !S.data.lisensi) return;
+  try {
+    const l = await SERVER.segarkanLisensi();
+    if (!l) return;
+    const berubah = JSON.stringify(l) !== JSON.stringify(S.data.lisensi);
+    S.data.lisensi = l;
+    tulisLokal('data', S.data);
+    if (!berubah) return;
+    render();
+    if ($('#sheet').hidden || !$('#bukti-bayar') || buktiBayar) return;
+    if (l.aktif) { tutupSheet(); await muat(); return toast(T('Versi penuh aktif. Terima kasih! 🎉')); }
+    bukaFormBayar();
+  } catch (e) { /* tetap memakai data terakhir */ }
+}
+
 /** Mengirim bukti transfer yang dipilih di layar Beli versi penuh. */
 async function kirimBuktiBayar(tombol) {
   if (!buktiBayar) return toast(T('Pilih foto bukti transfernya dulu.'), true);

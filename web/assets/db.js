@@ -1911,7 +1911,7 @@ const SERVER = (() => {
   /**
    * Pengaturan penjualan dari bot (diatur pemilik di admin.html → Pengaturan penjualan, lihat jual_ di bot/Kode.gs):
    * { aturan: 'transaksi' | 'periode' | 'keduanya', batasTransaksi, batasPeriode, harga, rekening: [{ bank, nomor, atasNama, qris (punya QRIS?) }], qris (ada rekening ber-QRIS) }.
-   * Disimpan di HP & diperbarui paling sering sejam sekali; belum pernah termuat → isi config.js sebagai cadangan.
+   * Disimpan di HP & diperbarui paling lambat tiap 5 menit (langsung saat layar Versi penuh dibuka); belum pernah termuat → isi config.js sebagai cadangan.
    */
   let jualMem_ = null;
   const KUNCI_JUAL = 'dk_jual';
@@ -1934,7 +1934,7 @@ const SERVER = (() => {
     if (!BAYAR.urlBot) return jualTersimpan_();
     let simpan = null;
     try { simpan = JSON.parse(localStorage.getItem(KUNCI_JUAL)); } catch (e) { /* abaikan */ }
-    if (!paksa && simpan && jualSah_(simpan.j) && Date.now() - simpan.t < 36e5) return (jualMem_ = simpan.j);
+    if (!paksa && simpan && jualSah_(simpan.j) && Date.now() - simpan.t < 5 * 6e4) return (jualMem_ = simpan.j);
     try {
       const henti = new AbortController();
       const jeda = setTimeout(() => henti.abort(), 6000);

@@ -485,7 +485,6 @@ function bannerStatus() {
     catatanTertunda().length && { isi: T('📝 {n} catatan menunggu dikirim', { n: catatanTertunda().length }) },
     S.data && !S.data.perluSetup && S.bulan && ['beranda', 'riwayat'].includes(S.tab) && S.bulan !== periodeSekarang()
       && { isi: `${T('📅 Menampilkan {periode}, bukan periode sekarang.', { periode: esc(namaBulan(S.bulan)) })} <button type="button" data-aksi="bulan-ini">${T('Ke periode sekarang')}</button>` },
-    barisLisensi(),
     DEMO.aktif() && { kelas: 'demo', isi: `${T('👀 Mode coba · data contoh, hanya di HP ini')} <button type="button" data-aksi="demo-masuk">${T('Pakai sungguhan')}</button>` },
     tawaranPasang(),
   ].filter(Boolean);
@@ -515,26 +514,6 @@ function ketVersiPenuh(l) {
  */
 function tampilVersiPenuh(l) {
   return !!l && (l.selaluTampil !== false || l.habis || l.terkunci || l.aktif || !!l.permintaan);
-}
-
-/** Baris status: pencatatan terkunci, masa gratis hampir habis, atau status pengajuan aktivasi. */
-function barisLisensi() {
-  const l = S.data && S.data.lisensi;
-  if (!l || l.aktif || DEMO.aktif() || S.data.perluSetup) return null;
-  if (!l.terkunci && !(l.hampir && l.selaluTampil !== false) && l.permintaan !== 'ditolak' && l.permintaan !== 'menunggu') return null;
-  if (l.permintaan === 'ditolak') {
-    return { kelas: 'gagal', isi: `${T('❌ Bukti transfer ditolak penjual. Ketuk Lihat untuk alasannya.')} <button type="button" data-aksi="versi-penuh">${T('Lihat')}</button>` };
-  }
-  if (l.permintaan === 'menunggu') {
-    return { isi: `${T('⏳ Bukti transfer sedang dicek penjual. Versi penuh aktif sendiri setelah dikonfirmasi.')} <button type="button" data-aksi="versi-penuh">${T('Lihat')}</button>` };
-  }
-  const tombol = `<button type="button" data-aksi="versi-penuh">${T('Beli versi penuh')}</button>`;
-  if (l.terkunci) {
-    return { kelas: 'gagal', isi: `${l.permintaan === 'nonaktif' ? T('⛔ Versi penuh dinonaktifkan penjual. Data tetap bisa dilihat.')
-      : T('🔒 Masa gratis sudah habis. Data tetap bisa dilihat.')} ${tombol}` };
-  }
-  const sisaTrx = l.aturan !== 'periode' && l.batas - l.terpakai <= 50;
-  return { isi: `${sisaTrx ? T('⏳ Sisa {n} transaksi gratis.', { n: l.batas - l.terpakai }) : T('⏳ Ini periode gratis terakhir.')} ${tombol}` };
 }
 
 /**

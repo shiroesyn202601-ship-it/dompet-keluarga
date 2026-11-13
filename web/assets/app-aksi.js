@@ -135,7 +135,7 @@ const AKSI = {
   },
   'f-pilih-jumlah': el => { bacaFieldTrx(); F.jumlah = Number(el.dataset.jumlah); renderFormTrx(); },
   'gemini': () => bukaFormGemini(),
-  'versi-penuh': () => bukaFormBayar(),
+  'versi-penuh': () => { bukaFormBayar(); perbaruiFormBayar(); },
   'kirim-bukti': el => kirimBuktiBayar(el),
   'segarkan-lisensi': el => segarkanStatusLisensi(el),
   'salin-rekening': async el => {
