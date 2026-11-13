@@ -94,7 +94,7 @@
         ${dibalas ? `<div class="mk-balasan">
             ${m.emoji ? `<span class="mk-emoji" role="img" aria-label="Reaksi admin">${esc(m.emoji)}</span>` : ''}
             <div><b>Admin</b>${m.balasan ? `<p>${esc(m.balasan)}</p>` : ''}<time>${esc(waktu(m.dibalas))}</time></div>
-          </div>` : '<div class="mk-tunggu">Menunggu balasan admin</div>'}
+          </div>` : ''}
       </article>`;
     }).join('');
   }
