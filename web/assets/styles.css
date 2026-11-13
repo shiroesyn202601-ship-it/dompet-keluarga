@@ -2106,6 +2106,8 @@ body.samar .cb-alasan, body.samar .cb-vonis small { filter: blur(6px); }
   :root:not([data-tampilan="hp"]) body[data-tab="sholat"] #view { max-width: 640px; }
   :root:not([data-tampilan="hp"]) body:not(:has(> #nav:not([hidden]))) #view { max-width: 560px; } /* layar masuk & setup: tetap ringkas di tengah */
   :root:not([data-tampilan="hp"]) body.tanpa-nav #view { padding-bottom: 64px; }
+  /* Form catatan: sisakan ruang setinggi bilah bawah (opsi + Simpan) supaya baris terakhir bisa digulir ke atasnya. */
+  :root:not([data-tampilan="hp"]) body.tanpa-nav #view:has(.bilah-catatan) { padding-bottom: 180px; }
 
   /* Dua kolom: kartu mengalir atas-ke-bawah di kolom kiri lalu kanan, judul bagian tidak dipisah dari kartunya. */
   :root:not([data-tampilan="hp"]) body:has(> #nav:not([hidden])):is([data-tab="beranda"], [data-tab="dompet"], [data-tab="laporan"], [data-tab="lainnya"]) #view {
