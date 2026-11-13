@@ -22,7 +22,8 @@
     return m ? Number(m[3]) + ' ' + BULAN[Number(m[2]) - 1] + ' ' + m[1] + ' · ' + m[4] : String(t || '');
   };
 
-  let st = { jenis: '', pesan: '', daftar: null, galat: '', memuat: false, mengirim: false, perluMasuk: false };
+  // bukaForm / bukaPesan: kedua bagian tertutup sampai diketuk.
+  let st = { jenis: '', pesan: '', daftar: null, galat: '', memuat: false, mengirim: false, perluMasuk: false, bukaForm: false, bukaPesan: false, terkirim: false };
 
   async function api(isi) {
     const token = GOOGLE.token();
@@ -36,23 +37,24 @@
     return j;
   }
 
+  /** Baris judul yang bisa dibuka-tutup. */
+  const kepalaLipat = (aksi, buka, ikon, judul, ket) => `
+    <button type="button" class="mk-kepala" data-mk="${aksi}" aria-expanded="${buka}">
+      <i aria-hidden="true">${ikon}</i><span><b>${judul}</b><small>${ket}</small></span>
+      <svg class="mk-panah" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+    </button>`;
+
   function render() {
     const email = GOOGLE.email && GOOGLE.email();
     const masuk = GOOGLE.sudahMasuk() && !st.perluMasuk;
-    if (!URL_BOT) { kotak.innerHTML = '<p class="mk-ket">Kotak masukan belum tersedia.</p>'; return; }
-    if (!masuk) {
-      kotak.innerHTML = `
+    if (!URL_BOT) { kotak.innerHTML = '<p class="mk-ket" style="padding:14px 0">Kotak masukan belum tersedia.</p>'; return; }
+    const sisa = 2000 - st.pesan.length;
+    const isiForm = !masuk ? `
         <div class="mk-masuk">
-          <span class="mk-ikon" aria-hidden="true">💬</span>
-          <b>Kirim laporan masalah, kritik, atau saran</b>
-          <p>Masuk dengan akun Google dulu supaya admin tahu pesan ini dari siapa dan bisa membalasnya. Balasan admin tampil di sini.</p>
+          <p>Masuk dengan akun Google dulu supaya admin tahu pesan ini dari siapa dan bisa membalasnya.</p>
           <button type="button" class="mk-btn" data-mk="masuk">${email ? 'Masuk lagi sebagai ' + esc(email) : 'Masuk dengan Google'}</button>
           ${st.galat ? `<p class="mk-galat" role="alert">${esc(st.galat)}</p>` : ''}
-        </div>`;
-      return;
-    }
-    const sisa = 2000 - st.pesan.length;
-    kotak.innerHTML = `
+        </div>` : `
       <form class="mk-form" novalidate>
         <div class="mk-akun">Dikirim sebagai <b>${esc(email)}</b></div>
         <div class="mk-jenis" role="radiogroup" aria-label="Jenis masukan">
@@ -67,12 +69,22 @@
         </div>
         ${st.galat ? `<p class="mk-galat" role="alert">${esc(st.galat)}</p>` : ''}
         <button type="submit" class="mk-btn" ${st.mengirim ? 'disabled' : ''}>${st.mengirim ? '<span class="mk-putar" aria-hidden="true"></span>Mengirim…' : 'Kirim'}</button>
-      </form>
-      <div class="mk-riwayat">
-        <h3>Pesan Anda ${st.memuat ? '<span class="mk-putar" aria-label="Memuat"></span>' : ''}</h3>
-        ${daftarHtml()}
-      </div>`;
+      </form>`;
+    const n = (st.daftar || []).length, dibalas = (st.daftar || []).filter(m => m.emoji || m.balasan).length;
+    const ketPesan = st.daftar === null ? 'Memuat…' : n + ' pesan' + (dibalas ? ' · ' + dibalas + ' dibalas admin' : '');
+    const adaPesan = masuk && (st.daftar === null ? st.memuat : n > 0);
+    kotak.innerHTML = `
+      <div class="mk-lipat ${st.bukaForm ? 'buka' : ''}">
+        ${kepalaLipat('buka-form', st.bukaForm, '✍️', 'Kirim masukan', 'Laporan masalah, kritik, atau saran')}
+        ${st.bukaForm ? `<div class="mk-badan">${isiForm}</div>` : ''}
+        ${st.terkirim && !st.bukaForm ? '<p class="mk-terkirim" role="status">Terkirim. Terima kasih! Lihat balasan admin nanti di <b>Pesan Anda</b>.</p>' : ''}
+      </div>
+      ${adaPesan ? `<div class="mk-lipat ${st.bukaPesan ? 'buka' : ''}">
+        ${kepalaLipat('buka-pesan', st.bukaPesan, '📨', 'Pesan Anda', ketPesan)}
+        ${st.bukaPesan ? `<div class="mk-badan">${daftarHtml()}</div>` : ''}
+      </div>` : ''}`;
     const ta = kotak.querySelector('#mk-pesan');
+    if (!ta) return;
     ta.oninput = () => {
       st.pesan = ta.value;
       const s = kotak.querySelector('#mk-sisa');
@@ -124,13 +136,10 @@
       st.pesan = '';
       st.jenis = '';
       st.mengirim = false;
+      st.bukaForm = false;
+      st.terkirim = true;
       render();
-      const k = document.createElement('p');
-      k.className = 'mk-terkirim';
-      k.setAttribute('role', 'status');
-      k.textContent = 'Terkirim. Terima kasih! Balasan admin akan tampil di bawah.';
-      kotak.querySelector('form').after(k);
-      setTimeout(() => k.remove(), 5000);
+      setTimeout(() => { st.terkirim = false; render(); }, 6000);
     } catch (e) {
       st.mengirim = false;
       if (e.message) st.galat = e.message;
@@ -142,6 +151,8 @@
     const el = e.target.closest('[data-mk]');
     if (!el) return;
     const aksi = el.dataset.mk;
+    if (aksi === 'buka-form') { st.bukaForm = !st.bukaForm; st.terkirim = false; return render(); }
+    if (aksi === 'buka-pesan') { st.bukaPesan = !st.bukaPesan; return render(); }
     if (aksi === 'jenis') {
       st.jenis = el.dataset.jenis;
       st.galat = '';

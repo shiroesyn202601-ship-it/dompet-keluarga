@@ -76,8 +76,19 @@
       a { color: var(--primary); font-weight: 600; }
 
       /* Kotak masukan (web/assets/masukan.js) */
-      .kotak-masukan { border-radius: 20px; background: var(--card); border: 1px solid var(--line); padding: 16px; }
-      .mk-masuk { display: grid; justify-items: center; text-align: center; gap: 6px; padding: 10px 4px; }
+      .kotak-masukan { border-radius: 20px; background: var(--card); border: 1px solid var(--line); padding: 0 16px; }
+      .mk-lipat + .mk-lipat { border-top: 1px solid var(--line); }
+      .mk-kepala { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+      .mk-kepala > i { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; background: var(--card-2); font-style: normal; font-size: 17px; }
+      .mk-kepala > span { flex: 1; min-width: 0; }
+      .mk-kepala b { display: block; font-size: 14.5px; font-weight: 700; }
+      .mk-kepala small { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
+      .mk-panah { flex: none; width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+      .mk-lipat.buka .mk-panah { transform: rotate(90deg); }
+      .mk-badan { padding: 0 0 16px; animation: mk-muncul .2s ease-out; }
+      @keyframes mk-muncul { from { opacity: 0; transform: translateY(-4px); } }
+      .mk-lipat > .mk-terkirim { margin: 0 0 14px; }
+      .mk-masuk { display: grid; justify-items: center; text-align: center; gap: 6px; padding: 4px 4px 0; }
       .mk-masuk .mk-ikon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 16px; background: var(--primary-soft); font-size: 22px; margin-bottom: 4px; }
       .mk-masuk b { font-size: 15.5px; }
       .mk-masuk p { margin: 0 0 8px; font-size: 13.5px; line-height: 1.55; color: var(--muted); max-width: 46ch; }
@@ -102,8 +113,6 @@
       .mk-sisa.hampir { color: #d6453d; font-weight: 700; }
       .mk-galat { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, #ef4444 14%, var(--card)); color: var(--text); font-size: 13px; }
       .mk-terkirim { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, #22c55e 16%, var(--card)); font-size: 13px; font-weight: 600; }
-      .mk-riwayat { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
-      .mk-riwayat h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; font-weight: 800; }
       .mk-kosong { margin: 0; font-size: 13px; color: var(--muted); }
       .mk-item { padding: 12px 14px; border-radius: 16px; background: var(--card-2); margin-bottom: 10px; }
       .mk-item:last-child { margin-bottom: 0; }
