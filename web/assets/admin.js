@@ -539,9 +539,12 @@
   const WARNA_PERISTIWA = p => (/^Diaktifkan/.test(p) ? STATUS.aktif.warna : /^Ditolak/.test(p) ? STATUS.ditolak.warna
     : /^Dinonaktifkan/.test(p) ? STATUS.nonaktif.warna : /^Bukti/.test(p) ? STATUS.menunggu.warna : 'var(--muted)');
 
+  // Rincian harga/aturan/rekening & foto hanya di kejadian kirim bukti; keputusan (aktif/tolak/nonaktif) cukup alasannya.
+  const kirimBukti = x => /^Bukti/.test(x.peristiwa);
   const rincian = x => {
+    if (!kirimBukti(x)) return x.alasan ? '<div class="lm-alasan">' + esc(x.alasan) + '</div>' : '';
     const baris = [x.harga && ['Harga', '<b>' + rupiah(x.harga) + '</b>'], x.aturan && ['Masa gratis', esc(x.aturan)],
-      x.rekening && ['Rekening', esc(x.rekening)], x.alasan && ['Alasan', esc(x.alasan)]].filter(Boolean);
+      x.rekening && ['Rekening', esc(x.rekening)]].filter(Boolean);
     return baris.length ? '<dl>' + baris.map(([k, v]) => '<dt>' + k + '</dt><dd>' + v + '</dd>').join('') + '</dl>' : '';
   };
 
@@ -583,7 +586,7 @@
               <div class="lm-isi">
                 <div class="lm-kepala"><b>${esc(x.peristiwa)}</b><small>${esc(tanggal(x.t))}${x.oleh ? ' · oleh ' + esc(x.oleh) : ''}</small></div>
                 ${rincian(x)}
-                ${idFoto(x.link) ? `<button type="button" class="lm-bukti" data-foto="${esc(idFoto(x.link))}">🖼 Lihat bukti transfer</button>` : ''}
+                ${kirimBukti(x) && idFoto(x.link) ? `<button type="button" class="lm-bukti" data-foto="${esc(idFoto(x.link))}">🖼 Lihat bukti transfer</button>` : ''}
               </div>
             </li>`).join('')}</ol>`}
       </div>`;
