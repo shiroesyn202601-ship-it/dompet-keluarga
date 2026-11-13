@@ -679,5 +679,14 @@ const DEMO = (() => {
     pasang();
   }
 
-  return { aktif: () => nyala, mulai, selesai };
+  /**
+   * Data contoh mode coba sebagai baris per sheet ({ Transaksi: [[…], …], Kategori, Dompet, Pengaturan, Rutin, Catatan, Log },
+   * tanpa baris judul). Dipakai untuk mengisi buku sungguhan dengan data demo (lihat docs/PEMILIK.md → Mengisi buku dengan data demo).
+   */
+  function contoh() {
+    const ss = Object.values(buatContoh().ss)[0];
+    return Object.fromEntries(ss.sheets.map(s => [s.title, s.rows.slice(1)]));
+  }
+
+  return { aktif: () => nyala, mulai, selesai, contoh, EMAIL, EMAIL_PASANGAN };
 })();

@@ -211,6 +211,8 @@ Gratis sampai **450 baris di sheet Transaksi** per buku keuangan. Setelah itu pe
 - **Uji asap** (dijalankan otomatis sebelum deploy): `npm i --no-save playwright@1.47.2 && npx playwright install chromium && node .github/uji-asap.js`. Membuka mode coba, semua tab dan dialog utama, dalam dua bahasa; gagal kalau ada error JavaScript. Di komputer yang sudah punya Edge/Chrome cukup `playwright-core` dengan `UJI_CHANNEL=msedge`. Menambah dialog penting baru → tambahkan nama fungsinya ke `DIALOG` di skrip itu.
 - **Laporan error dari HP pengguna:** error JavaScript yang tidak tertangani dicatat ke sheet **Log** spreadsheet keluarga itu dengan Aksi `galat` (pesan, file:baris, halaman, versi, perangkat). Maksimal 5 per sesi; tidak dikirim di mode coba atau saat offline; tidak tampil di Aktivitas keluarga. Saat ada keluhan, minta pengguna membuka spreadsheet-nya dan memfilter kolom Aksi = `galat`.
 
+**Mengisi buku dengan data demo:** untuk uji coba / presentasi di akun sungguhan, jalankan [docs/isi-data-demo.js](isi-data-demo.js) di Console (F12) aplikasi saat buku yang mau diisi sedang terbuka. Isinya sama dengan mode coba (transaksi 3 bulan sampai total 450, kategori, dompet, tabungan, piutang, emas, tagihan rutin, catatan, tantangan) dan ditambahkan tanpa menghapus data lama; aman dijalankan ulang.
+
 ## Struktur data (spreadsheet)
 
 - **Transaksi:** ID, Tanggal, Tipe (Pemasukan/Pengeluaran/Transfer), Jumlah, Kategori, Dompet, Dompet Tujuan, Catatan, Dibuat Oleh, Dibuat Pada, Diubah Pada, Lampiran (ID file foto di Drive)
