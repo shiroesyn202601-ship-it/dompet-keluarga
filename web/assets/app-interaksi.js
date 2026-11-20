@@ -1485,7 +1485,9 @@ function rapikanHasilAi(r) {
     dompet: ada(tipe === TIPE.TRANSFER ? dompetTransfer() : dompetBiasa(), r.dompet),
     dompetTujuan: tipe === TIPE.TRANSFER ? ada(dompetTransfer(), r.dompetTujuan) : '',
     tanggal: tanggalOk ? r.tanggal : '',
-    catatan: String(r.catatan || '').trim().slice(0, 100),
+    // Pengaman: nominal yang ikut masuk catatan ("Bakso Rp25.000" / "Bakso Rp") dibuang, jumlah sudah terisi sendiri.
+    catatan: String(r.catatan || '').replace(/(^|\s)(?:rp\.?|idr)\s*[\d.,]*(?=\s|$)|(^|\s)rupiah(?=\s|$)/gi, ' ')
+      .replace(/\s+/g, ' ').trim().replace(/^./, h => h.toUpperCase()).slice(0, 100),
   };
 }
 
