@@ -2241,7 +2241,7 @@ const SERVER = (() => {
       'Hari ini ' + hari + ' (' + konteks.hariIni + ').',
       'Aturan:',
       '- tipe: "Pengeluaran", "Pemasukan", atau "Transfer" (memindahkan uang antar dompet sendiri, termasuk setor/tarik tabungan, top up e-wallet, tarik tunai).',
-      '- jumlah: rupiah, bilangan bulat tanpa titik. "dua puluh lima ribu"=25000, "1,5 juta"/"satu setengah juta"=1500000, "sejuta"=1000000,',
+      '- jumlah: rupiah, bilangan bulat tanpa titik. Akhiran k/rb setelah angka = ribuan: "45k"/"45K"/"45rb"=45000, "2k"=2000. "dua puluh lima ribu"=25000,"1,5 juta"/"satu setengah juta"=1500000, "sejuta"=1000000,',
       '  gopek=500, seceng=1000, goceng=5000, ceban=10000, gocap=50000, cepek=100000. Isi 0 kalau tidak disebut.',
       '- kategori: salin persis salah satu dari daftar sesuai tipe. Kosongkan untuk Transfer atau kalau tidak cocok.',
       '- dompet: salin persis dari daftar dompet. Pengeluaran = dompet pembayar, Pemasukan = dompet penerima, Transfer = dompet asal. Kosongkan kalau tidak disebut.',

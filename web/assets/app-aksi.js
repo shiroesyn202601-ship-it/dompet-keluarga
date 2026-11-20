@@ -1110,7 +1110,9 @@ Object.assign(AKSI, {
 document.addEventListener('input', e => {
   if (e.target.type === 'date') perbaruiHari(e.target);
   if (['f-jumlah', 'd-saldo', 'd-target'].includes(e.target.id) || e.target.classList.contains('input-rp')) {
-    e.target.value = formatAngka(angka(e.target.value));
+    // Akhiran k = ribuan, seperti saat chat: ketik "45k" → 45.000, "2k" → 2.000.
+    const ribuan = /\d\s*k$/i.test(e.target.value);
+    e.target.value = formatAngka(angka(e.target.value) * (ribuan ? 1000 : 1));
     if (e.target.classList.contains('input-anggaran')) hitungTotalAnggaran();
   }
   if (e.target.id === 'cari') {

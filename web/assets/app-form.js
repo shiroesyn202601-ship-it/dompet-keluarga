@@ -694,8 +694,10 @@ function bacaKetikCepat(teks) {
   const en = BAHASA === 'en';
   // Angka pertama yang bersatuan (rb/jt) atau ≥ 100; "nasi 2 bungkus 30rb" → 30.000, bukan 2.
   // Bahasa Inggris menambah: 10m / 10 million (juta), 25 thousand (ribu). "M" tidak dipakai di bahasa Indonesia (= miliar).
-  const re = en ? /(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta|thousand|m|mn|mil|million)?(?=\s|$)/g
-    : /(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta)?(?=\s|$)/g;
+  // Pengenal suara sering menulis nominal sebagai "Rp25.000" / "25.000 rupiah": awalan & akhiran mata uang ikut diambil.
+  // Akhiran k = ribuan ("bensin 45K" → 45.000), boleh diikuti tanda baca ("bensin 45k, parkir 2k").
+  const re = en ? /(?:\b(?:rp|idr)\.?\s*)?(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta|thousand|m|mn|mil|million)?(?:\s*(?:rupiah|rp|idr))?(?=[\s,;!?]|\.(?!\d)|$)/g
+    : /(?:\b(?:rp|idr)\.?\s*)?(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta)?(?:\s*(?:rupiah|rp|idr))?(?=[\s,;!?]|\.(?!\d)|$)/g;
   let m = null;
   for (let x; (x = re.exec(sisa));) {
     let n = Number(x[1].replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.'));
@@ -719,7 +721,8 @@ function bacaKetikCepat(teks) {
   const cocok = sebutan.sort((a, b) => b.s.length - a.s.length).find(x => sisa.includes(' ' + x.s + ' '));
   const dompet = cocok ? cocok.w : null;
   if (cocok) sisa = sisa.replace(' ' + cocok.s + ' ', ' ');
-  sisa = sisa.replace(/\b(pakai|pake|pk|via|dari|ke|lewat|bayar)\b/g, ' ').replace(/\s+/g, ' ').trim();
+  sisa = sisa.replace(/(^|\s)(rp\.?|rupiah|idr)(?=\s|$)/g, ' ') // sisa mata uang yang tidak menempel ke angka
+    .replace(/\b(pakai|pake|pk|via|dari|ke|lewat|bayar)\b/g, ' ').replace(/\s+/g, ' ').trim();
   if (en) sisa = sisa.replace(/\b(with|using|paid|pay|by)\b/g, ' ').replace(/\s+/g, ' ').trim();
   const tipe = /\b(gaji|terima|dapat|bonus|thr|masuk|transferan)\b/.test(sisa)
     || (en && /\b(salary|wages?|paycheck|payroll|income|received|refund)\b/.test(sisa)) ? TIPE.MASUK : TIPE.KELUAR;
