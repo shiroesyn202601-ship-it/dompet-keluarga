@@ -784,7 +784,7 @@ function jalurCepat_(teks, d) {
   if (!catatan || catatan.split(' ').length > 4) return null;
   const kata = ' ' + kecil.replace(/[^a-z0-9 ]/g, ' ') + ' ';
   const grup = KATA_KATEGORI.filter(g => new RegExp('\\b(?:' + g[0].source + ')\\b').test(kata));
-  if (grup.length !== 1 || /gaji|bonus/.test(grup[0][1][0])) return null;
+  if (grup.length !== 1 || /gaji|bonus|usaha|investasi/.test(grup[0][1][0])) return null;
   const k = d.kategori.find(k => k.tipe === TIPE.KELUAR && grup[0][1].some(w => k.nama.toLowerCase().indexOf(w) >= 0));
   if (!k) return null;
   return { aksi: 'catat', tipe: TIPE.KELUAR, jumlah: nominal[0], kategori: k.nama, catatan };
@@ -1357,20 +1357,35 @@ function siapkanTransaksi_(d, x, pengguna) {
   return { tipe, jumlah, kategori, dompet: dompet.nama, dompetTujuan, tanggal, catatan: String(x.catatan || '').trim().slice(0, 500) };
 }
 
-/** Kata kunci → kata yang biasanya ada di nama kategori bawaan. */
+/**
+ * Daftar kata (dipisah |) → pola. Tiap kata harus di awal kata ("makan" cocok di "makanan"); kata pendek (≤ 4 huruf)
+ * juga harus utuh, supaya "tol" tidak cocok di "tolak angin" dan "les" tidak cocok di "lesehan".
+ */
+function polaKata_(kata) {
+  return new RegExp('\\b(?:' + kata.split('|').map(function (w) { return w.length <= 4 ? w + '\\b' : w; }).join('|') + ')');
+}
+
+/**
+ * Kata kunci → kata yang biasanya ada di nama kategori bawaan. SAMA dengan KATA_KATEGORI di web/assets/app-form.js
+ * (ubah keduanya). Urutan penting: grup pertama yang cocok menang, jadi yang lebih khusus di atas
+ * ("susu anak" → Anak sebelum "susu" → Belanja). Grup gaji/bonus/usaha/investasi hanya untuk Pemasukan.
+ */
 const KATA_KATEGORI = [
-  [/makan|minum|bakso|nasi|mie|kopi|jajan|resto|warung|sarapan|cemilan|snack|gofood|grabfood|shopeefood/, ['makan']],
-  [/bensin|parkir|ojek|ojol|grab|gojek|tol|bus|kereta|krl|angkot|taksi|servis motor|servis mobil/, ['transport']],
-  [/listrik|pln|pdam|air|internet|wifi|pulsa|kuota|token|bpjs|tagihan|cicilan/, ['tagihan']],
-  [/belanja|sayur|indomaret|alfamart|pasar|supermarket|sabun|beras|minyak|gas|galon/, ['belanja', 'rumah']],
-  [/obat|dokter|apotek|klinik|rumah sakit|vitamin/, ['kesehatan']],
-  [/sekolah|spp|buku|kursus|les|kuliah/, ['pendidikan']],
-  [/popok|pampers|susu anak|mainan|anak/, ['anak']],
-  [/film|nonton|netflix|spotify|game|liburan|wisata/, ['hiburan']],
-  [/baju|celana|sepatu|kaos|jaket|pakaian/, ['pakaian']],
-  [/sedekah|zakat|infaq|infak|kondangan|sumbangan|donasi/, ['sosial']],
-  [/gaji|upah|honor/, ['gaji']],
-  [/bonus|thr/, ['bonus']],
+  [polaKata_('popok|pampers|diaper|mamypoko|merries|sweety|susu anak|susu formula|sufor|mainan|uang saku|uang jajan anak|jajan anak|daycare|penitipan anak|bayi|baby|bubur bayi|mpasi|imunisasi'), ['anak']],
+  [polaKata_('obat|dokter|apotek|apotik|klinik|rumah sakit|rs|puskesmas|bidan|vitamin|suplemen|periksa|cek darah|cek lab|laboratorium|gigi|kacamata|optik|vaksin|masker|salep|paracetamol|panadol|bodrex|promag|tolak angin|antangin|minyak kayu putih|minyak angin|halodoc|terapi|pijat|urut|kesehatan'), ['kesehatan']],
+  [polaKata_('sekolah|spp|uang gedung|ukt|buku|kursus|les|bimbel|kuliah|semester|seminar|pelatihan|workshop|alat tulis|atk|pensil|pulpen|fotokopi|fotocopy|print|ngeprint|seragam|wisuda|ujian|study tour|ruangguru|udemy|pendidikan'), ['pendidikan']],
+  [polaKata_('makan|minum|sarapan|jajan|cemilan|camilan|snack|ngopi|kopi|teh|es teh|jus|boba|resto|restoran|rumah makan|warung|warteg|kantin|angkringan|lesehan|gofood|grabfood|shopeefood|bakso|nasi|nasgor|mie|mi ayam|indomie|soto|sate|ayam goreng|ayam geprek|ayam bakar|bebek|pecel|lele|gado|ketoprak|lontong|bubur|martabak|gorengan|roti|kue|donat|pizza|burger|kfc|mcd|mekdi|hokben|starbucks|kopi kenangan|janji jiwa|seblak|siomay|batagor|cilok|cimol|cireng|pempek|rendang|padang|dimsum|ramen|sushi|es krim|katering|catering|lauk|pentol|cilor|cimin|cilung|telur gulung|sempol|basreng|makaroni|keripik|kripik|kerupuk|krupuk|tahu bulat|tahu isi|tahu crispy|bakwan|risol|lumpia|pastel|cakwe|onde|klepon|cendol|es campur|es doger|es kelapa|kelapa muda|kebab|sosis bakar|corndog|takoyaki|bakpao|kerak telor|serabi|surabi|kwetiau|bihun|capcay|lalapan|penyetan|geprek|warmindo|burjo|nasi kucing|wedang|jamu|permen|coklat|cokelat|wafer|biskuit|chiki|ciki|air mineral'), ['makan']],
+  [polaKata_('bensin|pertalite|pertamax|solar|spbu|isi bensin|parkir|ojek|ojol|grab|gojek|maxim|tol|e-toll|e toll|etoll|flazz|busway|transjakarta|bus|kereta|krl|mrt|lrt|commuter|angkot|taksi|taxi|bluebird|damri|pesawat|tiket pesawat|tiket kereta|tiket bus|kapal|travel|bengkel|servis motor|servis mobil|service motor|service mobil|ganti oli|oli|tambal ban|ban|cuci motor|cuci mobil|stnk|pajak motor|pajak mobil|transport'), ['transport']],
+  [polaKata_('listrik|pln|token|pdam|tagihan air|bayar air|internet|wifi|indihome|biznet|first media|myrepublic|telkom|pulsa|kuota|paket data|bpjs|tagihan|cicilan|angsuran|kredit motor|kredit mobil|kpr|iuran|ipl|sewa rumah|kos|kost|kosan|kontrakan|asuransi|pbb|tv kabel|paylater|utilitas'), ['tagihan']],
+  [polaKata_('perabot|furnitur|furniture|kasur|lemari|kursi|meja|sapu|alat pel|ember|lampu|servis ac|service ac|kulkas|mesin cuci|tukang|renovasi|cat tembok|semen|keramik|laundry|londri|gaji art|gaji pembantu|art|pembantu|iuran sampah|sampah|satpam|keamanan|gas|elpiji|lpg|rumah tangga'), ['rumah']],
+  [polaKata_('belanja|sembako|sayur|sayuran|buah|indomaret|alfamart|alfamidi|superindo|hypermart|transmart|lotte|giant|hero|pasar|supermarket|minimarket|swalayan|sabun|sampo|shampo|odol|pasta gigi|sikat gigi|deterjen|detergen|rinso|pewangi|beras|minyak goreng|minyak|gula|garam|telur|telor|tepung|daging|ikan|tahu|tempe|bumbu|kecap|saus|susu|galon|aqua|tisu|tissue|pembalut|popok dewasa'), ['belanja', 'rumah']],
+  [polaKata_('film|nonton|bioskop|xxi|cgv|netflix|spotify|youtube premium|disney|vidio|viu|game|top up game|diamond|voucher game|liburan|wisata|rekreasi|hotel|villa|staycation|karaoke|konser|renang|gym|fitness|hobi|mancing|main|jalan jalan|hiburan'), ['hiburan']],
+  [polaKata_('baju|celana|sepatu|sandal|sendal|kaos|kaus|jaket|kemeja|rok|gamis|daster|piyama|jilbab|kerudung|hijab|mukena|sarung|batik|jas|tas|ikat pinggang|pakaian|jahit|permak'), ['pakaian']],
+  [polaKata_('sedekah|zakat|fitrah|infaq|infak|wakaf|kurban|qurban|kondangan|nikahan|sumbangan|donasi|amal|kado|hadiah|angpao|angpau|takziah|melayat|kolekte|perpuluhan|persembahan|arisan|sosial'), ['sosial']],
+  [polaKata_('gaji|gajian|upah|honor|honorarium|lembur'), ['gaji']],
+  [polaKata_('bonus|thr|insentif|komisi|tunjangan'), ['bonus']],
+  [polaKata_('jualan|jual|penjualan|dagangan|omzet|omset|laku|orderan|pesanan|usaha|untung|laba'), ['usaha']],
+  [polaKata_('dividen|deposito|bunga bank|bunga deposito|reksadana|reksa dana|saham|obligasi|kupon|sukuk|investasi|imbal hasil'), ['investasi']],
 ];
 
 /** Mencari kategori yang paling cocok dari nama (hasil AI) atau catatannya; null kalau tidak ada. */
