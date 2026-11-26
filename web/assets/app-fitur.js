@@ -364,21 +364,99 @@ function htmlKalenderRiwayat(trx) {
       <section class="kartu daftar-hari-kal" style="padding:4px 16px">${daftarHari.length ? daftarHari.map(itemTrx).join('') : kosong('🌤️', T('Tidak ada transaksi di hari ini.'))}</section>` : ''}`;
 }
 
-// Geser kiri/kanan di kalender Riwayat = periode berikutnya/sebelumnya (sama dengan tombol ‹ › di kepala halaman,
-// dan sama seperti kalender Catatan). Dipasang di document karena kalender dibuat ulang tiap render.
-const geserKalRiwayat = { x: null, y: 0 };
+// Geser kiri/kanan di kalender Riwayat = periode berikutnya/sebelumnya (sama dengan tombol ‹ › di kepala halaman).
+// Saat kalender ditekan-tahan atau mulai digeser, muncul petunjuk di tepi kiri/kanan layar berisi nama periode
+// tujuan; kalender ikut tertarik jari, dan petunjuk tujuan menyala (+ getar) begitu geseran cukup untuk pindah.
+// Dipasang di document karena kalender dibuat ulang tiap render.
+const AMBANG_GESER_KAL = 60;
+const geserKal = { x: null, y: 0, kartu: null, aktif: false, tampil: false, lewat: 0, timer: 0 };
+
+function labelGeserBulan(n) {
+  const d = keTanggal(S.bulan);
+  d.setMonth(d.getMonth() + n);
+  const k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  return (S.data.mulaiPeriode || 1) > 1 ? namaBulan(k) : keTanggal(k).toLocaleDateString(LOKAL, { month: 'short', year: 'numeric' });
+}
+
+function tampilPetunjukGeserKal() {
+  if (geserKal.tampil || !geserKal.kartu) return;
+  geserKal.tampil = true;
+  const r = geserKal.kartu.getBoundingClientRect();
+  const atas = Math.max(90, Math.min(innerHeight - 140, r.top + r.height / 2));
+  // Kiri = periode sebelumnya (didapat dengan menggeser ke kanan), kanan = periode berikutnya.
+  [[-1, 'kiri', 'kembali'], [1, 'kanan', 'maju']].forEach(([n, sisi, ikon]) => {
+    const el = document.createElement('div');
+    el.className = 'petunjuk-geser-kal ' + sisi;
+    el.dataset.n = n;
+    el.style.top = atas + 'px';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = `${svg(ikon)}<span>${esc(labelGeserBulan(n))}</span>`;
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('muncul'));
+  });
+}
+
+function aturGeserKal(dx) {
+  const grid = geserKal.kartu && geserKal.kartu.querySelector('.kal-grid');
+  if (grid) {
+    grid.classList.add('ditarik');
+    grid.style.transform = `translateX(${Math.max(-70, Math.min(70, dx * 0.4))}px)`;
+  }
+  const n = dx < 0 ? 1 : -1;
+  const lewat = Math.abs(dx) > AMBANG_GESER_KAL ? n : 0;
+  document.querySelectorAll('.petunjuk-geser-kal').forEach(el => {
+    const ini = Number(el.dataset.n) === n && Math.abs(dx) > 10;
+    el.classList.toggle('dekat', ini);
+    el.classList.toggle('siap', ini && !!lewat);
+    el.style.setProperty('--tarik', ini ? Math.min(1, Math.abs(dx) / AMBANG_GESER_KAL) : 0);
+  });
+  if (lewat && lewat !== geserKal.lewat && navigator.vibrate) navigator.vibrate(12);
+  geserKal.lewat = lewat;
+}
+
+/** pindah: true = periode ganti (kalender dibiarkan tergeser sampai digambar ulang). */
+function selesaiGeserKal(pindah) {
+  clearTimeout(geserKal.timer);
+  document.querySelectorAll('.petunjuk-geser-kal').forEach(el => {
+    el.classList.add('hilang');
+    setTimeout(() => el.remove(), 200);
+  });
+  const grid = geserKal.kartu && geserKal.kartu.querySelector('.kal-grid');
+  if (grid) {
+    grid.classList.remove('ditarik');
+    if (pindah) { grid.style.transform = `translateX(${geserKal.lewat > 0 ? -40 : 40}px)`; grid.style.opacity = '.3'; }
+    else grid.style.transform = '';
+  }
+  Object.assign(geserKal, { x: null, kartu: null, aktif: false, tampil: false, lewat: 0 });
+}
+
 document.addEventListener('touchstart', e => {
-  const di = e.touches.length === 1 && e.target.closest && e.target.closest('.kalender-riwayat');
-  geserKalRiwayat.x = di ? e.touches[0].clientX : null;
-  if (di) geserKalRiwayat.y = e.touches[0].clientY;
+  if (geserKal.x != null) selesaiGeserKal(false);
+  const kartu = e.touches.length === 1 && e.target.closest && e.target.closest('.kalender-riwayat');
+  if (!kartu || S.tab !== 'riwayat') return;
+  Object.assign(geserKal, { x: e.touches[0].clientX, y: e.touches[0].clientY, kartu });
+  geserKal.timer = setTimeout(tampilPetunjukGeserKal, 250); // tekan-tahan: petunjuk muncul walau belum digeser
 }, { passive: true });
-document.addEventListener('touchend', e => {
-  if (geserKalRiwayat.x == null) return;
-  const dx = e.changedTouches[0].clientX - geserKalRiwayat.x, dy = e.changedTouches[0].clientY - geserKalRiwayat.y;
-  geserKalRiwayat.x = null;
-  if (S.tab !== 'riwayat' || !$('.kalender-riwayat') || Math.abs(dx) <= 60 || Math.abs(dy) >= 50) return;
-  AKSI.bulan({ dataset: { geser: dx < 0 ? 1 : -1 } });
+document.addEventListener('touchmove', e => {
+  if (geserKal.x == null) return;
+  const dx = e.touches[0].clientX - geserKal.x, dy = e.touches[0].clientY - geserKal.y;
+  if (!geserKal.aktif) {
+    if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) return selesaiGeserKal(false); // sedang menggulir halaman
+    if (Math.abs(dx) <= 10) return;
+    geserKal.aktif = true;
+    if (tarik.awal != null) { tarik.awal = null; tarik.jarak = 0; aturIndikatorTarik(); } // bukan tarik-untuk-memperbarui
+    clearTimeout(geserKal.timer);
+    tampilPetunjukGeserKal();
+  }
+  aturGeserKal(dx);
 }, { passive: true });
+document.addEventListener('touchend', () => {
+  if (geserKal.x == null) return;
+  const n = geserKal.aktif ? geserKal.lewat : 0;
+  selesaiGeserKal(!!n);
+  if (n) AKSI.bulan({ dataset: { geser: n } });
+}, { passive: true });
+document.addEventListener('touchcancel', () => { if (geserKal.x != null) selesaiGeserKal(false); }, { passive: true });
 
 // ---------- 8. Perbandingan dengan periode lalu di hari yang sama ----------
 
