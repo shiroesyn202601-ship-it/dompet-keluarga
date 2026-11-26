@@ -586,7 +586,8 @@ function angkaDariKata(teks) {
 
 /**
  * Tanggal dari ucapan/ketikan → { tanggal 'yyyy-mm-dd', sisa (kalimat tanpa kata tanggal) }. Contoh:
- * "kemarin", "kemarin lusa", "3 hari lalu", "2 minggu lalu", "sebulan yang lalu", "Sabtu minggu lalu" (minggu = Senin–Minggu sebelumnya),
+ * "kemarin", "kemarin lusa", "3 hari lalu", "minggu lalu" (7 hari lalu; "hari Minggu lalu" = hari Minggu),
+ * "2 minggu lalu", "sebulan yang lalu", "Sabtu minggu lalu" (minggu = Senin–Minggu sebelumnya),
  * "Sabtu lalu" / "Sabtu kemarin" (Sabtu terakhir sebelum hari ini), "tanggal 1", "tanggal 1 bulan kemarin",
  * "tanggal 17 Agustus". tanggal kosong kalau tidak ada kata tanggal.
  */
@@ -635,8 +636,11 @@ function bacaTanggalLisan(teks) {
   });
   coba(/\b(kemarin|kemaren)\s+lusa\b|\blusa\s+(kemarin|kemaren)\b/i, () => geser(-2));
   coba(/\b(\d{1,2})\s+hari\s+(yang\s+)?(lalu|kemarin|sebelumnya)\b/i, m => (Number(m[1]) <= 60 ? geser(-Number(m[1])) : ''));
-  // "2 minggu lalu" / "seminggu yang lalu" / "sepekan lalu": mundur 7 hari per minggu. Harus sebelum "Minggu lalu" (hari).
-  coba(/\b(?:(\d{1,2})\s+(?:minggu|pekan)|seminggu|sepekan)\s+(?:yang\s+)?(?:lalu|kemarin|kemaren|sebelumnya)\b/i, m => {
+  // "hari Minggu lalu" (dengan kata "hari") = hari Minggu terakhir sebelum hari ini.
+  coba(/\bhari\s+minggu\s+(lalu|kemarin|kemaren)\b/i, () => geser(-(idxHari + 1)));
+  // "minggu lalu" / "2 minggu lalu" / "seminggu yang lalu" / "sepekan lalu": mundur 7 hari per minggu.
+  // Harus sesudah "Selasa minggu lalu" dan sebelum "Sabtu lalu" (yang juga mengenali "Minggu" sebagai nama hari).
+  coba(/\b(?:(\d{1,2})\s+(?:minggu|pekan)|seminggu|sepekan|minggu|pekan)\s+(?:yang\s+)?(?:lalu|kemarin|kemaren|sebelumnya)\b/i, m => {
     const n = m[1] ? Number(m[1]) : 1;
     return n >= 1 && n <= 8 ? geser(-7 * n) : '';
   });
@@ -688,6 +692,7 @@ function bacaTanggalInggris(coba, { kini, iso, geser, idxHari }) {
   });
   coba(/\b(the\s+)?day\s+before\s+yesterday\b/i, () => geser(-2));
   coba(/\b(\d{1,2})\s+days?\s+ago\b/i, m => (Number(m[1]) <= 60 ? geser(-Number(m[1])) : ''));
+  coba(/\blast\s+week\b/i, () => geser(-7));
   coba(/\b(\d{1,2}|a|one)\s+weeks?\s+ago\b/i, m => {
     const n = /^\d/.test(m[1]) ? Number(m[1]) : 1;
     return n >= 1 && n <= 8 ? geser(-7 * n) : '';
