@@ -2246,7 +2246,9 @@ const SERVER = (() => {
       '- kategori: salin persis salah satu dari daftar sesuai tipe. Kosongkan untuk Transfer atau kalau tidak cocok.',
       '- dompet: salin persis dari daftar dompet. Pengeluaran = dompet pembayar, Pemasukan = dompet penerima, Transfer = dompet asal. Kosongkan kalau tidak disebut.',
       '- dompetTujuan: hanya untuk Transfer, salin persis dari daftar dompet atau tabungan. Selain itu kosong.',
-      '- tanggal: yyyy-mm-dd, hitung dari hari ini. "kemarin" = 1 hari lalu; "Sabtu minggu lalu" = hari Sabtu di minggu sebelumnya (minggu = Senin–Minggu);',
+      '- tanggal: yyyy-mm-dd, hitung dari hari ini. "kemarin" = 1 hari lalu; "5 hari yang lalu" = mundur 5 hari; "2 minggu lalu" = mundur 14 hari;',
+      '  "1 bulan yang lalu"/"sebulan lalu" = tanggal yang sama bulan sebelumnya (kalau tidak ada, hari terakhir bulan itu);',
+      '  "Sabtu minggu lalu" = hari Sabtu di minggu sebelumnya (minggu = Senin–Minggu);',
       '  "Sabtu lalu" = Sabtu terakhir sebelum hari ini; "tanggal 1 bulan kemarin" = tanggal 1 bulan sebelumnya; "tanggal 3" = tanggal 3 bulan ini (atau bulan lalu kalau belum lewat).',
       '  Kalau tidak disebut, pakai hari ini.',
       '- catatan: deskripsi singkat 1–5 kata untuk apa (huruf besar di awal), tanpa nominal, nama dompet, atau kata waktu. Kosong kalau tidak ada.',
@@ -2270,7 +2272,9 @@ const SERVER = (() => {
       required: ['tipe', 'jumlah', 'kategori', 'dompet', 'dompetTujuan', 'tanggal', 'catatan'],
     };
     const skema = { type: 'OBJECT', properties: { transaksi: { type: 'ARRAY', items: item } }, required: ['transaksi'] };
-    return STRUK.tanyaAI([{ text: prompt }], skema, kunciAi, modelAi);
+    // Tanpa thinking: kalimat pendek tidak butuh penalaran panjang, jadi jawaban lebih cepat (sama seperti bot).
+    // Tanggal relatif yang umum tetap dijaga aturan aplikasi (bacaTanggalLisan menimpa tanggal dari AI).
+    return STRUK.tanyaAI([{ text: prompt }], skema, kunciAi, modelAi, { pikir: 0 });
   }
 
   /**

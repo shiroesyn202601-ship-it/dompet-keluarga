@@ -1019,6 +1019,7 @@ async function tampilRingkasanSuara(teks) {
       </div>`;
     el.hidden = false;
     lewatiAi = false;
+    const t0 = performance.now();
     try {
       const konteks = {
         hariIni: hariIni(),
@@ -1040,8 +1041,9 @@ async function tampilRingkasanSuara(teks) {
         }).filter(y => y.jumlah || y.catatan);
         h = daftarAi[0] || null;
       }
+      console.log('suara: AI menjawab dalam ' + Math.round(performance.now() - t0) + ' ms');
     } catch (e) {
-      if (e.message !== 'dilewati') console.warn('AI suara gagal, pakai aturan biasa:', e.message);
+      if (e.message !== 'dilewati') console.warn('AI suara gagal setelah ' + Math.round(performance.now() - t0) + ' ms, pakai aturan biasa:', e.message);
     }
     if (urutan !== urutanSuara || !F || $('#ringkas-suara').hidden) return; // sudah ditutup / bicara lagi
   }
@@ -1653,13 +1655,21 @@ AKSI.suara = el => {
   suaraAktif = r;
   panelSuara('siap');
   const input = $('#f-cepat');
-  r.onaudiostart = () => { panelSuara('dengar'); if (navigator.vibrate) navigator.vibrate(30); mulaiMeterSuara(); };
-  r.onspeechstart = () => panelSuara('bicara');
+  // Catatan waktu (lihat console): di mana lamanya, di pengenal suara atau di AI.
+  const w = { mulai: performance.now() };
+  const ms = (a, b) => (a && b ? Math.round(b - a) + ' ms' : '-');
+  r.onaudiostart = () => { w.mik = performance.now(); panelSuara('dengar'); if (navigator.vibrate) navigator.vibrate(30); mulaiMeterSuara(); };
+  r.onspeechstart = () => { w.bicara = performance.now(); panelSuara('bicara'); };
+  let teksSebelum = '';
   r.onresult = ev => {
     const teks = Array.from(ev.results).map(x => x[0].transcript).join(' ').trim();
+    if (teks !== teksSebelum) { teksSebelum = teks; w.kataTerakhir = performance.now(); }
     if (input) input.value = teks;
     panelSuara('bicara', teks ? '“' + teks + '”' : '');
     if (ev.results[ev.results.length - 1].isFinal && teks) {
+      w.final = performance.now();
+      console.log('suara: mikrofon siap ' + ms(w.mulai, w.mik) + ', mulai bicara ' + ms(w.mulai, w.bicara)
+        + ', menunggu hasil final setelah kata terakhir ' + ms(w.kataTerakhir, w.final) + ', total sampai final ' + ms(w.mulai, w.final));
       try { r.stop(); } catch (e) { /* sudah berhenti */ }
       tampilRingkasanSuara(teks);
     }

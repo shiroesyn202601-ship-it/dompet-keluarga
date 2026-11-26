@@ -586,7 +586,7 @@ function angkaDariKata(teks) {
 
 /**
  * Tanggal dari ucapan/ketikan → { tanggal 'yyyy-mm-dd', sisa (kalimat tanpa kata tanggal) }. Contoh:
- * "kemarin", "kemarin lusa", "3 hari lalu", "Sabtu minggu lalu" (minggu = Senin–Minggu sebelumnya),
+ * "kemarin", "kemarin lusa", "3 hari lalu", "2 minggu lalu", "sebulan yang lalu", "Sabtu minggu lalu" (minggu = Senin–Minggu sebelumnya),
  * "Sabtu lalu" / "Sabtu kemarin" (Sabtu terakhir sebelum hari ini), "tanggal 1", "tanggal 1 bulan kemarin",
  * "tanggal 17 Agustus". tanggal kosong kalau tidak ada kata tanggal.
  */
@@ -635,6 +635,18 @@ function bacaTanggalLisan(teks) {
   });
   coba(/\b(kemarin|kemaren)\s+lusa\b|\blusa\s+(kemarin|kemaren)\b/i, () => geser(-2));
   coba(/\b(\d{1,2})\s+hari\s+(yang\s+)?(lalu|kemarin|sebelumnya)\b/i, m => (Number(m[1]) <= 60 ? geser(-Number(m[1])) : ''));
+  // "2 minggu lalu" / "seminggu yang lalu" / "sepekan lalu": mundur 7 hari per minggu. Harus sebelum "Minggu lalu" (hari).
+  coba(/\b(?:(\d{1,2})\s+(?:minggu|pekan)|seminggu|sepekan)\s+(?:yang\s+)?(?:lalu|kemarin|kemaren|sebelumnya)\b/i, m => {
+    const n = m[1] ? Number(m[1]) : 1;
+    return n >= 1 && n <= 8 ? geser(-7 * n) : '';
+  });
+  // "1 bulan lalu" / "sebulan yang lalu": tanggal yang sama N bulan lalu (31 Maret − 1 bulan = akhir Februari).
+  coba(/\b(?:(\d{1,2})\s+bulan|sebulan)\s+(?:yang\s+)?(?:lalu|kemarin|kemaren|sebelumnya)\b/i, m => {
+    const n = m[1] ? Number(m[1]) : 1;
+    if (n < 1 || n > 12) return '';
+    const akhir = new Date(kini.getFullYear(), kini.getMonth() - n + 1, 0).getDate();
+    return iso(new Date(kini.getFullYear(), kini.getMonth() - n, Math.min(kini.getDate(), akhir)));
+  });
   // "Sabtu lalu" / "Sabtu kemarin": Sabtu terakhir sebelum hari ini.
   coba(new RegExp('\\b(hari\\s+)?' + HARI + '\\s+(lalu|kemarin|kemaren)\\b', 'i'), m => {
     const target = NAMA_HARI_LISAN.indexOf(m[2].toLowerCase().replace("'", ''));
@@ -648,7 +660,7 @@ function bacaTanggalLisan(teks) {
 
 /**
  * Tambahan untuk bahasa Inggris (hanya saat BAHASA === 'en'; pola Indonesia di atas tetap berlaku):
- * "today", "yesterday", "tomorrow", "day before yesterday", "3 days ago", "last Saturday", "Saturday last week",
+ * "today", "yesterday", "tomorrow", "day before yesterday", "3 days ago", "2 weeks ago", "a month ago", "last Saturday", "Saturday last week",
  * "17 August" / "Aug 17" / "17th of Aug", "on the 3rd".
  */
 const NAMA_HARI_EN = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -676,6 +688,16 @@ function bacaTanggalInggris(coba, { kini, iso, geser, idxHari }) {
   });
   coba(/\b(the\s+)?day\s+before\s+yesterday\b/i, () => geser(-2));
   coba(/\b(\d{1,2})\s+days?\s+ago\b/i, m => (Number(m[1]) <= 60 ? geser(-Number(m[1])) : ''));
+  coba(/\b(\d{1,2}|a|one)\s+weeks?\s+ago\b/i, m => {
+    const n = /^\d/.test(m[1]) ? Number(m[1]) : 1;
+    return n >= 1 && n <= 8 ? geser(-7 * n) : '';
+  });
+  coba(/\b(\d{1,2}|a|one)\s+months?\s+ago\b/i, m => {
+    const n = /^\d/.test(m[1]) ? Number(m[1]) : 1;
+    if (n < 1 || n > 12) return '';
+    const akhir = new Date(kini.getFullYear(), kini.getMonth() - n + 1, 0).getDate();
+    return iso(new Date(kini.getFullYear(), kini.getMonth() - n, Math.min(kini.getDate(), akhir)));
+  });
   coba(new RegExp('\\b(on\\s+)?last\\s+' + HARI + '\\b', 'i'), m => {
     const target = NAMA_HARI_EN.indexOf(m[2].toLowerCase());
     return geser(-(((idxHari - target + 7) % 7) || 7));
