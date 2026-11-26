@@ -364,6 +364,22 @@ function htmlKalenderRiwayat(trx) {
       <section class="kartu daftar-hari-kal" style="padding:4px 16px">${daftarHari.length ? daftarHari.map(itemTrx).join('') : kosong('🌤️', T('Tidak ada transaksi di hari ini.'))}</section>` : ''}`;
 }
 
+// Geser kiri/kanan di kalender Riwayat = periode berikutnya/sebelumnya (sama dengan tombol ‹ › di kepala halaman,
+// dan sama seperti kalender Catatan). Dipasang di document karena kalender dibuat ulang tiap render.
+const geserKalRiwayat = { x: null, y: 0 };
+document.addEventListener('touchstart', e => {
+  const di = e.touches.length === 1 && e.target.closest && e.target.closest('.kalender-riwayat');
+  geserKalRiwayat.x = di ? e.touches[0].clientX : null;
+  if (di) geserKalRiwayat.y = e.touches[0].clientY;
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  if (geserKalRiwayat.x == null) return;
+  const dx = e.changedTouches[0].clientX - geserKalRiwayat.x, dy = e.changedTouches[0].clientY - geserKalRiwayat.y;
+  geserKalRiwayat.x = null;
+  if (S.tab !== 'riwayat' || !$('.kalender-riwayat') || Math.abs(dx) <= 60 || Math.abs(dy) >= 50) return;
+  AKSI.bulan({ dataset: { geser: dx < 0 ? 1 : -1 } });
+}, { passive: true });
+
 // ---------- 8. Perbandingan dengan periode lalu di hari yang sama ----------
 
 function barisPembanding() {
