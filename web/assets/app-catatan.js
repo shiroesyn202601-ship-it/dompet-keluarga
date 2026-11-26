@@ -672,7 +672,7 @@ function viewFormCatatan() {
       <div id="c-isi-teks" ${tugas ? 'hidden' : ''}>
         ${alatFormat()}
         <!-- Placeholder sengaja elemen terpisah: ::before di dalam contenteditable membuat perataan teks Chrome gagal. -->
-        <div class="bungkus-editor${polosMd(f.isi).trim() ? '' : ' kosong'}">
+        <div class="bungkus-editor${polosMd(f.isi).trim() ? '' : ' editor-kosong'}">
           <div class="isi-catatan editor-catatan" id="c-editor" contenteditable="true" role="textbox" aria-multiline="true" spellcheck="true"
             aria-label="${T('Isi catatan')}">${mdKeHtml(f.isi)}</div>
           <span class="petunjuk-editor" aria-hidden="true">${T('Tulis catatan… atau ketuk 🎤 untuk bicara')}</span>
@@ -817,7 +817,7 @@ function hentikanDikte() {
 /** Editor isi catatan memanjang sendiri (contenteditable); cukup perbarui tanda "kosong" untuk placeholder. */
 function tinggiIsiCatatan() {
   const ed = $('#c-editor');
-  if (ed) ed.parentElement.classList.toggle('kosong', !ed.textContent.trim() && !ed.querySelector('li'));
+  if (ed) ed.parentElement.classList.toggle('editor-kosong', !ed.textContent.trim() && !ed.querySelector('li'));
 }
 
 // ---------- Editor format catatan ----------

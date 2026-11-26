@@ -2272,7 +2272,8 @@ body.samar #view .harga-ubah, body.samar .barang-harga b { filter: blur(7px); }
 .kp-isi { text-align: left; }
 .bungkus-editor { position: relative; }
 .petunjuk-editor { display: none; position: absolute; top: 4px; left: 0; right: 0; font-size: 16px; line-height: 1.6; color: var(--muted); opacity: .7; pointer-events: none; }
-.bungkus-editor.kosong .petunjuk-editor { display: block; }
+/* Bukan .kosong: class itu dipakai tampilan "daftar kosong" (ikon 38px, rata tengah, padding). */
+.bungkus-editor.editor-kosong .petunjuk-editor { display: block; }
 .editor-catatan ul, .editor-catatan ol { margin: 2px 0; padding-left: 1.5em; }
 .editor-catatan li { padding-left: 2px; }
 .editor-catatan:focus-visible { outline: none; }
