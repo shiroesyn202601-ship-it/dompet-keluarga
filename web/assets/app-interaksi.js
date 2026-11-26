@@ -1242,7 +1242,8 @@ Object.assign(AKSI, {
  */
 function pecahKalimat(teks) {
   const utuh = Object.assign(bacaKetikCepat(teks), { sumber: 'aturan' });
-  const bagian = angkaDariKata(teks).split(/\s*(?:,|;|\bdan\b|\bterus\b)\s*/i).map(x => x.trim()).filter(Boolean);
+  // Penyambung lisan: "bakso 25rb sama es teh 5rb", "bensin 30rb trus parkir 5rb", "abis itu".
+  const bagian = angkaDariKata(teks).split(/\s*(?:,|;|\bdan\b|\bterus\b|\btrus\b|\bsama\b|\bplus\b|\b(?:abis|habis) itu\b)\s*/i).map(x => x.trim()).filter(Boolean);
   if (bagian.length < 2) return [utuh];
   const hasil = bagian.map(b => Object.assign(bacaKetikCepat(b), { sumber: 'aturan' }));
   if (hasil.filter(x => x.jumlah).length < 2) return [utuh]; // bukan daftar transaksi, mis. "nasi dan teh 20rb"

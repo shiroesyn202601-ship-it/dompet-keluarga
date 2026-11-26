@@ -504,20 +504,34 @@ async function bukaFormKunci() {
 
 const kebiasaan = () => S.data.cepat || { favorit: [], saran: [] }; // data offline versi lama belum punya
 
-/** Kata kunci → kata yang biasanya ada di nama kategori (sama dengan bot/Kode.gs). */
+/**
+ * Daftar kata (dipisah |) → pola. Tiap kata harus di awal kata ("makan" cocok di "makanan"); kata pendek (≤ 4 huruf)
+ * juga harus utuh, supaya "tol" tidak cocok di "tolak angin" dan "les" tidak cocok di "lesehan".
+ */
+const polaKata = kata => new RegExp('\\b(?:' + kata.split('|').map(w => w.length <= 4 ? w + '\\b' : w).join('|') + ')');
+
+/**
+ * Kata kunci → kata yang biasanya ada di nama kategori (kategori bawaan: lihat KATEGORI_AWAL di db.js).
+ * Dipakai ketik cepat & suara tanpa AI. Urutan penting: grup pertama yang cocok menang, jadi yang lebih khusus
+ * di atas ("susu anak" → Anak sebelum "susu" → Belanja, "grabfood" → Makan sebelum "grab" → Transportasi).
+ * Grup pemasukan (gaji, bonus, usaha, investasi) hanya terpakai kalau tipenya Pemasukan.
+ */
 const KATA_KATEGORI = [
-  [/makan|minum|bakso|nasi|mie|kopi|jajan|resto|warung|sarapan|cemilan|snack|gofood|grabfood|shopeefood/, ['makan']],
-  [/bensin|parkir|ojek|ojol|grab|gojek|tol|bus|kereta|krl|angkot|taksi|servis/, ['transport']],
-  [/listrik|pln|pdam|internet|wifi|pulsa|kuota|token|bpjs|tagihan|cicilan/, ['tagihan']],
-  [/belanja|sayur|indomaret|alfamart|pasar|supermarket|sabun|beras|minyak|galon/, ['belanja', 'rumah']],
-  [/obat|dokter|apotek|klinik|rumah sakit|vitamin/, ['kesehatan']],
-  [/sekolah|spp|buku|kursus|les|kuliah/, ['pendidikan']],
-  [/popok|pampers|susu anak|mainan/, ['anak']],
-  [/film|nonton|netflix|spotify|game|liburan|wisata/, ['hiburan']],
-  [/baju|celana|sepatu|kaos|jaket/, ['pakaian']],
-  [/sedekah|zakat|infaq|infak|kondangan|sumbangan|donasi/, ['sosial']],
-  [/gaji|upah|honor/, ['gaji']],
-  [/bonus|thr/, ['bonus']],
+  [polaKata('popok|pampers|diaper|mamypoko|merries|sweety|susu anak|susu formula|sufor|mainan|uang saku|uang jajan anak|jajan anak|daycare|penitipan anak|bayi|baby|bubur bayi|mpasi|imunisasi'), ['anak']],
+  [polaKata('obat|dokter|apotek|apotik|klinik|rumah sakit|rs|puskesmas|bidan|vitamin|suplemen|periksa|cek darah|cek lab|laboratorium|gigi|kacamata|optik|vaksin|masker|salep|paracetamol|panadol|bodrex|promag|tolak angin|antangin|minyak kayu putih|minyak angin|halodoc|terapi|pijat|urut|kesehatan'), ['kesehatan']],
+  [polaKata('sekolah|spp|uang gedung|ukt|buku|kursus|les|bimbel|kuliah|semester|seminar|pelatihan|workshop|alat tulis|atk|pensil|pulpen|fotokopi|fotocopy|print|ngeprint|seragam|wisuda|ujian|study tour|ruangguru|udemy|pendidikan'), ['pendidikan']],
+  [polaKata('makan|minum|sarapan|jajan|cemilan|camilan|snack|ngopi|kopi|teh|es teh|jus|boba|resto|restoran|rumah makan|warung|warteg|kantin|angkringan|lesehan|gofood|grabfood|shopeefood|bakso|nasi|nasgor|mie|mi ayam|indomie|soto|sate|ayam goreng|ayam geprek|ayam bakar|bebek|pecel|lele|gado|ketoprak|lontong|bubur|martabak|gorengan|roti|kue|donat|pizza|burger|kfc|mcd|mekdi|hokben|starbucks|kopi kenangan|janji jiwa|seblak|siomay|batagor|cilok|cimol|cireng|pempek|rendang|padang|dimsum|ramen|sushi|es krim|katering|catering|lauk'), ['makan']],
+  [polaKata('bensin|pertalite|pertamax|solar|spbu|isi bensin|parkir|ojek|ojol|grab|gojek|maxim|tol|e-toll|etoll|flazz|busway|transjakarta|bus|kereta|krl|mrt|lrt|commuter|angkot|taksi|taxi|bluebird|damri|pesawat|tiket pesawat|tiket kereta|tiket bus|kapal|travel|bengkel|servis motor|servis mobil|service motor|service mobil|ganti oli|oli|tambal ban|ban|cuci motor|cuci mobil|stnk|pajak motor|pajak mobil|transport'), ['transport']],
+  [polaKata('listrik|pln|token|pdam|tagihan air|bayar air|internet|wifi|indihome|biznet|first media|myrepublic|telkom|pulsa|kuota|paket data|bpjs|tagihan|cicilan|angsuran|kredit motor|kredit mobil|kpr|iuran|ipl|sewa rumah|kos|kost|kosan|kontrakan|asuransi|pbb|tv kabel|paylater|utilitas'), ['tagihan']],
+  [polaKata('perabot|furnitur|furniture|kasur|lemari|kursi|meja|sapu|alat pel|ember|lampu|servis ac|service ac|kulkas|mesin cuci|tukang|renovasi|cat tembok|semen|keramik|laundry|londri|gaji art|gaji pembantu|art|pembantu|iuran sampah|sampah|satpam|keamanan|gas|elpiji|lpg|rumah tangga'), ['rumah']],
+  [polaKata('belanja|sembako|sayur|sayuran|buah|indomaret|alfamart|alfamidi|superindo|hypermart|transmart|lotte|giant|hero|pasar|supermarket|minimarket|swalayan|sabun|sampo|shampo|odol|pasta gigi|sikat gigi|deterjen|detergen|rinso|pewangi|beras|minyak goreng|minyak|gula|garam|telur|telor|tepung|daging|ikan|tahu|tempe|bumbu|kecap|saus|susu|galon|aqua|tisu|tissue|pembalut|popok dewasa'), ['belanja', 'rumah']],
+  [polaKata('film|nonton|bioskop|xxi|cgv|netflix|spotify|youtube premium|disney|vidio|viu|game|top up game|diamond|voucher game|liburan|wisata|rekreasi|hotel|villa|staycation|karaoke|konser|renang|gym|fitness|hobi|mancing|main|jalan jalan|hiburan'), ['hiburan']],
+  [polaKata('baju|celana|sepatu|sandal|sendal|kaos|kaus|jaket|kemeja|rok|gamis|daster|piyama|jilbab|kerudung|hijab|mukena|sarung|batik|jas|tas|ikat pinggang|pakaian|jahit|permak'), ['pakaian']],
+  [polaKata('sedekah|zakat|fitrah|infaq|infak|wakaf|kurban|qurban|kondangan|nikahan|sumbangan|donasi|amal|kado|hadiah|angpao|angpau|takziah|melayat|kolekte|perpuluhan|persembahan|arisan|sosial'), ['sosial']],
+  [polaKata('gaji|gajian|upah|honor|honorarium|lembur'), ['gaji']],
+  [polaKata('bonus|thr|insentif|komisi|tunjangan'), ['bonus']],
+  [polaKata('jualan|jual|penjualan|dagangan|omzet|omset|laku|orderan|pesanan|usaha|untung|laba'), ['usaha']],
+  [polaKata('dividen|deposito|bunga bank|bunga deposito|reksadana|reksa dana|saham|obligasi|kupon|sukuk|investasi|imbal hasil'), ['investasi']],
 ];
 /**
  * Kata kunci bahasa Inggris (hanya dipakai saat BAHASA === 'en'), menunjuk ke nama kategori bawaan yang sama.
@@ -537,7 +551,21 @@ const KATA_KATEGORI_EN = [
   [/\b(salary|wages?|paycheck|payroll)\b/, ['gaji']],
   [/\b(bonus)\b/, ['bonus']],
 ];
-const NOMINAL_SLANG = { gopek: 500, seceng: 1000, goceng: 5000, ceban: 10000, gocap: 50000, cepek: 100000 };
+/** Nominal gaul (dipakai kalau tidak ada angka di kalimat). */
+const NOMINAL_SLANG = {
+  gopek: 500, seceng: 1000, noceng: 2000, goceng: 5000, ceban: 10000, noban: 20000, jiban: 20000, goban: 50000, gocap: 50000,
+  cepek: 100000, cetiau: 1000000,
+};
+/**
+ * Sebutan umum → kata di nama dompet, dipakai kalau nama dompetnya sendiri tidak disebut
+ * ("bakso 25rb pakai gopay" → dompet "E-Wallet" kalau tidak ada dompet bernama GoPay).
+ */
+const SEBUTAN_DOMPET = [
+  [polaKata('tunai|cash|kontan|uang tunai|uang cash'), ['tunai', 'cash', 'kas']],
+  [polaKata('gopay|ovo|shopeepay|spay|linkaja|e-wallet|ewallet|e wallet|dompet digital|(?:pakai|pake|via|lewat) dana'), ['e-wallet', 'ewallet', 'e wallet', 'gopay', 'ovo', 'dana', 'shopeepay', 'digital']],
+  [polaKata('kartu kredit|cc|credit card'), ['kredit', 'credit']],
+  [polaKata('bca|bri|bni|mandiri|btn|bsi|cimb|permata|danamon|jago|seabank|blu|jenius|debit|kartu debit|atm|rekening|bank|transfer bank|tf|m-banking|mbanking|m banking'), ['bank', 'rekening', 'bca', 'bri', 'bni', 'mandiri', 'jago', 'debit']],
+];
 
 /**
  * "bakso 25rb gopay" → { tipe, jumlah, kategori, dompet, catatan }. Hanya aturan sederhana,
@@ -555,6 +583,10 @@ const KATA_ANGKA_EN = {
   twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
 };
 function angkaDariKata(teks) {
+  // "satu koma lima juta" / "2 koma 5 jt" → "1,5 juta" / "2,5 jt" (dibaca sebagai pecahan oleh bacaKetikCepat).
+  const digit = w => (/^\d+$/.test(w) ? w : String(KATA_ANGKA[w.toLowerCase()]));
+  const ANGKA_KATA = '(\\d+|nol|satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh)';
+  teks = String(teks).replace(new RegExp('\\b' + ANGKA_KATA + '\\s+koma\\s+' + ANGKA_KATA + '\\b', 'gi'), (_, a, b) => digit(a) + ',' + digit(b));
   const kata = teks.split(/\s+/);
   const hasil = [];
   const en = BAHASA === 'en';
@@ -572,8 +604,8 @@ function angkaDariKata(teks) {
     else if (w === 'belas' && aktif) { satuan += 10; }
     else if (w === 'puluh' && aktif) { kelompok += (satuan || 1) * 10; satuan = 0; }
     else if ((m = w.match(/^(se)?ratus$/)) && (aktif || m[1])) { kelompok += (m[1] ? 1 : (satuan || 1)) * 100; satuan = 0; aktif = true; }
-    else if ((m = w.match(/^(se)?(ribu|juta|miliar)$/)) && (aktif || m[1])) {
-      const kali = { ribu: 1e3, juta: 1e6, miliar: 1e9 }[m[2]];
+    else if ((m = w.match(/^(se)?(ribu|rebu|juta|miliar)$/)) && (aktif || m[1])) {
+      const kali = { ribu: 1e3, rebu: 1e3, juta: 1e6, miliar: 1e9 }[m[2]];
       total += ((m[1] ? 1 : (kelompok + satuan)) || 1) * kali; kelompok = satuan = 0; aktif = true;
     }
     else if (w === 'setengah' && aktif === false) { satuan = 0.5; aktif = true; }
@@ -723,12 +755,13 @@ function bacaKetikCepat(teks) {
   // Bahasa Inggris menambah: 10m / 10 million (juta), 25 thousand (ribu). "M" tidak dipakai di bahasa Indonesia (= miliar).
   // Pengenal suara sering menulis nominal sebagai "Rp25.000" / "25.000 rupiah": awalan & akhiran mata uang ikut diambil.
   // Akhiran k = ribuan ("bensin 45K" → 45.000), boleh diikuti tanda baca ("bensin 45k, parkir 2k").
-  const re = en ? /(?:\b(?:rp|idr)\.?\s*)?(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta|thousand|m|mn|mil|million)?(?:\s*(?:rupiah|rp|idr))?(?=[\s,;!?]|\.(?!\d)|$)/g
-    : /(?:\b(?:rp|idr)\.?\s*)?(\d+(?:[.,]\d+)*)\s*(rb|ribu|k|jt|juta)?(?:\s*(?:rupiah|rp|idr))?(?=[\s,;!?]|\.(?!\d)|$)/g;
+  // Bahasa lisan: "25 rebu", "lima ribu perak", "1 koma 5 juta" (lihat angkaDariKata).
+  const re = en ? /(?:\b(?:rp|idr)\.?\s*)?(\d+(?:[.,]\d+)*)\s*(rb|ribu|rebu|k|jt|juta|thousand|m|mn|mil|million)?(?:\s*(?:rupiah|rp|idr|perak))?(?=[\s,;!?]|\.(?!\d)|$)/g
+    : /(?:\b(?:rp|idr)\.?\s*)?(\d+(?:[.,]\d+)*)\s*(rb|ribu|rebu|k|jt|juta)?(?:\s*(?:rupiah|rp|idr|perak))?(?=[\s,;!?]|\.(?!\d)|$)/g;
   let m = null;
   for (let x; (x = re.exec(sisa));) {
     let n = Number(x[1].replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.'));
-    if (/^(rb|ribu|k|thousand)$/.test(x[2] || '')) n *= 1000;
+    if (/^(rb|ribu|rebu|k|thousand)$/.test(x[2] || '')) n *= 1000;
     if (/^(jt|juta|m|mn|mil|million)$/.test(x[2] || '')) n *= 1e6;
     if (x[2] || n >= 100) { m = x; jumlah = n; break; }
   }
@@ -746,13 +779,31 @@ function bacaKetikCepat(teks) {
     if (en && namaT(w.nama) !== w.nama) sebutan.push({ w, s: namaT(w.nama).toLowerCase() });
   });
   const cocok = sebutan.sort((a, b) => b.s.length - a.s.length).find(x => sisa.includes(' ' + x.s + ' '));
-  const dompet = cocok ? cocok.w : null;
+  let dompet = cocok ? cocok.w : null;
   if (cocok) sisa = sisa.replace(' ' + cocok.s + ' ', ' ');
-  sisa = sisa.replace(/(^|\s)(rp\.?|rupiah|idr)(?=\s|$)/g, ' ') // sisa mata uang yang tidak menempel ke angka
-    .replace(/\b(pakai|pake|pk|via|dari|ke|lewat|bayar)\b/g, ' ').replace(/\s+/g, ' ').trim();
-  if (en) sisa = sisa.replace(/\b(with|using|paid|pay|by)\b/g, ' ').replace(/\s+/g, ' ').trim();
-  const tipe = /\b(gaji|terima|dapat|bonus|thr|masuk|transferan)\b/.test(sisa)
+  if (!dompet) {
+    // Nama dompet tidak disebut: sebutan umum ("gopay", "cash", "bca", "debit") → dompet yang namanya memuat
+    // kata itu, lalu dompet jenis yang sama ("E-Wallet", "Tunai", "Rekening Bank").
+    const nama = w => w.nama.toLowerCase();
+    for (const [pola, petunjuk] of SEBUTAN_DOMPET) {
+      const x = sisa.match(pola);
+      if (!x) continue;
+      const ucap = x[0].replace(/^(pakai|pake|via|lewat)\s+/, '');
+      const w = dompetBiasa().find(w => nama(w).includes(ucap))
+        || petunjuk.map(p => dompetBiasa().find(w => nama(w).includes(p))).find(Boolean);
+      if (w) { dompet = w; sisa = sisa.replace(x[0], ' '); break; }
+    }
+  }
+  // Pemasukan atau pengeluaran, dibaca sebelum kata seperti "bayar"/"beli" dibuang dari catatan.
+  const kataMasuk = /\b(gaji|gajian|terima|diterima|nerima|dapat|dapet|bonus|thr|masuk|pemasukan|transferan|upah|honor|honorarium|komisi|insentif|tunjangan|lembur|jual|jualan|penjualan|omzet|omset|laku|dividen|cashback|refund|untung|laba|bunga (?:deposito|bank|tabungan))\b/;
+  const bukanMasuk = /\b(bayar|bayarin|beli|beliin|belanja|pengeluaran|terima kasih|masuk angin)\b|\b(gaji|upah|thr|bonus)\s+(art|pembantu|asisten|sopir|supir|tukang|karyawan|pegawai|satpam|babysitter|pengasuh)\b/;
+  const tipe = (kataMasuk.test(sisa) && !bukanMasuk.test(sisa))
     || (en && /\b(salary|wages?|paycheck|payroll|income|received|refund)\b/.test(sisa)) ? TIPE.MASUK : TIPE.KELUAR;
+  // Kata pengisi yang tidak perlu masuk catatan ("tadi beli bakso dong 25rb" → "Bakso").
+  sisa = sisa.replace(/(^|\s)(rp\.?|rupiah|idr|perak)(?=\s|$)/g, ' ') // sisa mata uang yang tidak menempel ke angka
+    .replace(/\b(pakai|pake|pk|via|dari|ke|lewat|bayar|bayarin|beli|beliin|buat|untuk|utk|habis|abis|sebesar|seharga|harganya|totalnya|total|catat|catet|tolong|dong|ya|sih|deh|nih|aja|saja|tadi|sekitar|kira kira|kurang lebih|aku|saya|gue|gw|pengeluaran|pemasukan)\b/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  if (en) sisa = sisa.replace(/\b(with|using|paid|pay|by)\b/g, ' ').replace(/\s+/g, ' ').trim();
   const catatan = sisa ? sisa.charAt(0).toUpperCase() + sisa.slice(1) : '';
   return { tipe, jumlah: Math.round(jumlah), kategori: tebakKategori(tipe, catatan), dompet: dompet ? dompet.nama : '', catatan, tanggal: waktu.tanggal };
 }
@@ -765,10 +816,14 @@ function tebakKategori(tipe, catatan) {
   const ada = n => daftar.some(k => k.nama === n);
   const dulu = kebiasaan().saran.find(s => s.tipe === tipe && s.catatan.toLowerCase() === c && ada(s.kategori));
   if (dulu) return dulu.kategori;
-  const kata = c.split(/\s+/).filter(w => w.length > 3);
+  // "rumah sakit" / "rumah makan" tidak boleh cocok dengan kategori "Rumah Tangga" lewat kata "rumah".
+  const kata = c.replace(/\brumah (sakit|makan|bersalin)\b/g, ' ').split(/\s+/).filter(w => w.length > 3);
   // Nama tampilan ikut dicocokkan (bahasa Inggris: "groceries" → Belanja Harian); namaT = nama asli di bahasa Indonesia.
+  // Dicocokkan per kata dari awal kata ("makanan" ↔ "Makan", "transport" ↔ "Transportasi"), bukan potongan di
+  // tengah kata, supaya "nasi" tidak cocok dengan "Do-nasi".
+  const kataNama = k => (k.nama + ' ' + namaT(k.nama)).toLowerCase().split(/[^a-z0-9À-ɏ]+/).filter(x => x.length > 3);
   const namaCocok = daftar.find(k => k.nama !== 'Lainnya'
-    && kata.some(w => k.nama.toLowerCase().includes(w) || namaT(k.nama).toLowerCase().includes(w)));
+    && kata.some(w => kataNama(k).some(n => n.startsWith(w) || w.startsWith(n))));
   if (namaCocok) return namaCocok.nama;
   for (const [pola, petunjuk] of BAHASA === 'en' ? KATA_KATEGORI.concat(KATA_KATEGORI_EN) : KATA_KATEGORI) {
     if (!pola.test(c)) continue;
